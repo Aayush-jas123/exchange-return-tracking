@@ -759,6 +759,77 @@ const GamificationService = {
   },
 
   // ══════════════════════════════════════════════════════════════════════════
+  // CLIMB, RANKS, AND ACTIVITY
+  // ══════════════════════════════════════════════════════════════════════════
+
+  async getClimb(influencerId) {
+    const [{ data: athlete, error: athleteError }, { data: levels, error: levelsError }, { data: history, error: historyError }] = await Promise.all([
+      supabase.from('influencers').select('id, xp_total, standing_score, level_id, level_since, joined_at').eq('id', influencerId).single(),
+      supabase.from('comfort_levels').select('id, ordinal, code, display_name, display_number, min_xp, min_standing, min_days_in_previous, requires_manual_approval, dial_segments_lit, perks').order('ordinal'),
+      supabase.from('level_history').select('id, direction, reason_code, occurred_at, from_level_id, to_level_id').eq('influencer_id', influencerId).order('occurred_at', { ascending: false }).limit(12)
+    ]);
+    if (athleteError) throw athleteError;
+    if (levelsError) throw levelsError;
+    if (historyError) throw historyError;
+
+    const ladder = levels || [];
+    const current = ladder.find(level => level.id === athlete.level_id) || ladder[0] || null;
+    const next = current ? ladder.find(level => level.ordinal === current.ordinal + 1) || null : null;
+    const levelSince = athlete.level_since || athlete.joined_at;
+    const daysInCurrentLevel = levelSince ? Math.max(0, Math.floor((Date.now() - new Date(levelSince).getTime()) / 86400000)) : 0;
+    const requirements = next ? {
+      xp: { required: next.min_xp, current: athlete.xp_total || 0, complete: (athlete.xp_total || 0) >= next.min_xp },
+      standing: { required: next.min_standing, current: athlete.standing_score || 0, complete: next.min_standing == null || (athlete.standing_score || 0) >= next.min_standing },
+      days: { required: next.min_days_in_previous, current: daysInCurrentLevel, complete: next.min_days_in_previous == null || daysInCurrentLevel >= next.min_days_in_previous },
+      manual_approval: next.requires_manual_approval
+    } : null;
+    const levelsById = Object.fromEntries(ladder.map(level => [level.id, level]));
+    return { current_level: current, next_level: next, ladder, days_in_current_level: daysInCurrentLevel, requirements, history: (history || []).map(item => ({ ...item, from_level: levelsById[item.from_level_id] || null, to_level: levelsById[item.to_level_id] || null })) };
+  },
+
+  async captureRankSnapshots() {
+    const { data: athletes, error } = await supabase.from('influencers').select('id, xp_total, level_id, standing_score').eq('leaderboard_opt_out', false).in('athlete_status', ['ACTIVE', 'ON_TRIAL']).order('xp_total', { ascending: false });
+    if (error) throw error;
+    const capturedOn = new Date().toISOString().slice(0, 10);
+    const rows = (athletes || []).map((athlete, index) => ({ influencer_id: athlete.id, captured_on: capturedOn, global_rank: index + 1, xp_total: athlete.xp_total || 0, level_id: athlete.level_id, standing_score: athlete.standing_score || 0 }));
+    if (!rows.length) return { captured: 0 };
+    const { error: upsertError } = await supabase.from('athlete_rank_snapshots').upsert(rows, { onConflict: 'influencer_id,captured_on' });
+    if (upsertError) throw upsertError;
+    return { captured: rows.length, captured_on: capturedOn };
+  },
+
+  async getRanks(influencerId) {
+    const { data: athletes, error } = await supabase.from('influencers').select('id, name, athlete_no, xp_total, standing_score, level_id').eq('leaderboard_opt_out', false).in('athlete_status', ['ACTIVE', 'ON_TRIAL']).order('xp_total', { ascending: false });
+    if (error) throw error;
+    const rank = (athletes || []).findIndex(athlete => athlete.id === influencerId) + 1;
+    const nearby = (athletes || []).slice(Math.max(0, rank - 3), rank + 2).map((athlete, index) => ({ ...athlete, global_rank: Math.max(1, rank - 2) + index, is_self: athlete.id === influencerId }));
+    const { data: snapshots, error: snapshotError } = await supabase.from('athlete_rank_snapshots').select('captured_on, global_rank, xp_total, standing_score').eq('influencer_id', influencerId).order('captured_on', { ascending: false }).limit(90);
+    // The ranks endpoint remains usable before the additive snapshot migration runs.
+    if (snapshotError && !['42P01', 'PGRST205'].includes(snapshotError.code)) throw snapshotError;
+    const { data: history, error: historyError } = await supabase.from('level_history').select('direction, reason_code, occurred_at, to_level_id').eq('influencer_id', influencerId).order('occurred_at', { ascending: false }).limit(12);
+    if (historyError) throw historyError;
+    const previous = snapshots?.[1] || null;
+    return { current_rank: rank || null, rank_delta: previous && rank ? previous.global_rank - rank : 0, snapshots: (snapshots || []).reverse(), nearby, level_history: history || [] };
+  },
+
+  async getActivityLog(influencerId) {
+    const [assignments, entries, movements] = await Promise.all([
+      supabase.from('assignments').select('id, status, submitted_at, reviewed_at, xp_awarded, coin_awarded, task_templates(title)').eq('influencer_id', influencerId).order('updated_at', { ascending: false }).limit(25),
+      supabase.from('ledger_entries').select('id, currency, amount, reason_code, created_at').eq('influencer_id', influencerId).order('created_at', { ascending: false }).limit(25),
+      supabase.from('level_history').select('id, direction, reason_code, occurred_at').eq('influencer_id', influencerId).order('occurred_at', { ascending: false }).limit(25)
+    ]);
+    if (assignments.error) throw assignments.error;
+    if (entries.error) throw entries.error;
+    if (movements.error) throw movements.error;
+    const events = [
+      ...(assignments.data || []).map(item => ({ type: 'MISSION', title: item.task_templates?.title || 'Mission updated', detail: item.status, occurred_at: item.reviewed_at || item.submitted_at })),
+      ...(entries.data || []).map(item => ({ type: item.currency, title: `${item.amount > 0 ? '+' : ''}${item.amount} ${item.currency}`, detail: item.reason_code, occurred_at: item.created_at })),
+      ...(movements.data || []).map(item => ({ type: 'CLIMB', title: item.direction, detail: item.reason_code, occurred_at: item.occurred_at }))
+    ].filter(event => event.occurred_at).sort((a, b) => new Date(b.occurred_at) - new Date(a.occurred_at)).slice(0, 50);
+    return events;
+  },
+
+  // ══════════════════════════════════════════════════════════════════════════
   // GAME SETTINGS
   // ══════════════════════════════════════════════════════════════════════════
 

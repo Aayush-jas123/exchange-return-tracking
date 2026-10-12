@@ -1043,6 +1043,33 @@ module.exports = function mountAthleteRoutes(app) {
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
 
+  // ── Climb / Comfort-Level Ladder ──
+  app.get('/api/athlete/:token/climb', authAthlete, async (req, res) => {
+    try {
+      const { influencerId, scope } = req.athleteScope;
+      if (scope !== 'PROGRESS') return res.status(403).json({ error: 'Wrong scope' });
+      res.json({ success: true, data: await GamificationService.getClimb(influencerId) });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // ── Personal Ranks / History ──
+  app.get('/api/athlete/:token/ranks', authAthlete, async (req, res) => {
+    try {
+      const { influencerId, scope } = req.athleteScope;
+      if (scope !== 'PROGRESS') return res.status(403).json({ error: 'Wrong scope' });
+      res.json({ success: true, data: await GamificationService.getRanks(influencerId) });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // ── Personal Activity Log ──
+  app.get('/api/athlete/:token/log', authAthlete, async (req, res) => {
+    try {
+      const { influencerId, scope } = req.athleteScope;
+      if (scope !== 'PROGRESS') return res.status(403).json({ error: 'Wrong scope' });
+      res.json({ success: true, data: await GamificationService.getActivityLog(influencerId) });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
   // ── Badges ──
   app.get('/api/athlete/:token/badges', authAthlete, async (req, res) => {
     try {

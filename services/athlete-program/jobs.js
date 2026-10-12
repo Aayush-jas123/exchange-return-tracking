@@ -39,6 +39,10 @@ const AthleteJobs = {
       const streakResult = await this.updateDailyStreaks();
       console.log(`[AthleteJobs] Streak update: ${streakResult.updated} updated, ${streakResult.broken} broken`);
 
+      // 6. Capture one idempotent rank snapshot per active athlete for Ranks.
+      const rankResult = await GamificationService.captureRankSnapshots();
+      console.log(`[AthleteJobs] Rank snapshots: ${rankResult.captured} captured`);
+
     } catch (err) {
       console.error('[AthleteJobs] Nightly run failed:', err);
     }
