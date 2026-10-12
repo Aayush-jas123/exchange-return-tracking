@@ -9,59 +9,479 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
-    :root{--bg:#0a0a0a;--ink:#fff;--dim:rgba(255,255,255,.52);--line:rgba(255,255,255,.16);--f:"Archivo","Helvetica Neue",Arial,sans-serif;--m:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace}
-    *{box-sizing:border-box}html{color-scheme:dark;background:#0b0b0b}body{margin:0;background:#0b0b0b;color:var(--ink);font-family:var(--f);-webkit-font-smoothing:antialiased}button,input,textarea{font:inherit}button{cursor:pointer}.loading,.auth{position:fixed;inset:0;z-index:20;display:grid;place-items:center;background:#0b0b0b}.loading p,.auth p{font:10px var(--m);letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}.auth-card{width:min(370px,calc(100% - 36px));padding:25px 18px;border:1px solid var(--line);background:var(--bg)}.auth-card h1{font-size:28px;letter-spacing:.1em;margin:0}.auth-card input,.auth-card button,.sheet input,.sheet textarea{display:block;width:100%;border:1px solid var(--line);background:#0a0a0a;color:#fff;padding:12px;margin-top:10px}.auth-card button,.sheet button,.mission-action{border:1px solid #fff;background:#fff;color:#000;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}.portal{display:none;min-height:100svh;padding:28px 18px}.portal.ready{display:grid;place-items:center}.phone{position:relative;width:min(100%,370px);height:min(760px,calc(100svh - 56px));min-height:610px;overflow:hidden;border:2px solid #333;border-radius:34px;background:var(--bg);box-shadow:0 0 0 1px #000,0 28px 64px rgba(0,0,0,.72)}.field{position:absolute;inset:0;display:grid;grid-template-columns:repeat(12,1fr);grid-template-rows:repeat(24,1fr);z-index:0}.brick{outline:.4px solid rgba(255,255,255,.045)}.brick.on{background:rgba(255,255,255,.085)}.brick.hit{animation:hit 1400ms ease-out}@keyframes hit{0%{background:rgba(255,255,255,.42)}100%{background:rgba(255,255,255,.085)}}.screen{position:absolute;inset:0;z-index:1;display:none;flex-direction:column;padding:22px 15px 13px;gap:11px;overflow:hidden;color:var(--ink)}.screen.active{display:flex}.rise{opacity:0;transform:translateY(13px)}.screen.open .rise{animation:rise .6s cubic-bezier(.16,1,.3,1) forwards}@keyframes rise{to{opacity:1;transform:none}}.top{display:flex;justify-content:space-between;align-items:center;font:8.5px var(--m);letter-spacing:.13em;text-transform:uppercase;color:var(--dim)}.live{display:flex;align-items:center;gap:5px;color:#fff}.dotlive{width:5px;height:5px;border-radius:50%;background:#fff;animation:breath 2s ease-in-out infinite}@keyframes breath{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.26;transform:scale(.7)}}.kick{font:8.5px var(--m);letter-spacing:.22em;text-transform:uppercase;color:var(--dim);margin-top:7px}.hero{font-size:31px;font-weight:900;line-height:.95;letter-spacing:-.028em;text-transform:uppercase}.hero span{display:block;overflow:hidden}.hero i{display:block;font-style:normal;transform:translateY(105%)}.screen.open .hero i{animation:lift .78s cubic-bezier(.16,1,.3,1) forwards}.screen.open .hero span+span i{animation-delay:.09s}@keyframes lift{to{transform:none}}.clockrow{display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:7px 0}.clocklab,.label{display:block;font:7.5px var(--m);letter-spacing:.16em;text-transform:uppercase;color:var(--dim);margin-bottom:2px}.clock{font:700 17px var(--m);font-variant-numeric:tabular-nums}.clock .s{opacity:.48}.xpchip{font:11px var(--m);border:1px solid var(--line);padding:4px 7px}.resets{font:8px var(--m);letter-spacing:.1em;text-transform:uppercase;color:var(--dim);text-align:right;line-height:1.4}.plate{position:relative;overflow:hidden;min-height:88px;flex:1 1 auto;background:linear-gradient(150deg,#565656,#101010 62%,#2d2d2d)}.plate>i{position:absolute;inset:-14%;background:inherit;animation:burns 22s ease-in-out infinite alternate}@keyframes burns{to{transform:scale(1.16) translate(-3%,-2%)}}.plate:after{content:"";position:absolute;inset:0;opacity:.3;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/><feColorMatrix type='saturate' values='0'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='.55'/></svg>")}.plate q{position:absolute;left:10px;right:10px;bottom:8px;z-index:1;quotes:none;font-size:11px;line-height:1.35;text-shadow:0 1px 4px #000}.plate q b{display:block;margin-top:3px;color:rgba(255,255,255,.72);font:7.5px var(--m);letter-spacing:.14em;text-transform:uppercase}.cta{position:relative;overflow:hidden;border:1px solid #fff;background:#fff;color:#000;padding:13px;font-size:12px;font-weight:800;letter-spacing:.11em;text-align:center;text-transform:uppercase}.cta:after{content:"";position:absolute;top:0;bottom:0;width:36%;background:linear-gradient(90deg,transparent,rgba(0,0,0,.14),transparent);transform:translateX(-160%);animation:sweep 4.6s cubic-bezier(.4,0,.2,1) infinite}@keyframes sweep{0%,62%{transform:translateX(-160%)}100%{transform:translateX(330%)}}.cta:active{transform:scale(.978)}.statrow{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center}.dial .lit{stroke-dasharray:21;stroke-dashoffset:21}.screen.open .dial .lit{animation:draw .9s cubic-bezier(.16,1,.3,1) .3s forwards}@keyframes draw{to{stroke-dashoffset:0}}.dial .dark{opacity:0}.screen.open .dial .dark{animation:fade .5s linear .55s forwards}@keyframes fade{to{opacity:.26}}.dial text{fill:#fff;font:900 19px var(--f);letter-spacing:-.04em}.lvl{font-size:14px;font-weight:800;line-height:1.1;text-transform:uppercase}.xpbig{float:right;font-size:22px;font-weight:900;letter-spacing:-.02em}.bar{height:2px;margin-top:7px;overflow:hidden;background:var(--line)}.bar i{display:block;height:100%;width:0;background:#fff}.screen.open .bar i{animation:fill 1.25s cubic-bezier(.16,1,.3,1) .35s forwards}@keyframes fill{to{width:var(--pct)}}.sub{margin-top:3px;color:var(--dim);font:9px var(--m);letter-spacing:.05em}.strip{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;margin:0;background:var(--line);border:1px solid var(--line)}.strip div{padding:8px 9px;background:var(--bg)}.strip dt{color:var(--dim);font:7.5px var(--m);letter-spacing:.14em;text-transform:uppercase}.strip dd{margin:3px 0 0;font-size:17px;font-weight:900;line-height:1}.strip s{color:var(--dim);font:9px var(--m);text-decoration:none}.ticker{overflow:hidden;border-top:1px solid var(--line);padding-top:9px;mask-image:linear-gradient(90deg,transparent,#000 9%,#000 91%,transparent)}.rail{display:flex;gap:26px;width:max-content;animation:roll 26s linear infinite}.rail span{color:var(--dim);font:9px var(--m);letter-spacing:.07em;white-space:nowrap}.rail b{color:#fff}@keyframes roll{to{transform:translateX(-50%)}}.mission{min-height:56px;display:grid;grid-template-columns:20px 1fr auto;gap:8px;align-items:center;padding:7px;margin:0 -7px;overflow:hidden;border-bottom:1px solid var(--line)}.mission:before{content:attr(data-number);color:var(--dim);font:9.5px var(--m)}.mission-type{color:var(--dim);font:7px var(--m);letter-spacing:.12em;text-transform:uppercase}.mission-title{font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mission-xp{font:11px var(--m);white-space:nowrap}.mission-action{margin-top:4px;padding:5px 7px;font-size:8px}.mission-action[disabled]{opacity:.5}.rows{position:relative;display:flex;flex-direction:column}.row{position:relative;display:grid;grid-template-columns:20px 1fr auto;gap:8px;align-items:center;padding:6px 7px;margin:0 -7px;overflow:hidden;will-change:transform}.fillbar{position:absolute;inset:0 auto 0 0;width:0;background:rgba(255,255,255,.055);transition:width .9s cubic-bezier(.16,1,.3,1)}.row>*:not(.fillbar){position:relative}.rank{color:var(--dim);font:9.5px var(--m);font-variant-numeric:tabular-nums}.name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.score{font:11px var(--m);font-variant-numeric:tabular-nums}.row.top1 .name{font-weight:800}.row.me{background:#fff;color:#000;font-weight:800}.row.me .rank,.row.me .score{color:#000}.row.me .fillbar{background:rgba(0,0,0,.09)}.row.bump{animation:bump .9s cubic-bezier(.16,1,.3,1)}@keyframes bump{0%{box-shadow:inset 0 0 0 2px #fff}100%{box-shadow:inset 0 0 0 0 transparent}}.row.gain .score{animation:gain .9s ease-out}@keyframes gain{0%{transform:translateY(-7px);opacity:.3}100%{transform:none;opacity:1}}.gap{display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid var(--line);padding-top:8px}.gap b{font-size:13px;font-weight:800}.gap span{color:var(--dim);font:9px var(--m);letter-spacing:.06em}.nav{display:flex;justify-content:space-between;border-top:1px solid var(--line);padding-top:9px;color:var(--dim);font:7.5px var(--m);letter-spacing:.11em;text-transform:uppercase}.nav button{border:0;padding:0;background:transparent;color:inherit;font:inherit}.nav button.active{color:#fff;font-weight:700}.toast{position:absolute;left:15px;right:15px;top:66px;z-index:4;display:flex;justify-content:space-between;align-items:center;border:1px solid #fff;background:#fff;color:#000;padding:9px 11px;opacity:0;transform:translateY(-12px);pointer-events:none;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase}.toast i{font:11px var(--m);font-style:normal}.toast.show{animation:toast 2700ms cubic-bezier(.16,1,.3,1) forwards}@keyframes toast{0%{opacity:0;transform:translateY(-12px) scale(.97)}9%,80%{opacity:1;transform:none}100%{opacity:0;transform:translateY(-8px) scale(.99)}}.scroll{overflow:auto;margin-right:-7px;padding-right:7px;scrollbar-width:none}.scroll::-webkit-scrollbar{display:none}.module{padding:12px 0;border-bottom:1px solid var(--line)}.module h2{margin:4px 0;font-size:17px;line-height:1;text-transform:uppercase}.module p{margin:0;color:var(--dim);font-size:11px;line-height:1.45}.ladder-row{display:grid;grid-template-columns:36px 1fr auto;gap:8px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)}.ladder-num{color:var(--dim);font:900 18px var(--f)}.ladder-title{font-size:12px;font-weight:800}.ladder-meta,.history-row{color:var(--dim);font:8px var(--m);letter-spacing:.04em}.ladder-row.current .ladder-num,.ladder-row.current .ladder-title{color:#fff}.state{border:1px solid var(--line);padding:3px 5px;font:8px var(--m)}.history-row{display:grid;grid-template-columns:62px 1fr auto;gap:8px;padding:9px 0;border-bottom:1px solid var(--line)}.history-row b{color:#fff;font:700 11px var(--f)}.rank-card{border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:10px 0}.rank-card strong{display:block;font-size:48px;line-height:.9;letter-spacing:-.06em}.rank-card p{margin:6px 0 0;color:var(--dim);font:9px var(--m);letter-spacing:.06em}.chart{display:flex;height:104px;align-items:end;gap:3px;margin-top:13px;padding-bottom:8px;border-bottom:1px solid var(--line)}.chart i{display:block;min-width:3px;flex:1;background:#fff;opacity:.76}.sheet-wrap{position:absolute;inset:0;z-index:5;display:none;align-items:end;background:rgba(0,0,0,.72)}.sheet-wrap.open{display:flex}.sheet{width:100%;border-top:1px solid var(--line);background:#0a0a0a;padding:18px 15px 27px}.sheet h2{margin:0;font-size:17px;text-transform:uppercase}.sheet label{display:block;margin-top:10px;color:var(--dim);font:9px var(--m)}.sheet label input{display:inline;width:auto;margin:0 5px 0 0}.sheet .actions{display:flex;gap:8px}.sheet .actions button{flex:1;padding:11px}.sheet .cancel{background:transparent;color:#fff;border-color:var(--line)}.empty{padding:18px 0;color:var(--dim);font:10px var(--m);letter-spacing:.08em;text-transform:uppercase}@media(max-height:680px){.phone{height:calc(100svh - 18px);min-height:590px}.portal{padding:9px}.plate{min-height:66px}.screen{gap:8px}}@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important}.rise,.hero i{opacity:1!important;transform:none!important}.bar i{width:var(--pct)!important}}
+    :root{
+      --sbg:#0B0B0B; --sdim:#8A8A8A; --sline:#232323; --spanel:#131313;
+      --f:"Archivo","Helvetica Neue",Arial,sans-serif;
+      --m:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+      --bg:#0A0A0A; --ink:#fff; --dim:rgba(255,255,255,.52); --line:rgba(255,255,255,.16);
+    }
+    *{box-sizing:border-box}
+    html{color-scheme:dark;background:var(--sbg)}
+    body{margin:0;background:var(--sbg);color:#fff;font-family:var(--f);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+    button,input,textarea{font:inherit}
+
+    .loading,.auth{position:fixed;inset:0;z-index:20;display:grid;place-items:center;background:var(--sbg)}
+    .loading p,.auth p{font:10px var(--m);letter-spacing:.16em;text-transform:uppercase;color:var(--sdim)}
+    .auth-card{width:min(370px,calc(100% - 36px));padding:25px 18px;border:1px solid var(--sline);background:var(--bg)}
+    .auth-card h1{font-size:28px;letter-spacing:.1em;margin:0}
+    .auth-card input,.auth-card button,.sheet input,.sheet textarea{display:block;width:100%;border:1px solid var(--sline);background:#0a0a0a;color:#fff;padding:12px;margin-top:10px}
+    .auth-card button{border:1px solid #fff;background:#fff;color:#000;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;cursor:pointer}
+    .auth-card button.ghost{background:transparent;color:#fff;border-color:var(--line)}
+    .auth-card button:active{transform:scale(.98)}
+
+    .portal{display:none;min-height:100svh;padding:28px 18px;place-items:center}
+    .portal.ready{display:grid}
+    .phone{position:relative;width:min(100%,370px);height:min(760px,calc(100svh - 56px));min-height:610px;overflow:hidden;border:2px solid #333;border-radius:34px;background:var(--bg);box-shadow:0 0 0 1px #000,0 28px 64px rgba(0,0,0,.72)}
+    @media(max-height:680px){.phone{height:calc(100svh - 18px);min-height:590px}.portal{padding:9px}}
+
+    .field{position:absolute;inset:0;display:grid;grid-template-columns:repeat(12,1fr);grid-template-rows:repeat(24,1fr);z-index:0}
+    .bk{outline:.4px solid rgba(255,255,255,.045)}
+    .bk.on{background:rgba(255,255,255,.085)}
+    .bk.hit{animation:hit 1400ms ease-out}
+    @keyframes hit{0%{background:rgba(255,255,255,.42)}100%{background:rgba(255,255,255,.085)}}
+
+    .screen{position:absolute;inset:0;z-index:1;display:none;flex-direction:column;padding:22px 15px 13px;gap:11px;overflow:hidden;color:var(--ink)}
+    .screen.active{display:flex}
+    .rise{opacity:0;transform:translateY(13px)}
+    .open .rise{animation:rise .6s cubic-bezier(.16,1,.3,1) forwards}
+    @keyframes rise{to{opacity:1;transform:none}}
+
+    .top{display:flex;justify-content:space-between;align-items:center;font-family:var(--m);font-size:8.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--dim)}
+    .live{display:flex;align-items:center;gap:5px;color:#fff}
+    .dotlive{width:5px;height:5px;border-radius:50%;background:#fff;animation:bp 2s ease-in-out infinite}
+    @keyframes bp{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.26;transform:scale(.7)}}
+
+    .kick{font-family:var(--m);font-size:8.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--dim);margin-top:7px}
+    .hero{font-weight:900;font-size:31px;line-height:.95;letter-spacing:-.028em;text-transform:uppercase}
+    .hero span{display:block;overflow:hidden}
+    .hero i{display:block;font-style:normal;transform:translateY(105%)}
+    .open .hero i{animation:lift .78s cubic-bezier(.16,1,.3,1) forwards}
+    .open .hero span+span i{animation-delay:.09s}
+    @keyframes lift{to{transform:none}}
+
+    .clockrow{display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:7px 0}
+    .clocklab{font-family:var(--m);font-size:7.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);display:block;margin-bottom:2px}
+    .clock{font-family:var(--m);font-size:17px;font-weight:700;font-variant-numeric:tabular-nums}
+    .clock .s{opacity:.48}
+    .resets{font-family:var(--m);font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);text-align:right;line-height:1.4}
+    .xpchip{font-family:var(--m);font-size:11px;border:1px solid var(--line);padding:4px 7px}
+
+    .plate{position:relative;flex:1 1 auto;min-height:74px;overflow:hidden;background:linear-gradient(150deg,#565656,#101010 62%,#2D2D2D)}
+    .plate i{position:absolute;inset:-14%;background:inherit;animation:burns 22s ease-in-out infinite alternate}
+    @keyframes burns{0%{transform:scale(1)}100%{transform:scale(1.15) translate(-3%,-2%)}}
+    .plate::after{content:"";position:absolute;inset:0;opacity:.3;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/><feColorMatrix type='saturate' values='0'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='.55'/></svg>")}
+    .plate q{position:absolute;left:10px;right:10px;bottom:7px;z-index:2;quotes:none;font-size:11px;line-height:1.35;text-shadow:0 1px 4px #000}
+    .plate q b{display:block;font-family:var(--m);font-size:7.5px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.72);font-weight:400;margin-top:3px}
+
+    .cta{position:relative;overflow:hidden;border:1px solid #fff;background:#fff;color:#000;font-weight:800;font-size:12px;letter-spacing:.11em;text-transform:uppercase;text-align:center;padding:13px;cursor:pointer;user-select:none}
+    .cta::after{content:"";position:absolute;top:0;bottom:0;width:36%;background:linear-gradient(90deg,transparent,rgba(0,0,0,.14),transparent);transform:translateX(-160%);animation:sweep 4.6s cubic-bezier(.4,0,.2,1) infinite}
+    @keyframes sweep{0%,62%{transform:translateX(-160%)}100%{transform:translateX(330%)}}
+    .cta:active{transform:scale(.978)}
+
+    .statrow{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center}
+    .dial .lit{stroke-dasharray:21;stroke-dashoffset:21}
+    .open .dial .lit{animation:draw .9s cubic-bezier(.16,1,.3,1) .3s forwards}
+    @keyframes draw{to{stroke-dashoffset:0}}
+    .dial .dark{opacity:0}
+    .open .dial .dark{animation:fadein .5s linear .55s forwards}
+    @keyframes fadein{to{opacity:.26}}
+    .dial text{fill:#fff;font-family:var(--f);font-weight:900;font-size:19px;letter-spacing:-.04em}
+    .lvl{font-weight:800;font-size:14px;letter-spacing:.02em;text-transform:uppercase;line-height:1.1}
+    .xpbig{font-size:22px;font-weight:900;letter-spacing:-.02em}
+    .bar{height:2px;background:var(--line);margin-top:7px;overflow:hidden}
+    .bar i{display:block;height:100%;width:0;background:#fff}
+    .open .bar i{animation:fill 1.25s cubic-bezier(.16,1,.3,1) .35s forwards}
+    @keyframes fill{to{width:var(--pct)}}
+    .sub{font-family:var(--m);font-size:9px;color:var(--dim);letter-spacing:.05em;margin-top:3px}
+
+    .strip{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line)}
+    .strip div{background:var(--bg);padding:8px 9px}
+    .strip dt{font-family:var(--m);font-size:7.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+    .strip dd{margin:3px 0 0;font-size:17px;font-weight:900;line-height:1}
+    .strip s{font-family:var(--m);font-size:9px;color:var(--dim);text-decoration:none}
+
+    .tick{overflow:hidden;border-top:1px solid var(--line);padding-top:9px;mask-image:linear-gradient(90deg,transparent,#000 9%,#000 91%,transparent)}
+    .tickrail{display:flex;gap:26px;width:max-content;animation:roll 26s linear infinite}
+    .tickrail span{font-family:var(--m);font-size:9px;letter-spacing:.07em;color:var(--dim);white-space:nowrap}
+    .tickrail b{color:#fff}
+    @keyframes roll{to{transform:translateX(-50%)}}
+
+    .list{display:flex;flex-direction:column;position:relative}
+    .row{position:relative;display:grid;grid-template-columns:20px 1fr auto;gap:8px;align-items:center;padding:6px 7px;margin:0 -7px;overflow:hidden;will-change:transform}
+    .row .fillbar{position:absolute;inset:0 auto 0 0;background:rgba(255,255,255,.055);width:0;transition:width .9s cubic-bezier(.16,1,.3,1)}
+    .row u{position:relative;font-family:var(--m);font-size:9.5px;color:var(--dim);text-decoration:none;font-variant-numeric:tabular-nums}
+    .row n{position:relative;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .row v{position:relative;font-family:var(--m);font-size:11px;font-variant-numeric:tabular-nums}
+    .row.top1 n{font-weight:800}
+    .row.me{background:#fff;color:#000;font-weight:800}
+    .row.me u,.row.me v{color:#000}
+    .row.me .fillbar{background:rgba(0,0,0,.09)}
+    .row.bump{animation:bump 900ms cubic-bezier(.16,1,.3,1)}
+    @keyframes bump{0%{box-shadow:inset 0 0 0 2px #fff}100%{box-shadow:inset 0 0 0 0 transparent}}
+    .row.gain v{animation:gain 900ms ease-out}
+    @keyframes gain{0%{transform:translateY(-7px);opacity:.3}100%{transform:none;opacity:1}}
+
+    .gap{display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid var(--line);padding-top:8px}
+    .gap b{font-size:13px;font-weight:800}
+    .gap span{font-family:var(--m);font-size:9px;letter-spacing:.06em;color:var(--dim)}
+
+    .nav{display:flex;justify-content:space-between;border-top:1px solid var(--line);padding-top:9px;font-family:var(--m);font-size:7.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--dim)}
+    .nav button{border:0;padding:0;background:transparent;color:inherit;font:inherit;cursor:pointer}
+    .nav button.active{color:#fff;font-weight:700}
+
+    .toast{position:absolute;left:15px;right:15px;top:66px;z-index:4;border:1px solid #fff;background:#fff;color:#000;padding:9px 11px;display:flex;justify-content:space-between;align-items:center;font-weight:800;font-size:11px;letter-spacing:.05em;text-transform:uppercase;opacity:0;transform:translateY(-12px);pointer-events:none}
+    .toast i{font-family:var(--m);font-style:normal;font-size:11px}
+    .toast.show{animation:toast 2700ms cubic-bezier(.16,1,.3,1) forwards}
+    @keyframes toast{0%{opacity:0;transform:translateY(-12px) scale(.97)}9%{opacity:1;transform:none}80%{opacity:1;transform:none}100%{opacity:0;transform:translateY(-8px) scale(.99)}}
+
+    .scroll{overflow:auto;margin-right:-7px;padding-right:7px;scrollbar-width:none;flex:1 1 auto}
+    .scroll::-webkit-scrollbar{display:none}
+    .module{padding:12px 0;border-bottom:1px solid var(--line)}
+    .module h2{margin:4px 0;font-size:17px;line-height:1;text-transform:uppercase}
+    .module p{margin:0;color:var(--dim);font-size:11px;line-height:1.45}
+    .label{font-family:var(--m);font-size:7.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);display:block;margin-bottom:2px}
+
+    .ladder-row{display:grid;grid-template-columns:36px 1fr auto;gap:8px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)}
+    .ladder-num{color:var(--dim);font:900 18px var(--f)}
+    .ladder-title{font-size:12px;font-weight:800}
+    .ladder-meta,.history-row{color:var(--dim);font-family:var(--m);font-size:8px;letter-spacing:.04em}
+    .ladder-row.current .ladder-num,.ladder-row.current .ladder-title{color:#fff}
+    .state{font-family:var(--m);font-size:8px;border:1px solid var(--line);padding:3px 5px}
+
+    .history-row{display:grid;grid-template-columns:62px 1fr auto;gap:8px;padding:9px 0;border-bottom:1px solid var(--line)}
+    .history-row b{color:#fff;font:700 11px var(--f)}
+
+    .rank-card{border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:10px 0}
+    .rank-card strong{display:block;font-size:48px;line-height:.9;letter-spacing:-.06em}
+    .rank-card p{margin:6px 0 0;color:var(--dim);font-family:var(--m);font-size:9px;letter-spacing:.06em}
+    .chart{display:flex;height:104px;align-items:end;gap:3px;margin-top:13px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+    .chart i{display:block;min-width:3px;flex:1;background:#fff;opacity:.76}
+
+    .mission-row{position:relative;display:grid;grid-template-columns:20px 1fr auto;gap:8px;align-items:center;padding:7px 6px;margin:0 -7px;border-bottom:1px solid var(--line)}
+    .mission-row:before{content:attr(data-number);font-family:var(--m);font-size:9.5px;color:var(--dim)}
+    .mission-type{font-family:var(--m);font-size:7px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+    .mission-title{font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .mission-xp{font-family:var(--m);font-size:11px}
+    .mission-action{border:1px solid #fff;background:#fff;color:#000;padding:4px 6px;font:800 8px var(--f);letter-spacing:.08em;text-transform:uppercase;cursor:pointer}
+    .mission-action[disabled]{opacity:.5;cursor:default}
+
+    .sheet-wrap{position:absolute;inset:0;z-index:5;display:none;align-items:end;background:rgba(0,0,0,.72)}
+    .sheet-wrap.open{display:flex}
+    .sheet{width:100%;border-top:1px solid var(--line);background:#0a0a0a;padding:18px 15px 27px}
+    .sheet h2{margin:0;font-size:17px;text-transform:uppercase}
+    .sheet label{display:block;margin-top:10px;color:var(--dim);font-family:var(--m);font-size:9px}
+    .sheet label input{display:inline;width:auto;margin:0 5px 0 0}
+    .sheet .actions{display:flex;gap:8px}
+    .sheet .actions button{flex:1;padding:11px;margin-top:10px}
+    .sheet .cancel{background:transparent;color:#fff;border-color:var(--line)}
+    .empty{padding:18px 0;color:var(--dim);font-family:var(--m);font-size:10px;letter-spacing:.08em;text-transform:uppercase}
+
+    @media(prefers-reduced-motion:reduce){
+      .rise,.hero span i{animation:none!important;opacity:1!important;transform:none!important}
+      .row,.row .fillbar{transition:none!important}
+      .row.bump,.row.gain v,.plate i,.dotlive,.bk.hit{animation:none!important}
+      .toast.show{animation:none!important;opacity:1;transform:none}
+      .bar i{width:var(--pct)!important}
+    }
   </style>
 </head>
 <body>
   <div class="loading" id="loading"><p>Loading athlete portal</p></div>
-  <div class="auth" id="auth" hidden><form class="auth-card" id="authForm"><h1>OFFCOMFRT</h1><p>Athlete access</p><input id="tokenInput" type="password" placeholder="Paste access token" required><button>Enter portal</button><p id="authError"></p></form></div>
+  <div class="auth" id="auth" hidden>
+    <form class="auth-card" id="authForm">
+      <h1>OFFCOMFRT</h1>
+      <p>Athlete access</p>
+      <input id="tokenInput" type="password" placeholder="Paste access token" required>
+      <button>Enter portal</button>
+      <button type="button" class="ghost" id="previewButton">Open visual preview</button>
+      <p id="authError"></p>
+    </form>
+  </div>
+
   <main class="portal" id="portal"><div class="phone">
     <div class="field" id="field"></div>
+
     <section class="screen active" id="tasks">
       <div class="top rise" style="animation-delay:.02s"><span id="taskDate">TODAY</span><span class="live"><i class="dotlive"></i><span id="taskLive">3</span>&nbsp;out there now</span></div>
       <div class="kick rise" style="animation-delay:.08s">One thing today</div>
-      <div class="hero"><span><i id="taskHeroA">Choose your</i></span><span><i id="taskHeroB">mission</i></span></div>
-      <div class="clockrow rise" style="animation-delay:.26s"><div><span class="clocklab">Closes in</span><span class="clock" id="taskClock">00:00<span class="s">:00</span></span></div><span class="xpchip" id="taskReward">+0 XP</span></div>
-      <div class="mission rise" id="taskMission" data-number="01" style="animation-delay:.30s"></div>
+      <div class="hero"><span><i id="heroA">Choose your</i></span><span><i id="heroB">mission</i></span></div>
+      <div class="clockrow rise" style="animation-delay:.26s">
+        <div><span class="clocklab">Closes in</span><span class="clock" id="taskClock">00:00<span class="s">:00</span></span></div>
+        <span class="xpchip" id="taskReward">+0 XP</span>
+      </div>
+      <div class="scroll rise" id="taskPool" style="animation-delay:.30s"></div>
       <div class="plate rise" style="animation-delay:.34s"><i></i><q>“The work starts exactly where comfort ends.”<b>Daily field note</b></q></div>
       <button class="cta rise" id="taskAction" style="animation-delay:.42s">Open the brief</button>
-      <div class="statrow rise" style="animation-delay:.5s"><svg class="dial" viewBox="0 0 54 54" width="52" height="52"><path class="lit" d="M28.66 8.07 A19 19 0 0 1 44.49 19.58" fill="none" stroke="#fff" stroke-width="3"/><path class="dark" d="M45.51 22.73 A19 19 0 0 1 39.47 41.34" fill="none" stroke="#fff" stroke-width="1.4"/><path class="dark" d="M36.79 43.29 A19 19 0 0 1 17.21 43.29" fill="none" stroke="#fff" stroke-width="1.4"/><path class="dark" d="M14.53 41.34 A19 19 0 0 1 8.49 22.73" fill="none" stroke="#fff" stroke-width="1.4"/><path class="dark" d="M9.51 19.58 A19 19 0 0 1 25.34 8.07" fill="none" stroke="#fff" stroke-width="1.4"/><text x="27" y="34" text-anchor="middle" id="taskDial">—</text></svg><div><div><span class="lvl" id="taskLevel">Comfort<br>Level —</span><span class="xpbig" id="taskXp">0</span></div><div class="bar"><i id="taskBar" style="--pct:0%"></i></div><div class="sub" id="taskProgress">Loading progress</div></div></div>
-      <dl class="strip rise" style="animation-delay:.56s"><div><dt>Streak</dt><dd id="taskStreak">0<s> days</s></dd></div><div><dt>Today</dt><dd id="taskPicked">0<s>/5</s></dd></div><div><dt>Board</dt><dd id="taskRank">#—</dd></div></dl>
-      <div class="ticker rise" style="animation-delay:.62s"><div class="rail" id="taskRail"></div></div>
-      <nav class="nav rise" style="animation-delay:.68s" aria-label="Portal"><button class="active" data-view="tasks">Task</button><button data-view="climb">Climb</button><button data-view="board">Board</button><button data-view="ranks">Ranks</button><button data-view="log">Log</button></nav>
+      <div class="statrow rise" style="animation-delay:.5s">
+        <svg class="dial" viewBox="0 0 54 54" width="52" height="52" aria-hidden="true">
+          <path class="lit" d="M28.66 8.07 A19 19 0 0 1 44.49 19.58" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="butt"/>
+          <path class="dark" d="M45.51 22.73 A19 19 0 0 1 39.47 41.34" fill="none" stroke="#fff" stroke-width="1.4" opacity=".26" stroke-linecap="butt"/>
+          <path class="dark" d="M36.79 43.29 A19 19 0 0 1 17.21 43.29" fill="none" stroke="#fff" stroke-width="1.4" opacity=".26" stroke-linecap="butt"/>
+          <path class="dark" d="M14.53 41.34 A19 19 0 0 1 8.49 22.73" fill="none" stroke="#fff" stroke-width="1.4" opacity=".26" stroke-linecap="butt"/>
+          <path class="dark" d="M9.51 19.58 A19 19 0 0 1 25.34 8.07" fill="none" stroke="#fff" stroke-width="1.4" opacity=".26" stroke-linecap="butt"/>
+          <text x="27" y="34" text-anchor="middle" id="taskDial">—</text>
+        </svg>
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:baseline">
+            <span class="lvl" id="taskLevel">Comfort<br>Level —</span>
+            <span class="xpbig" id="taskXp">0</span>
+          </div>
+          <div class="bar"><i id="taskBar" style="--pct:0%"></i></div>
+          <div class="sub" id="taskProgress">Loading progress</div>
+        </div>
+      </div>
+      <dl class="strip rise" style="animation-delay:.56s">
+        <div><dt>Streak</dt><dd id="taskStreak">0<s> days</s></dd></div>
+        <div><dt>Today</dt><dd id="taskPicked">0<s>/5</s></dd></div>
+        <div><dt>Board</dt><dd id="taskRank">#—</dd></div>
+      </dl>
+      <div class="tick rise" style="animation-delay:.62s"><div class="tickrail" id="taskRail"></div></div>
+      <nav class="nav rise" style="animation-delay:.68s" aria-label="Portal">
+        <button class="active" data-view="tasks">Task</button>
+        <button data-view="climb">Climb</button>
+        <button data-view="board">Board</button>
+        <button data-view="ranks">Ranks</button>
+        <button data-view="log">Log</button>
+      </nav>
     </section>
-    <section class="screen" id="climb"><div class="top rise"><span>Comfort system</span><span class="live"><i class="dotlive"></i>Live</span></div><div class="kick rise">Outside comfort / progression</div><div class="hero"><span><i>The climb</i></span></div><div class="scroll rise" id="climbContent"></div><nav class="nav"><button data-view="tasks">Task</button><button class="active" data-view="climb">Climb</button><button data-view="board">Board</button><button data-view="ranks">Ranks</button><button data-view="log">Log</button></nav></section>
-    <section class="screen" id="board"><div class="top rise" style="animation-delay:.02s"><span id="boardMonth">Current cycle</span><span class="live"><i class="dotlive"></i>Live</span></div><div class="hero"><span><i>The board</i></span></div><div class="clockrow rise" style="animation-delay:.2s"><div><span class="clocklab">Resets in</span><span class="clock" id="boardClock">0d 00:00<span class="s">:00</span></span></div><span class="resets">Top 3 stay pinned<br>for a week after</span></div><div class="rows rise" id="boardList" style="animation-delay:.28s"></div><div class="gap rise" id="boardGap" style="animation-delay:.52s"><b>Loading board</b><span>—</span></div><div class="plate rise" style="animation-delay:.58s"><i></i><q>“Won it in the last four days. Did a task every single night.”<b>Last cycle winner</b></q></div><nav class="nav rise" style="animation-delay:.64s"><button data-view="tasks">Task</button><button data-view="climb">Climb</button><button class="active" data-view="board">Board</button><button data-view="ranks">Ranks</button><button data-view="log">Log</button></nav></section>
-    <section class="screen" id="ranks"><div class="top rise"><span>Personal standing</span><span>Rank history</span></div><div class="kick rise">Your position / over time</div><div class="hero"><span><i>The ranks</i></span></div><div class="scroll rise" id="ranksContent"></div><nav class="nav"><button data-view="tasks">Task</button><button data-view="climb">Climb</button><button data-view="board">Board</button><button class="active" data-view="ranks">Ranks</button><button data-view="log">Log</button></nav></section>
-    <section class="screen" id="log"><div class="top rise"><span>Personal record</span><span>Live log</span></div><div class="kick rise">Approved work / movement</div><div class="hero"><span><i>The log</i></span></div><div class="scroll rise" id="logContent"></div><nav class="nav"><button data-view="tasks">Task</button><button data-view="climb">Climb</button><button data-view="board">Board</button><button data-view="ranks">Ranks</button><button class="active" data-view="log">Log</button></nav></section>
+
+    <section class="screen" id="board">
+      <div class="top rise" style="animation-delay:.02s"><span id="boardMonth">Current cycle</span><span class="live"><i class="dotlive"></i>Live</span></div>
+      <div class="hero"><span><i>The board</i></span></div>
+      <div class="clockrow rise" style="animation-delay:.2s">
+        <div><span class="clocklab">Resets in</span><span class="clock" id="boardClock">0d 00:00<span class="s">:00</span></span></div>
+        <span class="resets">Top 3 stay pinned<br>for a week after</span>
+      </div>
+      <div class="list rise" id="boardList" style="animation-delay:.28s"></div>
+      <div class="gap rise" id="boardGap" style="animation-delay:.52s"><b>Loading board</b><span>—</span></div>
+      <div class="plate rise" style="animation-delay:.58s"><i></i><q>“Won it in the last four days. Did a task every single night.”<b>Last cycle winner</b></q></div>
+      <nav class="nav rise" style="animation-delay:.64s">
+        <button data-view="tasks">Task</button>
+        <button data-view="climb">Climb</button>
+        <button class="active" data-view="board">Board</button>
+        <button data-view="ranks">Ranks</button>
+        <button data-view="log">Log</button>
+      </nav>
+    </section>
+
+    <section class="screen" id="climb">
+      <div class="top rise"><span>Comfort system</span><span class="live"><i class="dotlive"></i>Live</span></div>
+      <div class="kick rise">Outside comfort / progression</div>
+      <div class="hero"><span><i>The climb</i></span></div>
+      <div class="scroll rise" id="climbContent"></div>
+      <nav class="nav">
+        <button data-view="tasks">Task</button>
+        <button class="active" data-view="climb">Climb</button>
+        <button data-view="board">Board</button>
+        <button data-view="ranks">Ranks</button>
+        <button data-view="log">Log</button>
+      </nav>
+    </section>
+
+    <section class="screen" id="ranks">
+      <div class="top rise"><span>Personal standing</span><span>Rank history</span></div>
+      <div class="kick rise">Your position / over time</div>
+      <div class="hero"><span><i>The ranks</i></span></div>
+      <div class="scroll rise" id="ranksContent"></div>
+      <nav class="nav">
+        <button data-view="tasks">Task</button>
+        <button data-view="climb">Climb</button>
+        <button data-view="board">Board</button>
+        <button class="active" data-view="ranks">Ranks</button>
+        <button data-view="log">Log</button>
+      </nav>
+    </section>
+
+    <section class="screen" id="log">
+      <div class="top rise"><span>Personal record</span><span>Live log</span></div>
+      <div class="kick rise">Approved work / movement</div>
+      <div class="hero"><span><i>The log</i></span></div>
+      <div class="scroll rise" id="logContent"></div>
+      <nav class="nav">
+        <button data-view="tasks">Task</button>
+        <button data-view="climb">Climb</button>
+        <button data-view="board">Board</button>
+        <button data-view="ranks">Ranks</button>
+        <button class="active" data-view="log">Log</button>
+      </nav>
+    </section>
+
     <div class="toast" id="toast"><span id="toastMessage"></span><i id="toastValue"></i></div>
-    <div class="sheet-wrap" id="sheet"><div class="sheet"><h2>Submit proof</h2><input id="proofUrl" type="url" placeholder="https://instagram.com/reel/..."/><textarea id="proofCaption" placeholder="What did you post about?"></textarea><label><input id="proofDisclosure" type="checkbox">#ad or sponsored tag included</label><div class="actions"><button class="cancel" id="closeSheet">Cancel</button><button id="submitProof">Submit</button></div></div></div>
+
+    <div class="sheet-wrap" id="sheet">
+      <div class="sheet">
+        <h2>Submit proof</h2>
+        <input id="proofUrl" type="url" placeholder="https://instagram.com/reel/..."/>
+        <textarea id="proofCaption" placeholder="What did you post about?"></textarea>
+        <label><input id="proofDisclosure" type="checkbox"> #ad or sponsored tag included</label>
+        <div class="actions">
+          <button class="cancel" id="closeSheet">Cancel</button>
+          <button id="submitProof">Submit</button>
+        </div>
+      </div>
+    </div>
   </div></main>
+
 <script>
 const API='https://exchange-return-tracking.onrender.com/api/athlete';
-const S={token:null,athlete:null,tasks:[],picks:[],maxPicks:5,streak:0,leaderboard:[],climb:null,ranks:null,log:[],weekly:null,assignment:null,bricks:[],active:'tasks',entered:false,lastRanks:{}};
-const $=id=>document.getElementById(id);const esc=v=>{const e=document.createElement('div');e.textContent=v||'';return e.innerHTML};const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
-function makeField(){const field=$('field'),frag=document.createDocumentFragment(),order=[];for(let r=23;r>=0;r--)for(let c=0;c<12;c++)order.push(r*12+c);for(let i=0;i<288;i++){const b=document.createElement('i');b.className='brick';frag.appendChild(b);S.bricks.push(b)}field.appendChild(frag);order.slice(0,Math.round(288*.52)).forEach(i=>S.bricks[i].classList.add('on'))}
+const S={token:null,athlete:null,tasks:[],picks:[],maxPicks:5,streak:0,leaderboard:[],climb:null,ranks:null,log:[],weekly:null,assignment:null,bricks:[],active:'tasks'};
+const $=id=>document.getElementById(id);
+const esc=v=>{const e=document.createElement('div');e.textContent=v||'';return e.innerHTML};
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function makeField(){
+  const field=$('field'),frag=document.createDocumentFragment();
+  const order=[];
+  for(let r=23;r>=0;r--)for(let c=0;c<12;c++)order.push(r*12+c);
+  for(let i=0;i<288;i++){const b=document.createElement('i');b.className='bk';frag.appendChild(b);S.bricks.push(b)}
+  field.appendChild(frag);
+  order.slice(0,Math.round(288*.52)).forEach(i=>S.bricks[i].classList.add('on'));
+}
 function flash(n=1){if(reduce)return;for(let k=0;k<n;k++)setTimeout(()=>{const b=S.bricks[Math.floor(Math.random()*S.bricks.length)];b.classList.remove('hit');void b.offsetWidth;b.classList.add('hit')},k*85)}
 function count(id,to,ms=1200){if(reduce){$(id).textContent=Number(to||0).toLocaleString('en-IN');return}const start=performance.now();(function step(now){const p=Math.min(1,(now-start)/ms),e=1-Math.pow(1-p,3);$(id).textContent=Math.round(Number(to||0)*e).toLocaleString('en-IN');if(p<1)requestAnimationFrame(step)})(start)}
 function tick(id,month){const run=()=>{const d=new Date(),end=month?new Date(d.getFullYear(),d.getMonth()+1,1):new Date(d.getFullYear(),d.getMonth(),d.getDate(),23,59);let s=Math.max(0,Math.floor((end-d)/1000)),dd=Math.floor(s/86400),hh=String(Math.floor(s%86400/3600)).padStart(2,'0'),mm=String(Math.floor(s%3600/60)).padStart(2,'0'),ss=String(s%60).padStart(2,'0');$(id).innerHTML=(month?dd+'d ':'')+hh+':'+mm+'<span class="s">:'+ss+'</span>'};run();setInterval(run,1000)}
 function toast(msg,value=''){$('toastMessage').textContent=msg;$('toastValue').textContent=value;$('toast').classList.remove('show');void $('toast').offsetWidth;$('toast').classList.add('show')}
-async function api(path,options){const response=await fetch(`${API}/${S.token}${path}`,options);const result=await response.json();if(!response.ok||result.success===false)throw Error(result.error||'Request failed');return result.data}
-function show(id){S.active=id;document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('active',s.id===id));document.querySelectorAll('.screen').forEach(s=>s.classList.remove('open'));requestAnimationFrame(()=>$(id).classList.add('open'))}
-function renderProfile(){const a=S.athlete||{},current=a.level||{},next=a.next_level||{},xp=a.xp_total||0,pct=Math.min(100,Math.max(0,(xp-(current.min_xp||0))/Math.max(1,(next.min_xp||xp+100)-(current.min_xp||0))*100));$('taskDial').textContent=current.display_number??'—';$('taskLevel').innerHTML=esc(current.display_name||'Comfort Level').replace(' - ','<br>- ');$('taskBar').style.setProperty('--pct',pct+'%');$('taskProgress').textContent=next.min_xp?`${(next.min_xp-xp).toLocaleString('en-IN')} TO ${String(next.display_name||'NEXT LEVEL').toUpperCase()}`:'MAXIMUM COMFORT LEVEL';count('taskXp',xp)}
-function currentMission(){return S.tasks.find(x=>x.picked&&['PICKED','ASSIGNED','IN_PROGRESS','CHANGES_REQUESTED'].includes(x.pick_status))||S.tasks.find(x=>!x.picked)||S.tasks[0]}
-function renderTasks(){const task=currentMission(),index=Math.max(0,S.tasks.indexOf(task));$('taskPicked').innerHTML=`${S.picks.length}<s>/${S.maxPicks}</s>`;if(!task){$('taskMission').innerHTML='<div><div class="mission-type">Recovery window</div><div class="mission-title">No missions available today</div></div>';return}$('taskHeroA').textContent=task.picked?'Finish your':'Choose your';$('taskHeroB').textContent=task.picked?'mission':'mission';$('taskReward').textContent=`+${task.xp_value||0} XP`;$('taskMission').dataset.number=String(index+1).padStart(2,'0');const picked=task.picked,done=!['PICKED','ASSIGNED','IN_PROGRESS','CHANGES_REQUESTED'].includes(task.pick_status);$('taskMission').innerHTML=`<div><div class="mission-type">${esc((task.type||'TASK').replace('_',' '))}</div><div class="mission-title">${esc(task.title)}</div></div><div><div class="mission-xp">+${task.xp_value||0} XP</div><button class="mission-action" ${done?'disabled':''} id="missionButton">${picked?(done?'Done':'Submit'):(S.picks.length>=S.maxPicks?'Full':'Pick')}</button></div>`;const b=$('missionButton');if(b&&!b.disabled)b.onclick=()=>picked?openSubmission(task.assignment_id):pickTask(task.id);$('taskAction').onclick=()=>b?.click()}
-function renderClimb(){const c=S.climb;if(!c)return;const state=x=>x?.complete?'COMPLETE':x?.required==null?'—':`${x.current}/${x.required}`;const ladder=(c.ladder||[]).map(l=>`<div class="ladder-row${l.id===c.current_level?.id?' current':''}"><b class="ladder-num">${l.display_number??'0'}</b><div><div class="ladder-title">${esc(l.display_name)}</div><div class="ladder-meta">${Number(l.min_xp||0).toLocaleString('en-IN')} XP · ${l.min_standing??'—'} standing</div></div><span class="state">${l.id===c.current_level?.id?'YOU':l.ordinal<(c.current_level?.ordinal||0)?'CLEARED':'LOCKED'}</span></div>`).join('');const weekly=S.weekly?.challenge?`<div class="module"><span class="label">Shared weekly challenge</span><h2>${esc(S.weekly.challenge.title)}</h2><p>${esc(S.weekly.challenge.description||'')}</p>${S.weekly.entry?`<p style="margin-top:8px">Entry: ${esc(S.weekly.entry.status)}</p>`:`<button class="cta" id="weeklySubmit" style="margin-top:11px;width:100%">Submit weekly entry</button>`}</div>`:'';$('climbContent').innerHTML=`<div class="module"><span class="label">Current position</span><h2>${esc(c.current_level?.display_name||'Unranked')}</h2><p>${c.days_in_current_level||0} days at this level.${c.next_level?' Next: '+esc(c.next_level.display_name)+'.':' You reached the final level.'}</p><dl class="strip" style="margin-top:11px"><div><dt>XP</dt><dd>${state(c.requirements?.xp)}</dd></div><div><dt>Standing</dt><dd>${state(c.requirements?.standing)}</dd></div><div><dt>Days</dt><dd>${state(c.requirements?.days)}</dd></div></dl></div><div>${ladder}</div>${weekly}<div class="module"><span class="label">Level movement</span>${(c.history||[]).length?(c.history||[]).map(x=>`<div class="history-row"><span>${new Date(x.occurred_at).toLocaleDateString()}</span><b>${esc(x.direction)}</b><span>${esc(x.reason_code)}</span></div>`).join(''):'<p>No level movements recorded yet.</p>'}</div>`;$('weeklySubmit')?.addEventListener('click',submitWeekly)}
-function renderBoard(){const list=[...S.leaderboard].sort((a,b)=>(b.xp_total||0)-(a.xp_total||0)),before={};[...$('boardList').children].forEach(r=>before[r.dataset.id]=r.getBoundingClientRect().top);const max=Math.max(1,list[0]?.xp_total||1);$('boardList').innerHTML=list.map((a,i)=>`<div class="row${a.id===S.athlete?.id?' me':''}${i===0?' top1':''}" data-id="${a.id}"><i class="fillbar" style="width:${Math.round((a.xp_total||0)/max*100)}%"></i><span class="rank">${String(i+1).padStart(2,'0')}</span><span class="name">${esc(a.name||'ATHLETE')}</span><span class="score">${Number(a.xp_total||0).toLocaleString('en-IN')}</span></div>`).join('');[...$('boardList').children].forEach(r=>{const old=before[r.dataset.id],now=r.getBoundingClientRect().top;if(old!==undefined&&Math.abs(old-now)>.5&&!reduce){r.style.transition='none';r.style.transform=`translateY(${old-now}px)`;requestAnimationFrame(()=>{r.style.transition='transform 620ms cubic-bezier(.16,1,.3,1)';r.style.transform=''})}});const mine=list.findIndex(a=>a.id===S.athlete?.id);if(mine>=0){$('taskRank').textContent='#'+(mine+1);if(mine){const need=(list[mine-1].xp_total||0)-(list[mine].xp_total||0)+1,price=need<=15?'one Story':need<=60?'one Reel':need<=130?'two Reels':Math.ceil(need/50)+' Reels';$('boardGap').innerHTML=`<b>${need.toLocaleString('en-IN')} XP off ${['first','second','third','fourth','fifth','sixth','seventh','eighth','ninth'][mine-1]||'next'}</b><span>${price}</span>`}else $('boardGap').innerHTML='<b>Top of the board</b><span>hold it</span>'}}
-function renderRanks(){const r=S.ranks||{},points=r.snapshots||[],max=Math.max(1,...points.map(x=>x.global_rank||1)),chart=points.length?points.map(x=>`<i title="${x.captured_on}: #${x.global_rank}" style="height:${Math.max(8,(max-(x.global_rank||max)+1)/max*100)}%"></i>`).join(''):'<span class="empty">First snapshot captured overnight</span>';const nearby=(r.nearby||[]).map(a=>`<div class="row${a.is_self?' me':''}"><span class="rank">${String(a.global_rank||'—').padStart(2,'0')}</span><span class="name">${esc(a.name||'ATHLETE')}</span><span class="score">${Number(a.xp_total||0).toLocaleString('en-IN')}</span></div>`).join('');$('ranksContent').innerHTML=`<div class="rank-card"><span class="label">Current global rank</span><strong>#${r.current_rank??'—'}</strong><p>${r.rank_delta>0?'UP '+r.rank_delta+' POSITIONS':r.rank_delta<0?'DOWN '+Math.abs(r.rank_delta)+' POSITIONS':'NO CHANGE SINCE LAST SNAPSHOT'}</p><div class="chart">${chart}</div></div><div class="module"><span class="label">Around you</span>${nearby||'<p>No nearby ranks available.</p>'}</div><div class="module"><span class="label">Rank milestones</span>${(r.level_history||[]).map(x=>`<div class="history-row"><span>${new Date(x.occurred_at).toLocaleDateString()}</span><b>${esc(x.direction)}</b><span>${esc(x.reason_code)}</span></div>`).join('')||'<p>No milestones recorded yet.</p>'}</div>`}
-function renderLog(){const events=S.log||[];$('logContent').innerHTML=events.length?events.map(x=>`<div class="history-row"><span>${new Date(x.occurred_at).toLocaleDateString()}</span><b>${esc(x.title)}</b><span>${esc(x.detail||x.type)}</span></div>`).join(''):'<div class="empty">Approved work, XP, and level changes appear here.</div>'}
+
+async function api(path,options){
+  const response=await fetch(`${API}/${S.token}${path}`,options);
+  const result=await response.json();
+  if(!response.ok||result.success===false)throw Error(result.error||`Request failed (${response.status})`);
+  return result.data;
+}
+
+function show(id){
+  S.active=id;
+  document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('active',s.id===id));
+  document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===id));
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('open'));
+  requestAnimationFrame(()=>$(id).classList.add('open'));
+}
+
+function renderProfile(){
+  const a=S.athlete||{},current=a.level||{},next=a.next_level||{},xp=a.xp_total||0;
+  const pct=Math.min(100,Math.max(0,(xp-(current.min_xp||0))/Math.max(1,(next.min_xp||xp+100)-(current.min_xp||0))*100));
+  $('taskDial').textContent=current.display_number??'—';
+  $('taskLevel').innerHTML=esc(current.display_name||'Comfort Level').replace(' - ','<br>- ');
+  $('taskBar').style.setProperty('--pct',pct+'%');
+  $('taskProgress').textContent=next.min_xp?`${(next.min_xp-xp).toLocaleString('en-IN')} TO ${String(next.display_name||'NEXT LEVEL').toUpperCase()}`:'MAXIMUM COMFORT LEVEL';
+  count('taskXp',xp);
+}
+
+function renderTasks(){
+  const tasks=S.tasks||[],picked=tasks.filter(x=>x.picked);
+  let focus=tasks.find(x=>x.picked&&['PICKED','ASSIGNED','IN_PROGRESS','CHANGES_REQUESTED'].includes(x.pick_status));
+  if(!focus)focus=tasks.find(x=>!x.picked);
+  if(!focus)focus=tasks[0];
+  const idx=tasks.indexOf(focus);
+  $('taskPicked').innerHTML=`${picked.length}<s>/${S.maxPicks}</s>`;
+  if(!focus){$('taskPool').innerHTML='<div class="empty">No missions available today</div>';$('heroA').textContent='No';$('heroB').textContent='missions';$('taskReward').textContent='+0 XP';return}
+  $('heroA').textContent=focus.picked?'Finish your':'Choose your';
+  $('heroB').textContent=focus.picked?'mission':'mission';
+  $('taskReward').textContent=`+${focus.xp_value||0} XP`;
+  const canPick=!focus.picked&&picked.length<S.maxPicks;
+  const done=focus.picked&&!['PICKED','ASSIGNED','IN_PROGRESS','CHANGES_REQUESTED'].includes(focus.pick_status);
+  $('taskPool').innerHTML=tasks.map((t,i)=>{
+    const active=t.id===focus.id;
+    const picked=t.picked;
+    const d=picked&&!['PICKED','ASSIGNED','IN_PROGRESS','CHANGES_REQUESTED'].includes(t.pick_status);
+    const btn=picked?(d?'Done':'Submit'):(S.picks.length>=S.maxPicks?'Full':'Pick');
+    return `<div class="mission-row${active?' me':''}" data-number="${String(i+1).padStart(2,'0')}" data-id="${t.id}"><div><div class="mission-type">${esc((t.type||'TASK').replace('_',' '))}</div><div class="mission-title">${esc(t.title)}</div></div><div><div class="mission-xp">+${t.xp_value||0} XP</div><button class="mission-action" ${d?'disabled':''}>${btn}</button></div></div>`;
+  }).join('');
+  [...$('taskPool').querySelectorAll('.mission-row')].forEach(row=>{
+    const id=Number(row.dataset.id),t=tasks.find(x=>x.id===id);
+    const btn=row.querySelector('button');
+    if(btn&&!btn.disabled)btn.onclick=()=>t.picked?openSubmission(t.assignment_id):pickTask(t.id);
+  });
+  if(focus.picked){$('taskAction').textContent='Submit proof';$('taskAction').onclick=()=>openSubmission(focus.assignment_id)}
+  else{$('taskAction').textContent='Open the brief';$('taskAction').onclick=()=>{if(canPick)pickTask(focus.id);else toast('Daily mission pool full or unavailable')}}
+}
+
+function renderClimb(){
+  const c=S.climb;if(!c)return;
+  const state=x=>x?.complete?'COMPLETE':x?.required==null?'—':`${x.current}/${x.required}`;
+  const ladder=(c.ladder||[]).map(l=>`<div class="ladder-row${l.id===c.current_level?.id?' current':''}"><b class="ladder-num">${l.display_number??'0'}</b><div><div class="ladder-title">${esc(l.display_name)}</div><div class="ladder-meta">${Number(l.min_xp||0).toLocaleString('en-IN')} XP · ${l.min_standing??'—'} standing</div></div><span class="state">${l.id===c.current_level?.id?'YOU':l.ordinal<(c.current_level?.ordinal||0)?'CLEARED':'LOCKED'}</span></div>`).join('');
+  const weekly=S.weekly?.challenge?`<div class="module"><span class="label">Shared weekly challenge</span><h2>${esc(S.weekly.challenge.title)}</h2><p>${esc(S.weekly.challenge.description||'')}</p>${S.weekly.entry?`<p style="margin-top:8px">Entry: ${esc(S.weekly.entry.status)}</p>`:`<button class="cta" id="weeklySubmit" style="margin-top:11px;width:100%">Submit weekly entry</button>`}</div>`:'';
+  $('climbContent').innerHTML=`<div class="module"><span class="label">Current position</span><h2>${esc(c.current_level?.display_name||'Unranked')}</h2><p>${c.days_in_current_level||0} days at this level.${c.next_level?' Next: '+esc(c.next_level.display_name)+'.':' You reached the final level.'}</p><dl class="strip" style="margin-top:11px"><div><dt>XP</dt><dd>${state(c.requirements?.xp)}</dd></div><div><dt>Standing</dt><dd>${state(c.requirements?.standing)}</dd></div><div><dt>Days</dt><dd>${state(c.requirements?.days)}</dd></div></dl></div><div>${ladder}</div>${weekly}<div class="module"><span class="label">Level movement</span>${(c.history||[]).length?(c.history||[]).map(x=>`<div class="history-row"><span>${new Date(x.occurred_at).toLocaleDateString()}</span><b>${esc(x.direction)}</b><span>${esc(x.reason_code)}</span></div>`).join(''):'<p>No level movements recorded yet.</p>'}</div>`;
+  $('weeklySubmit')?.addEventListener('click',submitWeekly);
+}
+
+function renderBoard(){
+  const list=[...S.leaderboard].sort((a,b)=>(b.xp_total||0)-(a.xp_total||0));
+  const before={};
+  [...$('boardList').children].forEach(r=>before[r.dataset.id]=r.getBoundingClientRect().top);
+  const max=Math.max(1,list[0]?.xp_total||1);
+  $('boardList').innerHTML=list.map((a,i)=>`<div class="row${a.id===S.athlete?.id?' me':''}${i===0?' top1':''}" data-id="${a.id}"><i class="fillbar" style="width:${Math.round((a.xp_total||0)/max*100)}%"></i><u class="rank">${String(i+1).padStart(2,'0')}</u><n class="name">${esc(a.name||'ATHLETE')}</n><v class="score">${Number(a.xp_total||0).toLocaleString('en-IN')}</v></div>`).join('');
+  [...$('boardList').children].forEach(r=>{
+    const old=before[r.dataset.id],now=r.getBoundingClientRect().top;
+    if(old!==undefined&&Math.abs(old-now)>.5&&!reduce){r.style.transition='none';r.style.transform=`translateY(${old-now}px)`;requestAnimationFrame(()=>{r.style.transition='transform 620ms cubic-bezier(.16,1,.3,1)';r.style.transform=''})}
+  });
+  const mine=list.findIndex(a=>a.id===S.athlete?.id);
+  if(mine>=0){$('taskRank').textContent='#'+(mine+1);if(mine){const need=(list[mine-1].xp_total||0)-(list[mine].xp_total||0)+1,price=need<=15?'one Story':need<=60?'one Reel':need<=130?'two Reels':Math.ceil(need/50)+' Reels';$('boardGap').innerHTML=`<b>${need.toLocaleString('en-IN')} XP off ${['first','second','third','fourth','fifth','sixth','seventh','eighth','ninth'][mine-1]||'next'}</b><span>${price}</span>`}else $('boardGap').innerHTML='<b>Top of the board</b><span>hold it</span>'}
+}
+
+function renderRanks(){
+  const r=S.ranks||{},points=r.snapshots||[],max=Math.max(1,...points.map(x=>x.global_rank||1));
+  const chart=points.length?points.map(x=>`<i title="${x.captured_on}: #${x.global_rank}" style="height:${Math.max(8,(max-(x.global_rank||max)+1)/max*100)}%"></i>`).join(''):'<span class="empty">First snapshot captured overnight</span>';
+  const nearby=(r.nearby||[]).map(a=>`<div class="row${a.is_self?' me':''}"><u class="rank">${String(a.global_rank||'—').padStart(2,'0')}</u><n class="name">${esc(a.name||'ATHLETE')}</n><v class="score">${Number(a.xp_total||0).toLocaleString('en-IN')}</v></div>`).join('');
+  $('ranksContent').innerHTML=`<div class="rank-card"><span class="label">Current global rank</span><strong>#${r.current_rank??'—'}</strong><p>${r.rank_delta>0?'UP '+r.rank_delta+' POSITIONS':r.rank_delta<0?'DOWN '+Math.abs(r.rank_delta)+' POSITIONS':'NO CHANGE SINCE LAST SNAPSHOT'}</p><div class="chart">${chart}</div></div><div class="module"><span class="label">Around you</span>${nearby||'<p>No nearby ranks available.</p>'}</div><div class="module"><span class="label">Rank milestones</span>${(r.level_history||[]).map(x=>`<div class="history-row"><span>${new Date(x.occurred_at).toLocaleDateString()}</span><b>${esc(x.direction)}</b><span>${esc(x.reason_code)}</span></div>`).join('')||'<p>No milestones recorded yet.</p>'}</div>`;
+}
+
+function renderLog(){
+  const events=S.log||[];
+  $('logContent').innerHTML=events.length?events.map(x=>`<div class="history-row"><span>${new Date(x.occurred_at).toLocaleDateString()}</span><b>${esc(x.title)}</b><span>${esc(x.detail||x.type)}</span></div>`).join(''):'<div class="empty">Approved work, XP, and level changes appear here.</div>';
+}
+
 async function pickTask(id){try{await api('/daily-tasks/pick',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({task_template_id:id})});toast('Mission picked');flash(6);await loadTasks()}catch(e){toast(e.message)}}
-function openSubmission(id){S.assignment=id;$('sheet').classList.add('open')}async function submitProof(){const url=$('proofUrl').value.trim();if(!url)return toast('Post URL required');try{await api('/submissions/'+S.assignment,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({post_url:url,caption:$('proofCaption').value.trim(),disclosure_found:$('proofDisclosure').checked})});$('sheet').classList.remove('open');toast('Proof submitted');flash(12);await loadTasks()}catch(e){toast(e.message)}}
+function openSubmission(id){S.assignment=id;$('sheet').classList.add('open')}
+async function submitProof(){const url=$('proofUrl').value.trim();if(!url)return toast('Post URL required');try{await api('/submissions/'+S.assignment,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({post_url:url,caption:$('proofCaption').value.trim(),disclosure_found:$('proofDisclosure').checked})});$('sheet').classList.remove('open');toast('Proof submitted');flash(12);await loadTasks()}catch(e){toast(e.message)}}
 async function submitWeekly(){const url=prompt('Paste your weekly post URL');if(!url)return;try{await api('/weekly-challenge/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({challenge_id:S.weekly.challenge.id,submission_url:url,caption:'',disclosure_found:false})});toast('Weekly entry submitted');S.weekly=await api('/weekly-challenge');renderClimb()}catch(e){toast(e.message)}}
-async function loadTasks(){const data=await api('/daily-tasks');S.tasks=data?.tasks||[];S.picks=data?.picks||[];S.maxPicks=data?.maxPicks||5;renderTasks()}async function refreshBoard(){try{const board=await api('/leaderboard');if(JSON.stringify(board)!==JSON.stringify(S.leaderboard)){S.leaderboard=board||[];renderBoard();flash(2)}}catch(e){}}
-async function loadPortal(){try{const [progress,streak,board,climb,ranks,log,weekly]=await Promise.all([api('/progress'),api('/streak'),api('/leaderboard'),api('/climb'),api('/ranks'),api('/log'),api('/weekly-challenge')]);Object.assign(S,{athlete:progress,streak:streak?.current_streak||0,leaderboard:board||[],climb,ranks,log:log||[],weekly});renderProfile();$('taskStreak').innerHTML=S.streak+'<s> days</s>';renderClimb();renderBoard();renderRanks();renderLog();await loadTasks();$('loading').hidden=true;$('portal').classList.add('ready');show('tasks');if(!reduce)setInterval(refreshBoard,30000)}catch(e){sessionStorage.removeItem('ap_token');S.token=null;$('loading').hidden=true;$('auth').hidden=false;$('authError').textContent='Invalid or expired access link'}}
-document.addEventListener('DOMContentLoaded',()=>{makeField();flash();if(!reduce)setInterval(()=>flash(),3500);tick('taskClock',false);tick('boardClock',true);$('taskDate').textContent=new Intl.DateTimeFormat('en-US',{weekday:'short',month:'short',day:'2-digit'}).format(new Date()).toUpperCase();$('boardMonth').textContent=new Intl.DateTimeFormat('en-US',{month:'long'}).format(new Date()).toUpperCase();const feed=[['@neha.runs','trained at a gym she had never been to'],['@smit.trains','asked a stranger to critique his squat'],['@dee.moves','submitted a reel'],['@kabir.lifts','reached a new comfort level'],['@the.late.lift','trained outside in the rain']];$('taskRail').innerHTML=[...feed,...feed].map(x=>`<span><b>${x[0]}</b> ${x[1]}</span>`).join('');document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>show(b.dataset.view)));$('authForm').onsubmit=e=>{e.preventDefault();S.token=$('tokenInput').value.trim();sessionStorage.setItem('ap_token',S.token);$('auth').hidden=true;$('loading').hidden=false;loadPortal()};$('closeSheet').onclick=()=>$('sheet').classList.remove('open');$('submitProof').onclick=submitProof;const saved=sessionStorage.getItem('ap_token');if(saved){S.token=saved;loadPortal()}else{$('loading').hidden=true;$('auth').hidden=false}});
+async function loadTasks(){const data=await api('/daily-tasks');S.tasks=data?.tasks||[];S.picks=data?.picks||[];S.maxPicks=data?.maxPicks||5;renderTasks()}
+async function refreshBoard(){try{const board=await api('/leaderboard');if(JSON.stringify(board)!==JSON.stringify(S.leaderboard)){S.leaderboard=board||[];renderBoard();flash(2)}}catch(e){}}
+
+function enterPortal(){$('loading').hidden=true;$('portal').classList.add('ready');show('tasks');if(!reduce)setInterval(refreshBoard,30000)}
+
+function loadPreview(){
+  const levels=[{id:1,display_number:1,display_name:'Comfort Level - 1',min_xp:0,min_standing:0,ordinal:1},{id:2,display_number:2,display_name:'Comfort Level - 2',min_xp:1500,min_standing:65,ordinal:2},{id:3,display_number:3,display_name:'Comfort Level - 3',min_xp:3500,min_standing:74,ordinal:3}];
+  Object.assign(S,{
+    athlete:{id:'preview',name:'Preview Athlete',xp_total:1450,level:levels[0],next_level:levels[1]},
+    streak:4,
+    leaderboard:[{id:'p1',name:'@kabir.lifts',xp_total:2840},{id:'p2',name:'@runs.with.neha',xp_total:720},{id:'preview',name:'You',xp_total:1450},{id:'p3',name:'@arjun.pulls',xp_total:1180},{id:'p4',name:'@priya.climbs',xp_total:960},{id:'p5',name:'@dee.moves',xp_total:840}],
+    climb:{current_level:levels[0],next_level:levels[1],days_in_current_level:18,requirements:{xp:{current:1450,required:1500},standing:{current:61,required:65},days:{current:18,required:30}},ladder:levels,history:[{occurred_at:new Date(Date.now()-86400000).toISOString(),direction:'UP',reason_code:'XP_QUALIFIED'}]},
+    ranks:{current_rank:4,rank_delta:1,snapshots:[{captured_on:'2026-10-06',global_rank:7},{captured_on:'2026-10-07',global_rank:6},{captured_on:'2026-10-08',global_rank:5},{captured_on:'2026-10-09',global_rank:5},{captured_on:'2026-10-10',global_rank:4},{captured_on:'2026-10-11',global_rank:4},{captured_on:'2026-10-12',global_rank:3}],nearby:[{global_rank:3,name:'@arjun.pulls',xp_total:1180},{global_rank:4,name:'You',xp_total:1450,is_self:true},{global_rank:5,name:'@priya.climbs',xp_total:960}],level_history:[{occurred_at:new Date(Date.now()-86400000).toISOString(),direction:'UP',reason_code:'LEVEL_REACHED'}]},
+    log:[{occurred_at:new Date(Date.now()-86400000).toISOString(),title:'Mission approved',detail:'+60 XP'},{occurred_at:new Date(Date.now()-2*86400000).toISOString(),title:'Comfort Level - 1 reached',detail:'STANDING'},{occurred_at:new Date(Date.now()-3*86400000).toISOString(),title:'Mission approved',detail:'+40 XP'}],
+    weekly:{challenge:{id:0,title:'Train somewhere new',description:'Post one proof from a place you have never trained before.'}},
+    tasks:[{id:1,assignment_id:1,title:'Ask a stranger for one tip',type:'REEL',xp_value:40,picked:true,pick_status:'IN_PROGRESS'},{id:2,title:'Try a new gym for one session',type:'STORY',xp_value:20,picked:false},{id:3,title:'Send your first coach a note',type:'POST',xp_value:35,picked:false},{id:4,title:'Train outside for 20 minutes',type:'REEL',xp_value:50,picked:false},{id:5,title:'Share a failure you learned from',type:'POST',xp_value:30,picked:false}],
+    picks:[{id:1,task_template_id:1}],maxPicks:5
+  });
+  renderProfile();$('taskStreak').innerHTML='4<s> days</s>';renderClimb();renderBoard();renderRanks();renderLog();renderTasks();enterPortal();toast('Preview mode');
+}
+
+async function loadPortal(){
+  try{
+    const [progress,streak,board,climb,ranks,log,weekly]=await Promise.all([api('/progress'),api('/streak'),api('/leaderboard'),api('/climb'),api('/ranks'),api('/log'),api('/weekly-challenge')]);
+    Object.assign(S,{athlete:progress,streak:streak?.current_streak||0,leaderboard:board||[],climb,ranks,log:log||[],weekly});
+    renderProfile();$('taskStreak').innerHTML=S.streak+'<s> days</s>';renderClimb();renderBoard();renderRanks();renderLog();await loadTasks();enterPortal();
+  }catch(e){
+    sessionStorage.removeItem('ap_token');S.token=null;$('loading').hidden=true;$('auth').hidden=false;
+    $('authError').textContent=e?.message?.toLowerCase().includes('failed to fetch')?'Cannot reach athlete API. Check server deployment / token route.':(e.message||'Invalid or expired access link');
+  }
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
+  makeField();flash();if(!reduce)setInterval(()=>flash(),3500);
+  tick('taskClock',false);tick('boardClock',true);
+  $('taskDate').textContent=new Intl.DateTimeFormat('en-US',{weekday:'short',month:'short',day:'2-digit'}).format(new Date()).toUpperCase();
+  $('boardMonth').textContent=new Intl.DateTimeFormat('en-US',{month:'long'}).format(new Date()).toUpperCase();
+  const feed=[['@neha.runs','trained at a gym she had never been to'],['@smit.trains','asked a stranger to critique his squat'],['@dee.moves','submitted a reel'],['@kabir.lifts','reached a new comfort level'],['@the.late.lift','trained outside in the rain']];
+  $('taskRail').innerHTML=[...feed,...feed].map(x=>`<span><b>${x[0]}</b> ${x[1]}</span>`).join('');
+  document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>show(b.dataset.view)));
+  $('authForm').onsubmit=e=>{e.preventDefault();S.token=$('tokenInput').value.trim();sessionStorage.setItem('ap_token',S.token);$('auth').hidden=true;$('loading').hidden=false;loadPortal()};
+  $('previewButton').onclick=()=>{$('auth').hidden=true;$('loading').hidden=false;setTimeout(loadPreview,200)};
+  $('closeSheet').onclick=()=>$('sheet').classList.remove('open');
+  $('submitProof').onclick=submitProof;
+  const saved=sessionStorage.getItem('ap_token');
+  if(saved){S.token=saved;loadPortal()}else{$('loading').hidden=true;$('auth').hidden=false}
+});
 </script>
 </body>
 </html>
