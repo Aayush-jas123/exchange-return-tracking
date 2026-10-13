@@ -7,6 +7,13 @@
   <meta name="theme-color" content="#0B0B0B">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="OFFCOMFRT">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="application-name" content="OFFCOMFRT">
+  <meta name="format-detection" content="telephone=no">
+  <link rel="manifest" href="https://exchange-return-tracking.onrender.com/manifest.json">
+  <link rel="apple-touch-icon" href="https://exchange-return-tracking.onrender.com/images/app-icon.png">
+  <link rel="icon" type="image/png" href="https://exchange-return-tracking.onrender.com/images/app-icon.png">
   <title>OFFCOMFRT Athlete Program</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -91,7 +98,7 @@
     .resets{font-family:var(--m);font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);text-align:right;line-height:1.4}
     .xpchip{font-family:var(--m);font-size:11px;border:1px solid var(--line);padding:4px 7px}
 
-    .plate{position:relative;min-height:190px;margin-top:16px;overflow:hidden;background:linear-gradient(150deg,#565656,#101010 62%,#2D2D2D)}
+    .plate{position:relative;min-height:190px;margin:16px 12px 0;overflow:hidden;border-radius:8px;background:linear-gradient(150deg,#565656,#101010 62%,#2D2D2D)}
     .plate i{position:absolute;inset:-14%;background:inherit;animation:burns 22s ease-in-out infinite alternate}
     @keyframes burns{0%{transform:scale(1)}100%{transform:scale(1.15) translate(-3%,-2%)}}
     .plate::after{content:"";position:absolute;inset:0;opacity:.3;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/><feColorMatrix type='saturate' values='0'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='.55'/></svg>")}
@@ -126,7 +133,7 @@
     .strip dd{margin:4px 0 0;font-size:20px;font-weight:900;line-height:1}
     .strip s{font-family:var(--m);font-size:9px;color:var(--dim);text-decoration:none}
 
-    .tick{overflow:hidden;border-top:1px solid var(--line);padding-top:9px;mask-image:linear-gradient(90deg,transparent,#000 9%,#000 91%,transparent)}
+    .tick{overflow:hidden;border-top:1px solid var(--line);padding-top:9px;margin-bottom:14px;mask-image:linear-gradient(90deg,transparent,#000 9%,#000 91%,transparent)}
     .tickrail{display:flex;gap:26px;width:max-content;animation:roll 26s linear infinite}
     .tickrail span{font-family:var(--m);font-size:9px;letter-spacing:.07em;color:var(--dim);white-space:nowrap}
     .tickrail b{color:#fff}
@@ -413,7 +420,6 @@
       <p>Athlete access</p>
       <input id="tokenInput" type="password" placeholder="Paste access token" required>
       <button>Enter portal</button>
-      <button type="button" class="ghost" id="previewButton">Open visual preview</button>
       <p id="authError"></p>
       <div class="dbg" id="dbgPanel" hidden>
         <div class="dbg-head">
@@ -1039,37 +1045,6 @@ async function refreshBoard(){try{const board=await api('/leaderboard');if(JSON.
 
 function enterPortal(){$('loading').hidden=true;$('portal').classList.add('ready');show('tasks');if(!reduce)setInterval(refreshBoard,30000)}
 
-function loadPreview(){
-  const levels=[{id:1,display_number:1,display_name:'Comfort Level - 1',min_xp:0,min_standing:0,ordinal:1},{id:2,display_number:2,display_name:'Comfort Level - 2',min_xp:1500,min_standing:65,ordinal:2},{id:3,display_number:3,display_name:'Comfort Level - 3',min_xp:3500,min_standing:74,ordinal:3}];
-  Object.assign(S,{
-    athlete:{id:'preview',name:'Preview Athlete',xp_total:1450,level:levels[0],next_level:levels[1]},
-    streak:4,
-    leaderboard:[{id:'p1',name:'@kabir.lifts',xp_total:2840},{id:'p2',name:'@runs.with.neha',xp_total:720},{id:'preview',name:'You',xp_total:1450},{id:'p3',name:'@arjun.pulls',xp_total:1180},{id:'p4',name:'@priya.climbs',xp_total:960},{id:'p5',name:'@dee.moves',xp_total:840}],
-    climb:{current_level:levels[0],next_level:levels[1],days_in_current_level:18,requirements:{xp:{current:1450,required:1500},standing:{current:61,required:65},days:{current:18,required:30}},ladder:levels,history:[{occurred_at:new Date(Date.now()-86400000).toISOString(),direction:'UP',reason_code:'XP_QUALIFIED'}]},
-    ranks:{current_rank:4,rank_delta:1,snapshots:[{captured_on:'2026-10-06',global_rank:7},{captured_on:'2026-10-07',global_rank:6},{captured_on:'2026-10-08',global_rank:5},{captured_on:'2026-10-09',global_rank:5},{captured_on:'2026-10-10',global_rank:4},{captured_on:'2026-10-11',global_rank:4},{captured_on:'2026-10-12',global_rank:3}],nearby:[{global_rank:3,name:'@arjun.pulls',xp_total:1180},{global_rank:4,name:'You',xp_total:1450,is_self:true},{global_rank:5,name:'@priya.climbs',xp_total:960}],level_history:[{occurred_at:new Date(Date.now()-86400000).toISOString(),direction:'UP',reason_code:'LEVEL_REACHED'}]},
-    log:[{occurred_at:new Date(Date.now()-86400000).toISOString(),title:'Mission approved',detail:'+60 XP'},{occurred_at:new Date(Date.now()-2*86400000).toISOString(),title:'Comfort Level - 1 reached',detail:'STANDING'},{occurred_at:new Date(Date.now()-3*86400000).toISOString(),title:'Mission approved',detail:'+40 XP'}],
-    weekly:{challenge:{id:0,title:'Train somewhere new',description:'Post one proof from a place you have never trained before.'}},
-    tasks:[{id:1,assignment_id:1,title:'Ask a stranger for one tip',type:'REEL',xp_value:40,picked:true,pick_status:'IN_PROGRESS',description:'Walk up to someone at the gym and ask for one training tip. Film the interaction and post it as a reel.'},{id:2,title:'Try a new gym for one session',type:'STORY',xp_value:20,picked:false,description:'Visit a gym you have never trained at before. Post a story from the session.'},{id:3,title:'Send your first coach a note',type:'POST',xp_value:35,picked:false,description:'Write a thank-you note to the first person who coached you. Post it publicly.'},{id:4,title:'Train outside for 20 minutes',type:'REEL',xp_value:50,picked:false,description:'Take your workout outdoors. Film at least 20 minutes and post as a reel.'},{id:5,title:'Share a failure you learned from',type:'POST',xp_value:30,picked:false,description:'Write about a training failure and what it taught you. Post it as a carousel or text post.'}],
-    picks:[{id:1,task_template_id:1}],maxPicks:5,
-    orders:[
-      {shopify_order_id:5001,net_value:2499,commission_amount:374.85,commission_rate:15,commission_status:'EARNED',placed_at:new Date(Date.now()-86400000*2).toISOString(),customer_name:'Rahul M.',code_used:'OFFCOMFRT15',financial_status:'paid',fulfillment_status:'fulfilled'},
-      {shopify_order_id:5002,net_value:1899,commission_amount:284.85,commission_rate:15,commission_status:'PAID',placed_at:new Date(Date.now()-86400000*5).toISOString(),customer_name:'Priya S.',code_used:'OFFCOMFRT15',financial_status:'paid',fulfillment_status:'fulfilled'},
-      {shopify_order_id:5003,net_value:3299,commission_amount:494.85,commission_rate:15,commission_status:'PENDING',placed_at:new Date(Date.now()-86400000*1).toISOString(),customer_name:'Amit K.',code_used:'OFFCOMFRT15',financial_status:'pending',fulfillment_status:'unfulfilled'},
-      {shopify_order_id:5004,net_value:1599,commission_amount:239.85,commission_rate:15,commission_status:'EARNED',placed_at:new Date(Date.now()-86400000*12).toISOString(),customer_name:'Sneha R.',code_used:'OFFCOMFRT15',financial_status:'paid',fulfillment_status:'fulfilled'},
-      {shopify_order_id:5005,net_value:899,commission_amount:0,commission_rate:15,commission_status:'REVERSED',placed_at:new Date(Date.now()-86400000*20).toISOString(),customer_name:'Vikram J.',code_used:'OFFCOMFRT15',financial_status:'refunded',fulfillment_status:'fulfilled'}
-    ],
-    commissions:{summary:{total_orders:5,total_revenue:10195,total_commission:1394.4,earned:614.7,pending:494.85,paid:284.85,reversed:0},monthly:[
-      {month:'2026-10',orders:3,revenue:7697,commission:1154.55,earned:374.85,pending:494.85,paid:284.85,reversed:0},
-      {month:'2026-09',orders:2,revenue:2498,commission:239.85,earned:239.85,pending:0,paid:0,reversed:0}
-    ]},
-    productRequests:[
-      {id:1,reason:'SEEDING',status:'DELIVERED',requested_at:new Date(Date.now()-86400000*30).toISOString(),items:[{title:'SWEATSHIRT-001 (BLACK)',qty:1},{title:'VEST-001',qty:2}]},
-      {id:2,reason:'CAMPAIGN',status:'DISPATCHED',requested_at:new Date(Date.now()-86400000*10).toISOString(),items:[{title:'HENLEY-001 (ACID WASH)',qty:1}]}
-    ]
-  });
-  renderProfile();$('taskStreak').innerHTML='4<s> days</s>';renderClimb();renderBoard();renderRanks();renderLog();renderTasks();enterPortal();toast('Preview mode');
-}
-
 const ENDPOINTS=['/progress','/streak','/leaderboard','/climb','/ranks','/log','/weekly-challenge','/orders','/commissions','/product-requests'];
 
 async function attempt(path){
@@ -1138,7 +1113,6 @@ document.addEventListener('DOMContentLoaded',()=>{
     $('dbgPanel').hidden=false;
     loadPortal();
   };
-  $('previewButton').onclick=()=>{$('auth').hidden=true;$('loading').hidden=false;setTimeout(loadPreview,200)};
   $('dbgRetry').onclick=()=>{
     if(!S.token){$('tokenInput').focus();$('authError').textContent='Paste your access token, then press retry.';return}
     $('auth').hidden=true;$('loading').hidden=false;
@@ -1161,6 +1135,11 @@ document.addEventListener('DOMContentLoaded',()=>{
   $('closePrSheet').onclick=closeProductRequest;
   $('submitPr').onclick=submitProductRequest;
   $('productSearch').addEventListener('input',function(){renderProductGrid(this.value)});
+  // Register service worker for PWA
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('https://exchange-return-tracking.onrender.com/sw.js').catch(()=>{});
+  }
+
   dbg('portal page loaded');
   const saved=sessionStorage.getItem('ap_token');
   if(saved){dbg(`saved token found · ${maskToken(saved)}`);S.token=saved;loadPortal()}
