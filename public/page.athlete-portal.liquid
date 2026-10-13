@@ -21,6 +21,7 @@
     button,input,textarea{font:inherit}
 
     .loading,.auth{position:fixed;inset:0;z-index:20;display:grid;place-items:center;background:var(--sbg)}
+    .loading[hidden],.auth[hidden]{display:none}
     .loading p,.auth p{font:10px var(--m);letter-spacing:.16em;text-transform:uppercase;color:var(--sdim)}
     .auth-card{width:min(370px,calc(100% - 36px));padding:25px 18px;border:1px solid var(--sline);background:var(--bg)}
     .auth-card h1{font-size:28px;letter-spacing:.1em;margin:0}
