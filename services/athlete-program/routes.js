@@ -31,7 +31,10 @@ module.exports = function mountAthleteRoutes(app) {
     if (!token) return res.status(401).json({ error: 'No token' });
 
     const resolved = await TokenService.resolve(token);
-    if (!resolved) return res.status(401).json({ error: 'Invalid or expired token' });
+    if (!resolved) {
+      console.warn(`[athlete-auth] rejected ${req.method} ${req.originalUrl || req.url} token=${String(token).slice(0, 4)}…(len ${token.length})`);
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
 
     req.athleteScope = resolved;
     next();

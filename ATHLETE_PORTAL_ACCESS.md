@@ -8,8 +8,8 @@ Migrated influencers can now access the athlete portal through token-based authe
 ### From the Admin Dashboard
 
 1. **Open the Admin Dashboard**
-   - URL: `https://exchange-return-tracking.onrender.com/pages/athlete-admin`
-   - Or locally: `http://localhost:3000/pages/athlete-admin`
+   - URL: `https://offcomfrt.in/pages/athlete-admin`
+   - Note: portal pages are Shopify-hosted (theme templates + pages), not served by the Render API server. If the URL 404s, the athlete templates/pages have not been deployed to the Shopify theme yet — see "Deploying the portal pages" below.
 
 2. **Navigate to Athletes Tab**
    - You'll see a list of all migrated athletes
@@ -43,6 +43,22 @@ Migrated influencers can now access the athlete portal through token-based authe
    - Invalidate the old token (it stops working)
    - Generate a new token
    - Display the new token for you to copy and share
+
+## Deploying the portal pages
+
+The portal pages are Shopify-hosted. Both pieces are required — a theme template AND a page record — otherwise `/pages/<handle>` returns 404 (verified: `/pages/influencer-portal` → 200, `/pages/contact` → 404 even though its template exists).
+
+1. **Upload the templates to the live theme**
+   - Shopify Admin → Online Store → Themes → ⋯ → Edit code → templates → Add a new template
+   - Upload `public/page.athlete-portal.liquid`, `page.athlete-admin.liquid`, `page.athlete-apply.liquid` from this repo (source of truth: `exchange-return-tracking-main/public/`)
+   - Or push via the connected theme workspace / Shopify CLI
+
+2. **Create the page records** (templates alone do NOT create URLs)
+   - Shopify Admin → Online Store → Pages → Add page
+   - "Athlete Portal" → handle `athlete-portal` (set via Search engine listing) → Theme template: `athlete-portal` → Visible
+   - Repeat for "Athlete Admin" (`athlete-admin`) and "Athlete Apply" (`athlete-apply`)
+
+3. **Verify**: `https://offcomfrt.in/pages/athlete-portal` must show the OFFCOMFRT token login card. If login still fails, the in-page Diagnostics panel now shows per-endpoint status (401 = bad/revoked token, 404 = API routes missing, network error = server/CORS) with a Copy button.
 
 ## For Migrated Influencers
 

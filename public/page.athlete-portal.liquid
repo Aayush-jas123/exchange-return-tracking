@@ -28,6 +28,16 @@
     .auth-card button{border:1px solid #fff;background:#fff;color:#000;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;cursor:pointer}
     .auth-card button.ghost{background:transparent;color:#fff;border-color:var(--line)}
     .auth-card button:active{transform:scale(.98)}
+    .auth-card #authError{color:#fff;font:700 10px/1.6 var(--m);letter-spacing:.06em;text-transform:uppercase;margin:10px 0 0}
+
+    .dbg{margin-top:12px;border:1px solid var(--sline);background:#0d0d0d;text-align:left}
+    .dbg-head{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-bottom:1px solid var(--sline);font:9px var(--m);letter-spacing:.14em;text-transform:uppercase;color:var(--sdim)}
+    .dbg-head span:last-child{display:flex;gap:4px}
+    .dbg-head button{border:1px solid var(--sline);background:transparent;color:#fff;font:800 8px var(--m);letter-spacing:.1em;text-transform:uppercase;cursor:pointer;padding:3px 6px}
+    .dbg-log{max-height:150px;overflow:auto;padding:6px 8px;font:9px/1.7 var(--m);color:var(--sdim)}
+    .dbg-log div{white-space:pre-wrap;word-break:break-all}
+    .dbg-log .err{color:#fff;font-weight:700}
+    .dbg-log .ok{color:var(--sdim)}
 
     .portal{display:none;min-height:100svh;padding:28px 18px;place-items:center}
     .portal.ready{display:grid}
@@ -195,6 +205,16 @@
       <button>Enter portal</button>
       <button type="button" class="ghost" id="previewButton">Open visual preview</button>
       <p id="authError"></p>
+      <div class="dbg" id="dbgPanel" hidden>
+        <div class="dbg-head">
+          <span>Diagnostics</span>
+          <span>
+            <button type="button" id="dbgRetry">Retry</button>
+            <button type="button" id="dbgCopy">Copy</button>
+          </span>
+        </div>
+        <div class="dbg-log" id="dbgLog"></div>
+      </div>
     </form>
   </div>
 
@@ -329,6 +349,26 @@ const $=id=>document.getElementById(id);
 const esc=v=>{const e=document.createElement('div');e.textContent=v||'';return e.innerHTML};
 const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+// ── Debug logger: console + on-page diagnostics panel ──
+const DBG=[];
+function dbg(msg,level='info'){
+  const line=`${new Date().toLocaleTimeString('en-GB',{hour12:false})} ${level==='err'?'!!':'··'} ${msg}`;
+  DBG.push({line,level});
+  if(DBG.length>200)DBG.shift();
+  if(level==='err')console.error('[AP]',msg);else console.log('[AP]',msg);
+  const log=$('dbgLog');
+  if(log){
+    const el=document.createElement('div');
+    if(level==='err')el.className='err';
+    el.textContent=line;
+    log.appendChild(el);
+    log.scrollTop=log.scrollHeight;
+  }
+}
+const maskToken=t=>t?`${t.slice(0,4)}…${t.slice(-4)} (len ${t.length})`:'(none)';
+addEventListener('error',e=>dbg(`JS error: ${e.message} @ ${(e.filename||'').split('/').pop()}:${e.lineno}`,'err'));
+addEventListener('unhandledrejection',e=>dbg(`Unhandled rejection: ${e.reason?.message||e.reason}`,'err'));
+
 function makeField(){
   const field=$('field'),frag=document.createDocumentFragment();
   const order=[];
@@ -343,9 +383,34 @@ function tick(id,month){const run=()=>{const d=new Date(),end=month?new Date(d.g
 function toast(msg,value=''){$('toastMessage').textContent=msg;$('toastValue').textContent=value;$('toast').classList.remove('show');void $('toast').offsetWidth;$('toast').classList.add('show')}
 
 async function api(path,options){
-  const response=await fetch(`${API}/${S.token}${path}`,options);
-  const result=await response.json();
-  if(!response.ok||result.success===false)throw Error(result.error||`Request failed (${response.status})`);
+  const url=`${API}/${S.token}${path}`,t0=performance.now();
+  let response;
+  try{
+    response=await fetch(url,options);
+  }catch(netErr){
+    dbg(`✗ ${path} network error: ${netErr.message}`,'err');
+    const e=Error(`Network: ${netErr.message}`);
+    e.network=true;
+    throw e;
+  }
+  const ms=Math.round(performance.now()-t0);
+  let result;
+  try{
+    const text=await response.text();
+    result=text?JSON.parse(text):{};
+  }catch(parseErr){
+    dbg(`✗ ${path} HTTP ${response.status} non-JSON response (${ms}ms)`,'err');
+    const e=Error(`HTTP ${response.status} — non-JSON response (wrong host or route?)`);
+    e.status=response.status;
+    throw e;
+  }
+  if(!response.ok||result.success===false){
+    dbg(`✗ ${path} HTTP ${response.status} ${result.error||''} (${ms}ms)`,'err');
+    const e=Error(result.error||`Request failed (${response.status})`);
+    e.status=response.status;
+    throw e;
+  }
+  dbg(`✓ ${path} ${ms}ms`,'ok');
   return result.data;
 }
 
@@ -456,14 +521,52 @@ function loadPreview(){
   renderProfile();$('taskStreak').innerHTML='4<s> days</s>';renderClimb();renderBoard();renderRanks();renderLog();renderTasks();enterPortal();toast('Preview mode');
 }
 
-async function loadPortal(){
+const ENDPOINTS=['/progress','/streak','/leaderboard','/climb','/ranks','/log','/weekly-challenge'];
+
+async function attempt(path){
   try{
-    const [progress,streak,board,climb,ranks,log,weekly]=await Promise.all([api('/progress'),api('/streak'),api('/leaderboard'),api('/climb'),api('/ranks'),api('/log'),api('/weekly-challenge')]);
+    const data=await api(path);
+    return {path,ok:true,data};
+  }catch(error){
+    return {path,ok:false,error};
+  }
+}
+
+function showAuthError(){
+  sessionStorage.removeItem('ap_token');S.token=null;
+  $('loading').hidden=true;$('auth').hidden=false;
+  $('dbgPanel').hidden=false;
+}
+
+async function loadPortal(){
+  if($('dbgLog'))$('dbgLog').innerHTML='';
+  dbg(`login start · token ${maskToken(S.token)}`);
+  dbg(`API base ${API} · online: ${navigator.onLine}`);
+  try{
+    const results=await Promise.all(ENDPOINTS.map(attempt));
+    const failed=results.filter(r=>!r.ok);
+    if(failed.length){
+      showAuthError();
+      const okN=results.length-failed.length;
+      dbg(`login failed — ${okN}/${results.length} endpoints OK · failed: ${failed.map(f=>f.path).join(', ')}`,'err');
+      const netFail=failed.some(f=>f.error.network);
+      const statuses=[...new Set(failed.map(f=>f.error.status).filter(Boolean))];
+      const allFailed=failed.length===results.length;
+      $('authError').textContent=
+        netFail?'Cannot reach athlete API — check connection, server status or CORS.':
+        statuses.includes(404)?'Athlete API routes missing on the server (404) — deployment issue.':
+        allFailed&&statuses.includes(401)?'Token rejected — invalid, revoked or expired. Generate a new one in the admin portal.':
+        `Login failed on: ${failed.map(f=>f.path).join(', ')}`;
+      return;
+    }
+    const [progress,streak,board,climb,ranks,log,weekly]=results.map(r=>r.data);
     Object.assign(S,{athlete:progress,streak:streak?.current_streak||0,leaderboard:board||[],climb,ranks,log:log||[],weekly});
+    dbg('all endpoints OK — entering portal','ok');
     renderProfile();$('taskStreak').innerHTML=S.streak+'<s> days</s>';renderClimb();renderBoard();renderRanks();renderLog();await loadTasks();enterPortal();
   }catch(e){
-    sessionStorage.removeItem('ap_token');S.token=null;$('loading').hidden=true;$('auth').hidden=false;
-    $('authError').textContent=e?.message?.toLowerCase().includes('failed to fetch')?'Cannot reach athlete API. Check server deployment / token route.':(e.message||'Invalid or expired access link');
+    showAuthError();
+    dbg(`login crashed: ${e.message}`,'err');
+    $('authError').textContent=e.message||'Login failed — see diagnostics below';
   }
 }
 
@@ -475,12 +578,40 @@ document.addEventListener('DOMContentLoaded',()=>{
   const feed=[['@neha.runs','trained at a gym she had never been to'],['@smit.trains','asked a stranger to critique his squat'],['@dee.moves','submitted a reel'],['@kabir.lifts','reached a new comfort level'],['@the.late.lift','trained outside in the rain']];
   $('taskRail').innerHTML=[...feed,...feed].map(x=>`<span><b>${x[0]}</b> ${x[1]}</span>`).join('');
   document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>show(b.dataset.view)));
-  $('authForm').onsubmit=e=>{e.preventDefault();S.token=$('tokenInput').value.trim();sessionStorage.setItem('ap_token',S.token);$('auth').hidden=true;$('loading').hidden=false;loadPortal()};
+  $('authForm').onsubmit=e=>{
+    e.preventDefault();
+    S.token=$('tokenInput').value.trim();
+    $('authError').textContent='';
+    if(!S.token){$('authError').textContent='Paste your access token first.';return}
+    dbg(`submit · token ${maskToken(S.token)}`);
+    sessionStorage.setItem('ap_token',S.token);
+    $('auth').hidden=true;$('loading').hidden=false;
+    $('dbgPanel').hidden=false;
+    loadPortal();
+  };
   $('previewButton').onclick=()=>{$('auth').hidden=true;$('loading').hidden=false;setTimeout(loadPreview,200)};
+  $('dbgRetry').onclick=()=>{
+    if(!S.token){$('tokenInput').focus();$('authError').textContent='Paste your access token, then press retry.';return}
+    $('auth').hidden=true;$('loading').hidden=false;
+    loadPortal();
+  };
+  $('dbgCopy').onclick=async()=>{
+    const diag=['Athlete portal diagnostics — '+new Date().toISOString(),
+      `API: ${API}`,`Token: ${maskToken(S.token||sessionStorage.getItem('ap_token')||'')}`,
+      `Online: ${navigator.onLine}`,`UA: ${navigator.userAgent}`,'',...DBG.map(d=>d.line)].join('\n');
+    try{await navigator.clipboard.writeText(diag);dbg('diagnostics copied to clipboard','ok')}
+    catch(err){
+      const ta=document.createElement('textarea');ta.value=diag;document.body.appendChild(ta);ta.select();
+      try{document.execCommand('copy');dbg('diagnostics copied','ok')}catch(copyErr){dbg('copy failed — read from panel','err')}
+      ta.remove();
+    }
+  };
   $('closeSheet').onclick=()=>$('sheet').classList.remove('open');
   $('submitProof').onclick=submitProof;
+  dbg('portal page loaded');
   const saved=sessionStorage.getItem('ap_token');
-  if(saved){S.token=saved;loadPortal()}else{$('loading').hidden=true;$('auth').hidden=false}
+  if(saved){dbg(`saved token found · ${maskToken(saved)}`);S.token=saved;loadPortal()}
+  else{$('loading').hidden=true;$('auth').hidden=false;dbg('no saved token — auth screen')}
 });
 </script>
 </body>

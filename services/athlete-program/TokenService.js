@@ -102,6 +102,7 @@ const TokenService = {
     if (!rawToken) return null;
 
     const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const hashTag = tokenHash.slice(0, 8) + '…';
 
     const { data: token, error } = await supabase
       .from('access_tokens')
@@ -109,17 +110,32 @@ const TokenService = {
       .eq('token_hash', tokenHash)
       .maybeSingle();
 
-    if (error) throw error;
-    if (!token) return null;
+    if (error) {
+      console.warn(`[athlete-auth] token lookup failed (${hashTag}):`, error.message);
+      throw error;
+    }
+    if (!token) {
+      console.warn(`[athlete-auth] token not found in access_tokens (${hashTag})`);
+      return null;
+    }
 
     // Check revocation
-    if (token.revoked_at) return null;
+    if (token.revoked_at) {
+      console.warn(`[athlete-auth] token revoked (${hashTag}, influencer=${token.influencer_id}, revoked_at=${token.revoked_at})`);
+      return null;
+    }
 
     // Check expiry
-    if (token.expires_at && new Date(token.expires_at) < new Date()) return null;
+    if (token.expires_at && new Date(token.expires_at) < new Date()) {
+      console.warn(`[athlete-auth] token expired (${hashTag}, influencer=${token.influencer_id}, expires_at=${token.expires_at})`);
+      return null;
+    }
 
     // Check single-use consumption
-    if (token.single_use && token.consumed_at) return null;
+    if (token.single_use && token.consumed_at) {
+      console.warn(`[athlete-auth] single-use token already consumed (${hashTag}, influencer=${token.influencer_id}, consumed_at=${token.consumed_at})`);
+      return null;
+    }
 
     // Mark as consumed if single-use
     if (token.single_use && !token.consumed_at) {
