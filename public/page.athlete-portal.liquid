@@ -4,6 +4,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0B0B0B">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>OFFCOMFRT Athlete Program</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -17,13 +20,14 @@
     }
     *{box-sizing:border-box}
     html{color-scheme:dark;background:var(--sbg)}
-    body{margin:0;background:var(--sbg);color:#fff;font-family:var(--f);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+    body{margin:0;min-height:100svh;min-height:100dvh;background:var(--sbg);color:#fff;font-family:var(--f);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased;overscroll-behavior:none}
     button,input,textarea{font:inherit}
 
     .loading,.auth{position:fixed;inset:0;z-index:20;display:grid;place-items:center;background:var(--sbg)}
     .loading[hidden],.auth[hidden]{display:none}
     .loading p,.auth p{font:10px var(--m);letter-spacing:.16em;text-transform:uppercase;color:var(--sdim)}
     .auth-card{width:min(370px,calc(100% - 36px));padding:25px 18px;border:1px solid var(--sline);background:var(--bg)}
+    @media(max-width:479px){.auth-card{width:calc(100% - 32px);border-left:0;border-right:0}}
     .auth-card h1{font-size:28px;letter-spacing:.1em;margin:0}
     .auth-card input,.auth-card button,.sheet input,.sheet textarea{display:block;width:100%;border:1px solid var(--sline);background:#0a0a0a;color:#fff;padding:12px;margin-top:10px}
     .auth-card button{border:1px solid #fff;background:#fff;color:#000;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;cursor:pointer}
@@ -40,10 +44,15 @@
     .dbg-log .err{color:#fff;font-weight:700}
     .dbg-log .ok{color:var(--sdim)}
 
-    .portal{display:none;min-height:100svh;padding:28px 18px;place-items:center}
-    .portal.ready{display:grid}
-    .phone{position:relative;width:min(100%,370px);height:min(760px,calc(100svh - 56px));min-height:610px;overflow:hidden;border:2px solid #333;border-radius:34px;background:var(--bg);box-shadow:0 0 0 1px #000,0 28px 64px rgba(0,0,0,.72)}
-    @media(max-height:680px){.phone{height:calc(100svh - 18px);min-height:590px}.portal{padding:9px}}
+    .portal{display:none;min-height:100svh;min-height:100dvh}
+    .portal.ready{display:block}
+    .phone{position:relative;width:100%;min-height:100svh;min-height:100dvh;overflow:hidden;background:var(--bg)}
+    @media(min-width:480px){
+      .portal{display:none;min-height:100svh;padding:28px 18px;place-items:center}
+      .portal.ready{display:grid}
+      .phone{position:relative;width:min(100%,370px);height:min(760px,calc(100svh - 56px));min-height:610px;overflow:hidden;border:2px solid #333;border-radius:34px;background:var(--bg);box-shadow:0 0 0 1px #000,0 28px 64px rgba(0,0,0,.72)}
+    }
+    @media(max-height:680px) and (min-width:480px){.phone{height:calc(100svh - 18px);min-height:590px}.portal{padding:9px}}
 
     .field{position:absolute;inset:0;display:grid;grid-template-columns:repeat(12,1fr);grid-template-rows:repeat(24,1fr);z-index:0}
     .bk{outline:.4px solid rgba(255,255,255,.045)}
@@ -51,8 +60,13 @@
     .bk.hit{animation:hit 1400ms ease-out}
     @keyframes hit{0%{background:rgba(255,255,255,.42)}100%{background:rgba(255,255,255,.085)}}
 
-    .screen{position:absolute;inset:0;z-index:1;display:none;flex-direction:column;padding:22px 15px 13px;gap:11px;overflow:hidden;color:var(--ink)}
+    .screen{position:absolute;inset:0;z-index:1;display:none;flex-direction:column;overflow:hidden;color:var(--ink)}
     .screen.active{display:flex}
+    .screen-top{flex-shrink:0;padding:18px 15px 0;padding-top:calc(18px + env(safe-area-inset-top,0px))}
+    .screen-scroll{flex:1 1 auto;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding:0;scrollbar-width:none}
+    .screen-scroll::-webkit-scrollbar{display:none}
+    .scroll-inner{padding:14px 15px;padding-bottom:14px}
+    .screen-bottom{flex-shrink:0;padding:0 15px calc(10px + env(safe-area-inset-bottom,0px))}
     .rise{opacity:0;transform:translateY(13px)}
     .open .rise{animation:rise .6s cubic-bezier(.16,1,.3,1) forwards}
     @keyframes rise{to{opacity:1;transform:none}}
@@ -77,19 +91,20 @@
     .resets{font-family:var(--m);font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);text-align:right;line-height:1.4}
     .xpchip{font-family:var(--m);font-size:11px;border:1px solid var(--line);padding:4px 7px}
 
-    .plate{position:relative;flex:1 1 auto;min-height:74px;overflow:hidden;background:linear-gradient(150deg,#565656,#101010 62%,#2D2D2D)}
+    .plate{position:relative;min-height:190px;margin-top:16px;overflow:hidden;background:linear-gradient(150deg,#565656,#101010 62%,#2D2D2D)}
     .plate i{position:absolute;inset:-14%;background:inherit;animation:burns 22s ease-in-out infinite alternate}
     @keyframes burns{0%{transform:scale(1)}100%{transform:scale(1.15) translate(-3%,-2%)}}
     .plate::after{content:"";position:absolute;inset:0;opacity:.3;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/><feColorMatrix type='saturate' values='0'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='.55'/></svg>")}
-    .plate q{position:absolute;left:10px;right:10px;bottom:7px;z-index:2;quotes:none;font-size:11px;line-height:1.35;text-shadow:0 1px 4px #000}
+    .plate q{position:absolute;left:16px;right:16px;bottom:10px;z-index:2;quotes:none;font-size:11px;line-height:1.4;text-shadow:0 1px 4px #000}
     .plate q b{display:block;font-family:var(--m);font-size:7.5px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.72);font-weight:400;margin-top:3px}
 
-    .cta{position:relative;overflow:hidden;border:1px solid #fff;background:#fff;color:#000;font-weight:800;font-size:12px;letter-spacing:.11em;text-transform:uppercase;text-align:center;padding:13px;cursor:pointer;user-select:none}
+    .cta{position:relative;overflow:hidden;border:1px solid #fff;background:#fff;color:#000;font-weight:800;font-size:12px;letter-spacing:.11em;text-transform:uppercase;text-align:center;padding:13px;width:100%;cursor:pointer;user-select:none}
     .cta::after{content:"";position:absolute;top:0;bottom:0;width:36%;background:linear-gradient(90deg,transparent,rgba(0,0,0,.14),transparent);transform:translateX(-160%);animation:sweep 4.6s cubic-bezier(.4,0,.2,1) infinite}
     @keyframes sweep{0%,62%{transform:translateX(-160%)}100%{transform:translateX(330%)}}
     .cta:active{transform:scale(.978)}
 
-    .statrow{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center}
+    .statrow{display:grid;grid-template-columns:56px 1fr;gap:14px;align-items:center;padding:16px 18px;border-top:1px solid var(--line);background:rgba(255,255,255,.02)}
+    .statrow .stat-label{font-family:var(--m);font-size:7.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
     .dial .lit{stroke-dasharray:21;stroke-dashoffset:21}
     .open .dial .lit{animation:draw .9s cubic-bezier(.16,1,.3,1) .3s forwards}
     @keyframes draw{to{stroke-dashoffset:0}}
@@ -97,18 +112,18 @@
     .open .dial .dark{animation:fadein .5s linear .55s forwards}
     @keyframes fadein{to{opacity:.26}}
     .dial text{fill:#fff;font-family:var(--f);font-weight:900;font-size:19px;letter-spacing:-.04em}
-    .lvl{font-weight:800;font-size:14px;letter-spacing:.02em;text-transform:uppercase;line-height:1.1}
-    .xpbig{font-size:22px;font-weight:900;letter-spacing:-.02em}
-    .bar{height:2px;background:var(--line);margin-top:7px;overflow:hidden}
-    .bar i{display:block;height:100%;width:0;background:#fff}
+    .lvl{font-weight:800;font-size:15px;letter-spacing:.02em;text-transform:uppercase;line-height:1.15}
+    .xpbig{font-size:26px;font-weight:900;letter-spacing:-.02em}
+    .bar{height:3px;background:rgba(255,255,255,.12);margin-top:8px;overflow:hidden;border-radius:2px}
+    .bar i{display:block;height:100%;width:0;background:#fff;border-radius:2px}
     .open .bar i{animation:fill 1.25s cubic-bezier(.16,1,.3,1) .35s forwards}
     @keyframes fill{to{width:var(--pct)}}
-    .sub{font-family:var(--m);font-size:9px;color:var(--dim);letter-spacing:.05em;margin-top:3px}
+    .sub{font-family:var(--m);font-size:8.5px;color:var(--dim);letter-spacing:.06em;margin-top:4px;text-transform:uppercase}
 
-    .strip{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line)}
-    .strip div{background:var(--bg);padding:8px 9px}
-    .strip dt{font-family:var(--m);font-size:7.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
-    .strip dd{margin:3px 0 0;font-size:17px;font-weight:900;line-height:1}
+    .strip{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.12)}
+    .strip div{background:var(--bg);padding:12px 14px}
+    .strip dt{font-family:var(--m);font-size:7.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+    .strip dd{margin:4px 0 0;font-size:20px;font-weight:900;line-height:1}
     .strip s{font-family:var(--m);font-size:9px;color:var(--dim);text-decoration:none}
 
     .tick{overflow:hidden;border-top:1px solid var(--line);padding-top:9px;mask-image:linear-gradient(90deg,transparent,#000 9%,#000 91%,transparent)}
@@ -145,22 +160,174 @@
     .toast.show{animation:toast 2700ms cubic-bezier(.16,1,.3,1) forwards}
     @keyframes toast{0%{opacity:0;transform:translateY(-12px) scale(.97)}9%{opacity:1;transform:none}80%{opacity:1;transform:none}100%{opacity:0;transform:translateY(-8px) scale(.99)}}
 
-    .scroll{overflow:auto;margin-right:-7px;padding-right:7px;scrollbar-width:none;flex:1 1 auto}
+    .scroll{overflow:auto;margin-right:-7px;padding-right:7px;scrollbar-width:none}
+    .scroll.flex{flex:1 1 auto}
     .scroll::-webkit-scrollbar{display:none}
     .module{padding:12px 0;border-bottom:1px solid var(--line)}
     .module h2{margin:4px 0;font-size:17px;line-height:1;text-transform:uppercase}
     .module p{margin:0;color:var(--dim);font-size:11px;line-height:1.45}
     .label{font-family:var(--m);font-size:7.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);display:block;margin-bottom:2px}
 
-    .ladder-row{display:grid;grid-template-columns:36px 1fr auto;gap:8px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)}
-    .ladder-num{color:var(--dim);font:900 18px var(--f)}
-    .ladder-title{font-size:12px;font-weight:800}
-    .ladder-meta,.history-row{color:var(--dim);font-family:var(--m);font-size:8px;letter-spacing:.04em}
-    .ladder-row.current .ladder-num,.ladder-row.current .ladder-title{color:#fff}
-    .state{font-family:var(--m);font-size:8px;border:1px solid var(--line);padding:3px 5px}
+    /* ─ Climb: current position hero card ── */
+    .climb-hero{position:relative;overflow:hidden;background:linear-gradient(150deg,#565656,#101010 62%,#2D2D2D);min-height:130px;padding:22px 18px 18px;border-radius:0}
+    .climb-hero::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,10,10,.1) 0%,rgba(10,10,10,.45) 100%);z-index:0}
+    .climb-hero>*{position:relative;z-index:1}
+    .climb-hero .ch-top{display:flex;justify-content:space-between;align-items:flex-start}
+    .climb-hero .ch-label{font-family:var(--m);font-size:7.5px;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.45)}
+    .climb-hero .ch-live{font-family:var(--m);font-size:7px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.4);display:flex;align-items:center;gap:5px}
+    .climb-hero .ch-live i{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.5);animation:bp 2s ease infinite}
+    .climb-hero .ch-level{font-size:38px;font-weight:900;letter-spacing:-.03em;line-height:1;margin-top:6px}
+    .climb-hero .ch-name{font-size:13px;font-weight:700;letter-spacing:.02em;margin-top:2px;color:rgba(255,255,255,.85)}
+    .climb-hero .ch-sub{font-family:var(--m);font-size:9px;color:rgba(255,255,255,.4);margin-top:4px;line-height:1.4}
+    .climb-hero .ch-bar{height:3px;background:rgba(255,255,255,.1);margin-top:14px;border-radius:2px;overflow:hidden}
+    .climb-hero .ch-bar i{display:block;height:100%;background:#fff;border-radius:2px;transition:width .6s cubic-bezier(.16,1,.3,1)}
+    .climb-hero .ch-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;margin-top:14px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.1)}
+    .climb-hero .ch-stats div{background:rgba(10,10,10,.6);padding:10px 12px}
+    .climb-hero .ch-stats dt{font-family:var(--m);font-size:7px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.4)}
+    .climb-hero .ch-stats dd{margin:3px 0 0;font-size:18px;font-weight:900;color:#fff;line-height:1}
 
+    /* ── Climb: ladder ─ */
+    .ladder{margin-top:0}
+    .ladder-head{display:flex;justify-content:space-between;align-items:center;padding:14px 18px 10px;border-bottom:1px solid var(--line)}
+    .ladder-head .lh-title{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+    .ladder-head .lh-count{font-family:var(--m);font-size:8px;color:var(--dim);letter-spacing:.04em}
+    .ladder-row{display:grid;grid-template-columns:44px 1fr auto;gap:10px;align-items:center;padding:13px 18px;border-bottom:1px solid var(--line);transition:background .2s}
+    .ladder-row:last-child{border-bottom:none}
+    .ladder-num{font:900 22px var(--f);color:rgba(255,255,255,.2);line-height:1}
+    .ladder-title{font-size:13px;font-weight:800;line-height:1.2}
+    .ladder-meta{font-family:var(--m);font-size:8px;color:var(--dim);letter-spacing:.04em;margin-top:3px}
+    .ladder-prog{height:2px;background:rgba(255,255,255,.06);margin-top:6px;border-radius:1px;overflow:hidden}
+    .ladder-prog i{display:block;height:100%;background:rgba(255,255,255,.3);border-radius:1px}
+    .ladder-row.current{background:rgba(255,255,255,.04)}
+    .ladder-row.current .ladder-num{color:#fff}
+    .ladder-row.current .ladder-title{color:#fff}
+    .ladder-row.current .ladder-prog i{background:rgba(255,255,255,.5)}
+    .ladder-row.cleared .ladder-num{color:rgba(255,255,255,.35)}
+    .ladder-row.cleared .ladder-title{color:rgba(255,255,255,.5)}
+    .ladder-row.locked .ladder-num{color:rgba(255,255,255,.12)}
+    .ladder-row.locked .ladder-title{color:rgba(255,255,255,.25)}
+    .ladder-row.locked .ladder-meta{color:rgba(255,255,255,.15)}
+    .state{font-family:var(--m);font-size:7.5px;letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--line);padding:4px 7px;color:var(--dim);white-space:nowrap}
+    .state.you{border-color:rgba(255,255,255,.3);color:#fff}
+    .state.cleared{border-color:rgba(255,255,255,.15);color:rgba(255,255,255,.4)}
+    .state.locked{border-color:rgba(255,255,255,.06);color:rgba(255,255,255,.2)}
+
+    /* ── Climb: weekly challenge card ─ */
+    .climb-weekly{border-top:1px solid var(--line);padding:16px 18px}
+    .climb-weekly .cw-label{font-family:var(--m);font-size:7.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);margin-bottom:6px}
+    .climb-weekly h3{font-size:15px;font-weight:800;text-transform:uppercase;margin:0 0 4px;line-height:1.2}
+    .climb-weekly p{font-size:11px;color:var(--dim);line-height:1.45;margin:0}
+    .climb-weekly .cw-status{margin-top:10px;font-family:var(--m);font-size:8px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+
+    /* ── Climb: level movement ── */
+    .climb-history{border-top:1px solid var(--line);padding:16px 18px}
+    .climb-history .chist-label{font-family:var(--m);font-size:7.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);margin-bottom:10px}
     .history-row{display:grid;grid-template-columns:62px 1fr auto;gap:8px;padding:9px 0;border-bottom:1px solid var(--line)}
+    .history-row:last-child{border-bottom:none}
     .history-row b{color:#fff;font:700 11px var(--f)}
+    .history-row span{color:var(--dim);font-family:var(--m);font-size:8px;letter-spacing:.04em}
+
+    /* ── Log: commission hero ── */
+    .comm-hero{position:relative;overflow:hidden;background:linear-gradient(150deg,#565656,#101010 62%,#2D2D2D);min-height:140px;padding:22px 18px 18px}
+    .comm-hero::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,10,10,.1) 0%,rgba(10,10,10,.45) 100%);z-index:0}
+    .comm-hero>*{position:relative;z-index:1}
+    .comm-hero .cm-top{display:flex;justify-content:space-between;align-items:flex-start}
+    .comm-hero .cm-label{font-family:var(--m);font-size:7.5px;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.45)}
+    .comm-hero .cm-live{font-family:var(--m);font-size:7px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.4);display:flex;align-items:center;gap:5px}
+    .comm-hero .cm-live i{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.5);animation:bp 2s ease infinite}
+    .comm-hero .cm-earned{font-size:36px;font-weight:900;letter-spacing:-.03em;line-height:1;margin-top:6px}
+    .comm-hero .cm-sub{font-family:var(--m);font-size:9px;color:rgba(255,255,255,.4);margin-top:4px}
+    .comm-hero .cm-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;margin-top:14px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.1)}
+    .comm-hero .cm-stats div{background:rgba(10,10,10,.6);padding:10px 12px}
+    .comm-hero .cm-stats dt{font-family:var(--m);font-size:7px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.4)}
+    .comm-hero .cm-stats dd{margin:3px 0 0;font-size:18px;font-weight:900;color:#fff;line-height:1}
+
+    /* ─ Log: monthly breakdown ── */
+    .monthly-head{display:flex;justify-content:space-between;align-items:center;padding:14px 18px 10px;border-bottom:1px solid var(--line)}
+    .monthly-head .mh-title{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+    .monthly-head .mh-count{font-family:var(--m);font-size:8px;color:var(--dim);letter-spacing:.04em}
+    .monthly-row{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:12px 18px;border-bottom:1px solid var(--line);transition:background .2s}
+    .monthly-row:last-child{border-bottom:none}
+    .monthly-row .mr-month{font-size:13px;font-weight:800}
+    .monthly-row .mr-meta{font-family:var(--m);font-size:8px;color:var(--dim);letter-spacing:.04em;margin-top:2px}
+    .monthly-row .mr-comm{font-size:15px;font-weight:900;text-align:right}
+    .monthly-row .mr-ord{font-family:var(--m);font-size:10px;color:var(--dim);text-align:right;white-space:nowrap}
+
+    /* ── Log: orders ── */
+    .order-head{display:flex;justify-content:space-between;align-items:center;padding:14px 18px 10px;border-bottom:1px solid var(--line)}
+    .order-head .oh-title{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+    .order-head .oh-count{font-family:var(--m);font-size:8px;color:var(--dim);letter-spacing:.04em}
+    .order-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:start;padding:12px 18px;border-bottom:1px solid var(--line);transition:background .2s}
+    .order-row:last-child{border-bottom:none}
+    .order-row .or-id{font-family:var(--m);font-size:8px;color:var(--dim);letter-spacing:.04em}
+    .order-row .or-value{font-size:14px;font-weight:800;margin-top:2px}
+    .order-row .or-meta{font-family:var(--m);font-size:8px;color:var(--dim);letter-spacing:.04em;margin-top:2px}
+    .order-row .or-comm{text-align:right}
+    .order-row .or-comm-amt{font-size:14px;font-weight:900}
+    .order-row .or-comm-rate{font-family:var(--m);font-size:8px;color:var(--dim);margin-top:2px}
+    .order-row .or-status{font-family:var(--m);font-size:7px;letter-spacing:.06em;text-transform:uppercase;padding:3px 6px;border:1px solid var(--line);margin-top:4px;display:inline-block}
+    .order-row .or-status.earned{border-color:rgba(255,255,255,.25);color:rgba(255,255,255,.7)}
+    .order-row .or-status.paid{border-color:rgba(255,255,255,.3);color:#fff}
+    .order-row .or-status.pending{border-color:rgba(255,255,255,.1);color:rgba(255,255,255,.35)}
+    .order-row .or-status.reversed{border-color:rgba(255,255,255,.06);color:rgba(255,255,255,.2);text-decoration:line-through}
+
+    /* ── Log: product requests ── */
+    .pr-head{display:flex;justify-content:space-between;align-items:center;padding:14px 18px 10px;border-bottom:1px solid var(--line)}
+    .pr-head .ph-title{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+    .pr-head .ph-count{font-family:var(--m);font-size:8px;color:var(--dim);letter-spacing:.04em}
+    .pr-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:start;padding:12px 18px;border-bottom:1px solid var(--line)}
+    .pr-row:last-child{border-bottom:none}
+    .pr-row .pr-reason{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em}
+    .pr-row .pr-date{font-family:var(--m);font-size:8px;color:var(--dim);margin-top:2px}
+    .pr-row .pr-items{font-family:var(--m);font-size:8px;color:var(--dim);margin-top:3px}
+    .pr-row .pr-status{font-family:var(--m);font-size:7px;letter-spacing:.06em;text-transform:uppercase;padding:3px 6px;border:1px solid var(--line);white-space:nowrap}
+    .pr-row .pr-status.requested{border-color:rgba(255,255,255,.15);color:rgba(255,255,255,.4)}
+    .pr-row .pr-status.approved{border-color:rgba(255,255,255,.25);color:rgba(255,255,255,.7)}
+    .pr-row .pr-status.dispatched,.pr-row .pr-status.in_transit,.pr-row .pr-status.delivered{border-color:rgba(255,255,255,.3);color:#fff}
+
+    /* ── Log: request product button ── */
+    .req-product-btn{display:block;width:100%;padding:14px;margin:0;border:none;background:#fff;color:#000;font:800 11px var(--f);letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:transform .15s ease,opacity .2s}
+    .req-product-btn:active{transform:scale(.97)}
+
+    /* ─ Log: activity section ── */
+    .activity-head{display:flex;justify-content:space-between;align-items:center;padding:14px 18px 10px;border-bottom:1px solid var(--line)}
+    .activity-head .ah-title{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+    .activity-head .ah-count{font-family:var(--m);font-size:8px;color:var(--dim);letter-spacing:.04em}
+
+    /* ── Product request sheet ── */
+    .pr-sheet label{display:block;margin-top:12px;font-family:var(--m);font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+    .pr-sheet label:first-of-type{margin-top:0}
+    .pr-sheet label input,.pr-sheet label textarea,.pr-sheet label select{display:block;width:100%;border:1px solid var(--sline);background:#0d0d0d;color:#fff;padding:11px 12px;margin-top:6px;font-size:13px;border-radius:6px}
+    .pr-sheet label input:focus,.pr-sheet label textarea:focus,.pr-sheet label select:focus{outline:none;border-color:rgba(255,255,255,.4)}
+    .pr-sheet label textarea{min-height:64px;resize:vertical}
+    .pr-sheet .item-row{display:grid;grid-template-columns:1fr 60px;gap:8px;margin-top:6px}
+    .pr-sheet .item-row input{margin-top:0}
+    .pr-sheet .add-item{display:flex;align-items:center;gap:6px;margin-top:8px;font-family:var(--m);font-size:9px;color:var(--dim);cursor:pointer;letter-spacing:.06em;text-transform:uppercase}
+    .pr-sheet .add-item:hover{color:#fff}
+    .pr-sheet .remove-item{background:none;border:none;color:var(--dim);cursor:pointer;font-size:14px;padding:0 4px}
+    .pr-sheet .remove-item:hover{color:#fff}
+
+    /* ── Product picker grid ── */
+    .product-search{width:100%;border:1px solid var(--sline);background:#0d0d0d;color:#fff;padding:10px 12px;font-size:13px;border-radius:6px;margin-bottom:10px}
+    .product-search:focus{outline:none;border-color:rgba(255,255,255,.4)}
+    .product-search::placeholder{color:var(--dim)}
+    .product-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;max-height:280px;overflow-y:auto;padding-right:4px;scrollbar-width:none}
+    .product-grid::-webkit-scrollbar{display:none}
+    .product-card{position:relative;border:1px solid var(--line);border-radius:8px;overflow:hidden;cursor:pointer;transition:border-color .2s,background .2s;background:rgba(255,255,255,.02)}
+    .product-card:hover,.product-card.selected{border-color:rgba(255,255,255,.3);background:rgba(255,255,255,.05)}
+    .product-card.selected{border-color:#fff}
+    .product-card .pc-img{width:100%;aspect-ratio:1;object-fit:cover;background:#111;display:block}
+    .product-card .pc-img-placeholder{width:100%;aspect-ratio:1;background:linear-gradient(135deg,#1a1a1a,#222);display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--dim)}
+    .product-card .pc-info{padding:8px}
+    .product-card .pc-title{font-size:10px;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .product-card .pc-type{font-family:var(--m);font-size:7px;color:var(--dim);letter-spacing:.06em;text-transform:uppercase;margin-top:2px}
+    .product-card .pc-check{position:absolute;top:6px;right:6px;width:18px;height:18px;border-radius:50%;background:#fff;color:#000;display:none;align-items:center;justify-content:center;font-size:10px;font-weight:900}
+    .product-card.selected .pc-check{display:flex}
+    .product-card .pc-variants{padding:0 8px 8px}
+    .product-card .pc-var{font-family:var(--m);font-size:7px;color:var(--dim);padding:2px 0;border-top:1px solid var(--line);margin-top:3px;display:flex;justify-content:space-between;align-items:center}
+    .product-card .pc-var span{font-size:7px}
+    .product-loading{padding:20px;text-align:center;font-family:var(--m);font-size:10px;color:var(--dim);letter-spacing:.08em;text-transform:uppercase}
+    .product-empty{padding:20px;text-align:center;font-family:var(--m);font-size:10px;color:var(--dim)}
 
     .rank-card{border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:10px 0}
     .rank-card strong{display:block;font-size:48px;line-height:.9;letter-spacing:-.06em}
@@ -168,23 +335,64 @@
     .chart{display:flex;height:104px;align-items:end;gap:3px;margin-top:13px;padding-bottom:8px;border-bottom:1px solid var(--line)}
     .chart i{display:block;min-width:3px;flex:1;background:#fff;opacity:.76}
 
-    .mission-row{position:relative;display:grid;grid-template-columns:20px 1fr auto;gap:8px;align-items:center;padding:7px 6px;margin:0 -7px;border-bottom:1px solid var(--line)}
-    .mission-row:before{content:attr(data-number);font-family:var(--m);font-size:9.5px;color:var(--dim)}
-    .mission-type{font-family:var(--m);font-size:7px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
-    .mission-title{font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .mission-xp{font-family:var(--m);font-size:11px}
-    .mission-action{border:1px solid #fff;background:#fff;color:#000;padding:4px 6px;font:800 8px var(--f);letter-spacing:.08em;text-transform:uppercase;cursor:pointer}
-    .mission-action[disabled]{opacity:.5;cursor:default}
+    .mission-row{position:relative;display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:start;padding:14px 14px;margin:0;border:1px solid var(--line);border-radius:8px;background:rgba(255,255,255,.03);cursor:pointer;transition:background .3s ease,border-color .3s}
+    .mission-row:before{content:attr(data-number);font-family:var(--m);font-size:11px;color:var(--dim);line-height:1}
+    .mission-row .mission-type{font-family:var(--m);font-size:7.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin-bottom:3px}
+    .mission-row .mission-title{font-size:14px;font-weight:800;line-height:1.25;letter-spacing:-.01em}
+    .mission-row .mission-xp{font-family:var(--m);font-size:12px;font-weight:700;white-space:nowrap;padding-top:2px}
+    .mission-row .mission-action{border:1px solid #fff;background:#fff;color:#000;padding:6px 10px;font:800 9px var(--f);letter-spacing:.08em;text-transform:uppercase;cursor:pointer;transition:transform .15s ease,opacity .2s;margin-top:4px}
+    .mission-row .mission-action[disabled]{opacity:.5;cursor:default}
+    .mission-row .mission-action:active:not([disabled]){transform:scale(.94)}
+    .mission-row .mission-details{display:grid;grid-template-rows:0fr;transition:grid-template-rows .45s cubic-bezier(.16,1,.3,1)}
+    .mission-row.expanded .mission-details{grid-template-rows:1fr}
+    .mission-row .mission-details-inner{overflow:hidden}
+    .mission-row .mission-desc{font-size:12px;color:var(--dim);line-height:1.55;padding:10px 0 6px;border-top:1px solid var(--line);margin-top:8px}
+    .mission-row .mission-meta{display:flex;gap:14px;padding:4px 0 2px;font-family:var(--m);font-size:8px;letter-spacing:.08em;color:var(--dim);text-transform:uppercase}
+    .mission-row .mission-meta span{display:flex;align-items:center;gap:4px}
+    .mission-row .mission-meta b{color:#fff;font-weight:700}
+    .mission-row.expanded{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.25)}
+    .mission-row.expanded:before{color:#fff}
+    .mission-row.expanded .mission-title{white-space:normal}
+    .mission-row:not(.expanded){animation:rowIn .4s cubic-bezier(.16,1,.3,1) both}
+    @keyframes rowIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+    .mission-row.me{background:rgba(255,255,255,.06);border-left:3px solid #fff}
+    .mission-row.me:before{color:#fff}
 
-    .sheet-wrap{position:absolute;inset:0;z-index:5;display:none;align-items:end;background:rgba(0,0,0,.72)}
+    .sheet-wrap{position:absolute;inset:0;z-index:5;display:none;align-items:end;background:rgba(0,0,0,.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
     .sheet-wrap.open{display:flex}
-    .sheet{width:100%;border-top:1px solid var(--line);background:#0a0a0a;padding:18px 15px 27px}
-    .sheet h2{margin:0;font-size:17px;text-transform:uppercase}
-    .sheet label{display:block;margin-top:10px;color:var(--dim);font-family:var(--m);font-size:9px}
-    .sheet label input{display:inline;width:auto;margin:0 5px 0 0}
-    .sheet .actions{display:flex;gap:8px}
-    .sheet .actions button{flex:1;padding:11px;margin-top:10px}
-    .sheet .cancel{background:transparent;color:#fff;border-color:var(--line)}
+    .sheet{width:100%;border-top-left-radius:18px;border-top-right-radius:18px;background:linear-gradient(180deg,#161616 0%,#0a0a0a 100%);padding:0;overflow:hidden;transform:translateY(100%);transition:transform .5s cubic-bezier(.16,1,.3,1)}
+    .sheet-wrap.open .sheet{transform:translateY(0)}
+    .sheet-handle{width:36px;height:4px;border-radius:2px;background:rgba(255,255,255,.2);margin:10px auto 0}
+    .sheet-header{padding:16px 18px 12px;border-bottom:1px solid var(--line)}
+    .sheet-header h2{margin:0;font-size:17px;text-transform:uppercase;letter-spacing:.04em}
+    .sheet-header p{margin:4px 0 0;font-family:var(--m);font-size:8.5px;letter-spacing:.08em;color:var(--dim);text-transform:uppercase}
+    .sheet-body{padding:14px 18px 18px}
+    .sheet label{display:block;margin-top:12px;color:var(--dim);font-family:var(--m);font-size:8.5px;letter-spacing:.1em;text-transform:uppercase}
+    .sheet label:first-of-type{margin-top:0}
+    .sheet label input[type="text"],.sheet label input[type="url"],.sheet label textarea,.sheet label select{display:block;width:100%;border:1px solid var(--sline);background:#0d0d0d;color:#fff;padding:11px 12px;margin-top:6px;font-size:13px;border-radius:6px;transition:border-color .2s}
+    .sheet label input:focus,.sheet label textarea:focus,.sheet label select:focus{outline:none;border-color:rgba(255,255,255,.4)}
+    .sheet label textarea{min-height:64px;resize:vertical}
+    .sheet label select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path fill='white' d='M6 8L1 3h10z'/></svg>");background-repeat:no-repeat;background-position:right 10px center;padding-right:28px}
+    .sheet label input[type="checkbox"]{display:inline;width:auto;margin:0 6px 0 0;accent-color:#fff}
+    .sheet .disclosure-row{display:flex;align-items:center;margin-top:12px;padding:10px 12px;border:1px solid var(--sline);border-radius:6px;background:rgba(255,255,255,.02)}
+    .sheet .disclosure-row label{margin:0;font-size:8.5px;display:flex;align-items:center;gap:6px;cursor:pointer}
+    .sheet .actions{display:flex;gap:8px;padding:0 18px 22px}
+    .sheet .actions button{flex:1;padding:13px;margin-top:0;border-radius:6px;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;transition:transform .15s ease,opacity .2s}
+    .sheet .actions button:active:not(:disabled){transform:scale(.97)}
+    .sheet .actions button[disabled]{opacity:.4;cursor:default}
+    .sheet .cancel{background:transparent;color:#fff;border:1px solid var(--line)}
+    .sheet .submit-btn{background:#fff;color:#000;border:1px solid #fff}
+    .sheet .char-count{font-family:var(--m);font-size:8px;color:var(--dim);text-align:right;margin-top:3px;letter-spacing:.04em}
+    .footer{position:relative;overflow:hidden;min-height:170px}
+    .footer video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.35;filter:brightness(.3) contrast(1.15) saturate(.4)}
+    .footer::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,10,10,.3) 0%,rgba(10,10,10,.65) 35%,rgba(10,10,10,.92) 100%);z-index:1}
+    .footer-inner{position:relative;z-index:2;padding:30px 18px 24px;display:flex;flex-direction:column;justify-content:flex-end;min-height:170px}
+    .footer-brand{font-weight:900;font-size:22px;letter-spacing:.18em;text-transform:uppercase;color:#fff;text-shadow:0 2px 12px rgba(0,0,0,.6)}
+    .footer-tag{font-family:var(--m);font-size:7.5px;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.5);margin-top:4px}
+    .footer-rule{width:28px;height:1px;background:rgba(255,255,255,.35);margin:10px 0}
+    .footer-note{font-size:10px;line-height:1.5;color:rgba(255,255,255,.45);max-width:240px}
+    .footer-note b{color:rgba(255,255,255,.7);font-weight:700}
+
     .empty{padding:18px 0;color:var(--dim);font-family:var(--m);font-size:10px;letter-spacing:.08em;text-transform:uppercase}
 
     @media(prefers-reduced-motion:reduce){
@@ -193,6 +401,7 @@
       .row.bump,.row.gain v,.plate i,.dotlive,.bk.hit{animation:none!important}
       .toast.show{animation:none!important;opacity:1;transform:none}
       .bar i{width:var(--pct)!important}
+      .footer video{display:none}
     }
   </style>
 </head>
@@ -223,121 +432,225 @@
     <div class="field" id="field"></div>
 
     <section class="screen active" id="tasks">
-      <div class="top rise" style="animation-delay:.02s"><span id="taskDate">TODAY</span><span class="live"><i class="dotlive"></i><span id="taskLive">3</span>&nbsp;out there now</span></div>
-      <div class="kick rise" style="animation-delay:.08s">One thing today</div>
-      <div class="hero"><span><i id="heroA">Choose your</i></span><span><i id="heroB">mission</i></span></div>
-      <div class="clockrow rise" style="animation-delay:.26s">
-        <div><span class="clocklab">Closes in</span><span class="clock" id="taskClock">00:00<span class="s">:00</span></span></div>
-        <span class="xpchip" id="taskReward">+0 XP</span>
-      </div>
-      <div class="scroll rise" id="taskPool" style="animation-delay:.30s"></div>
-      <div class="plate rise" style="animation-delay:.34s"><i></i><q>“The work starts exactly where comfort ends.”<b>Daily field note</b></q></div>
-      <button class="cta rise" id="taskAction" style="animation-delay:.42s">Open the brief</button>
-      <div class="statrow rise" style="animation-delay:.5s">
-        <svg class="dial" viewBox="0 0 54 54" width="52" height="52" aria-hidden="true">
-          <path class="lit" d="M28.66 8.07 A19 19 0 0 1 44.49 19.58" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="butt"/>
-          <path class="dark" d="M45.51 22.73 A19 19 0 0 1 39.47 41.34" fill="none" stroke="#fff" stroke-width="1.4" opacity=".26" stroke-linecap="butt"/>
-          <path class="dark" d="M36.79 43.29 A19 19 0 0 1 17.21 43.29" fill="none" stroke="#fff" stroke-width="1.4" opacity=".26" stroke-linecap="butt"/>
-          <path class="dark" d="M14.53 41.34 A19 19 0 0 1 8.49 22.73" fill="none" stroke="#fff" stroke-width="1.4" opacity=".26" stroke-linecap="butt"/>
-          <path class="dark" d="M9.51 19.58 A19 19 0 0 1 25.34 8.07" fill="none" stroke="#fff" stroke-width="1.4" opacity=".26" stroke-linecap="butt"/>
-          <text x="27" y="34" text-anchor="middle" id="taskDial">—</text>
-        </svg>
-        <div>
-          <div style="display:flex;justify-content:space-between;align-items:baseline">
-            <span class="lvl" id="taskLevel">Comfort<br>Level —</span>
-            <span class="xpbig" id="taskXp">0</span>
-          </div>
-          <div class="bar"><i id="taskBar" style="--pct:0%"></i></div>
-          <div class="sub" id="taskProgress">Loading progress</div>
+      <div class="screen-top">
+        <div class="top rise" style="animation-delay:.02s"><span id="taskDate">TODAY</span><span class="live"><i class="dotlive"></i><span id="taskLive">3</span>&nbsp;out there now</span></div>
+        <div class="kick rise" style="animation-delay:.06s">One thing today</div>
+        <div class="hero"><span><i id="heroA">Choose your</i></span><span><i id="heroB">mission</i></span></div>
+        <div class="clockrow rise" style="animation-delay:.18s">
+          <div><span class="clocklab">Closes in</span><span class="clock" id="taskClock">00:00<span class="s">:00</span></span></div>
+          <span class="xpchip" id="taskReward">+0 XP</span>
         </div>
       </div>
-      <dl class="strip rise" style="animation-delay:.56s">
-        <div><dt>Streak</dt><dd id="taskStreak">0<s> days</s></dd></div>
-        <div><dt>Today</dt><dd id="taskPicked">0<s>/5</s></dd></div>
-        <div><dt>Board</dt><dd id="taskRank">#—</dd></div>
-      </dl>
-      <div class="tick rise" style="animation-delay:.62s"><div class="tickrail" id="taskRail"></div></div>
-      <nav class="nav rise" style="animation-delay:.68s" aria-label="Portal">
-        <button class="active" data-view="tasks">Task</button>
-        <button data-view="climb">Climb</button>
-        <button data-view="board">Board</button>
-        <button data-view="ranks">Ranks</button>
-        <button data-view="log">Log</button>
-      </nav>
+      <div class="screen-scroll">
+        <div class="plate rise" style="animation-delay:.22s"><i></i><q>"The work starts exactly where comfort ends."<b>Daily field note</b></q></div>
+        <div class="scroll-inner">
+          <div class="rise" id="taskPool" style="animation-delay:.24s"></div>
+          <button class="cta rise" id="taskAction" style="animation-delay:.30s;margin-top:12px">Open the brief</button>
+        </div>
+        <div class="statrow rise" style="animation-delay:.36s">
+          <svg class="dial" viewBox="0 0 54 54" width="48" height="48" aria-hidden="true">
+            <path class="lit" d="M28.66 8.07 A19 19 0 0 1 44.49 19.58" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="butt"/>
+            <path class="dark" d="M45.51 22.73 A19 19 0 0 1 39.47 41.34" fill="none" stroke="#fff" stroke-width="1.4" opacity=".26" stroke-linecap="butt"/>
+            <path class="dark" d="M36.79 43.29 A19 19 0 0 1 17.21 43.29" fill="none" stroke="#fff" stroke-width="1.4" opacity=".26" stroke-linecap="butt"/>
+            <path class="dark" d="M14.53 41.34 A19 19 0 0 1 8.49 22.73" fill="none" stroke="#fff" stroke-width="1.4" opacity=".26" stroke-linecap="butt"/>
+            <path class="dark" d="M9.51 19.58 A19 19 0 0 1 25.34 8.07" fill="none" stroke="#fff" stroke-width="1.4" opacity=".26" stroke-linecap="butt"/>
+            <text x="27" y="34" text-anchor="middle" id="taskDial">—</text>
+          </svg>
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline">
+              <span class="lvl" id="taskLevel">Comfort<br>Level —</span>
+              <span class="xpbig" id="taskXp">0</span>
+            </div>
+            <div class="bar"><i id="taskBar" style="--pct:0%"></i></div>
+            <div class="sub" id="taskProgress">Loading progress</div>
+          </div>
+        </div>
+        <dl class="strip rise" style="animation-delay:.42s">
+          <div><dt>Streak</dt><dd id="taskStreak">0<s> days</s></dd></div>
+          <div><dt>Today</dt><dd id="taskPicked">0<s>/5</s></dd></div>
+          <div><dt>Board</dt><dd id="taskRank">#—</dd></div>
+        </dl>
+        <div class="tick rise" style="animation-delay:.46s"><div class="tickrail" id="taskRail"></div></div>
+        <div class="footer rise" style="animation-delay:.50s">
+          <video muted autoplay loop playsinline preload="metadata" poster="" loading="lazy"><source src="https://exchange-return-tracking.onrender.com/videos/athlete-running-loop.mp4" type="video/mp4"></video>
+          <div class="footer-inner">
+            <div class="footer-brand">OFFCOMFRT</div>
+            <div class="footer-tag">Outside comfort</div>
+            <div class="footer-rule"></div>
+            <div class="footer-note"><b>From INDIA to the WORLD.</b> Quiet and cozy. Quality over quantity. Minimal at its peak.</div>
+          </div>
+        </div>
+      </div>
+      <div class="screen-bottom">
+        <nav class="nav rise" style="animation-delay:.60s" aria-label="Portal">
+          <button class="active" data-view="tasks">Task</button>
+          <button data-view="climb">Climb</button>
+          <button data-view="board">Board</button>
+          <button data-view="ranks">Ranks</button>
+          <button data-view="log">Log</button>
+        </nav>
+      </div>
     </section>
 
     <section class="screen" id="board">
-      <div class="top rise" style="animation-delay:.02s"><span id="boardMonth">Current cycle</span><span class="live"><i class="dotlive"></i>Live</span></div>
-      <div class="hero"><span><i>The board</i></span></div>
-      <div class="clockrow rise" style="animation-delay:.2s">
-        <div><span class="clocklab">Resets in</span><span class="clock" id="boardClock">0d 00:00<span class="s">:00</span></span></div>
-        <span class="resets">Top 3 stay pinned<br>for a week after</span>
+      <div class="screen-top">
+        <div class="top rise" style="animation-delay:.02s"><span id="boardMonth">Current cycle</span><span class="live"><i class="dotlive"></i>Live</span></div>
+        <div class="hero"><span><i>The board</i></span></div>
+        <div class="clockrow rise" style="animation-delay:.2s">
+          <div><span class="clocklab">Resets in</span><span class="clock" id="boardClock">0d 00:00<span class="s">:00</span></span></div>
+          <span class="resets">Top 3 stay pinned<br>for a week after</span>
+        </div>
       </div>
-      <div class="list rise" id="boardList" style="animation-delay:.28s"></div>
-      <div class="gap rise" id="boardGap" style="animation-delay:.52s"><b>Loading board</b><span>—</span></div>
-      <div class="plate rise" style="animation-delay:.58s"><i></i><q>“Won it in the last four days. Did a task every single night.”<b>Last cycle winner</b></q></div>
-      <nav class="nav rise" style="animation-delay:.64s">
-        <button data-view="tasks">Task</button>
-        <button data-view="climb">Climb</button>
-        <button class="active" data-view="board">Board</button>
-        <button data-view="ranks">Ranks</button>
-        <button data-view="log">Log</button>
-      </nav>
+      <div class="screen-scroll">
+        <div class="scroll-inner">
+          <div class="list rise" id="boardList" style="animation-delay:.28s"></div>
+          <div class="gap rise" id="boardGap" style="animation-delay:.42s;margin-top:10px"><b>Loading board</b><span>—</span></div>
+        </div>
+        <div class="plate rise" style="animation-delay:.48s"><i></i><q>"Won it in the last four days. Did a task every single night."<b>Last cycle winner</b></q></div>
+      </div>
+      <div class="screen-bottom">
+        <nav class="nav rise" style="animation-delay:.58s">
+          <button data-view="tasks">Task</button>
+          <button data-view="climb">Climb</button>
+          <button class="active" data-view="board">Board</button>
+          <button data-view="ranks">Ranks</button>
+          <button data-view="log">Log</button>
+        </nav>
+      </div>
     </section>
 
     <section class="screen" id="climb">
-      <div class="top rise"><span>Comfort system</span><span class="live"><i class="dotlive"></i>Live</span></div>
-      <div class="kick rise">Outside comfort / progression</div>
-      <div class="hero"><span><i>The climb</i></span></div>
-      <div class="scroll rise" id="climbContent"></div>
-      <nav class="nav">
-        <button data-view="tasks">Task</button>
-        <button class="active" data-view="climb">Climb</button>
-        <button data-view="board">Board</button>
-        <button data-view="ranks">Ranks</button>
-        <button data-view="log">Log</button>
-      </nav>
+      <div class="screen-top">
+        <div class="top rise"><span>Comfort system</span><span class="live"><i class="dotlive"></i>Live</span></div>
+        <div class="kick rise">Outside comfort / progression</div>
+        <div class="hero"><span><i>The climb</i></span></div>
+      </div>
+      <div class="screen-scroll">
+        <div id="climbContent"></div>
+      </div>
+      <div class="screen-bottom">
+        <nav class="nav">
+          <button data-view="tasks">Task</button>
+          <button class="active" data-view="climb">Climb</button>
+          <button data-view="board">Board</button>
+          <button data-view="ranks">Ranks</button>
+          <button data-view="log">Log</button>
+        </nav>
+      </div>
     </section>
 
     <section class="screen" id="ranks">
-      <div class="top rise"><span>Personal standing</span><span>Rank history</span></div>
-      <div class="kick rise">Your position / over time</div>
-      <div class="hero"><span><i>The ranks</i></span></div>
-      <div class="scroll rise" id="ranksContent"></div>
-      <nav class="nav">
-        <button data-view="tasks">Task</button>
-        <button data-view="climb">Climb</button>
-        <button data-view="board">Board</button>
-        <button class="active" data-view="ranks">Ranks</button>
-        <button data-view="log">Log</button>
-      </nav>
+      <div class="screen-top">
+        <div class="top rise"><span>Personal standing</span><span>Rank history</span></div>
+        <div class="kick rise">Your position / over time</div>
+        <div class="hero"><span><i>The ranks</i></span></div>
+      </div>
+      <div class="screen-scroll">
+        <div class="scroll-inner">
+          <div class="scroll flex rise" id="ranksContent"></div>
+        </div>
+      </div>
+      <div class="screen-bottom">
+        <nav class="nav">
+          <button data-view="tasks">Task</button>
+          <button data-view="climb">Climb</button>
+          <button data-view="board">Board</button>
+          <button class="active" data-view="ranks">Ranks</button>
+          <button data-view="log">Log</button>
+        </nav>
+      </div>
     </section>
 
     <section class="screen" id="log">
-      <div class="top rise"><span>Personal record</span><span>Live log</span></div>
-      <div class="kick rise">Approved work / movement</div>
-      <div class="hero"><span><i>The log</i></span></div>
-      <div class="scroll rise" id="logContent"></div>
-      <nav class="nav">
-        <button data-view="tasks">Task</button>
-        <button data-view="climb">Climb</button>
-        <button data-view="board">Board</button>
-        <button data-view="ranks">Ranks</button>
-        <button class="active" data-view="log">Log</button>
-      </nav>
+      <div class="screen-top">
+        <div class="top rise"><span>Earnings &amp; activity</span><span class="live"><i class="dotlive"></i>Live</span></div>
+        <div class="kick rise">Commissions / orders / requests</div>
+        <div class="hero"><span><i>The log</i></span></div>
+      </div>
+      <div class="screen-scroll">
+        <div id="logContent"></div>
+      </div>
+      <div class="screen-bottom">
+        <nav class="nav">
+          <button data-view="tasks">Task</button>
+          <button data-view="climb">Climb</button>
+          <button data-view="board">Board</button>
+          <button data-view="ranks">Ranks</button>
+          <button class="active" data-view="log">Log</button>
+        </nav>
+      </div>
     </section>
 
     <div class="toast" id="toast"><span id="toastMessage"></span><i id="toastValue"></i></div>
 
     <div class="sheet-wrap" id="sheet">
       <div class="sheet">
-        <h2>Submit proof</h2>
-        <input id="proofUrl" type="url" placeholder="https://instagram.com/reel/..."/>
-        <textarea id="proofCaption" placeholder="What did you post about?"></textarea>
-        <label><input id="proofDisclosure" type="checkbox"> #ad or sponsored tag included</label>
+        <div class="sheet-handle"></div>
+        <div class="sheet-header">
+          <h2>Submit proof</h2>
+          <p id="sheetTaskTitle">—</p>
+        </div>
+        <div class="sheet-body">
+          <label>Post URL
+            <input id="proofUrl" type="url" placeholder="https://instagram.com/reel/..."/>
+          </label>
+          <label>Platform
+            <select id="proofPlatform">
+              <option value="instagram">Instagram</option>
+              <option value="youtube">YouTube</option>
+              <option value="twitter">X / Twitter</option>
+              <option value="other">Other</option>
+            </select>
+          </label>
+          <label>Caption
+            <textarea id="proofCaption" placeholder="What did you post about?"></textarea>
+            <div class="char-count"><span id="captionCount">0</span>/220</div>
+          </label>
+          <div class="disclosure-row">
+            <label><input id="proofDisclosure" type="checkbox"> #ad or sponsored tag included</label>
+          </div>
+          <label>Notes <span style="color:var(--dim);font-weight:400;text-transform:none;letter-spacing:0">(optional)</span>
+            <input id="proofNotes" type="text" placeholder="Anything the team should know"/>
+          </label>
+        </div>
         <div class="actions">
           <button class="cancel" id="closeSheet">Cancel</button>
-          <button id="submitProof">Submit</button>
+          <button class="submit-btn" id="submitProof">Submit</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="sheet-wrap" id="prSheet">
+      <div class="sheet pr-sheet" style="max-height:90vh;overflow-y:auto">
+        <div class="sheet-handle"></div>
+        <div class="sheet-header">
+          <h2>Request product</h2>
+          <p>Browse and select items</p>
+        </div>
+        <div class="sheet-body">
+          <label>Reason
+            <select id="prReason">
+              <option value="SEEDING">Seeding</option>
+              <option value="PROMOTION_PRIZE">Promotion prize</option>
+              <option value="CAMPAIGN">Campaign</option>
+              <option value="REDEMPTION">Redemption</option>
+              <option value="REPLACEMENT">Replacement</option>
+            </select>
+          </label>
+          <label style="margin-top:14px">Select products</label>
+          <input class="product-search" id="productSearch" type="text" placeholder="Search products..."/>
+          <div id="productGrid" class="product-grid"><div class="product-loading">Loading products...</div></div>
+          <div id="selectedSummary" style="margin-top:10px;font-family:var(--m);font-size:8px;color:var(--dim);letter-spacing:.04em"></div>
+          <label style="margin-top:14px">Delivery address <span style="color:var(--dim);font-weight:400;text-transform:none;letter-spacing:0">(optional)</span>
+            <textarea id="prAddress" placeholder="Full name, address, city, pincode, phone"></textarea>
+          </label>
+          <label>Notes <span style="color:var(--dim);font-weight:400;text-transform:none;letter-spacing:0">(optional)</span>
+            <input id="prNotes" type="text" placeholder="Size, color, or any special instructions"/>
+          </label>
+        </div>
+        <div class="actions">
+          <button class="cancel" id="closePrSheet">Cancel</button>
+          <button class="submit-btn" id="submitPr">Submit request</button>
         </div>
       </div>
     </div>
@@ -345,7 +658,7 @@
 
 <script>
 const API='https://exchange-return-tracking.onrender.com/api/athlete';
-const S={token:null,athlete:null,tasks:[],picks:[],maxPicks:5,streak:0,leaderboard:[],climb:null,ranks:null,log:[],weekly:null,assignment:null,bricks:[],active:'tasks'};
+const S={token:null,athlete:null,tasks:[],picks:[],maxPicks:5,streak:0,leaderboard:[],climb:null,ranks:null,log:[],weekly:null,assignment:null,bricks:[],active:'tasks',orders:[],commissions:null,productRequests:[],shopifyProducts:[]};
 const $=id=>document.getElementById(id);
 const esc=v=>{const e=document.createElement('div');e.textContent=v||'';return e.innerHTML};
 const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -420,7 +733,13 @@ function show(id){
   document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('active',s.id===id));
   document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===id));
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('open'));
-  requestAnimationFrame(()=>$(id).classList.add('open'));
+  // Pause all footer videos, then play only the active screen's video
+  document.querySelectorAll('.footer video').forEach(v=>{v.pause()});
+  requestAnimationFrame(()=>{
+    $(id).classList.add('open');
+    const vid=$(id).querySelector('.footer video');
+    if(vid){vid.play().catch(()=>{})}
+  });
 }
 
 function renderProfile(){
@@ -446,28 +765,79 @@ function renderTasks(){
   $('taskReward').textContent=`+${focus.xp_value||0} XP`;
   const canPick=!focus.picked&&picked.length<S.maxPicks;
   const done=focus.picked&&!['PICKED','ASSIGNED','IN_PROGRESS','CHANGES_REQUESTED'].includes(focus.pick_status);
-  $('taskPool').innerHTML=tasks.map((t,i)=>{
-    const active=t.id===focus.id;
-    const picked=t.picked;
-    const d=picked&&!['PICKED','ASSIGNED','IN_PROGRESS','CHANGES_REQUESTED'].includes(t.pick_status);
-    const btn=picked?(d?'Done':'Submit'):(S.picks.length>=S.maxPicks?'Full':'Pick');
-    return `<div class="mission-row${active?' me':''}" data-number="${String(i+1).padStart(2,'0')}" data-id="${t.id}"><div><div class="mission-type">${esc((t.type||'TASK').replace('_',' '))}</div><div class="mission-title">${esc(t.title)}</div></div><div><div class="mission-xp">+${t.xp_value||0} XP</div><button class="mission-action" ${d?'disabled':''}>${btn}</button></div></div>`;
-  }).join('');
-  [...$('taskPool').querySelectorAll('.mission-row')].forEach(row=>{
-    const id=Number(row.dataset.id),t=tasks.find(x=>x.id===id);
+  // Show only the focused task — tap to expand details
+  const desc=focus.description||focus.brief||'Complete this mission and submit proof before the timer runs out.';
+  $('taskPool').innerHTML=`<div class="mission-row me expanded" data-number="${String(idx+1).padStart(2,'0')}" data-id="${focus.id}"><div><div class="mission-type">${esc((focus.type||'TASK').replace('_',' '))}</div><div class="mission-title">${esc(focus.title)}</div><div class="mission-details"><div class="mission-details-inner"><div class="mission-desc">${esc(desc)}</div><div class="mission-meta"><span>XP <b>+${focus.xp_value||0}</b></span><span>Type <b>${esc((focus.type||'TASK').replace('_',' '))}</b></span><span>Status <b>${focus.picked?esc(focus.pick_status||'PICKED'):'AVAILABLE'}</b></span></div></div></div></div><div><div class="mission-xp">+${focus.xp_value||0} XP</div><button class="mission-action" ${done?'disabled':''}>${focus.picked?(done?'Done':'Submit'):(S.picks.length>=S.maxPicks?'Full':'Pick')}</button></div></div>`;
+  const row=$('taskPool').querySelector('.mission-row');
+  if(row){
     const btn=row.querySelector('button');
-    if(btn&&!btn.disabled)btn.onclick=()=>t.picked?openSubmission(t.assignment_id):pickTask(t.id);
-  });
+    row.addEventListener('click',e=>{
+      if(e.target.closest('.mission-action'))return;
+      row.classList.toggle('expanded');
+    });
+    if(btn&&!btn.disabled)btn.onclick=()=>focus.picked?openSubmission(focus.assignment_id):pickTask(focus.id);
+  }
   if(focus.picked){$('taskAction').textContent='Submit proof';$('taskAction').onclick=()=>openSubmission(focus.assignment_id)}
   else{$('taskAction').textContent='Open the brief';$('taskAction').onclick=()=>{if(canPick)pickTask(focus.id);else toast('Daily mission pool full or unavailable')}}
 }
 
 function renderClimb(){
   const c=S.climb;if(!c)return;
-  const state=x=>x?.complete?'COMPLETE':x?.required==null?'—':`${x.current}/${x.required}`;
-  const ladder=(c.ladder||[]).map(l=>`<div class="ladder-row${l.id===c.current_level?.id?' current':''}"><b class="ladder-num">${l.display_number??'0'}</b><div><div class="ladder-title">${esc(l.display_name)}</div><div class="ladder-meta">${Number(l.min_xp||0).toLocaleString('en-IN')} XP · ${l.min_standing??'—'} standing</div></div><span class="state">${l.id===c.current_level?.id?'YOU':l.ordinal<(c.current_level?.ordinal||0)?'CLEARED':'LOCKED'}</span></div>`).join('');
-  const weekly=S.weekly?.challenge?`<div class="module"><span class="label">Shared weekly challenge</span><h2>${esc(S.weekly.challenge.title)}</h2><p>${esc(S.weekly.challenge.description||'')}</p>${S.weekly.entry?`<p style="margin-top:8px">Entry: ${esc(S.weekly.entry.status)}</p>`:`<button class="cta" id="weeklySubmit" style="margin-top:11px;width:100%">Submit weekly entry</button>`}</div>`:'';
-  $('climbContent').innerHTML=`<div class="module"><span class="label">Current position</span><h2>${esc(c.current_level?.display_name||'Unranked')}</h2><p>${c.days_in_current_level||0} days at this level.${c.next_level?' Next: '+esc(c.next_level.display_name)+'.':' You reached the final level.'}</p><dl class="strip" style="margin-top:11px"><div><dt>XP</dt><dd>${state(c.requirements?.xp)}</dd></div><div><dt>Standing</dt><dd>${state(c.requirements?.standing)}</dd></div><div><dt>Days</dt><dd>${state(c.requirements?.days)}</dd></div></dl></div><div>${ladder}</div>${weekly}<div class="module"><span class="label">Level movement</span>${(c.history||[]).length?(c.history||[]).map(x=>`<div class="history-row"><span>${new Date(x.occurred_at).toLocaleDateString()}</span><b>${esc(x.direction)}</b><span>${esc(x.reason_code)}</span></div>`).join(''):'<p>No level movements recorded yet.</p>'}</div>`;
+  const cur=c.current_level||{};
+  const nxt=c.next_level||null;
+  const days=c.days_in_current_level||0;
+  const xpReq=cur.min_xp||0;
+  const xpHave=S.athlete?.xp_total||0;
+  const xpPct=nxt?Math.min(100,Math.round((xpHave-(xpReq||0))/Math.max(1,(nxt.min_xp||xpReq)-(xpReq||0))*100)):100;
+
+  let html=`<div class="climb-hero">
+    <div class="ch-top"><span class="ch-label">Current position</span><span class="ch-live"><i></i>Live</span></div>
+    <div class="ch-level">${esc(cur.display_name||'Unranked')}</div>
+    <div class="ch-name">Comfort Level &ndash; ${cur.display_number??'0'}</div>
+    <div class="ch-sub">${days} day${days!==1?'s':''} at this level.${nxt?' Next: '+esc(nxt.display_name)+'.':' Final level reached.'}</div>
+    <div class="ch-bar"><i style="width:${xpPct}%"></i></div>
+    <dl class="ch-stats">
+      <div><dt>XP</dt><dd>${Number(xpHave||0).toLocaleString('en-IN')}</dd></div>
+      <div><dt>Level</dt><dd>${cur.display_number??'0'}</dd></div>
+      <div><dt>Days</dt><dd>${days}</dd></div>
+    </dl>
+  </div>`;
+
+  const ladder=(c.ladder||[]).map(l=>{
+    const isCur=l.id===cur.id;
+    const isCleared=l.ordinal<(cur.ordinal||0);
+    const isLocked=l.ordinal>(cur.ordinal||0);
+    const cls=isCur?'current':isCleared?'cleared':'locked';
+    const tag=isCur?'YOU':isCleared?'CLEARED':'LOCKED';
+    const tagCls=isCur?'you':isCleared?'cleared':'locked';
+    const progPct=isCleared?100:isCur?xpPct:0;
+    return `<div class="ladder-row ${cls}">
+      <b class="ladder-num">${l.display_number??'0'}</b>
+      <div>
+        <div class="ladder-title">${esc(l.display_name)}</div>
+        <div class="ladder-meta">${Number(l.min_xp||0).toLocaleString('en-IN')} XP &middot; ${l.min_standing??'&mdash;'} standing</div>
+        <div class="ladder-prog"><i style="width:${progPct}%"></i></div>
+      </div>
+      <span class="state ${tagCls}">${tag}</span>
+    </div>`;
+  }).join('');
+  html+=`<div class="ladder"><div class="ladder-head"><span class="lh-title">Comfort ladder</span><span class="lh-count">${(c.ladder||[]).length} levels</span></div>${ladder}</div>`;
+
+  if(S.weekly?.challenge){
+    const w=S.weekly.challenge;
+    const entryStatus=S.weekly.entry?esc(S.weekly.entry.status):null;
+    html+=`<div class="climb-weekly">
+      <div class="cw-label">Shared weekly challenge</div>
+      <h3>${esc(w.title)}</h3>
+      <p>${esc(w.description||'')}</p>
+      ${entryStatus?`<div class="cw-status">Entry: ${entryStatus}</div>`:`<button class="cta" id="weeklySubmit" style="margin-top:12px;width:100%">Submit weekly entry</button>`}
+    </div>`;
+  }
+
+  const hist=(c.history||[]).map(x=>`<div class="history-row"><span>${new Date(x.occurred_at).toLocaleDateString()}</span><b>${esc(x.direction)}</b><span>${esc(x.reason_code)}</span></div>`).join('');
+  html+=`<div class="climb-history"><div class="chist-label">Level movement</div>${hist||'<div class="empty" style="padding:0">No level movements recorded yet.</div>'}</div>`;
+
+  $('climbContent').innerHTML=html;
   $('weeklySubmit')?.addEventListener('click',submitWeekly);
 }
 
@@ -493,14 +863,177 @@ function renderRanks(){
 }
 
 function renderLog(){
+  const c=S.commissions||{};
+  const s=c.summary||{};
+  const monthly=c.monthly||[];
+  const orders=S.orders||[];
+  const prs=S.productRequests||[];
   const events=S.log||[];
-  $('logContent').innerHTML=events.length?events.map(x=>`<div class="history-row"><span>${new Date(x.occurred_at).toLocaleDateString()}</span><b>${esc(x.title)}</b><span>${esc(x.detail||x.type)}</span></div>`).join(''):'<div class="empty">Approved work, XP, and level changes appear here.</div>';
+  const fmt=v=>'\u20B9'+Number(v||0).toLocaleString('en-IN');
+
+  let html='';
+
+  // Commission hero
+  const rate=s.commission_rate||7;
+  html+=`<div class="comm-hero">
+    <div class="cm-top"><span class="cm-label">Total commission earned</span><span class="cm-live"><i></i>Live</span></div>
+    <div class="cm-earned">${fmt(s.total_commission)}</div>
+    <div class="cm-sub">${s.total_orders||0} orders &middot; ${fmt(s.total_revenue)} revenue &middot; ${rate}% per order</div>
+    <dl class="cm-stats">
+      <div><dt>Earned</dt><dd>${fmt(s.earned)}</dd></div>
+      <div><dt>Pending</dt><dd>${fmt(s.pending)}</dd></div>
+      <div><dt>Paid</dt><dd>${fmt(s.paid)}</dd></div>
+    </dl>
+  </div>`;
+
+  // Monthly breakdown
+  if(monthly.length){
+    const rows=monthly.map(m=>{
+      const codes=Object.entries(m.codes||{}).map(([code,count])=>`${esc(code)}: ${count} order${count!==1?'s':''}`).join(' | ');
+      return `<div class="monthly-row">
+        <div><div class="mr-month">${m.month}</div><div class="mr-meta">${m.orders} order${m.orders!==1?'s':''} &middot; ${fmt(m.revenue)} revenue</div>${codes?`<div class="mr-meta" style="margin-top:2px;font-size:7px">${codes}</div>`:''}</div>
+        <div class="mr-ord">${m.orders}</div>
+        <div class="mr-comm">${fmt(m.commission)}</div>
+      </div>`;
+    }).join('');
+    html+=`<div><div class="monthly-head"><span class="mh-title">Monthly breakdown</span><span class="mh-count">${rate}% rate &middot; ${monthly.length} months</span></div>${rows}</div>`;
+  }
+
+  // Orders
+  if(orders.length){
+    const rows=orders.slice(0,20).map(o=>{
+      const netVal=parseFloat(o.net_value)||0;
+      const comm7=Math.round(netVal*rate/100*100)/100;
+      const status=(o.commission_status||'pending').toLowerCase();
+      const d=new Date(o.placed_at);
+      const dateStr=d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+      return `<div class="order-row">
+        <div>
+          <div class="or-id">#${o.shopify_order_id} &middot; ${dateStr}</div>
+          <div class="or-value">${fmt(netVal)}</div>
+          <div class="or-meta">${esc(o.customer_name||'Customer')} &middot; Code: ${esc(o.code_used||'DIRECT')}</div>
+          <span class="or-status ${status}">${status}</span>
+        </div>
+        <div class="or-comm">
+          <div class="or-comm-amt">${fmt(comm7)}</div>
+          <div class="or-comm-rate">${rate}% rate</div>
+        </div>
+      </div>`;
+    }).join('');
+    html+=`<div><div class="order-head"><span class="oh-title">Orders</span><span class="oh-count">${orders.length} total</span></div>${rows}</div>`;
+  }
+
+  // Product requests
+  const prRows=prs.map(p=>{
+    const items=(p.items||[]).map(it=>it.title||it.variant_id||'Item').join(', ');
+    const d=new Date(p.requested_at);
+    const status=(p.status||'requested').toLowerCase();
+    return `<div class="pr-row">
+      <div>
+        <div class="pr-reason">${esc(p.reason)}</div>
+        <div class="pr-date">${d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}</div>
+        ${items?`<div class="pr-items">${esc(items)}</div>`:''}
+      </div>
+      <span class="pr-status ${status}">${status.replace('_',' ')}</span>
+    </div>`;
+  }).join('');
+  html+=`<div><div class="pr-head"><span class="ph-title">Product requests</span><span class="ph-count">${prs.length} total</span></div>${prRows||'<div class="empty" style="padding:12px 18px">No product requests yet.</div>'}<button class="req-product-btn" id="openPrSheet">Request product</button></div>`;
+
+  // Activity log
+  const actRows=events.length?events.map(x=>`<div class="history-row"><span>${new Date(x.occurred_at).toLocaleDateString()}</span><b>${esc(x.title)}</b><span>${esc(x.detail||x.type)}</span></div>`).join(''):'<div class="empty" style="padding:12px 18px">Approved work, XP, and level changes appear here.</div>';
+  html+=`<div><div class="activity-head"><span class="ah-title">Activity log</span><span class="ah-count">${events.length} events</span></div>${actRows}</div>`;
+
+  $('logContent').innerHTML=html;
+  $('openPrSheet')?.addEventListener('click',openProductRequest);
 }
 
 async function pickTask(id){try{await api('/daily-tasks/pick',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({task_template_id:id})});toast('Mission picked');flash(6);await loadTasks()}catch(e){toast(e.message)}}
-function openSubmission(id){S.assignment=id;$('sheet').classList.add('open')}
-async function submitProof(){const url=$('proofUrl').value.trim();if(!url)return toast('Post URL required');try{await api('/submissions/'+S.assignment,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({post_url:url,caption:$('proofCaption').value.trim(),disclosure_found:$('proofDisclosure').checked})});$('sheet').classList.remove('open');toast('Proof submitted');flash(12);await loadTasks()}catch(e){toast(e.message)}}
+function openSubmission(id){
+  S.assignment=id;
+  const focus=S.tasks.find(x=>x.assignment_id===id)||S.tasks.find(x=>x.picked);
+  $('sheetTaskTitle').textContent=focus?focus.title.toUpperCase():'—';
+  $('proofUrl').value='';$('proofCaption').value='';$('proofNotes').value='';$('proofDisclosure').checked=false;$('proofPlatform').value='instagram';$('captionCount').textContent='0';
+  $('sheet').classList.add('open');
+}
+async function submitProof(){
+  const url=$('proofUrl').value.trim();
+  if(!url)return toast('Post URL required');
+  const btn=$('submitProof');btn.disabled=true;btn.textContent='Submitting…';
+  try{
+    await api('/submissions/'+S.assignment,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({post_url:url,caption:$('proofCaption').value.trim(),disclosure_found:$('proofDisclosure').checked,platform:$('proofPlatform').value,notes:$('proofNotes').value.trim()})});
+    $('sheet').classList.remove('open');toast('Proof submitted');flash(12);await loadTasks();
+  }catch(e){toast(e.message)}
+  finally{btn.disabled=false;btn.textContent='Submit'}
+}
 async function submitWeekly(){const url=prompt('Paste your weekly post URL');if(!url)return;try{await api('/weekly-challenge/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({challenge_id:S.weekly.challenge.id,submission_url:url,caption:'',disclosure_found:false})});toast('Weekly entry submitted');S.weekly=await api('/weekly-challenge');renderClimb()}catch(e){toast(e.message)}}
+
+// ── Product request sheet ──
+let selectedProducts={}; // {productId: {product, variantId}}
+async function loadShopifyProducts(){
+  if(S.shopifyProducts.length)return;
+  try{
+    const res=await fetch('https://exchange-return-tracking.onrender.com/api/athlete-products');
+    const data=await res.json();
+    S.shopifyProducts=data.products||[];
+  }catch(e){dbg('Failed to load products: '+e.message,'err')}
+}
+function renderProductGrid(filter=''){
+  const q=filter.toLowerCase().trim();
+  const products=q?S.shopifyProducts.filter(p=>p.title.toLowerCase().includes(q)||p.product_type.toLowerCase().includes(q)||(p.vendor||'').toLowerCase().includes(q)):S.shopifyProducts;
+  if(!products.length){$('productGrid').innerHTML='<div class="product-empty">No products found</div>';return}
+  $('productGrid').innerHTML=products.map(p=>{
+    const isSelected=selectedProducts[p.id];
+    const img=p.image?`<img class="pc-img" src="${esc(p.image)}" alt="${esc(p.title)}" loading="lazy"/>`:'<div class="pc-img-placeholder">&#x1F455;</div>';
+    const vars=p.variants.slice(0,3).map(v=>`<div class="pc-var"><span>${esc(v.title)}</span><span>\u20B9${Number(v.price).toLocaleString('en-IN')}</span></div>`).join('');
+    return `<div class="product-card${isSelected?' selected':''}" data-pid="${p.id}" data-title="${esc(p.title)}">
+      ${img}
+      <div class="pc-check">\u2713</div>
+      <div class="pc-info"><div class="pc-title">${esc(p.title)}</div><div class="pc-type">${esc(p.product_type||p.vendor||'Product')}</div></div>
+      ${vars?`<div class="pc-variants">${vars}</div>`:''}
+    </div>`;
+  }).join('');
+  $('productGrid').querySelectorAll('.product-card').forEach(card=>{
+    card.addEventListener('click',()=>toggleProduct(card.dataset.pid,card.dataset.title));
+  });
+}
+function toggleProduct(pid,title){
+  if(selectedProducts[pid]){
+    delete selectedProducts[pid];
+  }else{
+    const p=S.shopifyProducts.find(x=>x.id===pid);
+    if(p&&p.variants.length)selectedProducts[pid]={product:p,variantId:p.variants[0].id};
+    else if(p)selectedProducts[pid]={product:p,variantId:null};
+  }
+  renderProductGrid($('productSearch').value);
+  updateSelectedSummary();
+}
+function updateSelectedSummary(){
+  const count=Object.keys(selectedProducts).length;
+  $('selectedSummary').textContent=count?count+' item'+(count!==1?'s':'')+' selected':'';
+}
+function openProductRequest(){
+  selectedProducts={};
+  $('prReason').value='SEEDING';$('prAddress').value='';$('prNotes').value='';$('productSearch').value='';$('selectedSummary').textContent='';
+  $('prSheet').classList.add('open');
+  loadShopifyProducts().then(()=>renderProductGrid());
+}
+function closeProductRequest(){$('prSheet').classList.remove('open')}
+async function submitProductRequest(){
+  const reason=$('prReason').value;
+  const items=Object.values(selectedProducts).map(({product,variantId})=>{
+    const v=product.variants.find(x=>x.id===variantId)||product.variants[0];
+    return {title:product.title+(v&&v.title!=='Default'?' ('+v.title+')':''),variant_id:v?v.id:null,qty:1,image_url:product.image||''};
+  });
+  if(!items.length)return toast('Select at least one product');
+  const address=$('prAddress').value.trim()||null;
+  const btn=$('submitPr');btn.disabled=true;btn.textContent='Submitting\u2026';
+  try{
+    await api('/product-requests',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason,items,address})});
+    closeProductRequest();toast('Product request submitted');
+    S.productRequests=await api('/product-requests');renderLog();
+  }catch(e){toast(e.message)}
+  finally{btn.disabled=false;btn.textContent='Submit request'}
+}
 async function loadTasks(){const data=await api('/daily-tasks');S.tasks=data?.tasks||[];S.picks=data?.picks||[];S.maxPicks=data?.maxPicks||5;renderTasks()}
 async function refreshBoard(){try{const board=await api('/leaderboard');if(JSON.stringify(board)!==JSON.stringify(S.leaderboard)){S.leaderboard=board||[];renderBoard();flash(2)}}catch(e){}}
 
@@ -516,13 +1049,28 @@ function loadPreview(){
     ranks:{current_rank:4,rank_delta:1,snapshots:[{captured_on:'2026-10-06',global_rank:7},{captured_on:'2026-10-07',global_rank:6},{captured_on:'2026-10-08',global_rank:5},{captured_on:'2026-10-09',global_rank:5},{captured_on:'2026-10-10',global_rank:4},{captured_on:'2026-10-11',global_rank:4},{captured_on:'2026-10-12',global_rank:3}],nearby:[{global_rank:3,name:'@arjun.pulls',xp_total:1180},{global_rank:4,name:'You',xp_total:1450,is_self:true},{global_rank:5,name:'@priya.climbs',xp_total:960}],level_history:[{occurred_at:new Date(Date.now()-86400000).toISOString(),direction:'UP',reason_code:'LEVEL_REACHED'}]},
     log:[{occurred_at:new Date(Date.now()-86400000).toISOString(),title:'Mission approved',detail:'+60 XP'},{occurred_at:new Date(Date.now()-2*86400000).toISOString(),title:'Comfort Level - 1 reached',detail:'STANDING'},{occurred_at:new Date(Date.now()-3*86400000).toISOString(),title:'Mission approved',detail:'+40 XP'}],
     weekly:{challenge:{id:0,title:'Train somewhere new',description:'Post one proof from a place you have never trained before.'}},
-    tasks:[{id:1,assignment_id:1,title:'Ask a stranger for one tip',type:'REEL',xp_value:40,picked:true,pick_status:'IN_PROGRESS'},{id:2,title:'Try a new gym for one session',type:'STORY',xp_value:20,picked:false},{id:3,title:'Send your first coach a note',type:'POST',xp_value:35,picked:false},{id:4,title:'Train outside for 20 minutes',type:'REEL',xp_value:50,picked:false},{id:5,title:'Share a failure you learned from',type:'POST',xp_value:30,picked:false}],
-    picks:[{id:1,task_template_id:1}],maxPicks:5
+    tasks:[{id:1,assignment_id:1,title:'Ask a stranger for one tip',type:'REEL',xp_value:40,picked:true,pick_status:'IN_PROGRESS',description:'Walk up to someone at the gym and ask for one training tip. Film the interaction and post it as a reel.'},{id:2,title:'Try a new gym for one session',type:'STORY',xp_value:20,picked:false,description:'Visit a gym you have never trained at before. Post a story from the session.'},{id:3,title:'Send your first coach a note',type:'POST',xp_value:35,picked:false,description:'Write a thank-you note to the first person who coached you. Post it publicly.'},{id:4,title:'Train outside for 20 minutes',type:'REEL',xp_value:50,picked:false,description:'Take your workout outdoors. Film at least 20 minutes and post as a reel.'},{id:5,title:'Share a failure you learned from',type:'POST',xp_value:30,picked:false,description:'Write about a training failure and what it taught you. Post it as a carousel or text post.'}],
+    picks:[{id:1,task_template_id:1}],maxPicks:5,
+    orders:[
+      {shopify_order_id:5001,net_value:2499,commission_amount:374.85,commission_rate:15,commission_status:'EARNED',placed_at:new Date(Date.now()-86400000*2).toISOString(),customer_name:'Rahul M.',code_used:'OFFCOMFRT15',financial_status:'paid',fulfillment_status:'fulfilled'},
+      {shopify_order_id:5002,net_value:1899,commission_amount:284.85,commission_rate:15,commission_status:'PAID',placed_at:new Date(Date.now()-86400000*5).toISOString(),customer_name:'Priya S.',code_used:'OFFCOMFRT15',financial_status:'paid',fulfillment_status:'fulfilled'},
+      {shopify_order_id:5003,net_value:3299,commission_amount:494.85,commission_rate:15,commission_status:'PENDING',placed_at:new Date(Date.now()-86400000*1).toISOString(),customer_name:'Amit K.',code_used:'OFFCOMFRT15',financial_status:'pending',fulfillment_status:'unfulfilled'},
+      {shopify_order_id:5004,net_value:1599,commission_amount:239.85,commission_rate:15,commission_status:'EARNED',placed_at:new Date(Date.now()-86400000*12).toISOString(),customer_name:'Sneha R.',code_used:'OFFCOMFRT15',financial_status:'paid',fulfillment_status:'fulfilled'},
+      {shopify_order_id:5005,net_value:899,commission_amount:0,commission_rate:15,commission_status:'REVERSED',placed_at:new Date(Date.now()-86400000*20).toISOString(),customer_name:'Vikram J.',code_used:'OFFCOMFRT15',financial_status:'refunded',fulfillment_status:'fulfilled'}
+    ],
+    commissions:{summary:{total_orders:5,total_revenue:10195,total_commission:1394.4,earned:614.7,pending:494.85,paid:284.85,reversed:0},monthly:[
+      {month:'2026-10',orders:3,revenue:7697,commission:1154.55,earned:374.85,pending:494.85,paid:284.85,reversed:0},
+      {month:'2026-09',orders:2,revenue:2498,commission:239.85,earned:239.85,pending:0,paid:0,reversed:0}
+    ]},
+    productRequests:[
+      {id:1,reason:'SEEDING',status:'DELIVERED',requested_at:new Date(Date.now()-86400000*30).toISOString(),items:[{title:'SWEATSHIRT-001 (BLACK)',qty:1},{title:'VEST-001',qty:2}]},
+      {id:2,reason:'CAMPAIGN',status:'DISPATCHED',requested_at:new Date(Date.now()-86400000*10).toISOString(),items:[{title:'HENLEY-001 (ACID WASH)',qty:1}]}
+    ]
   });
   renderProfile();$('taskStreak').innerHTML='4<s> days</s>';renderClimb();renderBoard();renderRanks();renderLog();renderTasks();enterPortal();toast('Preview mode');
 }
 
-const ENDPOINTS=['/progress','/streak','/leaderboard','/climb','/ranks','/log','/weekly-challenge'];
+const ENDPOINTS=['/progress','/streak','/leaderboard','/climb','/ranks','/log','/weekly-challenge','/orders','/commissions','/product-requests'];
 
 async function attempt(path){
   try{
@@ -560,8 +1108,8 @@ async function loadPortal(){
         `Login failed on: ${failed.map(f=>f.path).join(', ')}`;
       return;
     }
-    const [progress,streak,board,climb,ranks,log,weekly]=results.map(r=>r.data);
-    Object.assign(S,{athlete:progress,streak:streak?.current_streak||0,leaderboard:board||[],climb,ranks,log:log||[],weekly});
+    const [progress,streak,board,climb,ranks,log,weekly,orders,commissions,productRequests]=results.map(r=>r.data);
+    Object.assign(S,{athlete:progress,streak:streak?.current_streak||0,leaderboard:board||[],climb,ranks,log:log||[],weekly,orders:orders||[],commissions:commissions||null,productRequests:productRequests||[]});
     dbg('all endpoints OK — entering portal','ok');
     renderProfile();$('taskStreak').innerHTML=S.streak+'<s> days</s>';renderClimb();renderBoard();renderRanks();renderLog();await loadTasks();enterPortal();
   }catch(e){
@@ -609,6 +1157,10 @@ document.addEventListener('DOMContentLoaded',()=>{
   };
   $('closeSheet').onclick=()=>$('sheet').classList.remove('open');
   $('submitProof').onclick=submitProof;
+  $('proofCaption').addEventListener('input',function(){$('captionCount').textContent=Math.min(220,this.value.length)});
+  $('closePrSheet').onclick=closeProductRequest;
+  $('submitPr').onclick=submitProductRequest;
+  $('productSearch').addEventListener('input',function(){renderProductGrid(this.value)});
   dbg('portal page loaded');
   const saved=sessionStorage.getItem('ap_token');
   if(saved){dbg(`saved token found · ${maskToken(saved)}`);S.token=saved;loadPortal()}

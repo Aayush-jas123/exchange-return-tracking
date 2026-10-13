@@ -1083,4 +1083,115 @@ module.exports = function mountAthleteRoutes(app) {
       res.json({ success: true, data: badges });
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
+
+  // ── Orders ──
+  app.get('/api/athlete/:token/orders', authAthlete, async (req, res) => {
+    try {
+      const { influencerId, scope } = req.athleteScope;
+      if (scope !== 'PROGRESS') return res.status(403).json({ error: 'Wrong scope' });
+      const orders = await AttributionService.getOrders(influencerId, { limit: 100 });
+      res.json({ success: true, data: orders });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // ── Commissions ──
+  app.get('/api/athlete/:token/commissions', authAthlete, async (req, res) => {
+    try {
+      const { influencerId, scope } = req.athleteScope;
+      if (scope !== 'PROGRESS') return res.status(403).json({ error: 'Wrong scope' });
+
+      const COMMISSION_RATE = 7; // 7% flat rate on every order
+
+      const { data: orders, error } = await supabase
+        .from('attributed_orders')
+        .select('commission_amount, commission_status, placed_at, net_value, code_used, customer_name, shopify_order_id, is_cancelled, refunded_amount')
+        .eq('influencer_id', influencerId)
+        .order('placed_at', { ascending: false });
+      if (error) throw error;
+
+      // Calculate commission at 7% on each order's net_value
+      const effectiveOrders = (orders || []).map(o => {
+        const netVal = parseFloat(o.net_value) || 0;
+        const commission = Math.round(netVal * COMMISSION_RATE / 100 * 100) / 100;
+        const isCancelled = o.is_cancelled || false;
+        const status = isCancelled ? 'REVERSED' : (o.commission_status || 'PENDING');
+        return { ...o, net_value: netVal, commission_7pct: commission, effective_status: status };
+      });
+
+      // Summary
+      const summary = {
+        total_orders: effectiveOrders.length,
+        total_revenue: effectiveOrders.reduce((s, o) => s + o.net_value, 0),
+        total_commission: effectiveOrders.reduce((s, o) => s + o.commission_7pct, 0),
+        earned: effectiveOrders.filter(o => o.effective_status === 'EARNED').reduce((s, o) => s + o.commission_7pct, 0),
+        pending: effectiveOrders.filter(o => o.effective_status === 'PENDING').reduce((s, o) => s + o.commission_7pct, 0),
+        paid: effectiveOrders.filter(o => o.effective_status === 'PAID').reduce((s, o) => s + o.commission_7pct, 0),
+        reversed: effectiveOrders.filter(o => o.effective_status === 'REVERSED').reduce((s, o) => s + o.commission_7pct, 0),
+        commission_rate: COMMISSION_RATE
+      };
+
+      // Monthly breakdown
+      const monthlyMap = {};
+      for (const o of effectiveOrders) {
+        const d = new Date(o.placed_at);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        if (!monthlyMap[key]) monthlyMap[key] = { month: key, orders: 0, revenue: 0, commission: 0, earned: 0, pending: 0, paid: 0, reversed: 0, codes: {} };
+        monthlyMap[key].orders++;
+        monthlyMap[key].revenue += o.net_value;
+        monthlyMap[key].commission += o.commission_7pct;
+        // Track coupon codes used this month
+        const code = o.code_used || 'DIRECT';
+        monthlyMap[key].codes[code] = (monthlyMap[key].codes[code] || 0) + 1;
+        const status = o.effective_status.toLowerCase();
+        if (monthlyMap[key][status] !== undefined) monthlyMap[key][status] += o.commission_7pct;
+      }
+      const monthly = Object.values(monthlyMap).sort((a, b) => b.month.localeCompare(a.month));
+
+      res.json({ success: true, data: { summary, monthly } });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // ── Product Requests ──
+  app.get('/api/athlete/:token/product-requests', authAthlete, async (req, res) => {
+    try {
+      const { influencerId, scope } = req.athleteScope;
+      if (scope !== 'PROGRESS') return res.status(403).json({ error: 'Wrong scope' });
+
+      const { data, error } = await supabase
+        .from('shipment_requests')
+        .select('*')
+        .eq('influencer_id', influencerId)
+        .order('requested_at', { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      res.json({ success: true, data: data || [] });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.post('/api/athlete/:token/product-requests', authAthlete, async (req, res) => {
+    try {
+      const { influencerId, scope } = req.athleteScope;
+      if (scope !== 'PROGRESS') return res.status(403).json({ error: 'Wrong scope' });
+
+      const { reason, items, address } = req.body;
+      if (!reason || !items || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ error: 'reason and items (non-empty array) are required' });
+      }
+
+      const { data, error } = await supabase
+        .from('shipment_requests')
+        .insert([{
+          influencer_id: influencerId,
+          reason: reason.toUpperCase(),
+          status: 'REQUESTED',
+          items: items,
+          address_snapshot: address || null,
+          requested_by: String(influencerId)
+        }])
+        .select()
+        .single();
+      if (error) throw error;
+      res.json({ success: true, data });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
 };

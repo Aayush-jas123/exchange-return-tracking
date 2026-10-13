@@ -8441,6 +8441,31 @@ app.get('/api/admin/products-for-exchange', authenticateAdmin, async (req, res) 
     }
 });
 
+// ── Athlete Products (for product request sheet) ──
+app.get('/api/athlete-products', async (req, res) => {
+    try {
+        const allProducts = await fetchAllShopifyProducts();
+        const products = allProducts.map(p => ({
+            id: String(p.id),
+            title: p.title || '',
+            handle: p.handle || '',
+            product_type: p.product_type || '',
+            vendor: p.vendor || '',
+            image: (p.image && p.image.src) || (p.images && p.images[0] && p.images[0].src) || '',
+            variants: (p.variants || []).map(v => ({
+                id: String(v.id),
+                title: v.title || 'Default',
+                price: v.price || '0',
+                available: v.inventory_quantity > 0 || v.inventory_policy === 'continue'
+            }))
+        }));
+        res.json({ success: true, products, total: products.length });
+    } catch (error) {
+        console.error('Athlete products error:', error);
+        res.status(500).json({ error: 'Failed to fetch products: ' + error.message, products: [] });
+    }
+});
+
 // ── Send Coupon Code (create discount + send WhatsApp message, no status change) ──
 app.post('/api/admin/send-coupon-code', authenticateAdmin, async (req, res) => {
     try {
