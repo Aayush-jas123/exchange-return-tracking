@@ -1540,21 +1540,33 @@ function sanitizeOperator(op) {
 }
 
 async function createOperator(opData) {
+    const row = {
+        username: opData.username,
+        name: opData.name || null,
+        email: opData.email || null,
+        password_hash: opData.passwordHash,
+        permissions: opData.permissions || [],
+        is_active: true
+    };
+    // manufacture_scope may not exist yet if migration hasn't been run
+    if (opData.manufactureScope) row.manufacture_scope = opData.manufactureScope;
+
     const { data, error } = await supabase
         .from('operators')
-        .insert([{
-            username: opData.username,
-            name: opData.name || null,
-            email: opData.email || null,
-            password_hash: opData.passwordHash,
-            permissions: opData.permissions || [],
-            manufacture_scope: opData.manufactureScope || 'full',
-            is_active: true
-        }])
+        .insert([row])
         .select()
         .single();
 
-    if (error) throw error;
+    if (error) {
+        // Retry without manufacture_scope if column doesn't exist yet
+        if (error.code === '42703' || (error.message || '').includes('manufacture_scope')) {
+            delete row.manufacture_scope;
+            const retry = await supabase.from('operators').insert([row]).select().single();
+            if (retry.error) throw retry.error;
+            return sanitizeOperator(retry.data);
+        }
+        throw error;
+    }
     return sanitizeOperator(data);
 }
 
@@ -1586,11 +1598,11 @@ async function getOperatorById(id) {
 async function listOperators() {
     const { data, error } = await supabase
         .from('operators')
-        .select('id, username, name, email, permissions, manufacture_scope, is_active, banned_at, last_login_at, created_at, updated_at')
+        .select('*')
         .order('created_at', { ascending: true });
 
     if (error) throw error;
-    return data || [];
+    return (data || []).map(sanitizeOperator);
 }
 
 async function updateOperator(id, updates) {
@@ -1608,7 +1620,16 @@ async function updateOperator(id, updates) {
         .select()
         .single();
 
-    if (error) throw error;
+    if (error) {
+        // Retry without manufacture_scope if column doesn't exist yet
+        if (updateData.manufacture_scope && (error.code === '42703' || (error.message || '').includes('manufacture_scope'))) {
+            delete updateData.manufacture_scope;
+            const retry = await supabase.from('operators').update(updateData).eq('id', id).select().single();
+            if (retry.error) throw retry.error;
+            return sanitizeOperator(retry.data);
+        }
+        throw error;
+    }
     return sanitizeOperator(data);
 }
 
