@@ -42,7 +42,9 @@ const PROD_QC_CHECKPOINTS = ["Inline Inspection", "Pre-Final Inspection", "Final
 
 /* PORTAL_BASE_URL_INJECT */
 const TOKEN_KEY = "mf_admin_token";
+const SCOPE_KEY = "mf_admin_scope";
 let TOKEN = sessionStorage.getItem(TOKEN_KEY);
+let MFR_SCOPE = sessionStorage.getItem(SCOPE_KEY) || "full";
 let WS = null;      // workspace: { samples, manufacturers, techPacks, productionOrders }
 let TAB = "dashboard";
 let savingFlag = false;
@@ -276,7 +278,12 @@ function renderLogin() {
       </div>
       <form id="loginForm" class="bg-neutral-900 border border-neutral-800 rounded-sm p-6 space-y-4">
         <label class="block">
-          <span class="text-[10px] font-semibold tracking-wider uppercase text-neutral-500">Admin Password</span>
+          <span class="text-[10px] font-semibold tracking-wider uppercase text-neutral-500">Username <span class="text-neutral-600 normal-case tracking-none">(leave blank for super admin)</span></span>
+          <input id="loginUser" type="text" autocomplete="username"
+            class="mt-1 w-full bg-neutral-950 border border-neutral-700 rounded-sm px-3 py-2 text-sm text-white focus:outline-none focus:border-neutral-400">
+        </label>
+        <label class="block">
+          <span class="text-[10px] font-semibold tracking-wider uppercase text-neutral-500">Password</span>
           <input id="loginPw" type="password" autocomplete="current-password" required
             class="mt-1 w-full bg-neutral-950 border border-neutral-700 rounded-sm px-3 py-2 text-sm text-white focus:outline-none focus:border-neutral-400">
         </label>
@@ -290,9 +297,14 @@ function renderLogin() {
     const errEl = document.getElementById("loginErr");
     errEl.classList.add("hidden");
     try {
-      const body = await api("/api/admin/login", { method: "POST", body: JSON.stringify({ password: document.getElementById("loginPw").value }) });
+      const pw = document.getElementById("loginPw").value;
+      const user = document.getElementById("loginUser").value.trim();
+      const payload = user ? { username: user, password: pw } : { password: pw };
+      const body = await api("/api/admin/login", { method: "POST", body: JSON.stringify(payload) });
       TOKEN = body.token;
+      MFR_SCOPE = body.manufacture_scope || (body.role === 'admin' ? 'full' : 'full');
       sessionStorage.setItem(TOKEN_KEY, TOKEN);
+      sessionStorage.setItem(SCOPE_KEY, MFR_SCOPE);
       await boot();
     } catch (err) {
       errEl.textContent = err.message;
@@ -302,13 +314,21 @@ function renderLogin() {
 }
 
 /* ============================== SHELL ============================== */
-const NAV = [
+const ALL_NAV = [
   { key: "dashboard", label: "Dashboard", icon: "dashboard" },
   { key: "samples", label: "Samples", icon: "package" },
   { key: "production", label: "Production", icon: "truck" },
   { key: "manufacturers", label: "Manufacturers", icon: "factory" },
   { key: "techpacks", label: "Tech Packs", icon: "files" }
 ];
+const SCOPE_TABS = {
+  full: ["dashboard", "samples", "production", "manufacturers", "techpacks"],
+  samples_techpacks: ["samples", "techpacks"]
+};
+function getNav() {
+  const allowed = SCOPE_TABS[MFR_SCOPE] || SCOPE_TABS.full;
+  return ALL_NAV.filter((n) => allowed.includes(n.key));
+}
 
 function renderShell() {
   document.getElementById("app").innerHTML = `
@@ -330,13 +350,14 @@ function renderShell() {
     </div>
     <main class="max-w-[1400px] mx-auto px-6 py-6" id="main"></main>
   </div>`;
-  document.getElementById("logoutBtn").onclick = () => { sessionStorage.removeItem(TOKEN_KEY); TOKEN = null; WS = null; renderLogin(); };
+  document.getElementById("logoutBtn").onclick = () => { sessionStorage.removeItem(TOKEN_KEY); sessionStorage.removeItem(SCOPE_KEY); TOKEN = null; MFR_SCOPE = "full"; WS = null; renderLogin(); };
   renderNav();
   renderMain();
 }
 
 function renderNav() {
-  document.getElementById("navBar").innerHTML = NAV.map((n) =>
+  const nav = getNav();
+  document.getElementById("navBar").innerHTML = nav.map((n) =>
     `<button data-nav="${n.key}" class="flex items-center gap-1.5 px-3 py-2.5 text-xs font-semibold border-b-2 -mb-px transition-colors ${TAB === n.key ? "border-white text-white" : "border-transparent text-neutral-400 hover:text-neutral-200"}">${icon(n.icon, 13)} ${n.label}</button>`
   ).join("");
   document.querySelectorAll("[data-nav]").forEach((b) => b.onclick = () => { TAB = b.dataset.nav; renderNav(); renderMain(); });
@@ -1526,13 +1547,23 @@ function openTechPackModal(initial) {
 async function boot() {
   try {
     setSaving(true);
+    // Resolve scope from server if not already set from login
+    if (!sessionStorage.getItem(SCOPE_KEY)) {
+      try {
+        const me = await api("/api/admin/operators/me");
+        MFR_SCOPE = me.manufacture_scope || "full";
+        sessionStorage.setItem(SCOPE_KEY, MFR_SCOPE);
+      } catch (e) { /* super admin or error — default full */ }
+    }
     const body = await api("/api/manufacture/admin/workspace");
     WS = body.workspace;
     WS.samples = WS.samples || []; WS.manufacturers = WS.manufacturers || [];
     WS.techPacks = WS.techPacks || []; WS.productionOrders = WS.productionOrders || [];
+    const nav = getNav();
+    if (!nav.find((n) => n.key === TAB)) TAB = nav[0].key;
     renderShell();
   } catch (err) {
-    if (err.status === 401) { TOKEN = null; sessionStorage.removeItem(TOKEN_KEY); renderLogin(); }
+    if (err.status === 401) { TOKEN = null; sessionStorage.removeItem(TOKEN_KEY); sessionStorage.removeItem(SCOPE_KEY); MFR_SCOPE = "full"; renderLogin(); }
     else {
       document.getElementById("app").innerHTML = `<div class="min-h-screen flex items-center justify-center"><div class="text-sm text-neutral-500">${esc(err.message)}</div></div>`;
     }

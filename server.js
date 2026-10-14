@@ -7068,18 +7068,21 @@ app.post('/api/admin/login', async (req, res) => {
         touchOperatorLogin(op.id); // fire-and-forget
         invalidateOperatorCache(); // fresh permissions/state from next request
 
-        const token = generateToken({ role: 'operator', operatorId: op.id, username: op.username, timestamp: Date.now() });
+        const mfrScope = op.manufacture_scope || 'full';
+        const token = generateToken({ role: 'operator', operatorId: op.id, username: op.username, manufactureScope: mfrScope, timestamp: Date.now() });
         audit({ operatorId: op.id, username: op.username, action: 'login', ip: req.ip });
 
         res.json({
             success: true,
             token,
             role: 'operator',
+            manufacture_scope: mfrScope,
             operator: {
                 id: op.id,
                 username: op.username,
                 name: op.name,
-                permissions: op.permissions || []
+                permissions: op.permissions || [],
+                manufacture_scope: mfrScope
             }
         });
     } catch (error) {
@@ -7093,7 +7096,7 @@ app.post('/api/admin/login', async (req, res) => {
 // Current session identity + permissions (drives frontend UI gating)
 app.get('/api/admin/operators/me', authenticateAdmin, (req, res) => {
     if (req.user.role === 'admin') {
-        return res.json({ role: 'admin', username: 'super-admin', name: 'Super Admin', permissions: VALID_PERMISSIONS });
+        return res.json({ role: 'admin', username: 'super-admin', name: 'Super Admin', permissions: VALID_PERMISSIONS, manufacture_scope: 'full' });
     }
     const op = req.operator || {};
     res.json({
@@ -7101,7 +7104,8 @@ app.get('/api/admin/operators/me', authenticateAdmin, (req, res) => {
         id: op.id,
         username: op.username,
         name: op.name || op.username,
-        permissions: op.permissions || []
+        permissions: op.permissions || [],
+        manufacture_scope: op.manufacture_scope || 'full'
     });
 });
 
@@ -7119,7 +7123,7 @@ app.get('/api/admin/operators', authenticateAdmin, requireSuperAdmin, async (req
 // Create an operator
 app.post('/api/admin/operators', authenticateAdmin, requireSuperAdmin, async (req, res) => {
     try {
-        const { username, name, email, password, permissions } = req.body;
+        const { username, name, email, password, permissions, manufactureScope } = req.body;
 
         const cleanUsername = String(username || '').trim().toLowerCase();
         if (!/^[a-z0-9._-]{2,50}$/.test(cleanUsername)) {
@@ -7133,6 +7137,9 @@ app.post('/api/admin/operators', authenticateAdmin, requireSuperAdmin, async (re
             ? permissions.filter(p => VALID_PERMISSIONS.includes(p))
             : [];
 
+        const validScopes = ['full', 'samples_techpacks'];
+        const mfrScope = validScopes.includes(manufactureScope) ? manufactureScope : 'full';
+
         const existing = await getOperatorByUsername(cleanUsername);
         if (existing) {
             return res.status(409).json({ error: 'This username is already taken' });
@@ -7143,7 +7150,8 @@ app.post('/api/admin/operators', authenticateAdmin, requireSuperAdmin, async (re
             name: (name || '').trim() || null,
             email: (email || '').trim() || null,
             passwordHash: hashOperatorPassword(password),
-            permissions: cleanPerms
+            permissions: cleanPerms,
+            manufactureScope: mfrScope
         });
 
         audit({ username: 'super-admin', action: 'operator_created', target: cleanUsername, ip: req.ip });
@@ -7158,7 +7166,7 @@ app.post('/api/admin/operators', authenticateAdmin, requireSuperAdmin, async (re
 app.patch('/api/admin/operators/:id', authenticateAdmin, requireSuperAdmin, async (req, res) => {
     try {
         const opId = parseInt(req.params.id, 10);
-        const { name, email, permissions, newPassword } = req.body;
+        const { name, email, permissions, newPassword, manufactureScope } = req.body;
 
         const existing = await getOperatorById(opId);
         if (!existing) return res.status(404).json({ error: 'Operator not found' });
@@ -7170,6 +7178,10 @@ app.patch('/api/admin/operators/:id', authenticateAdmin, requireSuperAdmin, asyn
             updates.permissions = Array.isArray(permissions)
                 ? permissions.filter(p => VALID_PERMISSIONS.includes(p))
                 : [];
+        }
+        if (manufactureScope !== undefined) {
+            const validScopes = ['full', 'samples_techpacks'];
+            updates.manufactureScope = validScopes.includes(manufactureScope) ? manufactureScope : 'full';
         }
         if (newPassword) {
             if (String(newPassword).length < 6) {

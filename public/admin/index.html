@@ -2221,6 +2221,18 @@
         <div class="perm-section-title">Allowed Functions</div>
         <div id="permTogglesWrap" class="perm-groups"></div>
 
+        <div class="perm-section-title" style="margin-top:1rem;">Manufacture Portal Access</div>
+        <div style="margin-bottom:0.5rem;">
+            <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-size:0.85rem; color:#374151;">
+                <input type="radio" name="opMfrScope" value="full" checked style="accent-color:#111827;">
+                <span><strong>Full Access</strong> — Dashboard, Samples, Production, Manufacturers, Tech Packs</span>
+            </label>
+            <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-size:0.85rem; color:#374151; margin-top:0.35rem;">
+                <input type="radio" name="opMfrScope" value="samples_techpacks" style="accent-color:#111827;">
+                <span><strong>Samples & Tech Packs Only</strong> — hides Dashboard, Production, Manufacturers</span>
+            </label>
+        </div>
+
         <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.5rem;">
             <button class="admin-btn" onclick="closeOperatorForm()" style="background: white; border-color: #d1d5db; color: #374151;">Cancel</button>
             <button class="admin-btn" id="saveOperatorBtn" onclick="saveOperator()" style="background: #111827; color: white;">Save Operator</button>
@@ -7564,6 +7576,8 @@
             document.getElementById('opEmail').value = op.email || '';
             passwordLabel.innerHTML = 'New Password <span style="color:#9ca3af; font-weight:400;">(leave blank to keep current)</span>';
             renderPermToggles(op.permissions || []);
+            const scopeVal = op.manufacture_scope || 'full';
+            document.querySelectorAll('input[name="opMfrScope"]').forEach(r => r.checked = r.value === scopeVal);
         } else {
             document.getElementById('opName').value = '';
             usernameInput.value = '';
@@ -7571,6 +7585,7 @@
             document.getElementById('opEmail').value = '';
             passwordLabel.innerHTML = 'Password <span style="color:#9ca3af; font-weight:400;">(min 6 chars)</span>';
             renderPermToggles([]);
+            document.querySelectorAll('input[name="opMfrScope"]').forEach(r => r.checked = r.value === 'full');
         }
 
         document.getElementById('operatorFormModal').classList.add('active');
@@ -7594,10 +7609,12 @@
         btn.textContent = 'Saving...';
 
         const permissions = [...document.querySelectorAll('#permTogglesWrap input[data-perm]:checked')].map(i => i.dataset.perm);
+        const manufactureScope = document.querySelector('input[name="opMfrScope"]:checked')?.value || 'full';
         const payload = {
             name: document.getElementById('opName').value.trim(),
             email: document.getElementById('opEmail').value.trim(),
-            permissions
+            permissions,
+            manufactureScope
         };
 
         try {

@@ -1548,6 +1548,7 @@ async function createOperator(opData) {
             email: opData.email || null,
             password_hash: opData.passwordHash,
             permissions: opData.permissions || [],
+            manufacture_scope: opData.manufactureScope || 'full',
             is_active: true
         }])
         .select()
@@ -1585,7 +1586,7 @@ async function getOperatorById(id) {
 async function listOperators() {
     const { data, error } = await supabase
         .from('operators')
-        .select('id, username, name, email, permissions, is_active, banned_at, last_login_at, created_at, updated_at')
+        .select('id, username, name, email, permissions, manufacture_scope, is_active, banned_at, last_login_at, created_at, updated_at')
         .order('created_at', { ascending: true });
 
     if (error) throw error;
@@ -1597,6 +1598,7 @@ async function updateOperator(id, updates) {
     if (updates.name !== undefined) updateData.name = updates.name;
     if (updates.email !== undefined) updateData.email = updates.email;
     if (updates.permissions !== undefined) updateData.permissions = updates.permissions;
+    if (updates.manufactureScope !== undefined) updateData.manufacture_scope = updates.manufactureScope;
     if (updates.passwordHash !== undefined) updateData.password_hash = updates.passwordHash;
 
     const { data, error } = await supabase
