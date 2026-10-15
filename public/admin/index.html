@@ -332,9 +332,9 @@
                             <span id="syncSpinner" class="spinner hidden" style="width: 14px; height: 14px;"></span>
                         </button>
 
-                        <button onclick="exportToExcel()" class="admin-btn" style="background: white; color: #111827; border-color: #111827;">
+                        <button onclick="openExportModal()" class="admin-btn" style="background: white; color: #111827; border-color: #111827;">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                            Export Excel
+                            Export
                         </button>
 
                         <button onclick="openCreateModal()" class="admin-btn" id="createRequestBtn" style="background: #111827; color: white;">
@@ -2340,50 +2340,131 @@
     const _discountEl = document.getElementById('discountCodeSection');
     const DISCOUNT_SECTION_HTML = _discountEl ? _discountEl.outerHTML : '';
 
-    // Export to Excel (CSV)
-    function exportToExcel() {
-        if (!fetchedRequests || fetchedRequests.length === 0) {
-            alert('No data to export');
-            return;
+    // Export to Excel / CSV (server-side with date range + filters)
+    // ── Export Modal Functions ──
+    function openExportModal() {
+        document.getElementById('exportModal').style.display = 'flex';
+    }
+    function closeExportModal() {
+        document.getElementById('exportModal').style.display = 'none';
+    }
+
+    function setExportDateRange(preset) {
+        const today = new Date();
+        const fmt = d => d.toISOString().slice(0, 10);
+        let from = '', to = fmt(today);
+
+        switch (preset) {
+            case 'today':
+                from = to;
+                break;
+            case 'yesterday': {
+                const y = new Date(today);
+                y.setDate(y.getDate() - 1);
+                from = to = fmt(y);
+                break;
+            }
+            case '7days': {
+                const d = new Date(today);
+                d.setDate(d.getDate() - 6);
+                from = fmt(d);
+                break;
+            }
+            case '30days': {
+                const d = new Date(today);
+                d.setDate(d.getDate() - 29);
+                from = fmt(d);
+                break;
+            }
+            case 'thisMonth': {
+                from = fmt(new Date(today.getFullYear(), today.getMonth(), 1));
+                break;
+            }
+            case 'lastMonth': {
+                const firstOfLast = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+                const lastOfLast = new Date(today.getFullYear(), today.getMonth(), 0);
+                from = fmt(firstOfLast);
+                to = fmt(lastOfLast);
+                break;
+            }
         }
+        document.getElementById('exportDateFrom').value = from;
+        document.getElementById('exportDateTo').value = to;
+    }
 
-        // Define CSV headers
-        const headers = [
-            'Request ID', 'Type', 'Status', 'Order Number', 'Customer Name', 
-            'Phone', 'Email', 'Carrier', 'AWB Number', 'Pickup Date', 'Created At'
-        ];
+    // Format radio highlight
+    document.querySelectorAll('input[name="exportFormat"]').forEach(radio => {
+        radio.addEventListener('change', () => {
+            document.querySelectorAll('input[name="exportFormat"]').forEach(r => {
+                const label = r.closest('label');
+                if (r.checked) {
+                    label.style.borderColor = '#111827';
+                    label.style.background = '#f9fafb';
+                } else {
+                    label.style.borderColor = '#d1d5db';
+                    label.style.background = '#fff';
+                }
+            });
+        });
+    });
 
-        // Map data to CSV rows
-        const rows = fetchedRequests.map(req => [
-            req.requestId,
-            req.type,
-            req.status,
-            req.orderNumber,
-            req.customerName,
-            req.customerPhone || '',
-            req.customerEmail || '',
-            req.carrier || '',
-            req.awbNumber || '',
-            req.pickupDate || '',
-            req.createdAt || ''
-        ]);
+    async function executeExport() {
+        const dateFrom = document.getElementById('exportDateFrom').value;
+        const dateTo = document.getElementById('exportDateTo').value;
+        const status = document.getElementById('exportStatusFilter').value;
+        const type = document.getElementById('exportTypeFilter').value;
+        const carrier = document.getElementById('exportCarrierFilter').value;
+        const format = document.querySelector('input[name="exportFormat"]:checked').value;
 
-        // Combine headers and rows
-        const csvContent = [
-            headers.join(','), 
-            ...rows.map(row => row.map(cell => `"${(cell + '').replace(/"/g, '""')}"`).join(','))
-        ].join('\n');
+        const btn = document.getElementById('exportExecuteBtn');
+        const btnText = document.getElementById('exportBtnText');
+        const spinner = document.getElementById('exportBtnSpinner');
 
-        // Create download link
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        const url = URL.createObjectURL(blob);
-        link.setAttribute('href', url);
-        link.setAttribute('download', `return_requests_${new Date().toISOString().slice(0,10)}.csv`);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        btn.disabled = true;
+        btnText.textContent = 'Generating...';
+        spinner.classList.remove('hidden');
+
+        try {
+            const params = new URLSearchParams();
+            if (dateFrom) params.append('dateFrom', dateFrom);
+            if (dateTo) params.append('dateTo', dateTo);
+            if (status) params.append('status', status);
+            if (type) params.append('type', type);
+            if (carrier) params.append('carrier', carrier);
+            params.append('format', format);
+
+            const response = await fetch(`${API_URL}/admin/requests/export?${params}`, {
+                headers: { 'Authorization': `Bearer ${authToken}` }
+            });
+
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({}));
+                throw new Error(errData.error || `Export failed (${response.status})`);
+            }
+
+            // Trigger download from blob
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            const ext = format === 'csv' ? 'csv' : 'xlsx';
+            const dateLabel = dateFrom && dateTo ? `${dateFrom}_to_${dateTo}` : dateFrom ? `from_${dateFrom}` : dateTo ? `until_${dateTo}` : new Date().toISOString().slice(0, 10);
+            link.download = `return_exchange_${dateLabel}.${ext}`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            closeExportModal();
+            showToast('Export downloaded successfully', 'success');
+        } catch (error) {
+            console.error('[Export] Error:', error);
+            showToast(error.message || 'Export failed. Please try again.', 'error');
+        } finally {
+            btn.disabled = false;
+            btnText.textContent = 'Download Export';
+            spinner.classList.add('hidden');
+        }
     }
 
     // Login
@@ -8158,6 +8239,116 @@
                         </table>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Export Modal -->
+<div id="exportModal" onclick="if(event.target===this)closeExportModal()" style="display:none; position:fixed; inset:0; z-index:10000; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); justify-content:center; align-items:center; padding:1rem;">
+    <div style="background:#fff; border-radius:16px; width:100%; max-width:520px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.25); overflow:hidden;">
+        <!-- Header -->
+        <div style="padding:1.25rem 1.5rem; border-bottom:1px solid #e5e7eb; display:flex; justify-content:space-between; align-items:center;">
+            <div style="display:flex; align-items:center; gap:0.75rem;">
+                <div style="width:36px; height:36px; border-radius:10px; background:linear-gradient(135deg,#111827,#374151); display:flex; align-items:center; justify-content:center;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                </div>
+                <div>
+                    <h3 style="margin:0; font-size:1rem; font-weight:600; color:#111827;">Export Data</h3>
+                    <p style="margin:0; font-size:0.75rem; color:#6b7280;">Download returns & exchanges with filters</p>
+                </div>
+            </div>
+            <button onclick="closeExportModal()" style="background:none; border:none; cursor:pointer; padding:4px; color:#9ca3af; font-size:20px; line-height:1;">&times;</button>
+        </div>
+        <!-- Body -->
+        <div style="padding:1.5rem;">
+            <!-- Date Range -->
+            <div style="margin-bottom:1.25rem;">
+                <label style="display:block; font-size:0.8rem; font-weight:600; color:#374151; margin-bottom:0.5rem; text-transform:uppercase; letter-spacing:0.5px;">Date Range</label>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+                    <div>
+                        <label style="display:block; font-size:0.7rem; color:#6b7280; margin-bottom:0.25rem;">From</label>
+                        <input type="date" id="exportDateFrom" style="width:100%; padding:0.5rem 0.75rem; border:1px solid #d1d5db; border-radius:8px; font-size:0.85rem; outline:none; transition:border-color 0.15s;" onfocus="this.style.borderColor='#111827'" onblur="this.style.borderColor='#d1d5db'">
+                    </div>
+                    <div>
+                        <label style="display:block; font-size:0.7rem; color:#6b7280; margin-bottom:0.25rem;">To</label>
+                        <input type="date" id="exportDateTo" style="width:100%; padding:0.5rem 0.75rem; border:1px solid #d1d5db; border-radius:8px; font-size:0.85rem; outline:none; transition:border-color 0.15s;" onfocus="this.style.borderColor='#111827'" onblur="this.style.borderColor='#d1d5db'">
+                    </div>
+                </div>
+                <!-- Quick date presets -->
+                <div style="display:flex; gap:0.5rem; margin-top:0.5rem; flex-wrap:wrap;">
+                    <button onclick="setExportDateRange('today')" style="padding:0.25rem 0.6rem; font-size:0.7rem; border:1px solid #e5e7eb; border-radius:6px; background:#f9fafb; color:#374151; cursor:pointer;">Today</button>
+                    <button onclick="setExportDateRange('yesterday')" style="padding:0.25rem 0.6rem; font-size:0.7rem; border:1px solid #e5e7eb; border-radius:6px; background:#f9fafb; color:#374151; cursor:pointer;">Yesterday</button>
+                    <button onclick="setExportDateRange('7days')" style="padding:0.25rem 0.6rem; font-size:0.7rem; border:1px solid #e5e7eb; border-radius:6px; background:#f9fafb; color:#374151; cursor:pointer;">Last 7 days</button>
+                    <button onclick="setExportDateRange('30days')" style="padding:0.25rem 0.6rem; font-size:0.7rem; border:1px solid #e5e7eb; border-radius:6px; background:#f9fafb; color:#374151; cursor:pointer;">Last 30 days</button>
+                    <button onclick="setExportDateRange('thisMonth')" style="padding:0.25rem 0.6rem; font-size:0.7rem; border:1px solid #e5e7eb; border-radius:6px; background:#f9fafb; color:#374151; cursor:pointer;">This month</button>
+                    <button onclick="setExportDateRange('lastMonth')" style="padding:0.25rem 0.6rem; font-size:0.7rem; border:1px solid #e5e7eb; border-radius:6px; background:#f9fafb; color:#374151; cursor:pointer;">Last month</button>
+                </div>
+            </div>
+            <!-- Filters -->
+            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.75rem; margin-bottom:1.25rem;">
+                <div>
+                    <label style="display:block; font-size:0.7rem; font-weight:600; color:#6b7280; margin-bottom:0.25rem; text-transform:uppercase;">Status</label>
+                    <select id="exportStatusFilter" style="width:100%; padding:0.5rem 0.75rem; border:1px solid #d1d5db; border-radius:8px; font-size:0.85rem; background:#fff; outline:none;">
+                        <option value="">All</option>
+                        <option value="pending">Pending</option>
+                        <option value="approved">Approved</option>
+                        <option value="rejected">Rejected</option>
+                        <option value="pickup_pending">Pickup Pending</option>
+                        <option value="scheduled">Scheduled</option>
+                        <option value="picked_up">Picked Up</option>
+                        <option value="in_transit">In Transit</option>
+                        <option value="delivered">Delivered</option>
+                        <option value="cancelled">Cancelled</option>
+                        <option value="failed">Failed</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="display:block; font-size:0.7rem; font-weight:600; color:#6b7280; margin-bottom:0.25rem; text-transform:uppercase;">Type</label>
+                    <select id="exportTypeFilter" style="width:100%; padding:0.5rem 0.75rem; border:1px solid #d1d5db; border-radius:8px; font-size:0.85rem; background:#fff; outline:none;">
+                        <option value="">All</option>
+                        <option value="return">Returns</option>
+                        <option value="exchange">Exchanges</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="display:block; font-size:0.7rem; font-weight:600; color:#6b7280; margin-bottom:0.25rem; text-transform:uppercase;">Carrier</label>
+                    <select id="exportCarrierFilter" style="width:100%; padding:0.5rem 0.75rem; border:1px solid #d1d5db; border-radius:8px; font-size:0.85rem; background:#fff; outline:none;">
+                        <option value="">All</option>
+                        <option value="shiprocket">Shiprocket</option>
+                        <option value="delhivery">Delhivery</option>
+                        <option value="ekart">Ekart</option>
+                    </select>
+                </div>
+            </div>
+            <!-- Format -->
+            <div style="margin-bottom:1.5rem;">
+                <label style="display:block; font-size:0.8rem; font-weight:600; color:#374151; margin-bottom:0.5rem; text-transform:uppercase; letter-spacing:0.5px;">Format</label>
+                <div style="display:flex; gap:0.75rem;">
+                    <label style="flex:1; display:flex; align-items:center; gap:0.5rem; padding:0.75rem 1rem; border:2px solid #111827; border-radius:10px; cursor:pointer; background:#f9fafb; transition:all 0.15s;">
+                        <input type="radio" name="exportFormat" value="xlsx" checked style="accent-color:#111827;">
+                        <div>
+                            <div style="font-size:0.85rem; font-weight:600; color:#111827;">Excel (.xlsx)</div>
+                            <div style="font-size:0.7rem; color:#6b7280;">Formatted with styles</div>
+                        </div>
+                    </label>
+                    <label style="flex:1; display:flex; align-items:center; gap:0.5rem; padding:0.75rem 1rem; border:2px solid #d1d5db; border-radius:10px; cursor:pointer; transition:all 0.15s;">
+                        <input type="radio" name="exportFormat" value="csv" style="accent-color:#111827;">
+                        <div>
+                            <div style="font-size:0.85rem; font-weight:600; color:#111827;">CSV (.csv)</div>
+                            <div style="font-size:0.7rem; color:#6b7280;">Universal format</div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+            <!-- Actions -->
+            <div style="display:flex; gap:0.75rem;">
+                <button onclick="closeExportModal()" style="flex:1; padding:0.65rem 1rem; border:1px solid #d1d5db; border-radius:10px; background:#fff; color:#374151; font-size:0.85rem; font-weight:500; cursor:pointer;">Cancel</button>
+                <button onclick="executeExport()" id="exportExecuteBtn" style="flex:2; padding:0.65rem 1rem; border:none; border-radius:10px; background:#111827; color:#fff; font-size:0.85rem; font-weight:600; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:0.5rem; transition:all 0.15s;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    <span id="exportBtnText">Download Export</span>
+                    <span id="exportBtnSpinner" class="spinner hidden" style="width:16px; height:16px; border-width:2px;"></span>
+                </button>
             </div>
         </div>
     </div>

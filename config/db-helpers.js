@@ -181,6 +181,71 @@ async function getAllRequests(filters = {}) {
 }
 
 /**
+ * Get all requests for export (no pagination, supports date range)
+ * Optimized: uses paging loop to bypass Supabase 1000-row cap
+ */
+async function getAllRequestsForExport(filters = {}) {
+    const PAGE_SIZE = 1000;
+    let allRows = [];
+    let offset = 0;
+
+    while (true) {
+        let query = supabase.from('requests').select('*');
+
+        if (filters.status) {
+            query = query.eq('status', filters.status);
+        }
+        if (filters.type) {
+            query = query.eq('type', filters.type);
+        }
+        if (filters.carrier) {
+            query = query.eq('carrier', filters.carrier);
+        }
+
+        // Date range: from and/or to
+        if (filters.dateFrom) {
+            const from = new Date(filters.dateFrom);
+            from.setHours(0, 0, 0, 0);
+            query = query.gte('created_at', from.toISOString());
+        }
+        if (filters.dateTo) {
+            const to = new Date(filters.dateTo);
+            to.setHours(23, 59, 59, 999);
+            query = query.lte('created_at', to.toISOString());
+        }
+        // Single date (backward compat)
+        if (filters.date && !filters.dateFrom && !filters.dateTo) {
+            const startDate = new Date(filters.date);
+            startDate.setHours(0, 0, 0, 0);
+            const endDate = new Date(filters.date);
+            endDate.setHours(23, 59, 59, 999);
+            query = query.gte('created_at', startDate.toISOString())
+                .lte('created_at', endDate.toISOString());
+        }
+
+        if (filters.search) {
+            const searchTerm = filters.search;
+            query = query.or(`request_id.ilike.%${searchTerm}%,order_number.ilike.%${searchTerm}%,customer_name.ilike.%${searchTerm}%,customer_email.ilike.%${searchTerm}%,customer_phone.ilike.%${searchTerm}%`);
+        }
+
+        query = query.order('created_at', { ascending: false });
+        query = query.range(offset, offset + PAGE_SIZE - 1);
+
+        const { data, error } = await query;
+        if (error) {
+            console.error('[Export] Database query error:', error);
+            throw error;
+        }
+
+        allRows = allRows.concat(data || []);
+        if (!data || data.length < PAGE_SIZE) break;
+        offset += PAGE_SIZE;
+    }
+
+    return allRows.map(convertFromSnakeCase);
+}
+
+/**
  * Get request statistics
  */
 /**
@@ -909,6 +974,7 @@ module.exports = {
     getRequestById,
     getRequestsByOrderNumber,
     getAllRequests,
+    getAllRequestsForExport,
     getRequestStats,
     updateRequestStatus,
     updateRequestData,

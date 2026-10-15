@@ -333,6 +333,7 @@ const {
     getRequestById,
     getRequestsByOrderNumber,
     getAllRequests,
+    getAllRequestsForExport,
     getRequestStats,
     updateRequestData,
     updateRequestStatus,
@@ -7444,6 +7445,212 @@ app.get('/api/admin/requests', authenticateAdmin, async (req, res) => {
         console.error('Get requests error:', error);
         if (res.headersSent) return;
         res.status(500).json({ error: 'Failed to fetch requests' });
+    }
+});
+
+// ==================== EXPORT ENDPOINT (Excel / CSV) ====================
+app.get('/api/admin/requests/export', authenticateAdmin, async (req, res) => {
+    try {
+        const { status, type, carrier, dateFrom, dateTo, date, search, format } = req.query;
+        const exportFormat = format === 'csv' ? 'csv' : 'xlsx';
+
+        console.log('[Export] Generating %s export with filters:', exportFormat, { status, type, carrier, dateFrom, dateTo, date });
+
+        // Fetch ALL matching records (no pagination) using paging loop
+        const requests = await getAllRequestsForExport({ status, type, carrier, dateFrom, dateTo, date, search });
+
+        if (!requests || requests.length === 0) {
+            return res.status(404).json({ error: 'No data found for the selected filters' });
+        }
+
+        // Build detailed row data
+        const headers = [
+            'Request ID', 'Type', 'Status', 'Order Number', 'Customer Name',
+            'Customer Email', 'Customer Phone', 'Carrier', 'AWB Number',
+            'Shipment ID', 'Pickup Date', 'Reason', 'Comments',
+            'Items', 'Shipping Address', 'Shipping City', 'Shipping State',
+            'Shipping Pincode', 'Payment ID', 'Payment Amount', 'COD Charges',
+            'Admin Notes', 'Agent Notes', 'Created At', 'Updated At'
+        ];
+
+        const rows = requests.map(req => [
+            req.requestId || '',
+            req.type || '',
+            req.status || '',
+            req.orderNumber || '',
+            req.customerName || '',
+            req.customerEmail || '',
+            req.customerPhone || '',
+            req.carrier || '',
+            req.awbNumber || '',
+            req.shipmentId || '',
+            req.pickupDate || '',
+            req.reason || '',
+            (req.comments || '').replace(/[\n\r]+/g, ' '),
+            Array.isArray(req.items) ? req.items.map(i => i.name || i.title || JSON.stringify(i)).join('; ') : '',
+            req.shippingAddress || '',
+            req.shippingCity || '',
+            req.shippingState || '',
+            req.shippingPincode || '',
+            req.paymentId || '',
+            req.paymentAmount || 0,
+            req.codCharges || 0,
+            (req.adminNotes || '').replace(/[\n\r]+/g, ' '),
+            (req.agentNotes || '').replace(/[\n\r]+/g, ' '),
+            req.createdAt ? new Date(req.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : '',
+            req.updatedAt ? new Date(req.updatedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : ''
+        ]);
+
+        const dateSuffix = dateFrom && dateTo
+            ? `${dateFrom}_to_${dateTo}`
+            : dateFrom ? `from_${dateFrom}`
+            : dateTo ? `until_${dateTo}`
+            : new Date().toISOString().slice(0, 10);
+
+        if (exportFormat === 'csv') {
+            // ── CSV export ──
+            const csvContent = [
+                headers.join(','),
+                ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+            ].join('\n');
+
+            // Add BOM for Excel UTF-8 compatibility
+            const bom = '\uFEFF';
+            const buffer = Buffer.from(bom + csvContent, 'utf-8');
+
+            res.setHeader('Content-Type', 'text/csv;charset=utf-8;');
+            res.setHeader('Content-Disposition', `attachment; filename="return_exchange_${dateSuffix}.csv"`);
+            res.setHeader('Content-Length', buffer.length);
+            return res.send(buffer);
+        }
+
+        // ── Excel (XLSX) export using exceljs ──
+        const ExcelJS = require('exceljs');
+        const workbook = new ExcelJS.Workbook();
+        workbook.creator = 'OFFCOMFRT Admin';
+        workbook.created = new Date();
+
+        const sheet = workbook.addWorksheet('Returns & Exchanges', {
+            views: [{ state: 'frozen', ySplit: 1 }]
+        });
+
+        // Define columns
+        sheet.columns = headers.map((h, i) => ({
+            header: h,
+            key: `col_${i}`,
+            width: Math.max(h.length + 2, 14)
+        }));
+
+        // Style header row
+        const headerRow = sheet.getRow(1);
+        headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+        headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF111827' } };
+        headerRow.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+        headerRow.border = {
+            bottom: { style: 'thin', color: { argb: 'FF374151' } }
+        };
+        headerRow.height = 22;
+
+        // Auto-filter
+        sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: headers.length } };
+
+        // Add data rows
+        rows.forEach(rowData => {
+            const row = sheet.addRow(rowData);
+            row.alignment = { vertical: 'middle', wrapText: true };
+            // Alternate row shading
+            if (row.number % 2 === 0) {
+                row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF9FAFB' } };
+            }
+        });
+
+        // Status column conditional coloring
+        const statusColIdx = headers.indexOf('Status') + 1;
+        const statusColors = {
+            'pending': 'FFFFF7ED',
+            'approved': 'FFECFDF5',
+            'rejected': 'FFFEF2F2',
+            'pickup_pending': 'FFFFFBEB',
+            'scheduled': 'FFEFF6FF',
+            'picked_up': 'FFECFDF5',
+            'in_transit': 'FFEFF6FF',
+            'delivered': 'FFECFDF5',
+            'cancelled': 'FFFEF2F2',
+            'failed': 'FFFEF2F2',
+            'waiting_payment': 'FFFEF9C3',
+            'payment_received': 'FFECFDF5'
+        };
+
+        for (let r = 2; r <= rows.length + 1; r++) {
+            const cell = sheet.getRow(r).getCell(statusColIdx);
+            const color = statusColors[cell.value] || 'FFFFFFFF';
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: color } };
+        }
+
+        // Date columns formatting
+        const createdAtColIdx = headers.indexOf('Created At') + 1;
+        for (let r = 2; r <= rows.length + 1; r++) {
+            const cell = sheet.getRow(r).getCell(createdAtColIdx);
+            cell.numFmt = 'dd/mm/yyyy hh:mm AM/PM';
+        }
+
+        // Set column widths more intelligently
+        const colWidths = {
+            'Request ID': 16, 'Type': 10, 'Status': 16, 'Order Number': 14,
+            'Customer Name': 20, 'Customer Email': 26, 'Customer Phone': 15,
+            'Carrier': 12, 'AWB Number': 16, 'Shipment ID': 16,
+            'Pickup Date': 14, 'Reason': 16, 'Comments': 30,
+            'Items': 40, 'Shipping Address': 30, 'Shipping City': 16,
+            'Shipping State': 14, 'Shipping Pincode': 12, 'Payment ID': 18,
+            'Payment Amount': 14, 'COD Charges': 12, 'Admin Notes': 30,
+            'Agent Notes': 30, 'Created At': 20, 'Updated At': 20
+        };
+        sheet.columns.forEach(col => {
+            col.width = colWidths[col.header] || 14;
+        });
+
+        // Summary sheet
+        const summarySheet = workbook.addWorksheet('Summary');
+        const totalReturns = requests.filter(r => r.type === 'return').length;
+        const totalExchanges = requests.filter(r => r.type === 'exchange').length;
+        const statusCounts = {};
+        requests.forEach(r => { statusCounts[r.status] = (statusCounts[r.status] || 0) + 1; });
+
+        summarySheet.columns = [
+            { header: 'Metric', key: 'metric', width: 24 },
+            { header: 'Value', key: 'value', width: 16 }
+        ];
+
+        const summaryHeader = summarySheet.getRow(1);
+        summaryHeader.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        summaryHeader.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF111827' } };
+        summaryHeader.alignment = { vertical: 'middle', horizontal: 'center' };
+
+        const summaryData = [
+            ['Total Records', requests.length],
+            ['Total Returns', totalReturns],
+            ['Total Exchanges', totalExchanges],
+            ['Date From', dateFrom || 'All time'],
+            ['Date To', dateTo || 'Present'],
+            ...Object.entries(statusCounts).map(([s, c]) => [`Status: ${s}`, c])
+        ];
+        summaryData.forEach(([metric, value]) => {
+            summarySheet.addRow({ metric, value });
+        });
+
+        // Write to buffer
+        const buffer = await workbook.xlsx.writeBuffer();
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename="return_exchange_${dateSuffix}.xlsx"`);
+        res.setHeader('Content-Length', buffer.length);
+        return res.send(buffer);
+
+    } catch (error) {
+        console.error('[Export] Error:', error);
+        if (!res.headersSent) {
+            res.status(500).json({ error: 'Export failed: ' + error.message });
+        }
     }
 });
 
