@@ -654,6 +654,24 @@ module.exports = function mountAthleteRoutes(app) {
         nextLevel = next;
       }
 
+      // Get discount code
+      let discountCode = null;
+      const { data: dc } = await supabase
+        .from('discount_codes')
+        .select('code, percent, is_active')
+        .eq('influencer_id', influencerId)
+        .maybeSingle();
+      if (dc) discountCode = { code: dc.code, percent: dc.percent, is_active: dc.is_active };
+
+      // Count orders this month
+      const now = new Date();
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      const { count: monthOrders } = await supabase
+        .from('attributed_orders')
+        .select('*', { count: 'exact', head: true })
+        .eq('influencer_id', influencerId)
+        .gte('placed_at', monthStart);
+
       // WHITELIST fields per spec §09 — only expose safe fields
       res.json({ success: true, data: {
         id: athlete.id,
@@ -664,8 +682,13 @@ module.exports = function mountAthleteRoutes(app) {
         coin_balance: athlete.coin_balance,
         standing_score: athlete.standing_score,
         joined_at: athlete.joined_at,
+        instagram_handle: athlete.instagram_handle,
+        phone: athlete.phone,
+        leaderboard_opt_out: athlete.leaderboard_opt_out,
         level: level ? { display_name: level.display_name, ordinal: level.ordinal, display_number: level.display_number, dial_segments_lit: level.dial_segments_lit, min_xp: level.min_xp } : null,
-        next_level: nextLevel ? { display_name: nextLevel.display_name, min_xp: nextLevel.min_xp } : null
+        next_level: nextLevel ? { display_name: nextLevel.display_name, min_xp: nextLevel.min_xp } : null,
+        discount_code: discountCode,
+        month_orders: monthOrders || 0
       }});
     } catch (err) { res.status(500).json({ error: err.message }); }
   });

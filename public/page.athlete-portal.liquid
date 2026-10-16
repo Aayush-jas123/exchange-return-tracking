@@ -408,6 +408,148 @@
     .mono{font-family:var(--m);font-size:9.5px;letter-spacing:.05em}
     .rule{height:1px;background:var(--line);flex:none}
 
+    /* avatar button in top bar */
+    .avbtn{width:20px;height:20px;border-radius:50%;background:linear-gradient(140deg,#6A6A6A,#161616);border:1px solid var(--line);cursor:pointer;padding:0;flex:none;position:relative}
+    .avbtn:hover{border-color:#fff}
+    .avbtn.dot::after{content:"";position:absolute;top:-2px;right:-2px;width:6px;height:6px;border-radius:50%;background:#fff;border:1.5px solid var(--bg)}
+
+    /* scrim + sheet overlay */
+    .scrim{position:absolute;inset:0;z-index:12;background:rgba(0,0,0,.62);opacity:0;pointer-events:none;transition:opacity .22s}
+    .scrim.on{opacity:1;pointer-events:auto}
+    .sheet{position:absolute;left:0;right:0;bottom:0;z-index:13;background:var(--bg);border-top:1px solid var(--line);height:auto;max-height:90%;display:flex;flex-direction:column;transform:translateY(101%);transition:transform .35s cubic-bezier(.16,1,.3,1)}
+    .sheet.on{transform:none}
+    .sheet .grab{width:34px;height:3px;background:rgba(255,255,255,.3);margin:9px auto 0;flex:none;border-radius:2px}
+    .shd{display:flex;align-items:center;gap:10px;padding:11px 15px 10px;flex:none;border-bottom:1px solid var(--line)}
+    .shd button{font:inherit;font-family:var(--m);font-size:14px;background:transparent;border:0;color:var(--dim);cursor:pointer;padding:0 2px;line-height:1}
+    .shd button:hover{color:#fff}
+    .shd b{flex:1 1 auto;font-size:13px;font-weight:800;letter-spacing:-.01em;text-transform:uppercase}
+    .shb{flex:0 1 auto;min-height:0;overflow-y:auto;scrollbar-width:none;padding:13px 15px 16px;display:flex;flex-direction:column;gap:11px}
+    .shb::-webkit-scrollbar{display:none}
+
+    /* avatar sheet — identity card */
+    .idcard{display:grid;grid-template-columns:auto 1fr;gap:11px;align-items:center;padding:0 0 13px;border-bottom:1px solid var(--line);flex:none}
+    .idcard .big{width:42px;height:42px;border-radius:50%;flex:none;background:linear-gradient(140deg,#6A6A6A,#161616);border:1px solid var(--line)}
+    .idcard b{display:block;font-size:14px;font-weight:800}
+    .idcard em{font-style:normal;font-family:var(--m);font-size:9px;letter-spacing:.09em;text-transform:uppercase;color:var(--dim)}
+
+    /* avatar sheet — menu rows */
+    .menu{display:flex;flex-direction:column;flex:none}
+    .mrow{display:grid;grid-template-columns:auto 1fr auto auto;gap:11px;align-items:center;padding:13px 2px;border-bottom:1px solid rgba(255,255,255,.08);background:none;border-left:0;border-right:0;border-top:0;color:#fff;font:inherit;text-align:left;cursor:pointer;width:100%}
+    .mrow:last-child{border-bottom:0}
+    .mrow:hover{background:rgba(255,255,255,.04)}
+    .mrow svg{width:15px;height:15px;fill:none;stroke:#fff;stroke-width:1.5;stroke-linecap:square;opacity:.85}
+    .mrow b{font-size:13px;font-weight:600;display:block}
+    .mrow em{font-style:normal;font-size:10.5px;color:var(--dim);display:block;line-height:1.3}
+    .mrow s{text-decoration:none;font-family:var(--m);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+    .mrow i{font-style:normal;color:var(--dim);font-family:var(--m);font-size:12px}
+    .mrow s.hot{color:#fff}
+
+    /* sub-screen: Your code */
+    .codecard{border:1px solid #fff;padding:13px 12px;text-align:center;flex:none;position:relative}
+    .codecard .cd{font-family:var(--m);font-size:25px;font-weight:700;letter-spacing:.08em;line-height:1.1}
+    .codecard .pc{font-family:var(--m);font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--dim);margin-top:5px}
+    .codecard button{position:absolute;top:8px;right:8px;font:inherit;font-family:var(--m);font-size:8px;letter-spacing:.12em;text-transform:uppercase;background:transparent;border:1px solid var(--line);color:var(--dim);padding:2.5px 6px;cursor:pointer}
+    .codecard button:hover{color:#fff;border-color:#fff}
+    .reflink{display:flex;align-items:center;gap:8px;border:1px solid var(--line);padding:8px 10px;flex:none;font-family:var(--m);font-size:9.5px;color:var(--dim)}
+    .reflink span{flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#fff}
+    .reflink button{font:inherit;font-family:var(--m);font-size:8px;letter-spacing:.12em;text-transform:uppercase;background:transparent;border:1px solid var(--line);color:var(--dim);padding:2.5px 6px;cursor:pointer;flex:none}
+    .duo{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line);flex:none}
+    .duo div{background:var(--bg);padding:10px 11px}
+    .duo b{display:block;font-size:21px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.15;letter-spacing:-.02em}
+    .duo em{font-style:normal;font-size:9.5px;color:var(--dim)}
+    .settle{border:1px solid var(--line);padding:10px 11px;flex:none}
+    .sr{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 0;font-size:11px;border-bottom:1px solid rgba(255,255,255,.07)}
+    .sr:last-child{border-bottom:0}
+    .sr s{text-decoration:none;font-family:var(--m);font-size:9px;color:var(--dim)}
+    .sr b{font-family:var(--m);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums}
+
+    /* sub-screen: Earnings */
+    .money{border:1px solid var(--line);flex:none}
+    .money .mr{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 11px;border-bottom:1px solid rgba(255,255,255,.07);font-size:11.5px}
+    .money .mr:last-child{border-bottom:0}
+    .money .mr b{font-family:var(--m);font-weight:700;font-variant-numeric:tabular-nums}
+    .money .mr.tot{background:rgba(255,255,255,.055)}
+    .money .mr.tot b{font-size:15px}
+
+    /* sub-screen: Shipments */
+    .track{border:1px solid var(--line);padding:12px;flex:none}
+    .tsteps{display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin:11px 0 3px}
+    .ts{position:relative;text-align:center;font-family:var(--m);font-size:7.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--dim);padding-top:14px}
+    .ts::before{content:"";position:absolute;top:3px;left:50%;transform:translateX(-50%);width:7px;height:7px;border-radius:50%;background:var(--bg);border:1.5px solid rgba(255,255,255,.3)}
+    .ts::after{content:"";position:absolute;top:6px;left:50%;width:100%;height:1px;background:rgba(255,255,255,.16)}
+    .ts:last-child::after{display:none}
+    .ts.done{color:#fff}
+    .ts.done::before{background:#fff;border-color:#fff}
+    .ts.done::after{background:rgba(255,255,255,.5)}
+    .ts.now::before{background:#fff;border-color:#fff;box-shadow:0 0 0 3px rgba(255,255,255,.18)}
+    .ts.now{color:#fff;font-weight:700}
+    .shiprow{display:grid;grid-template-columns:1fr auto;gap:9px;align-items:center;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.08);font-size:11.5px}
+    .shiprow:last-child{border-bottom:0}
+    .shiprow b{display:block;font-size:12px;font-weight:600}
+    .shiprow em{font-style:normal;font-family:var(--m);font-size:9px;letter-spacing:.07em;color:var(--dim);display:block;margin-top:1px}
+    .chipk{font-family:var(--m);font-size:8px;letter-spacing:.11em;text-transform:uppercase;border:1px solid var(--line);padding:2.5px 6px;color:var(--dim);white-space:nowrap}
+    .chipk.go{border-color:#fff;color:#fff}
+
+    /* sub-screen: Athlete card */
+    .acard{border:1px solid var(--line);padding:20px 16px;text-align:center;flex:none;background:linear-gradient(170deg,rgba(255,255,255,.06),transparent 58%)}
+    .acard .dialwrap{display:flex;justify-content:center;margin-bottom:11px}
+    .acard h5{margin:0;font-size:23px;font-weight:900;letter-spacing:-.02em;text-transform:uppercase;line-height:1}
+    .acard .hd2{font-family:var(--m);font-size:10px;letter-spacing:.17em;text-transform:uppercase;color:var(--dim);margin-top:5px}
+    .acard .meta{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line);margin-top:15px}
+    .acard .meta div{background:var(--bg);padding:8px 5px}
+    .acard .meta b{display:block;font-size:14px;font-weight:800;font-variant-numeric:tabular-nums}
+    .acard .meta em{font-style:normal;font-family:var(--m);font-size:7px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+
+    /* sub-screen: Settings */
+    .setrow{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:11px 0;border-bottom:1px solid rgba(255,255,255,.08);font-size:12px}
+    .setrow:last-of-type{border-bottom:0}
+    .setrow b{display:block;font-size:12px;font-weight:600}
+    .setrow em{font-style:normal;font-size:10.5px;color:var(--dim);display:block;line-height:1.35}
+    .sw{width:36px;height:20px;border:1px solid var(--line);background:transparent;position:relative;cursor:pointer;flex:none;padding:0;transition:background .18s;border-radius:10px}
+    .sw::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;background:#fff;border-radius:50%;transition:transform .18s}
+    .sw[aria-pressed="true"]{background:#fff}
+    .sw[aria-pressed="true"]::after{background:#000;transform:translateX(16px)}
+    .dangerbtn{font:inherit;font-family:var(--m);font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;background:transparent;border:1px solid var(--line);color:var(--dim);padding:9px;cursor:pointer;width:100%;margin-top:4px;border-radius:6px}
+    .dangerbtn:hover{border-color:#fff;color:#fff}
+
+    /* Task tab — progress-first layout from FM-OFC-08 */
+    .banner{border:1px solid #fff;padding:9px 11px;display:grid;grid-template-columns:1fr auto;gap:9px;align-items:center;flex:none;cursor:pointer;margin-bottom:2px}
+    .banner b{font-size:11.5px;font-weight:800;display:block}
+    .banner span{font-family:var(--m);font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+    .banner i{font-family:var(--m);font-style:normal;font-size:14px}
+    .pips{display:grid;grid-template-columns:repeat(10,1fr);gap:3px;flex:none}
+    .pips i{height:7px;background:rgba(255,255,255,.14);display:block;border-radius:1px}
+    .pips i.on{background:#fff}
+    .pips i.next{background:rgba(255,255,255,.14);box-shadow:inset 0 0 0 1px #fff}
+    .donelist{display:flex;flex-direction:column;flex:none}
+    .dr{display:grid;grid-template-columns:auto 1fr auto;gap:9px;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.07);font-size:11.5px}
+    .dr:last-child{border-bottom:0}
+    .dr svg{width:12px;height:12px;flex:none;fill:none;stroke:#fff;stroke-width:2}
+    .dr b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .dr s{text-decoration:none;font-family:var(--m);font-size:10px;color:var(--dim);font-variant-numeric:tabular-nums}
+    .scrollcue{display:grid;grid-template-columns:1fr auto auto;gap:9px;align-items:center;border:1px solid var(--line);padding:9px 11px;font-size:11px;color:var(--dim);flex:none;cursor:pointer;margin-top:2px;border-radius:6px}
+    .scrollcue b{color:#fff;font-weight:700}
+    .scrollcue i{font-style:normal;font-size:13px;animation:nudge 1.9s ease-in-out infinite}
+    @keyframes nudge{0%,100%{transform:translateY(0);opacity:.55}50%{transform:translateY(3px);opacity:1}}
+    .scrollcue:hover{border-color:#fff;color:#fff}
+    .timerlist{display:flex;flex-direction:column;flex:none}
+    .tr2{display:grid;grid-template-columns:1fr auto;gap:9px;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.07);font-size:11.5px}
+    .tr2:last-child{border-bottom:0}
+    .tr2 b{display:block;font-weight:600}
+    .tr2 em{font-style:normal;font-size:10px;color:var(--dim)}
+    .tr2 s{text-decoration:none;font-family:var(--m);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums}
+    .tr2 s.warn{color:#E0A33C}
+
+    /* proof row on task */
+    .proof{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;flex:none}
+    .proof b{font-size:10.5px;font-weight:600;line-height:1.3}
+    .pf{display:flex;gap:4px;flex:none}
+    .pf span{font-family:var(--m);font-size:7.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);border:1px solid var(--line);padding:3px 5px;border-radius:3px}
+
+    /* simplified level strip for task tab */
+    .bar2{height:2px;background:var(--line);position:relative;overflow:hidden;margin-top:6px}
+    .bar2 i{position:absolute;inset:0 auto 0 0;background:#fff;transition:width .9s cubic-bezier(.16,1,.3,1)}
+
     /* games — the arcade */
     .ggrid{display:grid;grid-template-columns:1fr;gap:7px}
     .gt{position:relative;display:flex;flex-direction:column;min-height:25svh;padding:12px 13px 11px;border-radius:8px;overflow:hidden;background:linear-gradient(150deg,#565656,#101010 62%,#2D2D2D);color:#fff;text-decoration:none;cursor:pointer}
@@ -487,53 +629,96 @@
     <div class="screens">
     <section class="screen active" id="tasks">
       <div class="screen-top">
-        <div class="top rise" style="animation-delay:.02s"><span id="taskDate">TODAY</span><span class="live"><i class="dotlive"></i><span id="taskLive">3</span>&nbsp;out there now</span></div>
-        <div class="kick rise" style="animation-delay:.06s">One thing today</div>
-        <div class="hero"><span><i id="heroA">Choose your</i></span><span><i id="heroB">mission</i></span></div>
-        <div class="clockrow rise" style="animation-delay:.18s">
-          <div><span class="clocklab">Closes in</span><span class="clock" id="taskClock">00:00<span class="s">:00</span></span></div>
-          <span class="xpchip" id="taskReward">+0 XP</span>
-        </div>
+        <div class="top rise" style="animation-delay:.02s"><span id="taskDate">TODAY</span><span style="display:flex;align-items:center;gap:9px"><span class="live"><i class="dotlive"></i><span id="taskLive">3</span>&nbsp;out there now</span><button class="avbtn" id="avbtn" type="button" aria-label="Account"></button></span></div>
       </div>
       <div class="screen-scroll">
-        <div class="plate rise" style="animation-delay:.22s"><i></i><q>"The work starts exactly where comfort ends."<b>Daily field note</b></q></div>
         <div class="scroll-inner">
-          <div class="rise" id="taskPool" style="animation-delay:.24s"></div>
-          <button class="cta rise" id="taskAction" style="animation-delay:.30s;margin-top:12px">Open the brief</button>
-        </div>
-        <div class="statrow rise" style="animation-delay:.36s">
-          <svg class="dial" viewBox="0 0 54 54" width="48" height="48" aria-hidden="true">
-            <path class="lit" d="M28.66 8.07 A19 19 0 0 1 44.49 19.58" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="butt"/>
-            <path class="dark" d="M45.51 22.73 A19 19 0 0 1 39.47 41.34" fill="none" stroke="#fff" stroke-width="1.4" opacity=".26" stroke-linecap="butt"/>
-            <path class="dark" d="M36.79 43.29 A19 19 0 0 1 17.21 43.29" fill="none" stroke="#fff" stroke-width="1.4" opacity=".26" stroke-linecap="butt"/>
-            <path class="dark" d="M14.53 41.34 A19 19 0 0 1 8.49 22.73" fill="none" stroke="#fff" stroke-width="1.4" opacity=".26" stroke-linecap="butt"/>
-            <path class="dark" d="M9.51 19.58 A19 19 0 0 1 25.34 8.07" fill="none" stroke="#fff" stroke-width="1.4" opacity=".26" stroke-linecap="butt"/>
-            <text x="27" y="34" text-anchor="middle" id="taskDial">—</text>
-          </svg>
-          <div>
-            <div style="display:flex;justify-content:space-between;align-items:baseline">
-              <span class="lvl" id="taskLevel">Comfort<br>Level —</span>
-              <span class="xpbig" id="taskXp">0</span>
-            </div>
-            <div class="bar"><i id="taskBar" style="--pct:0%"></i></div>
-            <div class="sub" id="taskProgress">Loading progress</div>
+          <!-- Monthly briefs banner -->
+          <div class="banner rise" id="pickbanner" style="animation-delay:.06s"><div><b id="bannerTitle">Daily pool is open</b><span id="bannerSub">Pick your missions</span></div><i>&rarr;</i></div>
+
+          <!-- Progress toward next level -->
+          <div class="kick rise" style="animation-delay:.08s" id="progressKick">To reach next level</div>
+          <div class="hero rise" style="font-size:30px;animation-delay:.10s"><span><i id="tasksToGo">— tasks</i></span><span><i>to go</i></span></div>
+          <div class="pips rise" id="pips" style="animation-delay:.12s" aria-label="Progress"></div>
+          <div class="duo rise" style="margin-top:1px;animation-delay:.14s">
+            <div><span class="lab" style="margin:0">Done</span><b id="doneCount">0<em style="font-size:13px;opacity:.5"> / —</em></b><em id="doneLabel">at this level</em></div>
+            <div><span class="lab" style="margin:0">XP earned</span><b class="xpv" id="xpEarned">0</b><em id="xpToGo">— to go</em></div>
           </div>
-        </div>
-        <dl class="strip rise" style="animation-delay:.42s">
-          <div><dt>Streak</dt><dd id="taskStreak">0<s> days</s></dd></div>
-          <div><dt>Today</dt><dd id="taskPicked">0<s>/5</s></dd></div>
-          <div><dt>Rank</dt><dd id="taskRank">#—</dd></div>
-        </dl>
-        <div class="tick rise" style="animation-delay:.46s"><div class="tickrail" id="taskRail"></div></div>
-        <div class="footer rise" style="animation-delay:.50s">
-          {% # theme-check-disable RemoteAsset %}
-          <video muted autoplay loop playsinline preload="metadata" poster="" loading="lazy"><source src="https://exchange-return-tracking.onrender.com/videos/athlete-running-loop.mp4" type="video/mp4"></video>
-          {% # theme-check-enable RemoteAsset %}
-          <div class="footer-inner">
-            <div class="footer-brand">OFFCOMFRT</div>
-            <div class="footer-tag">Outside comfort</div>
-            <div class="footer-rule"></div>
-            <div class="footer-note"><b>From INDIA to the WORLD.</b> Quiet and cozy. Quality over quantity. Minimal at its peak.</div>
+
+          <div class="rule" style="margin-top:12px"></div>
+
+          <!-- Cleared tasks at this level -->
+          <div class="kick rise" style="animation-delay:.16s" id="clearedKick">Cleared tasks</div>
+          <div class="donelist rise" id="donelist" style="animation-delay:.18s"></div>
+
+          <!-- Scroll cue to today's task -->
+          <div class="scrollcue rise" id="scrollcue" style="animation-delay:.20s">
+            <span><b id="cueTitle">Today's task</b> &middot; <span id="cueSub">Loading…</span></span>
+            <span class="mono" id="cueClock">00:00</span>
+            <i>&darr;</i>
+          </div>
+
+          <div class="rule" style="margin-top:12px"></div>
+
+          <!-- Today's timed task -->
+          <div class="kick rise" style="animation-delay:.22s">One thing today</div>
+          <div class="hero rise" style="animation-delay:.24s"><span><i id="heroA">Choose your</i></span><span><i id="heroB">mission</i></span></div>
+          <div class="rowx rise" style="border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:7px 0;animation-delay:.26s">
+            <div><span class="clocklab">Closes in</span><span class="clock" id="taskClock">00:00<span class="s">:00</span></span></div>
+            <span class="chip" id="taskReward">+0 XP</span>
+          </div>
+          <div class="plate rise" style="flex:none;min-height:190px;animation-delay:.28s"><i></i><q>"The work starts exactly where comfort ends."<b>Daily field note</b></q></div>
+          <div class="proof rise" style="animation-delay:.30s">
+            <div><span class="lab" style="margin:0">Accepted proof</span><b id="proofFormat">Logbook page &middot; one photo &middot; two lines</b></div>
+            <div class="pf"><span>Photo</span><span>Note</span><span>Witness</span></div>
+          </div>
+          <button class="cta rise" id="taskAction" style="animation-delay:.32s;margin-top:10px">Open the brief</button>
+
+          <div class="rule" style="margin-top:12px"></div>
+
+          <!-- Running timers -->
+          <div class="kick rise" style="animation-delay:.34s">Running</div>
+          <div class="timerlist rise" id="timerlist" style="animation-delay:.36s"></div>
+
+          <!-- Comfort Level strip -->
+          <div class="statrow rise" style="margin-top:4px;animation-delay:.38s">
+            <svg class="dial" viewBox="0 0 54 54" width="48" height="48" aria-hidden="true">
+              <path class="lit" d="M28.66 8.07 A19 19 0 0 1 44.49 19.58" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="butt"/>
+              <path class="dark" d="M45.51 22.73 A19 19 0 0 1 39.47 41.34" fill="none" stroke="#fff" stroke-width="1.4" opacity=".26" stroke-linecap="butt"/>
+              <path class="dark" d="M36.79 43.29 A19 19 0 0 1 17.21 43.29" fill="none" stroke="#fff" stroke-width="1.4" opacity=".26" stroke-linecap="butt"/>
+              <path class="dark" d="M14.53 41.34 A19 19 0 0 1 8.49 22.73" fill="none" stroke="#fff" stroke-width="1.4" opacity=".26" stroke-linecap="butt"/>
+              <path class="dark" d="M9.51 19.58 A19 19 0 0 1 25.34 8.07" fill="none" stroke="#fff" stroke-width="1.4" opacity=".26" stroke-linecap="butt"/>
+              <text x="27" y="34" text-anchor="middle" id="taskDial">—</text>
+            </svg>
+            <div>
+              <div style="display:flex;justify-content:space-between;align-items:baseline">
+                <span class="lvl" id="taskLevel">Comfort<br>Level —</span>
+                <span class="xpbig xpv" id="taskXp">0</span>
+              </div>
+              <div class="bar2"><i id="taskBar" style="width:0%"></i></div>
+              <div class="sub" id="taskProgress">Loading progress</div>
+            </div>
+          </div>
+
+          <!-- Streak / Today / Rank strip -->
+          <dl class="strip rise" style="animation-delay:.42s">
+            <div><dt>Streak</dt><dd id="taskStreak">0<s> days</s></dd></div>
+            <div><dt>Today</dt><dd id="taskPicked">0<s>/5</s></dd></div>
+            <div><dt>Rank</dt><dd id="taskRank">#—</dd></div>
+          </dl>
+          <div class="tick rise" style="animation-delay:.46s"><div class="tickrail" id="taskRail"></div></div>
+
+          <!-- Video footer -->
+          <div class="footer rise" style="animation-delay:.50s">
+            {% # theme-check-disable RemoteAsset %}
+            <video muted autoplay loop playsinline preload="metadata" poster="" loading="lazy"><source src="https://exchange-return-tracking.onrender.com/videos/athlete-running-loop.mp4" type="video/mp4"></video>
+            {% # theme-check-enable RemoteAsset %}
+            <div class="footer-inner">
+              <div class="footer-brand">OFFCOMFRT</div>
+              <div class="footer-tag">Outside comfort</div>
+              <div class="footer-rule"></div>
+              <div class="footer-note"><b>From INDIA to the WORLD.</b> Quiet and cozy. Quality over quantity. Minimal at its peak.</div>
+            </div>
           </div>
         </div>
       </div>
@@ -688,6 +873,19 @@
         </div>
       </div>
     </div>
+
+    <!-- Avatar scrim + sheet -->
+    <div class="scrim" id="avScrim"></div>
+    <div class="sheet" id="avSheet" role="dialog" aria-label="Account">
+      <div class="grab"></div>
+      <div class="shd">
+        <button type="button" id="avBack" style="display:none" aria-label="Back">&larr;</button>
+        <b id="avTitle">Account</b>
+        <button type="button" id="avClose" aria-label="Close">&times;</button>
+      </div>
+      <div class="shb" id="avBody"></div>
+    </div>
+
   </div></main>
 
 <script>
@@ -729,6 +927,124 @@ function flash(n=1){if(reduce)return;for(let k=0;k<n;k++)setTimeout(()=>{const b
 function count(id,to,ms=1200){if(reduce){$(id).textContent=Number(to||0).toLocaleString('en-IN');return}const start=performance.now();(function step(now){const p=Math.min(1,(now-start)/ms),e=1-Math.pow(1-p,3);$(id).textContent=Math.round(Number(to||0)*e).toLocaleString('en-IN');if(p<1)requestAnimationFrame(step)})(start)}
 function tick(id,month){const run=()=>{const d=new Date(),end=month?new Date(d.getFullYear(),d.getMonth()+1,1):new Date(d.getFullYear(),d.getMonth(),d.getDate(),23,59);let s=Math.max(0,Math.floor((end-d)/1000)),dd=Math.floor(s/86400),hh=String(Math.floor(s%86400/3600)).padStart(2,'0'),mm=String(Math.floor(s%3600/60)).padStart(2,'0'),ss=String(s%60).padStart(2,'0');$(id).innerHTML=(month?dd+'d ':'')+hh+':'+mm+'<span class="s">:'+ss+'</span>'};run();setInterval(run,1000)}
 function toast(msg,value=''){$('toastMessage').textContent=msg;$('toastValue').textContent=value;$('toast').classList.remove('show');void $('toast').offsetWidth;$('toast').classList.add('show')}
+
+// ── Avatar sheet ──
+let avScreen='menu'; // 'menu' | 'code' | 'cash' | 'ship' | 'card' | 'set'
+const AV_ICONS={
+  code:'<rect x="1.5" y="3.5" width="12" height="8"/><path d="M4 7.5h2M8 7.5h3"/>',
+  cash:'<path d="M2 4.5h11v6H2zM2 7.5h11"/><circle cx="7.5" cy="7.5" r="1.6"/>',
+  ship:'<path d="M1.5 5.5h8v5h-8zM9.5 7h2.3l1.7 2v1.5h-4z"/><circle cx="4" cy="11.5" r="1.1"/><circle cx="10.6" cy="11.5" r="1.1"/>',
+  card:'<rect x="1.5" y="2.5" width="12" height="10"/><circle cx="5.5" cy="6" r="1.4"/><path d="M3 10.5c0-1.4 1.1-2.2 2.5-2.2S8 9.1 8 10.5M9.5 5.5h2.5M9.5 8h2"/>',
+  set:'<circle cx="7.5" cy="7.5" r="2.1"/><path d="M7.5 1.6v1.8M7.5 11.6v1.8M1.6 7.5h1.8M11.6 7.5h1.8M3.3 3.3l1.3 1.3M10.4 10.4l1.3 1.3M11.7 3.3l-1.3 1.3M4.6 10.4l-1.3 1.3"/>'
+};
+const AV_MENU=[
+  {k:'code',t:'Your code',s:'—',ic:'code',note:''},
+  {k:'cash',t:'Earnings',s:'—',ic:'cash',note:''},
+  {k:'ship',t:'Shipments',s:'—',ic:'ship',note:''},
+  {k:'card',t:'Athlete card',s:'Share your level',ic:'card',note:''},
+  {k:'set',t:'Settings',s:'Address, size, UPI, link',ic:'set',note:''}
+];
+
+function openAvSheet(){avScreen='menu';renderAvMenu();$('avScrim').classList.add('on');$('avSheet').classList.add('on')}
+function closeAvSheet(){$('avScrim').classList.remove('on');$('avSheet').classList.remove('on')}
+function avGo(key){
+  const m=AV_MENU.find(x=>x.k===key);if(!m)return;
+  avScreen=key;$('avTitle').textContent=m.t;$('avBack').style.display='';
+  const renderers={code:renderAvCode,cash:renderAvEarnings,ship:renderAvShipments,card:renderAvCard,set:renderAvSettings};
+  (renderers[key]||renderAvMenu)();
+}
+function avBack(){avScreen='menu';$('avTitle').textContent='Account';$('avBack').style.display='none';renderAvMenu()}
+
+function renderAvMenu(){
+  const a=S.athlete||{};
+  const dc=a.discount_code||null;
+  const handle=a.instagram_handle||('OFC-'+String(a.athlete_no||a.id||'').slice(-4));
+  const lvl=a.level?a.level.display_name:'—';
+  // Update menu labels with live data
+  AV_MENU[0].s=dc?`${dc.code} · ${dc.percent}% off`:'No code yet';
+  AV_MENU[0].note=`${a.month_orders||0} orders this month`;
+  const fmt=v=>'\u20B9'+Number(v||0).toLocaleString('en-IN');
+  AV_MENU[1].s=S.commissions?fmt((S.commissions.summary||{}).earned||0):'—';
+  AV_MENU[2].note=(S.orders||[]).filter(o=>o.fulfillment_status&&!['DELIVERED','delivered'].includes(o.fulfillment_status)).length?`${(S.orders||[]).filter(o=>o.fulfillment_status&&!['DELIVERED','delivered'].includes(o.fulfillment_status)).length} on the way`:'';
+  $('avBody').innerHTML=`<div class="idcard"><span class="big"></span><div><b>${esc(a.name||'Athlete')}</b><em>${esc(handle)} · ${esc(lvl)} · OFC-${String(a.athlete_no||a.id||'').padStart(4,'0')}</em></div></div><div class="menu">${AV_MENU.map(m=>`<button class="mrow" type="button" data-k="${m.k}"><svg viewBox="0 0 15 15" aria-hidden="true">${AV_ICONS[m.ic]}</svg><span><b>${m.t}</b><em>${m.s}</em></span><s${m.note?' class="hot"':''}>${m.note||''}</s><i>&rsaquo;</i></button>`).join('')}</div><p style="font-size:10.5px;color:var(--dim);margin:4px 0 0;line-height:1.45;flex:none">Five screens, none of them worth a tab. An athlete opens any of these a handful of times a month — usually because something sent them here.</p>`;
+  $('avBody').querySelectorAll('.mrow').forEach(b=>{b.onclick=()=>avGo(b.dataset.k)});
+}
+
+function renderAvCode(){
+  const a=S.athlete||{},dc=a.discount_code||null;
+  const code=dc?dc.code:'—';
+  const pct=dc?dc.percent+'%':'—';
+  const fmt=v=>'\u20B9'+Number(v||0).toLocaleString('en-IN');
+  const monthly=(S.commissions?.monthly||[])[0]||null;
+  const orders=monthly?monthly.orders:(a.month_orders||0);
+  const coins=a.coin_balance||0;
+  const pending=(S.commissions?.summary||{}).pending||0;
+  $('avBody').innerHTML=`<div class="codecard"><button type="button" id="cpCode">Copy</button><div class="cd">${esc(code)}</div><div class="pc">${esc(pct)} off · works everywhere</div></div><div class="reflink"><span>offcomfrt.com/?ref=${esc(code)}</span><button type="button" id="cpRef">Copy</button></div><p style="font-size:10.5px;color:var(--dim);margin:0;line-height:1.45;flex:none">Use the link when the code is awkward — a Story sticker, a bio. It counts the same for thirty days even if they never type anything.</p><div class="rule"></div><div class="kick">This month</div><div class="duo"><div><span class="lab" style="margin:0">Orders</span><b>${orders}</b><em>on your code</em></div><div><span class="lab" style="margin:0">Coins earned</span><b>${Number(coins).toLocaleString('en-IN')}</b><em>from sales</em></div></div><div class="settle"><div class="rowx" style="margin-bottom:6px"><span class="lab" style="margin:0">Coins · available now</span><b style="font-family:var(--m);font-size:15px;font-weight:700">${Number(coins).toLocaleString('en-IN')}</b></div>${pending?`<div class="sr"><s>Settling</s><b>+ ${fmt(pending)}</b></div>`:''}<p style="font-size:10px;color:var(--dim);margin:7px 0 0;line-height:1.45">Coins from a sale clear fourteen days after the order, once the return window shuts. Coins from tasks are yours the moment the task is approved.</p></div>`;
+  $('cpCode').onclick=()=>{navigator.clipboard.writeText(code).then(()=>toast('Copied',code)).catch(()=>{})};
+  $('cpRef').onclick=()=>{navigator.clipboard.writeText('?ref='+code).then(()=>toast('Copied','?ref='+code)).catch(()=>{})};
+}
+
+function renderAvEarnings(){
+  const c=S.commissions||{},s=c.summary||{},monthly=c.monthly||[];
+  const fmt=v=>'\u20B9'+Number(v||0).toLocaleString('en-IN');
+  const rate=s.commission_rate||7;
+  const last3=monthly.slice(0,3);
+  $('avBody').innerHTML=`<div class="kick">This month earnings</div><div class="money"><div class="mr"><span>Attributed net</span><b>${fmt(s.total_revenue)}</b></div><div class="mr"><span>Commission at ${rate}%</span><b>${fmt(s.total_commission)}</b></div><div class="mr"><span>Less self-purchase</span><b>−${fmt(0)}</b></div><div class="mr"><span>Less refunds</span><b>−${fmt(s.reversed||0)}</b></div><div class="mr tot"><span>Earned so far</span><b>${fmt(s.earned)}</b></div></div><div class="rowx" style="font-family:var(--m);font-size:9px;letter-spacing:.09em;text-transform:uppercase;color:var(--dim);flex:none"><span>Pending ${fmt(s.pending)}</span><span>${s.paid?fmt(s.paid)+' paid':''}</span></div>${last3.length?`<div class="rule"></div><div class="kick">Last months</div><div>${last3.map(m=>`<div class="shiprow"><div><b>${m.month}</b><em>${m.orders} orders · ${fmt(m.revenue)} revenue</em></div><span style="font-family:var(--m);font-size:12px;font-weight:700">${fmt(m.commission)}</span></div>`).join('')}</div>`:''}`;
+}
+
+function renderAvShipments(){
+  const orders=S.orders||[];
+  const active=orders.filter(o=>o.fulfillment_status&&!['DELIVERED','delivered','CANCELLED','cancelled'].includes(o.fulfillment_status));
+  const past=orders.filter(o=>['DELIVERED','delivered'].includes(o.fulfillment_status)).slice(0,5);
+  const steps=['Packed','Dispatched','In transit','Delivered'];
+  function stepFor(status){
+    if(!status)return 0;
+    const s=status.toLowerCase();
+    if(s.includes('deliver'))return 3;
+    if(s.includes('transit')||s.includes('ship'))return 2;
+    if(s.includes('fulfill')||s.includes('dispatch'))return 1;
+    return 0;
+  }
+  const latest=active[0]||null;
+  const curStep=latest?stepFor(latest.fulfillment_status):0;
+  $('avBody').innerHTML=`${latest?`<div class="kick">On the way</div><div class="track"><b style="font-size:13px;font-weight:700;display:block">Order #${esc(String(latest.shopify_order_id||'').slice(-6))}</b><em style="font-style:normal;font-family:var(--m);font-size:9px;letter-spacing:.07em;color:var(--dim)">${esc(latest.fulfillment_status||'Processing')}</em><div class="tsteps">${steps.map((x,i)=>`<div class="ts${i<curStep?' done':i===curStep?' now':''}">${x}</div>`).join('')}</div></div><p style="font-size:10.5px;color:var(--dim);margin:0;line-height:1.45;flex:none">The delivery scan is what starts your first task on this level — nothing is due until the kit is in your hands.</p>`:'<div class="locked"><div class="ic">📦</div><b>No active shipments</b><span>When a kit ships, it appears here with a live tracker.</span></div>'}<div class="rule"></div><div class="kick">Delivered</div><div>${past.length?past.map(o=>`<div class="shiprow"><div><b>Order #${esc(String(o.shopify_order_id||'').slice(-6))}</b><em>${esc(o.customer_name||'')} · ${fmt(o.net_value)}</em></div><span class="chipk go">Delivered</span></div>`).join(''):'<div class="shiprow"><div><b>Nothing yet</b><em>Your first delivery will appear here</em></div></div>'}</div>`;
+}
+
+function renderAvCard(){
+  const a=S.athlete||{};
+  const lvl=a.level||{};
+  const fmt=v=>Number(v||0).toLocaleString('en-IN');
+  const rank=S.ranks?S.ranks.current_rank:'—';
+  const since=a.joined_at?new Date(a.joined_at).toLocaleDateString('en-US',{month:'short'}):'—';
+  $('avBody').innerHTML=`<div class="acard"><div class="dialwrap"><svg class="dial" viewBox="0 0 48 48" width="56" height="56" aria-hidden="true" id="avDial"></svg></div><h5>${esc(lvl.display_name||'Comfort Level')}</h5><div class="hd2">${esc(a.instagram_handle||'@athlete')}</div><div class="meta"><div><em>XP</em><b>${fmt(a.xp_total)}</b></div><div><em>Since</em><b>${since}</b></div><div><em>Rank</em><b>#${rank}</b></div></div></div><button class="dangerbtn" type="button" id="saveCard">Save as image</button><p style="font-size:10.5px;color:var(--dim);margin:0;line-height:1.45;flex:none">The only screen built to leave the app. It carries the level and the handle and nothing else — no rupees, no address, no standing score — because it is designed to be posted.</p>`;
+  // Draw dial
+  const d3=$('avDial');
+  if(d3){
+    const lit=lvl.dial_segments_lit||1;
+    let s='',cx=24,cy=24,r=17;
+    for(let i=0;i<5;i++){
+      const a0=(-90+i*72+5)*Math.PI/180,a1=(-90+i*72+67)*Math.PI/180;
+      s+=`<path class="${i<lit?'litd':'dark'}" d="M${(cx+r*Math.cos(a0)).toFixed(2)} ${(cy+r*Math.sin(a0)).toFixed(2)} A${r} ${r} 0 0 1 ${(cx+r*Math.cos(a1)).toFixed(2)} ${(cy+r*Math.sin(a1)).toFixed(2)}" fill="none" stroke="#fff" stroke-width="${i<lit?'2.8':'1.3'}" opacity="${i<lit?1:.26}"/>`;
+    }
+    d3.innerHTML=s+`<text class="num" x="24" y="31" text-anchor="middle" fill="#fff" font-family="var(--f)" font-weight="900" font-size="18">${lit}</text>`;
+  }
+  $('saveCard').onclick=()=>toast('Card export','Coming soon');
+}
+
+function renderAvSettings(){
+  const a=S.athlete||{};
+  const fmt=v=>'\u20B9'+Number(v||0).toLocaleString('en-IN');
+  $('avBody').innerHTML=`<div><div class="setrow"><div><b>Shipping address</b><em>${esc(a.city||'Not set')}</em></div><span class="chipk">Edit</span></div><div class="setrow"><div><b>Phone</b><em>${esc(a.phone||'Not set')}</em></div><span class="chipk">Edit</span></div><div class="setrow"><div><b>Commission rate</b><em>${a.level?'7% flat per order':'—'}</em></div><span class="chipk go">Fixed</span></div></div><div class="rule"></div><div class="kick">Preferences</div><div><div class="setrow"><div><b>Show me on the leaderboard</b><em>Off means you still earn, you just stop appearing</em></div><button class="sw" type="button" aria-pressed="${a.leaderboard_opt_out?'false':'true'}" aria-label="Leaderboard"></button></div><div class="setrow"><div><b>WhatsApp nudges</b><em>Deadlines and approvals only. Never marketing.</em></div><button class="sw" type="button" aria-pressed="true" aria-label="Nudges"></button></div></div><div class="rule"></div><div class="kick">Session</div><div><div class="shiprow"><div><b>This device</b><em>Active now</em></div><span class="chipk go">current</span></div></div><button class="dangerbtn" type="button" id="signoutAll">Sign out everywhere</button><p style="font-size:10.5px;color:var(--dim);margin:0;line-height:1.45;flex:none">Use this if you have lost a phone. Every session ends, including this one, and you sign in again with a fresh code.</p>`;
+  // Wire toggles
+  $('avBody').querySelectorAll('.sw').forEach(b=>{
+    b.onclick=()=>{
+      const on=b.getAttribute('aria-pressed')==='true';
+      b.setAttribute('aria-pressed',on?'false':'true');
+      toast(on?'Turned off':'Turned on','');
+    };
+  });
+  $('signoutAll').onclick=()=>{closeAvSheet();sessionStorage.removeItem('ap_token');S.token=null;showAuthError();toast('Signed out','everywhere')};
+}
 
 async function api(path,options){
   const url=`${API}/${S.token}${path}`,t0=performance.now();
@@ -781,38 +1097,73 @@ function renderProfile(){
   const pct=Math.min(100,Math.max(0,(xp-(current.min_xp||0))/Math.max(1,(next.min_xp||xp+100)-(current.min_xp||0))*100));
   $('taskDial').textContent=current.display_number??'—';
   $('taskLevel').innerHTML=esc(current.display_name||'Comfort Level').replace(' - ','<br>- ');
-  $('taskBar').style.setProperty('--pct',pct+'%');
+  $('taskBar').style.width=pct+'%';
   $('taskProgress').textContent=next.min_xp?`${(next.min_xp-xp).toLocaleString('en-IN')} TO ${String(next.display_name||'NEXT LEVEL').toUpperCase()}`:'MAXIMUM COMFORT LEVEL';
   count('taskXp',xp);
+  // Sync all .xpv elements
+  document.querySelectorAll('.xpv').forEach(el=>{el.textContent=xp.toLocaleString('en-IN')});
 }
 
 function renderTasks(){
   const tasks=S.tasks||[],picked=tasks.filter(x=>x.picked);
+  const a=S.athlete||{},current=a.level||{},next=a.next_level||{},xp=a.xp_total||0;
+  const totalAtLevel=10; // tasks needed to clear this level
+  const doneAtLevel=Math.min(totalAtLevel,Math.floor(xp/(next.min_xp?next.min_xp/totalAtLevel:100)));
+  const remaining=totalAtLevel-doneAtLevel;
+  const xpToNext=next.min_xp?next.min_xp-xp:0;
+
+  // Pips
+  let pipsHTML='';
+  for(let i=0;i<totalAtLevel;i++) pipsHTML+=`<i class="${i<doneAtLevel?'on':i===doneAtLevel?'next':''}"></i>`;
+  $('pips').innerHTML=pipsHTML;
+
+  // Progress hero
+  $('tasksToGo').textContent=remaining+' task'+(remaining!==1?'s':'');
+  $('doneCount').innerHTML=doneAtLevel+'<em style="font-size:13px;opacity:.5"> / '+totalAtLevel+'</em>';
+  $('xpEarned').textContent=xp.toLocaleString('en-IN');
+  $('xpToGo').textContent=xpToNext?xpToNext.toLocaleString('en-IN')+' to go':'Level complete';
+
+  // Cleared tasks (from today's completed picks)
+  const cleared=tasks.filter(x=>x.picked&&!['PICKED','ASSIGNED','IN_PROGRESS','CHANGES_REQUESTED'].includes(x.pick_status));
+  $('donelist').innerHTML=cleared.length?cleared.map(t=>`<div class="dr"><svg viewBox="0 0 15 15" aria-hidden="true"><path d="M3 8l3 3 6-7"/></svg><b>${esc(t.title)}</b><s>+${t.xp_value||0} XP</s></div>`).join(''):'<div class="dr" style="color:var(--dim);font-size:11px">No tasks cleared yet at this level</div>';
+
+  // Find focused task
   let focus=tasks.find(x=>x.picked&&['PICKED','ASSIGNED','IN_PROGRESS','CHANGES_REQUESTED'].includes(x.pick_status));
   if(!focus)focus=tasks.find(x=>!x.picked);
   if(!focus)focus=tasks[0];
-  const idx=tasks.indexOf(focus);
+
+  // Scroll cue
+  if(focus){
+    $('cueTitle').textContent="Today's task";
+    $('cueSub').textContent=focus.title||'Loading…';
+  }
+
+  // Banner
+  $('bannerTitle').textContent='Daily pool is open';
+  $('bannerSub').textContent=`${picked.length} of ${S.maxPicks} picked · closes midnight`;
+
   $('taskPicked').innerHTML=`${picked.length}<s>/${S.maxPicks}</s>`;
-  if(!focus){$('taskPool').innerHTML='<div class="empty">No missions available today</div>';$('heroA').textContent='No';$('heroB').textContent='missions';$('taskReward').textContent='+0 XP';return}
+  if(!focus){$('heroA').textContent='No';$('heroB').textContent='missions';$('taskReward').textContent='+0 XP';$('taskAction').textContent='No missions today';$('taskAction').disabled=true;return}
   $('heroA').textContent=focus.picked?'Finish your':'Choose your';
-  $('heroB').textContent=focus.picked?'mission':'mission';
+  $('heroB').textContent='mission';
   $('taskReward').textContent=`+${focus.xp_value||0} XP`;
+  $('cueClock').textContent=$('taskClock').textContent.replace(/:\d+$/,'')+' left';
   const canPick=!focus.picked&&picked.length<S.maxPicks;
   const done=focus.picked&&!['PICKED','ASSIGNED','IN_PROGRESS','CHANGES_REQUESTED'].includes(focus.pick_status);
-  // Show only the focused task — tap to expand details
-  const desc=focus.description||focus.brief||'Complete this mission and submit proof before the timer runs out.';
-  $('taskPool').innerHTML=`<div class="mission-row me expanded" data-number="${String(idx+1).padStart(2,'0')}" data-id="${focus.id}"><div><div class="mission-type">${esc((focus.type||'TASK').replace('_',' '))}</div><div class="mission-title">${esc(focus.title)}</div><div class="mission-details"><div class="mission-details-inner"><div class="mission-desc">${esc(desc)}</div><div class="mission-meta"><span>XP <b>+${focus.xp_value||0}</b></span><span>Type <b>${esc((focus.type||'TASK').replace('_',' '))}</b></span><span>Status <b>${focus.picked?esc(focus.pick_status||'PICKED'):'AVAILABLE'}</b></span></div></div></div></div><div><div class="mission-xp">+${focus.xp_value||0} XP</div><button class="mission-action" ${done?'disabled':''}>${focus.picked?(done?'Done':'Submit'):(S.picks.length>=S.maxPicks?'Full':'Pick')}</button></div></div>`;
-  const row=$('taskPool').querySelector('.mission-row');
-  if(row){
-    const btn=row.querySelector('button');
-    row.addEventListener('click',e=>{
-      if(e.target.closest('.mission-action'))return;
-      row.classList.toggle('expanded');
-    });
-    if(btn&&!btn.disabled)btn.onclick=()=>focus.picked?openSubmission(focus.assignment_id):pickTask(focus.id);
-  }
   if(focus.picked){$('taskAction').textContent='Submit proof';$('taskAction').onclick=()=>openSubmission(focus.assignment_id)}
-  else{$('taskAction').textContent='Open the brief';$('taskAction').onclick=()=>{if(canPick)pickTask(focus.id);else toast('Daily mission pool full or unavailable')}}
+  else{$('taskAction').textContent=canPick?'Pick this mission':'Daily pool full';$('taskAction').onclick=()=>{if(canPick)pickTask(focus.id);else toast('Daily mission pool full or unavailable')}}
+
+  // Running timers
+  const timerItems=[];
+  if(tasks.length)timerItems.push([`${picked.length} of ${S.maxPicks} picked`,`Daily pool · ${picked.length} chosen`,'—','','']);
+  if(S.weekly&&S.weekly.challenge)timerItems.push(['Weekly challenge',S.weekly.challenge.title||'Active challenge','—','','']);
+  $('timerlist').innerHTML=timerItems.length?timerItems.map(t=>`<div class="tr2"><div><b>${t[0]}</b><em>${t[1]}</em></div><s class="${t[3]}">${t[2]}</s></div>`).join(''):'<div class="tr2"><div><b>Nothing running</b><em>Pick a mission to start</em></div></div>';
+
+  // Scroll cue click
+  $('scrollcue').onclick=()=>{
+    const target=$('taskAction');
+    if(target)target.scrollIntoView({behavior:reduce?'auto':'smooth',block:'center'});
+  };
 }
 
 function renderClimb(){
@@ -1177,6 +1528,14 @@ document.addEventListener('DOMContentLoaded',()=>{
   $('closePrSheet').onclick=closeProductRequest;
   $('submitPr').onclick=submitProductRequest;
   $('productSearch').addEventListener('input',function(){renderProductGrid(this.value)});
+  // Avatar sheet
+  $('avbtn').onclick=openAvSheet;
+  $('avScrim').onclick=closeAvSheet;
+  $('avClose').onclick=closeAvSheet;
+  $('avBack').onclick=avBack;
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('avSheet').classList.contains('on'))closeAvSheet()});
+  // Banner click
+  $('pickbanner').onclick=()=>toast('Opens the pick menu','push');
   // Register service worker for PWA
   if('serviceWorker' in navigator){
     navigator.serviceWorker.register('https://exchange-return-tracking.onrender.com/sw.js').catch(()=>{});
