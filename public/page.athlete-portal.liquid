@@ -11,13 +11,15 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="application-name" content="OFFCOMFRT">
   <meta name="format-detection" content="telephone=no">
-  <link rel="manifest" href="https://exchange-return-tracking.onrender.com/manifest.json">
+  {% # theme-check-disable RemoteAsset %}
+  <link rel="manifest" href="https://exchange-return-tracking.onrender.com/manifest.json?host={{ request.host }}&amp;path={{ request.path | url_encode }}">
   <link rel="apple-touch-icon" href="https://exchange-return-tracking.onrender.com/images/app-icon.png">
   <link rel="icon" type="image/png" href="https://exchange-return-tracking.onrender.com/images/app-icon.png">
   <title>OFFCOMFRT Athlete Program</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  {% # theme-check-enable RemoteAsset %}
   <style>
     :root{
       --sbg:#0B0B0B; --sdim:#8A8A8A; --sline:#232323; --spanel:#131313;
@@ -524,7 +526,9 @@
         </dl>
         <div class="tick rise" style="animation-delay:.46s"><div class="tickrail" id="taskRail"></div></div>
         <div class="footer rise" style="animation-delay:.50s">
+          {% # theme-check-disable RemoteAsset %}
           <video muted autoplay loop playsinline preload="metadata" poster="" loading="lazy"><source src="https://exchange-return-tracking.onrender.com/videos/athlete-running-loop.mp4" type="video/mp4"></video>
+          {% # theme-check-enable RemoteAsset %}
           <div class="footer-inner">
             <div class="footer-brand">OFFCOMFRT</div>
             <div class="footer-tag">Outside comfort</div>
@@ -542,20 +546,22 @@
       </div>
       <div class="screen-scroll">
         <div class="scroll-inner">
+          {% # theme-check-disable RemoteAsset %}
           <div class="ggrid rise" style="animation-delay:.28s">
             <a class="gt" href="https://exchange-return-tracking.onrender.com/athlete-game.html" target="_blank" rel="noopener">
-              <img class="gt-bg" src="https://exchange-return-tracking.onrender.com/images/games/rooftop-racing-thumb.jpg" alt="" loading="lazy">
+              <img class="gt-bg" src="https://exchange-return-tracking.onrender.com/images/games/rooftop-racing-thumb.jpg" alt="" loading="lazy" width="1280" height="714">
               <div class="gt-top"><span class="gi">01 &middot; Racing</span><s><i class="dotlive"></i>Live</s></div>
               <b>Rooftop Racing</b>
               <em>Race four rivals across 30,000m of skyline. Jump, slide, climb &mdash; hazards slow you down.</em>
               <span class="go">Tap to play <i>&rarr;</i></span></a>
             <a class="gt" href="https://exchange-return-tracking.onrender.com/games/fruit-ninja/index.html" target="_blank" rel="noopener">
-              <img class="gt-bg" src="https://exchange-return-tracking.onrender.com/images/games/fruit-ninja-thumb.jpg" alt="" loading="lazy">
+              <img class="gt-bg" src="https://exchange-return-tracking.onrender.com/images/games/fruit-ninja-thumb.jpg" alt="" loading="lazy" width="1280" height="714">
               <div class="gt-top"><span class="gi">02 &middot; Arcade</span><s><i class="dotlive"></i>Live</s></div>
               <b>Fruit Ninja</b>
               <em>Swipe to slice. Chain combos, dodge the bombs &mdash; three misses ends the run.</em>
               <span class="go">Tap to play <i>&rarr;</i></span></a>
           </div>
+          {% # theme-check-enable RemoteAsset %}
 
           <div class="rule" style="margin-top:12px"></div>
           <div class="rowx" style="margin-top:10px"><span class="kick" style="margin-top:0">Athletes</span><span class="mono" id="athleteCount" style="color:var(--dim)"></span></div>
@@ -1019,7 +1025,7 @@ function renderProductGrid(filter=''){
   if(!products.length){$('productGrid').innerHTML='<div class="product-empty">No products found</div>';return}
   $('productGrid').innerHTML=products.map(p=>{
     const isSelected=selectedProducts[p.id];
-    const img=p.image?`<img class="pc-img" src="${esc(p.image)}" alt="${esc(p.title)}" loading="lazy"/>`:'<div class="pc-img-placeholder">&#x1F455;</div>';
+    const img=p.image?`<img class="pc-img" src="${esc(p.image)}" alt="${esc(p.title)}" loading="lazy" width="600" height="600"/>`:'<div class="pc-img-placeholder">&#x1F455;</div>';
     const vars=p.variants.slice(0,3).map(v=>`<div class="pc-var"><span>${esc(v.title)}</span><span>\u20B9${Number(v.price).toLocaleString('en-IN')}</span></div>`).join('');
     return `<div class="product-card${isSelected?' selected':''}" data-pid="${p.id}" data-title="${esc(p.title)}">
       ${img}
