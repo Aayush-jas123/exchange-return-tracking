@@ -53,11 +53,11 @@
 
     .portal{display:none;min-height:100svh;min-height:100dvh}
     .portal.ready{display:block}
-    .phone{position:relative;width:100%;min-height:100svh;min-height:100dvh;overflow:hidden;background:var(--bg)}
+    .phone{position:relative;display:flex;flex-direction:column;width:100%;min-height:100svh;min-height:100dvh;overflow:hidden;background:var(--bg)}
     @media(min-width:480px){
       .portal{display:none;min-height:100svh;padding:28px 18px;place-items:center}
       .portal.ready{display:grid}
-      .phone{position:relative;width:min(100%,370px);height:min(760px,calc(100svh - 56px));min-height:610px;overflow:hidden;border:2px solid #333;border-radius:34px;background:var(--bg);box-shadow:0 0 0 1px #000,0 28px 64px rgba(0,0,0,.72)}
+      .phone{position:relative;display:flex;flex-direction:column;width:min(100%,370px);height:min(760px,calc(100svh - 56px));min-height:610px;overflow:hidden;border:2px solid #333;border-radius:34px;background:var(--bg);box-shadow:0 0 0 1px #000,0 28px 64px rgba(0,0,0,.72)}
     }
     @media(max-height:680px) and (min-width:480px){.phone{height:calc(100svh - 18px);min-height:590px}.portal{padding:9px}}
 
@@ -73,7 +73,7 @@
     .screen-scroll{flex:1 1 auto;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding:0;scrollbar-width:none}
     .screen-scroll::-webkit-scrollbar{display:none}
     .scroll-inner{padding:14px 15px;padding-bottom:14px}
-    .screen-bottom{flex-shrink:0;padding:0 15px calc(10px + env(safe-area-inset-bottom,0px))}
+    .screens{position:relative;flex:1 1 auto;min-height:0}
     .rise{opacity:0;transform:translateY(13px)}
     .open .rise{animation:rise .6s cubic-bezier(.16,1,.3,1) forwards}
     @keyframes rise{to{opacity:1;transform:none}}
@@ -154,13 +154,13 @@
     .row.gain v{animation:gain 900ms ease-out}
     @keyframes gain{0%{transform:translateY(-7px);opacity:.3}100%{transform:none;opacity:1}}
 
-    .gap{display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid var(--line);padding-top:8px}
-    .gap b{font-size:13px;font-weight:800}
-    .gap span{font-family:var(--m);font-size:9px;letter-spacing:.06em;color:var(--dim)}
-
-    .nav{display:flex;justify-content:space-between;border-top:1px solid var(--line);padding-top:9px;font-family:var(--m);font-size:7.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--dim)}
-    .nav button{border:0;padding:0;background:transparent;color:inherit;font:inherit;cursor:pointer}
-    .nav button.active{color:#fff;font-weight:700}
+    .tabs{display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid var(--line);padding:8px 15px calc(10px + env(safe-area-inset-bottom,0px));flex:none;background:var(--bg)}
+    .tab{position:relative;background:none;border:0;padding:5px 0 2px;cursor:pointer;font-family:var(--m);font-size:7.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);transition:color .18s ease}
+    .tab .ic{display:block;margin:0 auto 4px;width:15px;height:15px}
+    .tab .ic *{stroke:currentColor;fill:none;stroke-width:1.5}
+    .tab.active{color:#fff;font-weight:700}
+    .tab .dotn{position:absolute;top:2px;right:50%;margin-right:-13px;width:4px;height:4px;border-radius:50%;background:#fff;opacity:0}
+    .tab.has .dotn{opacity:1;animation:bp 2.4s ease-in-out infinite}
 
     .toast{position:absolute;left:15px;right:15px;top:66px;z-index:4;border:1px solid #fff;background:#fff;color:#000;padding:9px 11px;display:flex;justify-content:space-between;align-items:center;font-weight:800;font-size:11px;letter-spacing:.05em;text-transform:uppercase;opacity:0;transform:translateY(-12px);pointer-events:none}
     .toast i{font-family:var(--m);font-style:normal;font-size:11px}
@@ -400,6 +400,36 @@
     .footer-note{font-size:10px;line-height:1.5;color:rgba(255,255,255,.45);max-width:240px}
     .footer-note b{color:rgba(255,255,255,.7);font-weight:700}
 
+    /* shared helpers from the Field Manual navigation spec */
+    .rowx{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+    .mono{font-family:var(--m);font-size:9.5px;letter-spacing:.05em}
+    .rule{height:1px;background:var(--line);flex:none}
+    .chipk{font-family:var(--m);font-size:8px;letter-spacing:.11em;text-transform:uppercase;border:1px solid var(--line);padding:2.5px 6px;color:var(--dim);white-space:nowrap}
+    .chipk.go{border-color:#fff;color:#fff}
+
+    /* games — the arcade */
+    .shellnote{border:1px dashed rgba(255,255,255,.28);padding:10px 11px;font-size:10.5px;color:var(--dim);line-height:1.45}
+    .shellnote b{display:block;color:#fff;font-family:var(--m);font-size:9px;letter-spacing:.13em;text-transform:uppercase;font-weight:700;margin-bottom:4px}
+    .ggrid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+    .gt{position:relative;display:flex;flex-direction:column;gap:5px;min-height:92px;padding:11px 10px 10px;border:1px solid var(--line);background:none;color:#fff;text-align:left;font:inherit;text-decoration:none;cursor:pointer}
+    .gt:hover{border-color:#fff}
+    .gt svg{width:17px;height:17px;fill:none;stroke:#fff;stroke-width:1.4;opacity:.9}
+    .gt b{font-size:12px;font-weight:700;line-height:1.2}
+    .gt em{font-style:normal;font-size:9.5px;color:var(--dim);line-height:1.35;margin-top:auto}
+    .gt s{text-decoration:none;position:absolute;top:9px;right:9px;font-family:var(--m);font-size:7px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);border:1px solid var(--line);padding:1.5px 4px}
+    .matchrow{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;border:1px solid var(--line);padding:9px 10px}
+    .mface{width:26px;height:26px;border-radius:50%;flex:none;background:linear-gradient(140deg,#6A6A6A,#161616);border:1px solid var(--line)}
+    .matchrow b{display:block;font-size:12px;font-weight:700}
+    .matchrow em{font-style:normal;font-size:10px;color:var(--dim)}
+    .chatbox{border:1px solid var(--line);padding:9px;display:flex;flex-direction:column;gap:6px}
+    .cm{font-size:11px;line-height:1.4;padding:7px 9px;max-width:86%}
+    .cm b{display:block;font-family:var(--m);font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);font-weight:400;margin-bottom:2px}
+    .cm.them{background:rgba(255,255,255,.07);align-self:flex-start}
+    .cm.me{background:#fff;color:#000;align-self:flex-end}
+    .cm.me b{color:rgba(0,0,0,.45)}
+    .cinput{display:flex;justify-content:space-between;align-items:center;gap:8px;border:1px solid var(--line);padding:8px 10px;font-size:11px;color:var(--dim);margin-top:2px}
+    .cinput i{font-style:normal}
+
     .empty{padding:18px 0;color:var(--dim);font-family:var(--m);font-size:10px;letter-spacing:.08em;text-transform:uppercase}
 
     @media(prefers-reduced-motion:reduce){
@@ -437,6 +467,7 @@
   <main class="portal" id="portal"><div class="phone">
     <div class="field" id="field"></div>
 
+    <div class="screens">
     <section class="screen active" id="tasks">
       <div class="screen-top">
         <div class="top rise" style="animation-delay:.02s"><span id="taskDate">TODAY</span><span class="live"><i class="dotlive"></i><span id="taskLive">3</span>&nbsp;out there now</span></div>
@@ -474,7 +505,7 @@
         <dl class="strip rise" style="animation-delay:.42s">
           <div><dt>Streak</dt><dd id="taskStreak">0<s> days</s></dd></div>
           <div><dt>Today</dt><dd id="taskPicked">0<s>/5</s></dd></div>
-          <div><dt>Board</dt><dd id="taskRank">#—</dd></div>
+          <div><dt>Rank</dt><dd id="taskRank">#—</dd></div>
         </dl>
         <div class="tick rise" style="animation-delay:.46s"><div class="tickrail" id="taskRail"></div></div>
         <div class="footer rise" style="animation-delay:.50s">
@@ -487,41 +518,49 @@
           </div>
         </div>
       </div>
-      <div class="screen-bottom">
-        <nav class="nav rise" style="animation-delay:.60s" aria-label="Portal">
-          <button class="active" data-view="tasks">Task</button>
-          <button data-view="climb">Climb</button>
-          <button data-view="board">Board</button>
-          <button data-view="ranks">Ranks</button>
-          <button data-view="log">Log</button>
-        </nav>
-      </div>
     </section>
 
-    <section class="screen" id="board">
+    <section class="screen" id="games">
       <div class="screen-top">
-        <div class="top rise" style="animation-delay:.02s"><span id="boardMonth">Current cycle</span><span class="live"><i class="dotlive"></i>Live</span></div>
-        <div class="hero"><span><i>The board</i></span></div>
-        <div class="clockrow rise" style="animation-delay:.2s">
-          <div><span class="clocklab">Resets in</span><span class="clock" id="boardClock">0d 00:00<span class="s">:00</span></span></div>
-          <span class="resets">Top 3 stay pinned<br>for a week after</span>
-        </div>
+        <div class="top rise" style="animation-delay:.02s"><span>The arcade</span><span class="mono" style="color:var(--dim)">2 games</span></div>
+        <div class="hero"><span><i>Games</i></span></div>
       </div>
       <div class="screen-scroll">
         <div class="scroll-inner">
-          <div class="list rise" id="boardList" style="animation-delay:.28s"></div>
-          <div class="gap rise" id="boardGap" style="animation-delay:.42s;margin-top:10px"><b>Loading board</b><span>—</span></div>
+          <div class="shellnote rise" style="animation-delay:.14s"><b>Shell &mdash; not decided yet</b>
+            Rooftop Racing and Fruit Ninja are live below. What they pay out and which
+            candidate formats get built are open questions &mdash; see &sect;05.</div>
+
+          <div class="ggrid rise" style="animation-delay:.28s">
+            <a class="gt" href="https://exchange-return-tracking.onrender.com/athlete-game.html" target="_blank" rel="noopener">
+              <s>Live</s>
+              <svg viewBox="0 0 15 15" aria-hidden="true"><path d="M4 13V2.5M4 3h6.5L8.5 5.2l2 2.3H4"/></svg>
+              <b>Rooftop Racing</b>
+              <em>Race four rivals across 30,000m of skyline. Jump, slide, climb &mdash; hazards slow you down.</em></a>
+            <a class="gt" href="https://exchange-return-tracking.onrender.com/games/fruit-ninja/index.html" target="_blank" rel="noopener">
+              <s>Live</s>
+              <svg viewBox="0 0 15 15" aria-hidden="true"><path d="M3 3l9 9M12 3l-9 9"/></svg>
+              <b>Fruit Ninja</b>
+              <em>Swipe to slice. Chain combos, dodge the bombs &mdash; three misses ends the run.</em></a>
+          </div>
+
+          <div class="rule" style="margin-top:12px"></div>
+          <div class="kick" style="margin-top:10px">In play</div>
+          <div class="matchrow">
+            <div class="mface"></div>
+            <div><b>@kabir.lifts</b><em>Head to head &middot; your move</em></div>
+            <span class="chipk go">Open</span>
+          </div>
+          <div class="chatbox">
+            <div class="cm them"><b>@kabir.lifts</b>took you three days to answer</div>
+            <div class="cm me"><b>You</b>was busy actually doing the briefs</div>
+            <div class="cinput"><span>Message&hellip;</span><i>&rarr;</i></div>
+          </div>
+          <p style="font-size:10.5px;color:var(--dim);margin:0;line-height:1.45">
+            Chat lives inside a match and ends with it. Nobody can see another athlete&rsquo;s
+            tasks, proof or level progress from here &mdash; that was the point of removing the
+            wall.</p>
         </div>
-        <div class="plate rise" style="animation-delay:.48s"><i></i><q>"Won it in the last four days. Did a task every single night."<b>Last cycle winner</b></q></div>
-      </div>
-      <div class="screen-bottom">
-        <nav class="nav rise" style="animation-delay:.58s">
-          <button data-view="tasks">Task</button>
-          <button data-view="climb">Climb</button>
-          <button class="active" data-view="board">Board</button>
-          <button data-view="ranks">Ranks</button>
-          <button data-view="log">Log</button>
-        </nav>
       </div>
     </section>
 
@@ -533,15 +572,6 @@
       </div>
       <div class="screen-scroll">
         <div id="climbContent"></div>
-      </div>
-      <div class="screen-bottom">
-        <nav class="nav">
-          <button data-view="tasks">Task</button>
-          <button class="active" data-view="climb">Climb</button>
-          <button data-view="board">Board</button>
-          <button data-view="ranks">Ranks</button>
-          <button data-view="log">Log</button>
-        </nav>
       </div>
     </section>
 
@@ -556,15 +586,6 @@
           <div class="scroll flex rise" id="ranksContent"></div>
         </div>
       </div>
-      <div class="screen-bottom">
-        <nav class="nav">
-          <button data-view="tasks">Task</button>
-          <button data-view="climb">Climb</button>
-          <button data-view="board">Board</button>
-          <button class="active" data-view="ranks">Ranks</button>
-          <button data-view="log">Log</button>
-        </nav>
-      </div>
     </section>
 
     <section class="screen" id="log">
@@ -576,16 +597,16 @@
       <div class="screen-scroll">
         <div id="logContent"></div>
       </div>
-      <div class="screen-bottom">
-        <nav class="nav">
-          <button data-view="tasks">Task</button>
-          <button data-view="climb">Climb</button>
-          <button data-view="board">Board</button>
-          <button data-view="ranks">Ranks</button>
-          <button class="active" data-view="log">Log</button>
-        </nav>
-      </div>
     </section>
+    </div>
+
+    <nav class="tabs rise" style="animation-delay:.60s" aria-label="Portal">
+      <button class="tab active" type="button" data-view="tasks"><span class="dotn"></span><svg class="ic" viewBox="0 0 15 15" aria-hidden="true"><rect x="2.5" y="2.5" width="10" height="10"/><path d="M5 7.5l2 2 3.5-4"/></svg>Task</button>
+      <button class="tab" type="button" data-view="climb"><span class="dotn"></span><svg class="ic" viewBox="0 0 15 15" aria-hidden="true"><path d="M2 12.5h3.5v-4H9V5h4.5v7.5"/></svg>Climb</button>
+      <button class="tab" type="button" data-view="games"><span class="dotn"></span><svg class="ic" viewBox="0 0 15 15" aria-hidden="true"><rect x="1.5" y="4.5" width="12" height="7" rx="2.5"/><path d="M4 6.5v3M2.5 8h3"/><circle cx="10" cy="7.3" r=".9"/><circle cx="11.6" cy="9" r=".9"/></svg>Games</button>
+      <button class="tab" type="button" data-view="ranks"><span class="dotn"></span><svg class="ic" viewBox="0 0 15 15" aria-hidden="true"><rect x="2" y="8" width="3" height="5"/><rect x="6" y="4" width="3" height="9"/><rect x="10" y="6" width="3" height="7"/></svg>Ranks</button>
+      <button class="tab" type="button" data-view="log"><span class="dotn"></span><svg class="ic" viewBox="0 0 15 15" aria-hidden="true"><rect x="2.5" y="2" width="10" height="11"/><path d="M5 5.5h5M5 8h5M5 10.5h3"/></svg>Log</button>
+    </nav>
 
     <div class="toast" id="toast"><span id="toastMessage"></span><i id="toastValue"></i></div>
 
@@ -849,16 +870,8 @@ function renderClimb(){
 
 function renderBoard(){
   const list=[...S.leaderboard].sort((a,b)=>(b.xp_total||0)-(a.xp_total||0));
-  const before={};
-  [...$('boardList').children].forEach(r=>before[r.dataset.id]=r.getBoundingClientRect().top);
-  const max=Math.max(1,list[0]?.xp_total||1);
-  $('boardList').innerHTML=list.map((a,i)=>`<div class="row${a.id===S.athlete?.id?' me':''}${i===0?' top1':''}" data-id="${a.id}"><i class="fillbar" style="width:${Math.round((a.xp_total||0)/max*100)}%"></i><u class="rank">${String(i+1).padStart(2,'0')}</u><n class="name">${esc(a.name||'ATHLETE')}</n><v class="score">${Number(a.xp_total||0).toLocaleString('en-IN')}</v></div>`).join('');
-  [...$('boardList').children].forEach(r=>{
-    const old=before[r.dataset.id],now=r.getBoundingClientRect().top;
-    if(old!==undefined&&Math.abs(old-now)>.5&&!reduce){r.style.transition='none';r.style.transform=`translateY(${old-now}px)`;requestAnimationFrame(()=>{r.style.transition='transform 620ms cubic-bezier(.16,1,.3,1)';r.style.transform=''})}
-  });
   const mine=list.findIndex(a=>a.id===S.athlete?.id);
-  if(mine>=0){$('taskRank').textContent='#'+(mine+1);if(mine){const need=(list[mine-1].xp_total||0)-(list[mine].xp_total||0)+1,price=need<=15?'one Story':need<=60?'one Reel':need<=130?'two Reels':Math.ceil(need/50)+' Reels';$('boardGap').innerHTML=`<b>${need.toLocaleString('en-IN')} XP off ${['first','second','third','fourth','fifth','sixth','seventh','eighth','ninth'][mine-1]||'next'}</b><span>${price}</span>`}else $('boardGap').innerHTML='<b>Top of the board</b><span>hold it</span>'}
+  if(mine>=0)$('taskRank').textContent='#'+(mine+1);
 }
 
 function renderRanks(){
@@ -1096,9 +1109,8 @@ async function loadPortal(){
 
 document.addEventListener('DOMContentLoaded',()=>{
   makeField();flash();if(!reduce)setInterval(()=>flash(),3500);
-  tick('taskClock',false);tick('boardClock',true);
+  tick('taskClock',false);
   $('taskDate').textContent=new Intl.DateTimeFormat('en-US',{weekday:'short',month:'short',day:'2-digit'}).format(new Date()).toUpperCase();
-  $('boardMonth').textContent=new Intl.DateTimeFormat('en-US',{month:'long'}).format(new Date()).toUpperCase();
   const feed=[['@neha.runs','trained at a gym she had never been to'],['@smit.trains','asked a stranger to critique his squat'],['@dee.moves','submitted a reel'],['@kabir.lifts','reached a new comfort level'],['@the.late.lift','trained outside in the rain']];
   $('taskRail').innerHTML=[...feed,...feed].map(x=>`<span><b>${x[0]}</b> ${x[1]}</span>`).join('');
   document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>show(b.dataset.view)));
