@@ -203,6 +203,9 @@ app.get('/manifest.json', (req, res) => {
     manifest.start_url = `${MANIFEST_HOST_RE.test(host) ? `https://${host}` : 'https://offcomfrt.in'}${pagePath}`;
     res.set('Content-Type', 'application/manifest+json');
     res.set('Cross-Origin-Resource-Policy', 'cross-origin');
+    // This route sits before the app-wide cors() middleware, and the browser
+    // fetches manifests in CORS mode — send the header explicitly like /videos.
+    res.set('Access-Control-Allow-Origin', '*');
     res.json(manifest);
 });
 
