@@ -76,6 +76,7 @@
     .screens{position:relative;flex:1 1 auto;min-height:0}
     .rise{opacity:0;transform:translateY(13px)}
     .open .rise{animation:rise .6s cubic-bezier(.16,1,.3,1) forwards}
+    .tabs.rise{animation:rise .6s cubic-bezier(.16,1,.3,1) forwards}
     @keyframes rise{to{opacity:1;transform:none}}
 
     .top{display:flex;justify-content:space-between;align-items:center;font-family:var(--m);font-size:8.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--dim)}
@@ -404,31 +405,45 @@
     .rowx{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
     .mono{font-family:var(--m);font-size:9.5px;letter-spacing:.05em}
     .rule{height:1px;background:var(--line);flex:none}
-    .chipk{font-family:var(--m);font-size:8px;letter-spacing:.11em;text-transform:uppercase;border:1px solid var(--line);padding:2.5px 6px;color:var(--dim);white-space:nowrap}
-    .chipk.go{border-color:#fff;color:#fff}
 
     /* games — the arcade */
-    .shellnote{border:1px dashed rgba(255,255,255,.28);padding:10px 11px;font-size:10.5px;color:var(--dim);line-height:1.45}
-    .shellnote b{display:block;color:#fff;font-family:var(--m);font-size:9px;letter-spacing:.13em;text-transform:uppercase;font-weight:700;margin-bottom:4px}
-    .ggrid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
-    .gt{position:relative;display:flex;flex-direction:column;gap:5px;min-height:92px;padding:11px 10px 10px;border:1px solid var(--line);background:none;color:#fff;text-align:left;font:inherit;text-decoration:none;cursor:pointer}
-    .gt:hover{border-color:#fff}
-    .gt svg{width:17px;height:17px;fill:none;stroke:#fff;stroke-width:1.4;opacity:.9}
-    .gt b{font-size:12px;font-weight:700;line-height:1.2}
-    .gt em{font-style:normal;font-size:9.5px;color:var(--dim);line-height:1.35;margin-top:auto}
-    .gt s{text-decoration:none;position:absolute;top:9px;right:9px;font-family:var(--m);font-size:7px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);border:1px solid var(--line);padding:1.5px 4px}
-    .matchrow{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;border:1px solid var(--line);padding:9px 10px}
-    .mface{width:26px;height:26px;border-radius:50%;flex:none;background:linear-gradient(140deg,#6A6A6A,#161616);border:1px solid var(--line)}
-    .matchrow b{display:block;font-size:12px;font-weight:700}
-    .matchrow em{font-style:normal;font-size:10px;color:var(--dim)}
-    .chatbox{border:1px solid var(--line);padding:9px;display:flex;flex-direction:column;gap:6px}
-    .cm{font-size:11px;line-height:1.4;padding:7px 9px;max-width:86%}
-    .cm b{display:block;font-family:var(--m);font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);font-weight:400;margin-bottom:2px}
-    .cm.them{background:rgba(255,255,255,.07);align-self:flex-start}
-    .cm.me{background:#fff;color:#000;align-self:flex-end}
-    .cm.me b{color:rgba(0,0,0,.45)}
-    .cinput{display:flex;justify-content:space-between;align-items:center;gap:8px;border:1px solid var(--line);padding:8px 10px;font-size:11px;color:var(--dim);margin-top:2px}
-    .cinput i{font-style:normal}
+    .ggrid{display:grid;grid-template-columns:1fr;gap:7px}
+    .gt{position:relative;display:flex;flex-direction:column;min-height:25svh;padding:12px 13px 11px;border-radius:8px;overflow:hidden;background:linear-gradient(150deg,#565656,#101010 62%,#2D2D2D);color:#fff;text-decoration:none;cursor:pointer}
+    .gt::before{content:"";position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,rgba(8,8,8,.38),rgba(8,8,8,.1) 42%,rgba(6,6,6,.8))}
+    .gt::after{content:"";position:absolute;inset:0;z-index:1;opacity:.3;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/><feColorMatrix type='saturate' values='0'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='.55'/></svg>")}
+    .gt>*{position:relative;z-index:2}
+    .gt .gt-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;filter:grayscale(1) contrast(1.06) brightness(.92);transition:transform .6s cubic-bezier(.16,1,.3,1)}
+    .gt:hover .gt-bg{transform:scale(1.045)}
+    .gt:active{transform:scale(.985)}
+    .gt-top{display:flex;justify-content:space-between;align-items:center}
+    .gt-top .gi{font-family:var(--m);font-size:7.5px;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.55)}
+    .gt s{display:flex;align-items:center;gap:4px;text-decoration:none;font-family:var(--m);font-size:7px;letter-spacing:.12em;text-transform:uppercase;color:#fff;border:1px solid rgba(255,255,255,.4);padding:2px 5px}
+    .gt b{font-size:16px;font-weight:800;letter-spacing:-.01em;line-height:1.1;margin-top:auto}
+    .gt em{font-style:normal;font-size:10px;color:rgba(255,255,255,.62);line-height:1.4;margin-top:4px;max-width:78%}
+    .gt .go{display:flex;align-items:center;gap:6px;margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,.16);font-family:var(--m);font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:#fff}
+    .gt .go i{font-style:normal;transition:transform .25s cubic-bezier(.16,1,.3,1)}
+    .gt:hover .go i{transform:translateX(4px)}
+
+    /* games — lobby: athletes on the portal */
+    .alist{display:flex;flex-direction:column}
+    .arow{display:grid;grid-template-columns:30px 1fr auto;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)}
+    .alist .arow:last-child{border-bottom:0}
+    .aface{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--m);font-size:10px;font-weight:700;letter-spacing:.04em;background:linear-gradient(140deg,#6A6A6A,#161616);border:1px solid var(--line);color:#fff;flex:none}
+    .arow.on .aface{background:#fff;color:#000;border-color:#fff}
+    .arow.off .aface{opacity:.5}
+    .arow .am{min-width:0}
+    .arow .am b{display:block;font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .arow .am em{font-style:normal;font-family:var(--m);font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+    .arow .aright{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+    .astat{display:flex;align-items:center;gap:4px;font-family:var(--m);font-size:7.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);white-space:nowrap}
+    .astat i{width:4px;height:4px;border-radius:50%;background:var(--dim);flex:none}
+    .arow.on .astat{color:#fff}
+    .arow.on .astat i{background:#fff;animation:bp 2s ease-in-out infinite}
+    .arow.off .astat{opacity:.6}
+    .invt{font-family:var(--m);font-size:7.5px;letter-spacing:.12em;text-transform:uppercase;border:1px solid #fff;background:none;color:#fff;padding:3.5px 9px;cursor:pointer;transition:opacity .18s ease,transform .12s ease}
+    .invt:active{transform:scale(.95)}
+    .invt:disabled{border-color:var(--line);color:var(--dim);cursor:default}
+    .roomnote{font-family:var(--m);font-size:8px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);line-height:1.6;margin:10px 0 0}
 
     .empty{padding:18px 0;color:var(--dim);font-family:var(--m);font-size:10px;letter-spacing:.08em;text-transform:uppercase}
 
@@ -527,39 +542,25 @@
       </div>
       <div class="screen-scroll">
         <div class="scroll-inner">
-          <div class="shellnote rise" style="animation-delay:.14s"><b>Shell &mdash; not decided yet</b>
-            Rooftop Racing and Fruit Ninja are live below. What they pay out and which
-            candidate formats get built are open questions &mdash; see &sect;05.</div>
-
           <div class="ggrid rise" style="animation-delay:.28s">
             <a class="gt" href="https://exchange-return-tracking.onrender.com/athlete-game.html" target="_blank" rel="noopener">
-              <s>Live</s>
-              <svg viewBox="0 0 15 15" aria-hidden="true"><path d="M4 13V2.5M4 3h6.5L8.5 5.2l2 2.3H4"/></svg>
+              <img class="gt-bg" src="https://exchange-return-tracking.onrender.com/images/games/rooftop-racing-thumb.jpg" alt="" loading="lazy">
+              <div class="gt-top"><span class="gi">01 &middot; Racing</span><s><i class="dotlive"></i>Live</s></div>
               <b>Rooftop Racing</b>
-              <em>Race four rivals across 30,000m of skyline. Jump, slide, climb &mdash; hazards slow you down.</em></a>
+              <em>Race four rivals across 30,000m of skyline. Jump, slide, climb &mdash; hazards slow you down.</em>
+              <span class="go">Tap to play <i>&rarr;</i></span></a>
             <a class="gt" href="https://exchange-return-tracking.onrender.com/games/fruit-ninja/index.html" target="_blank" rel="noopener">
-              <s>Live</s>
-              <svg viewBox="0 0 15 15" aria-hidden="true"><path d="M3 3l9 9M12 3l-9 9"/></svg>
+              <img class="gt-bg" src="https://exchange-return-tracking.onrender.com/images/games/fruit-ninja-thumb.jpg" alt="" loading="lazy">
+              <div class="gt-top"><span class="gi">02 &middot; Arcade</span><s><i class="dotlive"></i>Live</s></div>
               <b>Fruit Ninja</b>
-              <em>Swipe to slice. Chain combos, dodge the bombs &mdash; three misses ends the run.</em></a>
+              <em>Swipe to slice. Chain combos, dodge the bombs &mdash; three misses ends the run.</em>
+              <span class="go">Tap to play <i>&rarr;</i></span></a>
           </div>
 
           <div class="rule" style="margin-top:12px"></div>
-          <div class="kick" style="margin-top:10px">In play</div>
-          <div class="matchrow">
-            <div class="mface"></div>
-            <div><b>@kabir.lifts</b><em>Head to head &middot; your move</em></div>
-            <span class="chipk go">Open</span>
-          </div>
-          <div class="chatbox">
-            <div class="cm them"><b>@kabir.lifts</b>took you three days to answer</div>
-            <div class="cm me"><b>You</b>was busy actually doing the briefs</div>
-            <div class="cinput"><span>Message&hellip;</span><i>&rarr;</i></div>
-          </div>
-          <p style="font-size:10.5px;color:var(--dim);margin:0;line-height:1.45">
-            Chat lives inside a match and ends with it. Nobody can see another athlete&rsquo;s
-            tasks, proof or level progress from here &mdash; that was the point of removing the
-            wall.</p>
+          <div class="rowx" style="margin-top:10px"><span class="kick" style="margin-top:0">Athletes</span><span class="mono" id="athleteCount" style="color:var(--dim)"></span></div>
+          <div class="alist rise" id="athleteList" style="animation-delay:.42s"></div>
+          <p class="roomnote">Invites open a private room &mdash; play together, chat together. Tasks, proof and level progress stay yours.</p>
         </div>
       </div>
     </section>
@@ -685,7 +686,7 @@
 
 <script>
 const API='https://exchange-return-tracking.onrender.com/api/athlete';
-const S={token:null,athlete:null,tasks:[],picks:[],maxPicks:5,streak:0,leaderboard:[],climb:null,ranks:null,log:[],weekly:null,assignment:null,bricks:[],active:'tasks',orders:[],commissions:null,productRequests:[],shopifyProducts:[]};
+const S={token:null,athlete:null,tasks:[],picks:[],maxPicks:5,streak:0,leaderboard:[],climb:null,ranks:null,log:[],weekly:null,assignment:null,bricks:[],active:'tasks',orders:[],commissions:null,productRequests:[],shopifyProducts:[],invited:new Set()};
 const $=id=>document.getElementById(id);
 const esc=v=>{const e=document.createElement('div');e.textContent=v||'';return e.innerHTML};
 const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -872,6 +873,22 @@ function renderBoard(){
   const list=[...S.leaderboard].sort((a,b)=>(b.xp_total||0)-(a.xp_total||0));
   const mine=list.findIndex(a=>a.id===S.athlete?.id);
   if(mine>=0)$('taskRank').textContent='#'+(mine+1);
+  renderLobby();
+}
+
+function renderLobby(){
+  const LIVE_MS=90000; // portal polls /leaderboard every 30s — 3 missed beats = offline
+  const rows=S.leaderboard.filter(a=>a.id!==S.athlete?.id)
+    .map(a=>({...a,seen:a.last_seen?Date.now()-a.last_seen:Infinity}))
+    .sort((x,y)=>x.seen-y.seen||(y.xp_total||0)-(x.xp_total||0));
+  const live=rows.filter(a=>a.seen<LIVE_MS).length;
+  $('athleteCount').textContent=live?`${live} live now`:`${rows.length} on the ladder`;
+  $('athleteList').innerHTML=rows.length?rows.map(a=>{
+    const ini=(a.name||'A').split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase();
+    const st=a.seen<LIVE_MS?'Live now':a.seen<3600000?`Seen ${Math.max(1,Math.floor(a.seen/60000))}m ago`:'Offline';
+    const sent=S.invited.has(String(a.id));
+    return `<div class="arow${a.seen<LIVE_MS?' on':a.seen>=3600000?' off':''}"><span class="aface">${esc(ini)}</span><span class="am"><b>${esc(a.name||'Athlete')}</b><em>${esc(a.level_name||'—')} &middot; ${Number(a.xp_total||0).toLocaleString('en-IN')} XP</em></span><span class="aright"><span class="astat"><i></i>${st}</span><button class="invt" type="button" data-invite="${esc(String(a.id))}" data-name="${esc(a.name||'')}"${sent?' disabled':''}>${sent?'Sent &check;':'Invite'}</button></span></div>`;
+  }).join(''):'<div class="empty">No athletes on the ladder yet</div>';
 }
 
 function renderRanks(){
@@ -1054,7 +1071,7 @@ async function submitProductRequest(){
   finally{btn.disabled=false;btn.textContent='Submit request'}
 }
 async function loadTasks(){const data=await api('/daily-tasks');S.tasks=data?.tasks||[];S.picks=data?.picks||[];S.maxPicks=data?.maxPicks||5;renderTasks()}
-async function refreshBoard(){try{const board=await api('/leaderboard');if(JSON.stringify(board)!==JSON.stringify(S.leaderboard)){S.leaderboard=board||[];renderBoard();flash(2)}}catch(e){}}
+async function refreshBoard(){try{const board=await api('/leaderboard');if(JSON.stringify(board)!==JSON.stringify(S.leaderboard)){S.leaderboard=board||[];renderBoard();flash(2)}else{renderLobby()}}catch(e){}}
 
 function enterPortal(){$('loading').hidden=true;$('portal').classList.add('ready');show('tasks');if(!reduce)setInterval(refreshBoard,30000)}
 
@@ -1114,6 +1131,13 @@ document.addEventListener('DOMContentLoaded',()=>{
   const feed=[['@neha.runs','trained at a gym she had never been to'],['@smit.trains','asked a stranger to critique his squat'],['@dee.moves','submitted a reel'],['@kabir.lifts','reached a new comfort level'],['@the.late.lift','trained outside in the rain']];
   $('taskRail').innerHTML=[...feed,...feed].map(x=>`<span><b>${x[0]}</b> ${x[1]}</span>`).join('');
   document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>show(b.dataset.view)));
+  $('athleteList').addEventListener('click',e=>{
+    const b=e.target.closest('[data-invite]');
+    if(!b||b.disabled)return;
+    S.invited.add(b.dataset.invite);
+    b.disabled=true;b.textContent='Sent \u2713';
+    toast(`Invite sent to ${b.dataset.name||'athlete'}`,'PENDING');
+  });
   $('authForm').onsubmit=e=>{
     e.preventDefault();
     S.token=$('tokenInput').value.trim();

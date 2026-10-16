@@ -26,6 +26,11 @@ module.exports = function mountAthleteRoutes(app) {
   }
 
   // ── Helper: resolve athlete from scoped token ──
+  // Live-on-portal presence: influencerId -> epoch ms of last authed API call.
+  // In-memory by design (resets on restart); every authed request is a beacon,
+  // so any athlete with the portal open refreshes via its 30s leaderboard poll.
+  const portalPresence = new Map();
+
   async function authAthlete(req, res, next) {
     const { token } = req.params;
     if (!token) return res.status(401).json({ error: 'No token' });
@@ -36,6 +41,7 @@ module.exports = function mountAthleteRoutes(app) {
       return res.status(401).json({ error: 'Invalid or expired token' });
     }
 
+    portalPresence.set(resolved.influencerId, Date.now());
     req.athleteScope = resolved;
     next();
   }
@@ -774,7 +780,8 @@ module.exports = function mountAthleteRoutes(app) {
 
       const enriched = (data || []).map(a => ({
         ...a,
-        level_name: levelsMap[a.level_id]?.display_name || '—'
+        level_name: levelsMap[a.level_id]?.display_name || '—',
+        last_seen: portalPresence.get(a.id) || null
       }));
 
       res.json({ success: true, data: enriched });
