@@ -81,6 +81,25 @@ let W,H;
 function resize(){const dpr=Math.min(devicePixelRatio,2);W=C.width=window.innerWidth*dpr;H=C.height=window.innerHeight*dpr;X.scale(1,1)}
 resize();window.addEventListener('resize',resize);
 
+/* ── AI-GENERATED IMAGE ASSETS ── */
+// Images loaded from /game-assets/ (served by Express); procedural fallbacks if unavailable
+const IMG={};
+const IMG_PATHS={
+  cityBg:'game-assets/city-bg.png',
+  runner:'game-assets/runner.png',
+  heli:'game-assets/helicopter.png',
+  bird:'game-assets/bird.png',
+  rooftop:'game-assets/rooftop.png',
+  facade:'game-assets/facade.png'
+};
+let imgsLoaded=0,imgsTotal=Object.keys(IMG_PATHS).length;
+for(const[k,src]of Object.entries(IMG_PATHS)){
+  const img=new Image();
+  img.onload=()=>{IMG[k]=img;imgsLoaded++};
+  img.onerror=()=>{imgsLoaded++}; // fallback to procedural
+  img.src=src;
+}
+
 const G=0.44,JV=-12.5,DJV=-10.8,BS=5.2;
 const WSS=1.5,CLS=-3;
 
@@ -107,7 +126,8 @@ function mkP(isMe,name,col){
     dist:0,sm2:.94+Math.random()*.12,fin:false,ft:0,
     aiT:0,aiN:50+Math.random()*50,
     scarf:[],dustT:0,
-    heli:false,heliT:0};
+    heli:false,heliT:0,
+    corridor:false,corridorBld:null}; // corridor state
 }
 let me,runners=[];
 const AN=['@neha.runs','@kabir.lifts','@dee.moves','@smit.trains'];
@@ -121,40 +141,57 @@ let nextBX=0;
 // All sprites generated once at init on offscreen canvases, cached, drawn via drawImage()
 function mkSprite(w,h,fn){const c=document.createElement('canvas');c.width=w;c.height=h;fn(c.getContext('2d'),w,h);return c}
 
-// Runner sprites: 3-frame run cycle (48x56 each)
+// Runner sprites: 5-frame run cycle for smooth full-body animation (48x56 each)
 const SPR_RUN_FRAMES=[
 mkSprite(48,56,(c,w,h)=>{
-  // Frame 0: right leg forward
-  c.fillStyle='#f0f0f0';c.beginPath();c.arc(24,12,10,0,Math.PI*2);c.fill();
-  c.fillStyle='#fff';c.fillRect(13,8,22,3);
-  c.fillStyle='rgba(255,255,255,.6)';c.fillRect(8,7,8,2);
-  c.fillStyle='#ddd';c.fillRect(18,22,12,16);
-  c.fillStyle='#ccc';c.fillRect(10,24,6,14);c.fillRect(32,24,6,14);
-  c.fillStyle='#bbb';c.fillRect(18,38,6,14);c.fillRect(26,38,6,10);
-  c.fillStyle='#fff';c.fillRect(16,50,8,4);c.fillRect(26,46,8,4);
-  c.fillStyle='rgba(255,255,255,.15)';c.fillRect(18,28,12,2);
+  // Frame 0: right leg fully forward, left arm forward
+  c.fillStyle='#f0f0f0';c.beginPath();c.arc(24,11,10,0,Math.PI*2);c.fill();
+  c.fillStyle='#fff';c.fillRect(13,7,22,3);c.fillStyle='rgba(255,255,255,.6)';c.fillRect(7,6,9,2);
+  c.fillStyle='#ddd';c.fillRect(18,21,12,16);
+  c.fillStyle='#ccc';c.fillRect(8,22,6,14);c.fillRect(34,26,6,12);
+  c.fillStyle='#bbb';c.fillRect(16,37,6,15);c.fillRect(28,37,6,10);
+  c.fillStyle='#fff';c.fillRect(14,50,8,4);c.fillRect(28,45,8,4);
+  c.fillStyle='rgba(255,255,255,.12)';c.fillRect(18,27,12,2);
 }),
 mkSprite(48,56,(c,w,h)=>{
-  // Frame 1: both legs together (contact)
+  // Frame 1: right leg passing, left leg back
   c.fillStyle='#f0f0f0';c.beginPath();c.arc(24,12,10,0,Math.PI*2);c.fill();
-  c.fillStyle='#fff';c.fillRect(13,8,22,3);
-  c.fillStyle='rgba(255,255,255,.6)';c.fillRect(8,7,8,2);
+  c.fillStyle='#fff';c.fillRect(13,8,22,3);c.fillStyle='rgba(255,255,255,.6)';c.fillRect(7,7,9,2);
   c.fillStyle='#ddd';c.fillRect(18,22,12,16);
-  c.fillStyle='#ccc';c.fillRect(10,24,6,14);c.fillRect(32,24,6,14);
-  c.fillStyle='#bbb';c.fillRect(20,38,6,14);c.fillRect(24,38,6,14);
-  c.fillStyle='#fff';c.fillRect(18,50,8,4);c.fillRect(24,50,8,4);
-  c.fillStyle='rgba(255,255,255,.15)';c.fillRect(18,28,12,2);
+  c.fillStyle='#ccc';c.fillRect(10,24,6,13);c.fillRect(32,24,6,13);
+  c.fillStyle='#bbb';c.fillRect(20,38,6,13);c.fillRect(26,38,6,13);
+  c.fillStyle='#fff';c.fillRect(18,49,8,4);c.fillRect(26,49,8,4);
+  c.fillStyle='rgba(255,255,255,.12)';c.fillRect(18,28,12,2);
 }),
 mkSprite(48,56,(c,w,h)=>{
-  // Frame 2: left leg forward (mirror of frame 0)
+  // Frame 2: both feet off ground (mid-air), legs spread wide
+  c.fillStyle='#f0f0f0';c.beginPath();c.arc(24,10,10,0,Math.PI*2);c.fill();
+  c.fillStyle='#fff';c.fillRect(13,6,22,3);c.fillStyle='rgba(255,255,255,.6)';c.fillRect(6,5,10,2);
+  c.fillStyle='#ddd';c.fillRect(18,20,12,16);
+  c.fillStyle='#ccc';c.fillRect(6,18,6,12);c.fillRect(36,18,6,12);
+  c.fillStyle='#bbb';c.fillRect(14,36,6,12);c.fillRect(30,36,6,12);
+  c.fillStyle='#fff';c.fillRect(12,46,8,4);c.fillRect(30,46,8,4);
+  c.fillStyle='rgba(255,255,255,.12)';c.fillRect(18,26,12,2);
+}),
+mkSprite(48,56,(c,w,h)=>{
+  // Frame 3: left leg passing, right leg back (mirror of frame 1)
   c.fillStyle='#f0f0f0';c.beginPath();c.arc(24,12,10,0,Math.PI*2);c.fill();
-  c.fillStyle='#fff';c.fillRect(13,8,22,3);
-  c.fillStyle='rgba(255,255,255,.6)';c.fillRect(8,7,8,2);
+  c.fillStyle='#fff';c.fillRect(13,8,22,3);c.fillStyle='rgba(255,255,255,.6)';c.fillRect(7,7,9,2);
   c.fillStyle='#ddd';c.fillRect(18,22,12,16);
-  c.fillStyle='#ccc';c.fillRect(10,24,6,14);c.fillRect(32,24,6,14);
-  c.fillStyle='#bbb';c.fillRect(18,38,6,10);c.fillRect(26,38,6,14);
-  c.fillStyle='#fff';c.fillRect(16,46,8,4);c.fillRect(26,50,8,4);
-  c.fillStyle='rgba(255,255,255,.15)';c.fillRect(18,28,12,2);
+  c.fillStyle='#ccc';c.fillRect(10,24,6,13);c.fillRect(32,24,6,13);
+  c.fillStyle='#bbb';c.fillRect(20,38,6,13);c.fillRect(26,38,6,13);
+  c.fillStyle='#fff';c.fillRect(18,49,8,4);c.fillRect(26,49,8,4);
+  c.fillStyle='rgba(255,255,255,.12)';c.fillRect(18,28,12,2);
+}),
+mkSprite(48,56,(c,w,h)=>{
+  // Frame 4: left leg fully forward, right arm forward (mirror of frame 0)
+  c.fillStyle='#f0f0f0';c.beginPath();c.arc(24,11,10,0,Math.PI*2);c.fill();
+  c.fillStyle='#fff';c.fillRect(13,7,22,3);c.fillStyle='rgba(255,255,255,.6)';c.fillRect(7,6,9,2);
+  c.fillStyle='#ddd';c.fillRect(18,21,12,16);
+  c.fillStyle='#ccc';c.fillRect(8,26,6,12);c.fillRect(34,22,6,14);
+  c.fillStyle='#bbb';c.fillRect(16,37,6,10);c.fillRect(28,37,6,15);
+  c.fillStyle='#fff';c.fillRect(14,45,8,4);c.fillRect(28,50,8,4);
+  c.fillStyle='rgba(255,255,255,.12)';c.fillRect(18,27,12,2);
 })];
 const SPR_RUN=SPR_RUN_FRAMES[0]; // fallback
 
@@ -381,11 +418,15 @@ function spawnBld(){
   const fl=Math.floor(bH/32);
   const wc=Math.floor(w/24);
   const rt=Math.floor(Math.random()*8);
+  // Hollow building corridor — ~15% chance, creates alternate path through building
+  const hollow=w>200&&Math.random()<.15;
+  const corridorY=hollow?ry+50+Math.random()*30:0; // corridor floor below rooftop
+  const corridorH=hollow?35+Math.random()*15:0; // corridor height
   const b={x:bx,w,ry,h:bH,fl,wc,rt,ws:Math.random()*1e3,
     hr:Math.random()>.4,hd:Math.random()>.5,dx:bx+15+Math.random()*(w-35),
     hp:Math.random()>.5,px:bx+w-8-Math.random()*16,bd:Math.random()>.72,bs:Math.random()*6.28,
     neon:Math.random()>.75?['rgba(255,100,100,.08)','rgba(100,200,255,.08)','rgba(200,100,255,.08)'][Math.floor(Math.random()*3)]:null,
-    cracks:[]};
+    cracks:[],hollow,corridorY,corridorH};
   if(Math.random()>.6)b.cracks=[{x:bx+Math.random()*w,y:ry+20+Math.random()*30,l:6+Math.random()*15}];
   blds.push(b);
   bldCount++;
@@ -466,11 +507,14 @@ function spawnBird(){
 
 function spawnPowerup(){
   const d=getDiff();
-  const bx=W+40+Math.random()*200;
-  // Find a building near the spawn x to land the helicopter on
-  let landY=H*.35; // fallback air position
-  for(const b of blds){
-    if(b.x+ b.w>bx-60&&b.x<bx+60){landY=b.ry;break}
+  // Always place helicopter on the rightmost building's rooftop
+  const last=blds[blds.length-1];
+  let bx,landY;
+  if(last){
+    bx=last.x+last.w*0.5+Math.random()*last.w*0.3; // middle-to-right of last building
+    landY=last.ry; // rooftop surface
+  } else {
+    bx=W+40;landY=H*.55; // fallback
   }
   pu.push({
     x:bx,y:landY,
@@ -574,6 +618,28 @@ function drawBld(b,z){
   X.shadowBlur=0;X.restore();
   X.fillStyle='rgba(255,255,255,.02)';
   for(let rx=bx+4;rx<bx+bw-4;rx+=10)X.fillRect(rx,by+3,6,1);
+  // Hollow building corridor — dark opening in facade with interior visible
+  if(b.hollow){
+    const cx=bx+bw*0.15,cw=bw*0.7,cy=b.corridorY,ch=b.corridorH;
+    // Corridor interior (dark)
+    X.fillStyle='rgba(0,0,0,.5)';X.fillRect(cx,cy,cw,ch);
+    // Corridor floor
+    X.fillStyle='rgba(80,80,90,.3)';X.fillRect(cx,cy+ch-2,cw,2);
+    // Corridor ceiling
+    X.fillStyle='rgba(60,60,70,.25)';X.fillRect(cx,cy,cw,2);
+    // Opening glow
+    X.save();X.shadowColor='rgba(100,180,255,.08)';X.shadowBlur=8;
+    X.strokeStyle='rgba(100,180,255,.12)';X.lineWidth=1;
+    X.strokeRect(cx,cy,cw,ch);
+    X.restore();
+    // Interior lights
+    X.fillStyle='rgba(255,200,100,.06)';
+    for(let lx=cx+10;lx<cx+cw-10;lx+=20)X.fillRect(lx,cy+4,8,3);
+    // Entry/exit arrows
+    X.fillStyle='rgba(100,220,255,.1)';X.font='bold 8px monospace';X.textAlign='center';
+    X.fillText('▼',cx+12,cy+ch-6);
+    X.fillText('▼',cx+cw-12,cy+ch-6);
+  }
   for(let fy=0;fy<b.fl;fy++){
     const wy=by+22+fy*30;if(wy>H-5)break;
     X.fillStyle='rgba(0,0,0,.1)';X.fillRect(bx+2,by+20+fy*30,bw-4,.8);
@@ -698,10 +764,13 @@ function drawObs(o){
 function drawBird(b){
   if(b.hit)return;
   X.save();X.translate(b.x,b.y);
-  // Slight bob and tilt based on wing phase
   const tilt=Math.sin(b.wingPhase)*.15;
   X.rotate(tilt);
-  X.drawImage(SPR_BIRD,-b.w/2,-b.h/2,b.w,b.h);
+  if(IMG.bird){
+    X.drawImage(IMG.bird,-b.w/2,-b.h/2,b.w,b.h);
+  } else {
+    X.drawImage(SPR_BIRD,-b.w/2,-b.h/2,b.w,b.h);
+  }
   X.restore();
 }
 
@@ -711,31 +780,41 @@ function drawPowerup(p){
   const glow=.5+Math.sin(p.glowPhase)*.3;
   X.save();X.translate(p.x,p.y);
   if(p.onRooftop){
-    // Landing pad on rooftop
-    X.fillStyle='rgba(100,220,255,.08)';
-    X.fillRect(-22,0,44,3);
-    X.strokeStyle='rgba(100,220,255,.2)';X.lineWidth=1;
-    X.strokeRect(-22,0,44,3);
+    // Landing pad on rooftop surface
+    X.fillStyle='rgba(100,220,255,.1)';
+    X.fillRect(-24,-1,48,3);
+    X.strokeStyle='rgba(100,220,255,.25)';X.lineWidth=1;
+    X.strokeRect(-24,-1,48,3);
     // H marking
-    X.fillStyle='rgba(100,220,255,.15)';X.font='bold 6px monospace';X.textAlign='center';
-    X.fillText('H',0,-2);
-    // Helicopter sits on pad (no bob)
-    X.save();X.shadowColor='rgba(100,220,255,.3)';X.shadowBlur=12*glow;
-    X.drawImage(SPR_HELI,-p.w/2-8,-p.h-2,p.w+16,p.h+4);
+    X.fillStyle='rgba(100,220,255,.2)';X.font='bold 7px monospace';X.textAlign='center';
+    X.fillText('H',0,-3);
+    // Helicopter sits ON the pad — bottom of sprite at y=0 (rooftop surface)
+    const heliH=28; // drawn height
+    const heliW=56; // drawn width
+    X.save();X.shadowColor='rgba(100,220,255,.35)';X.shadowBlur=14*glow;
+    // Use AI image if loaded, else procedural sprite
+    if(IMG.heli){
+      X.drawImage(IMG.heli,-heliW/2,-heliH,heliW,heliH);
+    } else {
+      X.drawImage(SPR_HELI,-heliW/2,-heliH,heliW,heliH);
+    }
     X.restore();
     // Slow rotor spin even when parked
     const rotorAngle=fr*.15;
-    X.strokeStyle='rgba(180,240,255,.12)';X.lineWidth=1.5;
-    X.beginPath();X.moveTo(Math.cos(rotorAngle)*16,-p.h-6);X.lineTo(Math.cos(rotorAngle+Math.PI)*16,-p.h-6);X.stroke();
+    X.strokeStyle='rgba(180,240,255,.15)';X.lineWidth=2;
+    X.beginPath();X.moveTo(Math.cos(rotorAngle)*20,-heliH-2);X.lineTo(Math.cos(rotorAngle+Math.PI)*20,-heliH-2);X.stroke();
+    X.beginPath();X.moveTo(Math.cos(rotorAngle+1.57)*20,-heliH-2);X.lineTo(Math.cos(rotorAngle+1.57+Math.PI)*20,-heliH-2);X.stroke();
   } else {
     // Floating powerup (fallback)
     p.bobPhase+=.03;
     const by=Math.sin(p.bobPhase)*4;
     X.save();X.shadowColor='rgba(100,220,255,.3)';X.shadowBlur=16*glow;
     X.fillStyle='rgba(100,220,255,'+(.06*glow)+')';
-    X.beginPath();X.ellipse(0,by,p.w/2+8,p.h/2+8,0,0,Math.PI*2);X.fill();
+    X.beginPath();X.ellipse(0,by,26,16,0,0,Math.PI*2);X.fill();
     X.restore();
-    X.drawImage(SPR_HELI,-p.w/2-8,by-p.h/2-4,p.w+16,p.h+8);
+    const heliH=28,heliW=56;
+    if(IMG.heli){X.drawImage(IMG.heli,-heliW/2,by-heliH,heliW,heliH)}
+    else{X.drawImage(SPR_HELI,-heliW/2,by-heliH,heliW,heliH)}
   }
   X.restore();
 }
@@ -790,7 +869,7 @@ function drawRunner(p){
     if(p.isMe){X.save();X.shadowColor='rgba(255,255,255,.08)';X.shadowBlur=12;X.fillStyle='rgba(255,255,255,.02)';X.fillRect(-6,-42,13,42);X.shadowBlur=0;X.restore()}
   } else {
     const bob=p.rF%2===0?0:-1.5;
-    const fIdx=(p.rF%3+3)%3; // cycle 0→1→2→0
+    const fIdx=(p.rF%5+5)%5; // cycle 0→1→2→3→4→0 for smooth 5-frame animation
     X.drawImage(SPR_RUN_FRAMES[fIdx],-12,-44+bob,24,44);
   }
   X.globalAlpha=1;X.restore();
@@ -963,8 +1042,18 @@ function update(){
     if(me.heliT<=0){me.heli=false;puHud.style.display='none'}
   }
 
-  // Player physics
-  if(me.wc){me.ct--;me.y+=CLS;if(me.ct<=0){me.wc=false;for(const b of blds){if(me.x+me.w>b.x&&me.x<b.x+b.w){me.y=b.ry;me.vy=0;me.gnd=true;me.jc=0;break}}}}
+    // Player physics
+  // Corridor mode — running through hollow building
+  if(me.corridor&&me.corridorBld){
+    const b=me.corridorBld;
+    // Lock to corridor floor
+    me.y=b.corridorY;me.vy=0;me.gnd=true;
+    // Check if exited building
+    if(me.x+me.w<b.x||me.x>b.x+b.w){
+      me.corridor=false;me.corridorBld=null;me.gnd=false;
+    }
+  }
+  else if(me.wc){me.ct--;me.y+=CLS;if(me.ct<=0){me.wc=false;for(const b of blds){if(me.x+me.w>b.x&&me.x<b.x+b.w){me.y=b.ry;me.vy=0;me.gnd=true;me.jc=0;break}}}}
   else if(me.ws){me.vy=WSS;me.y+=me.vy;if(!wallC(me))me.ws=false;const lc=platC(me);if(lc){me.y=lc.ry;me.vy=0;me.gnd=true;me.jc=0;me.ws=false}if(me.y>H+25){die();return}}
   else if(!me.heli){
     me.vy+=G;me.y+=me.vy;me.gnd=false;
@@ -1084,7 +1173,20 @@ function doJump(){
   if(me.jc<me.mj){me.vy=me.jc===0?JV:DJV;me.gnd=false;me.jc++;me.sl=false;me.jh=me.jhM;
     if(me.jc===2)for(let i=0;i<3;i++)pts.push({x:me.x+10,y:me.y-5,vx:(Math.random()-.5)*1.8,vy:Math.random()*1.2+.8,s:1+Math.random()*1.2,life:.25,r:255,g:255,b:255})}
 }
-function doSlide(){if(!running||dead)return;if(me.gnd&&!me.sl&&!me.ws&&!me.wc&&!me.heli){me.sl=true;me.st=me.sm;for(let i=0;i<3;i++)dst.push({x:me.x+4+Math.random()*4,y:me.y-1,vx:-Math.random()*1.2-.8,vy:-Math.random()*.6,s:.8+Math.random(),life:.3})}}
+function doSlide(){
+  if(!running||dead)return;
+  if(me.gnd&&!me.sl&&!me.ws&&!me.wc&&!me.heli&&!me.corridor){
+    // Check if on a hollow building — enter corridor instead of sliding
+    const bld=bldUnder(me);
+    if(bld&&bld.hollow){
+      me.corridor=true;me.corridorBld=bld;me.y=bld.corridorY;me.vy=0;me.gnd=true;
+      for(let i=0;i<4;i++)dst.push({x:me.x+Math.random()*me.w,y:me.y-2,vx:(Math.random()-.5)*1.5,vy:-Math.random()*.5,s:1+Math.random(),life:.3});
+      return;
+    }
+    me.sl=true;me.st=me.sm;
+    for(let i=0;i<3;i++)dst.push({x:me.x+4+Math.random()*4,y:me.y-1,vx:-Math.random()*1.2-.8,vy:-Math.random()*.6,s:.8+Math.random(),life:.3});
+  }
+}
 
 function startGame(){
   resize();blds=[];obs=[];cns=[];pts=[];dst=[];birds=[];pu=[];nextBX=0;bldCount=0;
