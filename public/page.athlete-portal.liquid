@@ -44,6 +44,18 @@
     .auth-card button:active{transform:scale(.98)}
     .auth-card #authError{color:#fff;font:700 10px/1.6 var(--m);letter-spacing:.06em;text-transform:uppercase;margin:10px 0 0}
 
+    .login-tabs{display:flex;border-bottom:1px solid var(--sline);margin-top:14px}
+    .login-tabs button{flex:1;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--sdim);font:700 9px var(--m);letter-spacing:.12em;text-transform:uppercase;padding:10px 4px;cursor:pointer;transition:color .2s,border-color .2s}
+    .login-tabs button.active{color:#fff;border-bottom-color:#fff}
+    .login-pane{display:none}
+    .login-pane.active{display:block}
+    .login-pane label{display:block;font:600 9px var(--m);letter-spacing:.1em;text-transform:uppercase;color:var(--sdim);margin-top:12px}
+    .login-pane .otp-row{display:flex;gap:8px}
+    .login-pane .otp-row input{flex:1}
+    .login-pane .otp-row button{flex:0 0 auto;width:auto;padding:12px 16px;margin-top:10px;font:700 9px var(--m);letter-spacing:.08em;text-transform:uppercase;border:1px solid var(--sline);background:transparent;color:#fff;cursor:pointer}
+    .login-pane .otp-row button:disabled{opacity:.4;cursor:default}
+    .login-pane .otp-timer{font:500 9px var(--m);color:var(--sdim);margin-top:6px;letter-spacing:.04em}
+
     .dbg{margin-top:12px;border:1px solid var(--sline);background:#0d0d0d;text-align:left}
     .dbg-head{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-bottom:1px solid var(--sline);font:9px var(--m);letter-spacing:.14em;text-transform:uppercase;color:var(--sdim)}
     .dbg-head span:last-child{display:flex;gap:4px}
@@ -607,8 +619,39 @@
     <form class="auth-card" id="authForm">
       <h1>OFFCOMFRT</h1>
       <p>Athlete access</p>
-      <input id="tokenInput" type="password" placeholder="Paste access token" required>
-      <button>Enter portal</button>
+
+      <div class="login-tabs">
+        <button type="button" class="active" data-ltab="athlete">Athlete</button>
+        <button type="button" data-ltab="admin">Admin</button>
+      </div>
+
+      <!-- Athlete OTP Login -->
+      <div class="login-pane active" id="paneAthlete">
+        <label>Mobile number</label>
+        <input id="athletePhone" type="tel" placeholder="10-digit mobile" autocomplete="tel" required>
+        <div id="otpStep1">
+          <button type="button" id="sendOtpBtn">Send OTP</button>
+        </div>
+        <div id="otpStep2" style="display:none">
+          <label>Enter OTP</label>
+          <div class="otp-row">
+            <input id="otpInput" type="text" inputmode="numeric" maxlength="6" placeholder="6-digit code" autocomplete="one-time-code">
+            <button type="button" id="resendOtpBtn" disabled>Resend</button>
+          </div>
+          <div class="otp-timer" id="otpTimer"></div>
+          <button type="button" id="verifyOtpBtn">Verify &amp; enter portal</button>
+        </div>
+      </div>
+
+      <!-- Admin Login -->
+      <div class="login-pane" id="paneAdmin">
+        <label>Athlete mobile number</label>
+        <input id="adminPhone" type="tel" placeholder="10-digit mobile" autocomplete="tel">
+        <label>Admin password</label>
+        <input id="adminPassword" type="password" placeholder="Super admin password">
+        <button type="button" id="adminLoginBtn">Login as athlete</button>
+      </div>
+
       <p id="authError"></p>
       <div class="dbg" id="dbgPanel" hidden>
         <div class="dbg-head">
@@ -890,6 +933,7 @@
 
 <script>
 const API='https://exchange-return-tracking.onrender.com/api/athlete';
+const BASE='https://exchange-return-tracking.onrender.com';
 const S={token:null,athlete:null,tasks:[],picks:[],maxPicks:5,streak:0,leaderboard:[],climb:null,ranks:null,log:[],weekly:null,assignment:null,bricks:[],active:'tasks',orders:[],commissions:null,productRequests:[],shopifyProducts:[],invited:new Set()};
 const $=id=>document.getElementById(id);
 const esc=v=>{const e=document.createElement('div');e.textContent=v||'';return e.innerHTML};
@@ -1447,6 +1491,7 @@ function showAuthError(){
   sessionStorage.removeItem('ap_token');S.token=null;
   $('loading').hidden=true;$('auth').hidden=false;
   $('dbgPanel').hidden=false;
+  if(typeof resetOtpUI==='function')resetOtpUI();
 }
 
 async function loadPortal(){
@@ -1495,19 +1540,141 @@ document.addEventListener('DOMContentLoaded',()=>{
     b.disabled=true;b.textContent='Sent \u2713';
     toast(`Invite sent to ${b.dataset.name||'athlete'}`,'PENDING');
   });
-  $('authForm').onsubmit=e=>{
-    e.preventDefault();
-    S.token=$('tokenInput').value.trim();
+  // ── Login tab switching ──
+  let otpPhone=null,otpResendTimer=null,otpExpiryTimer=null;
+  $('authForm').onsubmit=e=>e.preventDefault();
+  document.querySelectorAll('.login-tabs button').forEach(btn=>{
+    btn.onclick=()=>{
+      document.querySelectorAll('.login-tabs button').forEach(b=>b.classList.remove('active'));
+      document.querySelectorAll('.login-pane').forEach(p=>p.classList.remove('active'));
+      btn.classList.add('active');
+      const tab=btn.dataset.ltab;
+      $(tab==='admin'?'paneAdmin':'paneAthlete').classList.add('active');
+      $('authError').textContent='';
+    };
+  });
+
+  // ── Athlete OTP flow ──
+  function resetOtpUI(){
+    $('otpStep1').style.display='block';
+    $('otpStep2').style.display='none';
+    $('otpTimer').textContent='';
+    otpPhone=null;
+    if(otpResendTimer)clearInterval(otpResendTimer);
+    if(otpExpiryTimer)clearInterval(otpExpiryTimer);
+  }
+
+  $('sendOtpBtn').onclick=async()=>{
     $('authError').textContent='';
-    if(!S.token){$('authError').textContent='Paste your access token first.';return}
-    dbg(`submit · token ${maskToken(S.token)}`);
-    sessionStorage.setItem('ap_token',S.token);
-    $('auth').hidden=true;$('loading').hidden=false;
-    $('dbgPanel').hidden=false;
-    loadPortal();
+    const phone=$('athletePhone').value.trim();
+    if(!phone){$('authError').textContent='Enter your mobile number';return}
+    const btn=$('sendOtpBtn');
+    btn.disabled=true;btn.textContent='Sending…';
+    try{
+      const r=await fetch(`${BASE}/api/athlete/otp/send`,{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({phone})
+      });
+      const data=await r.json();
+      if(!r.ok)throw new Error(data.error||'Failed to send OTP');
+      otpPhone=phone;
+      dbg(`OTP sent via ${data.data?.via||'unknown'}`,'ok');
+      $('otpStep1').style.display='none';
+      $('otpStep2').style.display='block';
+      $('otpInput').value='';$('otpInput').focus();
+      // Resend cooldown timer
+      let cooldown=data.data?.resendInSeconds||60;
+      $('resendOtpBtn').disabled=true;
+      $('resendOtpBtn').textContent=`Resend (${cooldown}s)`;
+      if(otpResendTimer)clearInterval(otpResendTimer);
+      otpResendTimer=setInterval(()=>{
+        cooldown--;
+        if(cooldown<=0){clearInterval(otpResendTimer);$('resendOtpBtn').disabled=false;$('resendOtpBtn').textContent='Resend'}
+        else{$('resendOtpBtn').textContent=`Resend (${cooldown}s)`}
+      },1000);
+      // OTP expiry timer
+      let expiry=data.data?.expiresInSeconds||300;
+      const fmtTime=s=>`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+      $('otpTimer').textContent=`OTP expires in ${fmtTime(expiry)}`;
+      if(otpExpiryTimer)clearInterval(otpExpiryTimer);
+      otpExpiryTimer=setInterval(()=>{
+        expiry--;
+        if(expiry<=0){clearInterval(otpExpiryTimer);$('otpTimer').textContent='OTP expired — request a new one'}
+        else{$('otpTimer').textContent=`OTP expires in ${fmtTime(expiry)}`}
+      },1000);
+      // Dev mode OTP display
+      if(data.data?.devOtp){dbg(`[DEV] OTP code: ${data.data.devOtp}`,'ok')}
+    }catch(e){
+      $('authError').textContent=e.message||'Could not send OTP';
+      dbg(`OTP send failed: ${e.message}`,'err');
+    }finally{
+      btn.disabled=false;btn.textContent='Send OTP';
+    }
+  };
+
+  $('resendOtpBtn').onclick=()=>{
+    $('otpStep2').style.display='none';
+    $('otpStep1').style.display='block';
+    $('sendOtpBtn').click();
+  };
+
+  $('verifyOtpBtn').onclick=async()=>{
+    $('authError').textContent='';
+    const otp=$('otpInput').value.trim();
+    if(!otp||!otpPhone){$('authError').textContent='Enter the OTP first';return}
+    const btn=$('verifyOtpBtn');
+    btn.disabled=true;btn.textContent='Verifying…';
+    try{
+      const r=await fetch(`${BASE}/api/athlete/otp/verify`,{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({phone:otpPhone,otp})
+      });
+      const data=await r.json();
+      if(!r.ok)throw new Error(data.error||'Verification failed');
+      S.token=data.data.token;
+      dbg(`OTP verified — athlete: ${data.data.athlete?.name||'unknown'}`,'ok');
+      sessionStorage.setItem('ap_token',S.token);
+      $('auth').hidden=true;$('loading').hidden=false;
+      $('dbgPanel').hidden=false;
+      loadPortal();
+    }catch(e){
+      $('authError').textContent=e.message||'Verification failed';
+      dbg(`OTP verify failed: ${e.message}`,'err');
+    }finally{
+      btn.disabled=false;btn.textContent='Verify & enter portal';
+    }
+  };
+
+  // ── Admin login-as-athlete ──
+  $('adminLoginBtn').onclick=async()=>{
+    $('authError').textContent='';
+    const phone=$('adminPhone').value.trim();
+    const password=$('adminPassword').value;
+    if(!phone||!password){$('authError').textContent='Enter mobile number and admin password';return}
+    const btn=$('adminLoginBtn');
+    btn.disabled=true;btn.textContent='Logging in…';
+    try{
+      const r=await fetch(`${BASE}/api/athlete-admin/login-as-athlete`,{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({phone,password})
+      });
+      const data=await r.json();
+      if(!r.ok)throw new Error(data.error||'Admin login failed');
+      S.token=data.data.token;
+      dbg(`Admin login as athlete: ${data.data.athlete?.name||'unknown'}`,'ok');
+      sessionStorage.setItem('ap_token',S.token);
+      $('auth').hidden=true;$('loading').hidden=false;
+      $('dbgPanel').hidden=false;
+      loadPortal();
+    }catch(e){
+      $('authError').textContent=e.message||'Admin login failed';
+      dbg(`Admin login failed: ${e.message}`,'err');
+    }finally{
+      btn.disabled=false;btn.textContent='Login as athlete';
+    }
   };
   $('dbgRetry').onclick=()=>{
-    if(!S.token){$('tokenInput').focus();$('authError').textContent='Paste your access token, then press retry.';return}
+    if(!S.token){$('authError').textContent='Log in first using the form above.';return}
     $('auth').hidden=true;$('loading').hidden=false;
     loadPortal();
   };

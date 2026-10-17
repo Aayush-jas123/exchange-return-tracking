@@ -7,6 +7,7 @@
 // ============================================================================
 
 const supabase = require('../../config/supabase');
+const otpService = require('../../config/otp-service');
 const {
   LedgerService, LevelEngine, TransitionService,
   TokenService, StandingService, AttributionService, PayoutService,
@@ -589,6 +590,177 @@ module.exports = function mountAthleteRoutes(app) {
       await supabase.from('payouts').update({ status: 'QUEUED', queued_at: new Date().toISOString() }).eq('id', req.params.id);
       res.json({ success: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // ADMIN: LOGIN AS ATHLETE (mobile + super admin password)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  app.post('/api/athlete-admin/login-as-athlete', async (req, res) => {
+    try {
+      const { phone, password } = req.body;
+      if (!phone || !password) {
+        return res.status(400).json({ error: 'Mobile number and password are required' });
+      }
+
+      // Verify super admin password
+      const expectedPassword = process.env.ADMIN_PASSWORD || 'admin123';
+      if (password !== expectedPassword) {
+        return res.status(401).json({ error: 'Invalid admin password' });
+      }
+
+      // Normalize phone
+      const normalized = otpService.normalizeIndianPhone(phone);
+      if (!normalized) {
+        return res.status(400).json({ error: 'Please enter a valid 10-digit mobile number' });
+      }
+
+      // Look up athlete by phone
+      const { data: athlete, error: athErr } = await supabase
+        .from('influencers')
+        .select('id, name, athlete_status, phone')
+        .eq('phone', normalized)
+        .maybeSingle();
+
+      if (athErr) throw athErr;
+      if (!athlete) {
+        return res.status(404).json({ error: 'No athlete found with this mobile number' });
+      }
+
+      // Get or create PROGRESS token for this athlete
+      const { data: existingTokens } = await supabase
+        .from('access_tokens')
+        .select('id')
+        .eq('influencer_id', athlete.id)
+        .eq('scope', 'PROGRESS')
+        .is('revoked_at', null)
+        .limit(1);
+
+      let rawToken;
+      if (existingTokens && existingTokens.length > 0) {
+        // Rotate to get a fresh token (old one's plaintext is lost)
+        rawToken = await TokenService.rotate(athlete.id, 'PROGRESS');
+      } else {
+        rawToken = await TokenService.issue('PROGRESS', athlete.id);
+      }
+
+      console.log(`[athlete-admin-login] Admin logged in as athlete ${athlete.id} (${athlete.name}) via mobile`);
+
+      res.json({
+        success: true,
+        data: {
+          token: rawToken,
+          athlete: { id: athlete.id, name: athlete.name, status: athlete.athlete_status }
+        }
+      });
+    } catch (err) {
+      console.error('[athlete-admin-login] error:', err.message);
+      res.status(500).json({ error: 'Login failed. Please try again.' });
+    }
+  });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // ATHLETE OTP LOGIN (mobile → OTP via Message Central → portal token)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // Step 1: Send OTP to athlete's mobile
+  app.post('/api/athlete/otp/send', async (req, res) => {
+    try {
+      const { phone } = req.body;
+      const normalized = otpService.normalizeIndianPhone(phone);
+      if (!normalized) {
+        return res.status(400).json({ error: 'Please enter a valid 10-digit mobile number' });
+      }
+
+      // Check if this phone belongs to a registered athlete
+      const { data: athlete } = await supabase
+        .from('influencers')
+        .select('id, name, athlete_status')
+        .eq('phone', normalized)
+        .maybeSingle();
+
+      if (!athlete) {
+        return res.status(404).json({ error: 'No athlete account found with this number. Please apply first.' });
+      }
+
+      // Send OTP using existing Message Central config
+      const result = await otpService.sendOtp(normalized);
+      console.log(`[athlete-otp] OTP sent to athlete ${athlete.id} at +${normalized} via ${result.via}`);
+
+      res.json({
+        success: true,
+        data: {
+          via: result.via,
+          expiresInSeconds: result.expiresInSeconds,
+          resendInSeconds: result.resendInSeconds,
+          devOtp: result.devOtp
+        }
+      });
+    } catch (err) {
+      if (err instanceof otpService.OtpError) {
+        return res.status(err.status).json({ error: err.message, code: err.code });
+      }
+      console.error('[athlete-otp] send error:', err.message);
+      res.status(500).json({ error: 'Could not send OTP. Please try again.' });
+    }
+  });
+
+  // Step 2: Verify OTP and return portal token
+  app.post('/api/athlete/otp/verify', async (req, res) => {
+    try {
+      const { phone, otp } = req.body;
+      const normalized = otpService.normalizeIndianPhone(phone);
+      if (!normalized || !otp) {
+        return res.status(400).json({ error: 'Mobile number and OTP are required' });
+      }
+
+      // Verify OTP via Message Central
+      await otpService.verifyOtp(normalized, otp);
+
+      // Look up athlete
+      const { data: athlete, error: athErr } = await supabase
+        .from('influencers')
+        .select('id, name, athlete_status')
+        .eq('phone', normalized)
+        .maybeSingle();
+
+      if (athErr) throw athErr;
+      if (!athlete) {
+        return res.status(404).json({ error: 'No athlete account found with this number' });
+      }
+
+      // Get or create PROGRESS token
+      const { data: existingTokens } = await supabase
+        .from('access_tokens')
+        .select('id')
+        .eq('influencer_id', athlete.id)
+        .eq('scope', 'PROGRESS')
+        .is('revoked_at', null)
+        .limit(1);
+
+      let rawToken;
+      if (existingTokens && existingTokens.length > 0) {
+        rawToken = await TokenService.rotate(athlete.id, 'PROGRESS');
+      } else {
+        rawToken = await TokenService.issue('PROGRESS', athlete.id);
+      }
+
+      console.log(`[athlete-otp] Athlete ${athlete.id} (${athlete.name}) logged in via OTP`);
+
+      res.json({
+        success: true,
+        data: {
+          token: rawToken,
+          athlete: { id: athlete.id, name: athlete.name, status: athlete.athlete_status }
+        }
+      });
+    } catch (err) {
+      if (err instanceof otpService.OtpError) {
+        return res.status(err.status).json({ error: err.message, code: err.code });
+      }
+      console.error('[athlete-otp] verify error:', err.message);
+      res.status(500).json({ error: 'Verification failed. Please try again.' });
+    }
   });
 
   // ══════════════════════════════════════════════════════════════════════════
