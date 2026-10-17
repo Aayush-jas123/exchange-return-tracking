@@ -1,0 +1,1425 @@
+<title>The Whole App</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap">
+
+<style>
+:root{
+  --sbg:#0B0B0B; --sdim:#8A8A8A; --sline:#232323; --spanel:#131313;
+  --f:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --m:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  --bg:#0A0A0A; --ink:#fff; --dim:rgba(255,255,255,.52); --line:rgba(255,255,255,.16);
+}
+*{box-sizing:border-box}
+html{color-scheme:dark}
+body{margin:0;background:var(--sbg);color:#fff;font-family:var(--f);font-size:15px;
+  line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px;margin:0 auto;padding:0 clamp(18px,4vw,44px) 110px}
+.head{padding:52px 0 26px;border-bottom:1px solid var(--sline)}
+.eyebrow{font-family:var(--m);font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;
+  color:var(--sdim);margin:0 0 16px}
+h1{font-weight:900;font-size:clamp(34px,6vw,64px);line-height:.93;letter-spacing:-.03em;
+  text-transform:uppercase;margin:0}
+.dek{font-size:17px;color:#B6B6B6;max-width:62ch;margin:18px 0 0}
+section.doc{padding-top:56px}
+h2{font-weight:800;font-size:clamp(19px,2.4vw,25px);text-transform:uppercase;margin:0 0 8px;
+  padding-bottom:10px;border-bottom:1px solid var(--sline);display:grid;
+  grid-template-columns:auto 1fr;gap:12px;align-items:baseline}
+h2 .n{font-family:var(--m);font-size:11.5px;font-weight:700;color:var(--sdim)}
+p{margin:0 0 14px;max-width:70ch;color:#C6C6C6}
+p strong,li strong,td strong{color:#fff;font-weight:700}
+code{font-family:var(--m);font-size:.85em;background:#191919;border:1px solid var(--sline);
+  padding:1px 5px;color:#E2E2E2}
+
+.stage{display:grid;grid-template-columns:minmax(0,374px) minmax(0,1fr);
+  gap:clamp(26px,4vw,52px);align-items:start;margin-top:26px}
+@media(max-width:880px){.stage{grid-template-columns:1fr}}
+
+.phone{position:relative;width:100%;max-width:374px;margin:0 auto;aspect-ratio:9/19.3;
+  border:2px solid #333;border-radius:34px;overflow:hidden;background:var(--bg);
+  box-shadow:0 0 0 1px #000,0 28px 64px rgba(0,0,0,.72)}
+.field{position:absolute;inset:0;display:grid;grid-template-columns:repeat(12,1fr);
+  grid-template-rows:repeat(24,1fr);z-index:0}
+.bk{outline:.4px solid rgba(255,255,255,.045)}
+.bk.on{background:rgba(255,255,255,.085)}
+.bk.hit{animation:hit 1400ms ease-out}
+@keyframes hit{0%{background:rgba(255,255,255,.4)}100%{background:rgba(255,255,255,.085)}}
+
+.scr{position:absolute;inset:0;z-index:1;display:flex;flex-direction:column;
+  padding:20px 15px 10px;overflow:hidden;color:var(--ink)}
+
+/* top bar, shared across tabs */
+.bar{display:flex;justify-content:space-between;align-items:center;font-family:var(--m);
+  font-size:8.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--dim);
+  padding-bottom:10px;flex:none}
+.bar .live{display:flex;align-items:center;gap:5px;color:#fff}
+.dotlive{width:5px;height:5px;border-radius:50%;background:#fff;animation:bp 2s ease-in-out infinite}
+@keyframes bp{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.26;transform:scale(.7)}}
+.av{width:19px;height:19px;border-radius:50%;background:linear-gradient(140deg,#6A6A6A,#161616);
+  border:1px solid var(--line)}
+
+/* panes */
+.panes{position:relative;flex:1 1 auto;min-height:0}
+.pane{position:absolute;inset:0;display:none;flex-direction:column;gap:10px;
+  overflow-y:auto;overflow-x:hidden;scrollbar-width:none}
+.pane::-webkit-scrollbar{display:none}
+.pane.on{display:flex}
+.pane.anim{animation:swap .24s cubic-bezier(.16,1,.3,1)}
+@keyframes swap{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
+
+/* shared bits */
+.kick{font-family:var(--m);font-size:8.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--dim)}
+.hero{font-weight:900;font-size:27px;line-height:.96;letter-spacing:-.028em;text-transform:uppercase}
+.rule{height:1px;background:var(--line);flex:none}
+.rowx{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.mono{font-family:var(--m);font-size:9.5px;letter-spacing:.05em}
+.chip{font-family:var(--m);font-size:10px;border:1px solid var(--line);padding:3px 6px}
+.cta{position:relative;overflow:hidden;border:1px solid #fff;background:#fff;color:#000;
+  font-weight:800;font-size:11.5px;letter-spacing:.11em;text-transform:uppercase;text-align:center;
+  padding:12px;cursor:pointer;flex:none}
+.cta::after{content:"";position:absolute;top:0;bottom:0;width:36%;
+  background:linear-gradient(90deg,transparent,rgba(0,0,0,.14),transparent);
+  transform:translateX(-160%);animation:sweep 4.8s cubic-bezier(.4,0,.2,1) infinite}
+@keyframes sweep{0%,64%{transform:translateX(-160%)}100%{transform:translateX(330%)}}
+.clock{font-family:var(--m);font-size:19px;font-weight:700;font-variant-numeric:tabular-nums}
+.clock .s{opacity:.48}
+.lab{font-family:var(--m);font-size:7.5px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--dim);display:block;margin-bottom:2px}
+.plate{position:relative;overflow:hidden;flex:none;min-height:86px;
+  background:linear-gradient(150deg,#565656,#101010 62%,#2D2D2D);
+  box-shadow:inset 0 -64px 44px -28px rgba(0,0,0,.92)}
+.plate::before{content:"Athlete photo";position:absolute;top:8px;left:9px;z-index:2;
+  font-family:var(--m);font-size:7px;letter-spacing:.17em;text-transform:uppercase;
+  color:rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.3);padding:2px 5px}
+.plate::after{content:"";position:absolute;inset:0;opacity:.3;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/><feColorMatrix type='saturate' values='0'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='.55'/></svg>")}
+.plate q{position:absolute;left:9px;right:9px;bottom:7px;z-index:2;quotes:none;font-size:10.5px;
+  line-height:1.32;text-shadow:0 1px 4px #000}
+.plate q b{display:block;font-family:var(--m);font-size:7px;letter-spacing:.14em;
+  text-transform:uppercase;color:rgba(255,255,255,.72);font-weight:400;margin-top:3px}
+
+/* accepted-proof row on task */
+.proof{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;flex:none}
+.proof b{font-size:10.5px;font-weight:600;line-height:1.3}
+.pf{display:flex;gap:4px;flex:none}
+.pf span{font-family:var(--m);font-size:7.5px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--dim);border:1px solid var(--line);padding:3px 5px}
+
+/* task — progress first, the timed task below the fold */
+.pips{display:grid;grid-template-columns:repeat(10,1fr);gap:3px;flex:none}
+.pips i{height:7px;background:rgba(255,255,255,.14);display:block}
+.pips i.on{background:#fff}
+.pips i.next{background:rgba(255,255,255,.14);box-shadow:inset 0 0 0 1px #fff}
+.donelist{display:flex;flex-direction:column;flex:none}
+.dr{display:grid;grid-template-columns:auto 1fr auto;gap:9px;align-items:center;padding:7px 0;
+  border-bottom:1px solid rgba(255,255,255,.07);font-size:11.5px}
+.dr:last-child{border-bottom:0}
+.dr svg{width:12px;height:12px;flex:none;fill:none;stroke:#fff;stroke-width:2}
+.dr b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dr s{text-decoration:none;font-family:var(--m);font-size:10px;color:var(--dim);
+  font-variant-numeric:tabular-nums}
+.scrollcue{display:grid;grid-template-columns:1fr auto auto;gap:9px;align-items:center;
+  border:1px solid var(--line);padding:9px 11px;font-size:11px;color:var(--dim);flex:none;
+  cursor:pointer;margin-top:2px}
+.scrollcue b{color:#fff;font-weight:700}
+.scrollcue i{font-style:normal;font-size:13px;animation:nudge 1.9s ease-in-out infinite}
+@keyframes nudge{0%,100%{transform:translateY(0);opacity:.55}50%{transform:translateY(3px);opacity:1}}
+.scrollcue:hover{border-color:#fff;color:#fff}
+.timerlist{display:flex;flex-direction:column;flex:none}
+.tr2{display:grid;grid-template-columns:1fr auto;gap:9px;align-items:center;padding:8px 0;
+  border-bottom:1px solid rgba(255,255,255,.07);font-size:11.5px}
+.tr2:last-child{border-bottom:0}
+.tr2 b{display:block;font-weight:600}
+.tr2 em{font-style:normal;font-size:10px;color:var(--dim)}
+.tr2 s{text-decoration:none;font-family:var(--m);font-size:11px;font-weight:700;
+  font-variant-numeric:tabular-nums}
+.tr2 s.warn{color:#E0A33C}
+
+/* games */
+.shellnote{border:1px dashed rgba(255,255,255,.28);padding:10px 11px;font-size:10.5px;
+  color:var(--dim);line-height:1.45;flex:none}
+.shellnote b{display:block;color:#fff;font-family:var(--m);font-size:9px;letter-spacing:.13em;
+  text-transform:uppercase;font-weight:700;margin-bottom:4px}
+.ggrid{display:grid;grid-template-columns:1fr 1fr;gap:7px;flex:none}
+.gt{border:1px solid var(--line);padding:11px 10px 10px;position:relative;min-height:92px;
+  display:flex;flex-direction:column;gap:5px;cursor:pointer;background:none;color:#fff;
+  text-align:left;font:inherit}
+.gt:hover{border-color:#fff}
+.gt svg{width:17px;height:17px;fill:none;stroke:#fff;stroke-width:1.4;opacity:.9}
+.gt b{font-size:12px;font-weight:700;line-height:1.2}
+.gt em{font-style:normal;font-size:9.5px;color:var(--dim);line-height:1.35;margin-top:auto}
+.gt s{text-decoration:none;position:absolute;top:9px;right:9px;font-family:var(--m);font-size:7px;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--dim);border:1px solid var(--line);
+  padding:1.5px 4px}
+.matchrow{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;
+  border:1px solid var(--line);padding:9px 10px;flex:none}
+.mface{width:26px;height:26px;border-radius:50%;flex:none;
+  background:linear-gradient(140deg,#6A6A6A,#161616);border:1px solid var(--line)}
+.matchrow b{display:block;font-size:12px;font-weight:700}
+.matchrow em{font-style:normal;font-size:10px;color:var(--dim)}
+.chatbox{border:1px solid var(--line);padding:9px;display:flex;flex-direction:column;gap:6px;
+  flex:none}
+.cm{font-size:11px;line-height:1.4;padding:7px 9px;max-width:86%}
+.cm b{display:block;font-family:var(--m);font-size:8px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--dim);font-weight:400;margin-bottom:2px}
+.cm.them{background:rgba(255,255,255,.07);align-self:flex-start}
+.cm.me{background:#fff;color:#000;align-self:flex-end}
+.cm.me b{color:rgba(0,0,0,.45)}
+.cinput{display:flex;justify-content:space-between;align-items:center;gap:8px;
+  border:1px solid var(--line);padding:8px 10px;font-size:11px;color:var(--dim);margin-top:2px}
+.cinput i{font-style:normal}
+
+/* ranks — three periods, cohort board, xp breakdown */
+.periods{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);flex:none}
+.periods button{font:inherit;font-family:var(--m);font-size:9.5px;letter-spacing:.12em;
+  text-transform:uppercase;background:transparent;border:0;border-right:1px solid var(--line);
+  color:var(--dim);padding:7px 4px;cursor:pointer}
+.periods button:last-child{border-right:0}
+.periods button[aria-pressed="true"]{background:#fff;color:#000;font-weight:700}
+.brk{display:flex;flex-direction:column;gap:7px;flex:none}
+.br{display:grid;grid-template-columns:1fr auto;gap:9px;align-items:center;font-size:11px}
+.br .bl{display:block;margin-bottom:3px}
+.br .bbar{height:5px;background:rgba(255,255,255,.12);display:block}
+.br .bbar i{display:block;height:100%;background:#fff}
+.br s{text-decoration:none;font-family:var(--m);font-size:11px;font-weight:700;
+  font-variant-numeric:tabular-nums;align-self:center}
+
+/* login — phone, then a six-digit code */
+.login{position:absolute;inset:0;z-index:30;background:var(--bg);display:flex;
+  flex-direction:column;justify-content:center;padding:26px 22px;gap:0;
+  transition:opacity .3s,transform .3s}
+.login.gone{opacity:0;transform:scale(1.03);pointer-events:none}
+.login .mark{font-family:var(--m);font-size:9px;letter-spacing:.3em;text-transform:uppercase;
+  color:var(--dim);margin-bottom:auto}
+.login h3{font-weight:900;font-size:27px;line-height:.98;letter-spacing:-.028em;
+  text-transform:uppercase;margin:0 0 7px}
+.login p{font-size:11.5px;color:var(--dim);margin:0 0 17px;line-height:1.5}
+.phonein{display:flex;align-items:center;border:1px solid var(--line);margin-bottom:11px}
+.phonein span{font-family:var(--m);font-size:13px;color:var(--dim);padding:0 9px;flex:none;
+  border-right:1px solid var(--line);align-self:stretch;display:flex;align-items:center}
+.phonein input{flex:1 1 auto;min-width:0;background:transparent;border:0;color:#fff;
+  font-family:var(--m);font-size:15px;letter-spacing:.09em;padding:12px 10px;outline:none}
+.phonein input::placeholder{color:rgba(255,255,255,.25)}
+.lbtn{font:inherit;font-family:var(--f);font-weight:800;font-size:12px;letter-spacing:.11em;
+  text-transform:uppercase;background:#fff;color:#000;border:1px solid #fff;padding:13px;
+  cursor:pointer;width:100%}
+.lbtn.ghost{background:transparent;color:var(--dim);border-color:var(--line);
+  font-size:10px;padding:10px;margin-top:9px}
+.lbtn.ghost:hover{color:#fff;border-color:#fff}
+.lbtn[disabled]{opacity:.4;cursor:not-allowed}
+.codein{display:flex;gap:6px;margin-bottom:12px}
+.codein i{flex:1 1 0;height:46px;border:1px solid var(--line);display:flex;align-items:center;
+  justify-content:center;font-family:var(--m);font-size:19px;font-weight:700;font-style:normal}
+.codein i.f{border-color:#fff;animation:cur 1.1s steps(1) infinite}
+@keyframes cur{0%,50%{border-color:#fff}51%,100%{border-color:var(--line)}}
+.login .foot2{margin-top:auto;font-size:10px;color:var(--dim);line-height:1.5}
+.login .err{font-size:10.5px;color:#E0564A;margin:-5px 0 11px;min-height:14px}
+
+/* avatar sheet — the five screens that do not deserve a tab */
+.av{border:1px solid var(--line);padding:0;cursor:pointer;position:relative}
+.av:hover{border-color:#fff}
+.av.dot::after{content:"";position:absolute;top:-1px;right:-1px;width:6px;height:6px;
+  border-radius:50%;background:#fff;border:1px solid var(--bg)}
+.scrim{position:absolute;inset:0;z-index:12;background:rgba(0,0,0,.62);opacity:0;
+  pointer-events:none;transition:opacity .22s}
+.scrim.on{opacity:1;pointer-events:auto}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:13;background:var(--bg);
+  border-top:1px solid var(--line);height:auto;max-height:90%;display:flex;flex-direction:column;
+  transform:translateY(101%);transition:transform .3s cubic-bezier(.16,1,.3,1)}
+.sheet.on{transform:none}
+.sheet .grab{width:34px;height:3px;background:rgba(255,255,255,.3);margin:9px auto 0;flex:none}
+.shd{display:flex;align-items:center;gap:10px;padding:11px 15px 10px;flex:none;
+  border-bottom:1px solid var(--line)}
+.shd button{font:inherit;font-family:var(--m);font-size:14px;background:transparent;border:0;
+  color:var(--dim);cursor:pointer;padding:0 2px;line-height:1}
+.shd button:hover{color:#fff}
+.shd b{flex:1 1 auto;font-size:13px;font-weight:800;letter-spacing:-.01em;
+  text-transform:uppercase}
+.shb{flex:0 1 auto;min-height:0;overflow-y:auto;scrollbar-width:none;padding:13px 15px 16px;
+  display:flex;flex-direction:column;gap:11px}
+.shb::-webkit-scrollbar{display:none}
+.menu{display:flex;flex-direction:column;flex:none}
+.mrow{display:grid;grid-template-columns:auto 1fr auto auto;gap:11px;align-items:center;
+  padding:13px 2px;border-bottom:1px solid rgba(255,255,255,.08);background:none;border-left:0;
+  border-right:0;border-top:0;color:#fff;font:inherit;text-align:left;cursor:pointer;width:100%}
+.mrow:last-child{border-bottom:0}
+.mrow:hover{background:rgba(255,255,255,.04)}
+.mrow svg{width:15px;height:15px;fill:none;stroke:#fff;stroke-width:1.5;
+  stroke-linecap:square;opacity:.85}
+.mrow b{font-size:13px;font-weight:600;display:block}
+.mrow em{font-style:normal;font-size:10.5px;color:var(--dim);display:block;line-height:1.3}
+.mrow s{text-decoration:none;font-family:var(--m);font-size:9px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--dim)}
+.mrow i{font-style:normal;color:var(--dim);font-family:var(--m);font-size:12px}
+.mrow s.hot{color:#fff}
+.idcard{display:grid;grid-template-columns:auto 1fr;gap:11px;align-items:center;
+  padding:0 0 13px;border-bottom:1px solid var(--line);flex:none}
+.idcard .big{width:42px;height:42px;border-radius:50%;flex:none;
+  background:linear-gradient(140deg,#6A6A6A,#161616);border:1px solid var(--line)}
+.idcard b{display:block;font-size:14px;font-weight:800}
+.idcard em{font-style:normal;font-family:var(--m);font-size:9px;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--dim)}
+
+/* code sub-screen */
+.codecard{border:1px solid #fff;padding:13px 12px;text-align:center;flex:none;position:relative}
+.codecard .cd{font-family:var(--m);font-size:25px;font-weight:700;letter-spacing:.08em;
+  line-height:1.1}
+.codecard .pc{font-family:var(--m);font-size:9px;letter-spacing:.15em;text-transform:uppercase;
+  color:var(--dim);margin-top:5px}
+.codecard button{position:absolute;top:8px;right:8px;font:inherit;font-family:var(--m);
+  font-size:8px;letter-spacing:.12em;text-transform:uppercase;background:transparent;
+  border:1px solid var(--line);color:var(--dim);padding:2.5px 6px;cursor:pointer}
+.codecard button:hover{color:#fff;border-color:#fff}
+.reflink{display:flex;align-items:center;gap:8px;border:1px solid var(--line);
+  padding:8px 10px;flex:none;font-family:var(--m);font-size:9.5px;color:var(--dim)}
+.reflink span{flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#fff}
+.reflink button{font:inherit;font-family:var(--m);font-size:8px;letter-spacing:.12em;
+  text-transform:uppercase;background:transparent;border:1px solid var(--line);color:var(--dim);
+  padding:2.5px 6px;cursor:pointer;flex:none}
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);
+  border:1px solid var(--line);flex:none}
+.duo div{background:var(--bg);padding:10px 11px}
+.duo b{display:block;font-size:21px;font-weight:800;font-variant-numeric:tabular-nums;
+  line-height:1.15;letter-spacing:-.02em}
+.duo em{font-style:normal;font-size:9.5px;color:var(--dim)}
+.settle{border:1px solid var(--line);padding:10px 11px;flex:none}
+.sr{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 0;
+  font-size:11px;border-bottom:1px solid rgba(255,255,255,.07)}
+.sr:last-child{border-bottom:0}
+.sr s{text-decoration:none;font-family:var(--m);font-size:9px;color:var(--dim)}
+.sr b{font-family:var(--m);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums}
+.locked{border:1px solid var(--line);padding:13px 12px;flex:none;text-align:center}
+.locked .ic{font-family:var(--m);font-size:14px;margin-bottom:6px;color:var(--dim)}
+.locked b{display:block;font-size:12.5px;font-weight:700;margin-bottom:3px}
+.locked span{display:block;font-size:10.5px;color:var(--dim);line-height:1.45;margin-bottom:10px}
+.locked button{font:inherit;font-family:var(--m);font-size:9.5px;letter-spacing:.12em;
+  text-transform:uppercase;background:#fff;color:#000;border:0;padding:8px 14px;cursor:pointer;
+  font-weight:700}
+.otpb{display:flex;gap:5px;justify-content:center;margin:9px 0 2px}
+.otpb i{width:26px;height:33px;border:1px solid var(--line);display:flex;align-items:center;
+  justify-content:center;font-family:var(--m);font-size:14px;font-weight:700;font-style:normal}
+.otpb i.f{border-color:#fff}
+.money{border:1px solid var(--line);flex:none}
+.money .mr{display:flex;justify-content:space-between;align-items:center;gap:8px;
+  padding:8px 11px;border-bottom:1px solid rgba(255,255,255,.07);font-size:11.5px}
+.money .mr:last-child{border-bottom:0}
+.money .mr b{font-family:var(--m);font-weight:700;font-variant-numeric:tabular-nums}
+.money .mr.tot{background:rgba(255,255,255,.055)}
+.money .mr.tot b{font-size:15px}
+
+/* shipments sub-screen */
+.track{border:1px solid var(--line);padding:12px;flex:none}
+.tsteps{display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin:11px 0 3px}
+.ts{position:relative;text-align:center;font-family:var(--m);font-size:7.5px;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--dim);padding-top:14px}
+.ts::before{content:"";position:absolute;top:3px;left:50%;transform:translateX(-50%);
+  width:7px;height:7px;border-radius:50%;background:var(--bg);border:1.5px solid rgba(255,255,255,.3)}
+.ts::after{content:"";position:absolute;top:6px;left:50%;width:100%;height:1px;
+  background:rgba(255,255,255,.16)}
+.ts:last-child::after{display:none}
+.ts.done{color:#fff}
+.ts.done::before{background:#fff;border-color:#fff}
+.ts.done::after{background:rgba(255,255,255,.5)}
+.ts.now::before{background:#fff;border-color:#fff;box-shadow:0 0 0 3px rgba(255,255,255,.18)}
+.ts.now{color:#fff;font-weight:700}
+.shiprow{display:grid;grid-template-columns:1fr auto;gap:9px;align-items:center;padding:9px 0;
+  border-bottom:1px solid rgba(255,255,255,.08);font-size:11.5px}
+.shiprow:last-child{border-bottom:0}
+.shiprow b{display:block;font-size:12px;font-weight:600}
+.shiprow em{font-style:normal;font-family:var(--m);font-size:9px;letter-spacing:.07em;
+  color:var(--dim);display:block;margin-top:1px}
+.chipk{font-family:var(--m);font-size:8px;letter-spacing:.11em;text-transform:uppercase;
+  border:1px solid var(--line);padding:2.5px 6px;color:var(--dim);white-space:nowrap}
+.chipk.go{border-color:#fff;color:#fff}
+
+/* athlete card sub-screen */
+.acard{border:1px solid var(--line);padding:20px 16px;text-align:center;flex:none;
+  background:linear-gradient(170deg,rgba(255,255,255,.06),transparent 58%)}
+.acard .dialwrap{display:flex;justify-content:center;margin-bottom:11px}
+.acard h5{margin:0;font-size:23px;font-weight:900;letter-spacing:-.02em;text-transform:uppercase;
+  line-height:1}
+.acard .hd2{font-family:var(--m);font-size:10px;letter-spacing:.17em;text-transform:uppercase;
+  color:var(--dim);margin-top:5px}
+.acard .meta{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);
+  border:1px solid var(--line);margin-top:15px}
+.acard .meta div{background:var(--bg);padding:8px 5px}
+.acard .meta b{display:block;font-size:14px;font-weight:800;font-variant-numeric:tabular-nums}
+.acard .meta em{font-style:normal;font-family:var(--m);font-size:7px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--dim)}
+
+/* settings sub-screen */
+.setrow{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:11px 0;
+  border-bottom:1px solid rgba(255,255,255,.08);font-size:12px}
+.setrow:last-of-type{border-bottom:0}
+.setrow b{display:block;font-size:12px;font-weight:600}
+.setrow em{font-style:normal;font-size:10.5px;color:var(--dim);display:block;line-height:1.35}
+.sw{width:36px;height:20px;border:1px solid var(--line);background:transparent;position:relative;
+  cursor:pointer;flex:none;padding:0;transition:background .18s}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;background:#fff;
+  transition:transform .18s}
+.sw[aria-pressed="true"]{background:#fff}
+.sw[aria-pressed="true"]::after{background:#000;transform:translateX(16px)}
+.dangerbtn{font:inherit;font-family:var(--m);font-size:9.5px;letter-spacing:.11em;
+  text-transform:uppercase;background:transparent;border:1px solid var(--line);color:var(--dim);
+  padding:9px;cursor:pointer;width:100%;margin-top:4px}
+.dangerbtn:hover{border-color:#fff;color:#fff}
+
+/* banner — the monthly push, proving menus do not need a tab */
+.banner{border:1px solid #fff;padding:9px 11px;display:grid;grid-template-columns:1fr auto;
+  gap:9px;align-items:center;flex:none;cursor:pointer}
+.banner b{font-size:11.5px;font-weight:800;display:block}
+.banner span{font-family:var(--m);font-size:8px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--dim)}
+.banner i{font-family:var(--m);font-style:normal;font-size:14px}
+
+/* level strip */
+.strip{display:grid;grid-template-columns:auto 1fr;gap:11px;align-items:center;flex:none}
+.dial .dark{opacity:.26}
+.dial .num{fill:#fff;font-family:var(--f);font-weight:900;font-size:18px;letter-spacing:-.04em}
+.lvl{font-weight:800;font-size:13px;letter-spacing:.02em;text-transform:uppercase;line-height:1.1}
+.xpbig{font-weight:900;font-size:20px;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.bar2{height:2px;background:var(--line);position:relative;overflow:hidden;margin-top:6px}
+.bar2 i{position:absolute;inset:0 auto 0 0;background:#fff;transition:width .9s cubic-bezier(.16,1,.3,1)}
+.sub{font-family:var(--m);font-size:8.5px;color:var(--dim);letter-spacing:.05em;margin-top:4px}
+
+/* ladder */
+.rung{display:grid;grid-template-columns:20px 1fr auto;gap:9px;align-items:center;
+  padding:7px 0;border-bottom:1px solid var(--line)}
+.rung:last-child{border-bottom:0}
+.rung .d{font-family:var(--m);font-size:12px;font-weight:700;text-align:center}
+.rung b{font-size:10.5px;font-weight:700;display:block;line-height:1.2}
+.rung em{font-family:var(--m);font-size:8px;letter-spacing:.06em;color:var(--dim);font-style:normal}
+.rung v{font-family:var(--m);font-size:9.5px;color:var(--dim)}
+.rung.now{background:rgba(255,255,255,.07);margin:0 -7px;padding:8px 7px}
+.rung.past{opacity:.4}
+.card{border:1px solid var(--line);padding:8px 10px;flex:none}
+.card b{font-size:11px;font-weight:700;display:block}
+.card span{font-size:9px;color:var(--dim)}
+.cond{display:flex;justify-content:space-between;font-size:10.5px;padding:3px 0}
+.cond span:last-child{font-family:var(--m);font-size:9px;color:var(--dim)}
+
+/* wall */
+.fit{display:grid;grid-template-columns:26px 1fr;gap:8px;padding:8px 0;
+  border-bottom:1px solid var(--line)}
+.fit:last-child{border-bottom:0}
+.fav{width:26px;height:26px;border-radius:50%;background:linear-gradient(140deg,#5E5E5E,#141414)}
+.fit b{font-size:10.5px;font-weight:700}
+.fit p{margin:1px 0 0;font-size:9.5px;color:var(--dim);line-height:1.4}
+.fit em{font-family:var(--m);font-size:7.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--dim);font-style:normal}
+
+/* ranks */
+.list{display:flex;flex-direction:column;position:relative;flex:none}
+.row{position:relative;display:grid;grid-template-columns:20px 1fr auto;gap:8px;align-items:center;
+  padding:5.5px 7px;margin:0 -7px;overflow:hidden;will-change:transform}
+.row .fb{position:absolute;inset:0 auto 0 0;background:rgba(255,255,255,.055);width:0;
+  transition:width .9s cubic-bezier(.16,1,.3,1)}
+.row u{position:relative;font-family:var(--m);font-size:9px;color:var(--dim);text-decoration:none;
+  font-variant-numeric:tabular-nums}
+.row n{position:relative;font-size:11.5px;font-weight:600;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+.row v{position:relative;font-family:var(--m);font-size:10.5px;font-variant-numeric:tabular-nums}
+.row.me{background:#fff;color:#000;font-weight:800}
+.row.me u,.row.me v{color:#000}
+.row.me .fb{background:rgba(0,0,0,.09)}
+.row.bump{animation:bump 900ms cubic-bezier(.16,1,.3,1)}
+@keyframes bump{0%{box-shadow:inset 0 0 0 2px #fff}100%{box-shadow:inset 0 0 0 0 transparent}}
+
+/* log */
+.lgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;flex:none}
+.lc{aspect-ratio:1;border:1px solid var(--line);display:flex;align-items:flex-end;padding:5px;
+  font-family:var(--m);font-size:6.5px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--dim);position:relative;overflow:hidden}
+.lc.done{border-color:transparent;background:linear-gradient(150deg,#5A5A5A,#121212 64%,#2E2E2E)}
+.lc.done span{position:relative;z-index:1;color:#fff;text-shadow:0 1px 3px #000}
+.lc.lock{border-style:dashed;align-items:center;justify-content:center;opacity:.45;font-size:11px}
+
+/* tab bar */
+.tabs{display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid var(--line);
+  padding-top:8px;margin-top:8px;flex:none}
+.tab{position:relative;background:none;border:0;padding:5px 0 2px;cursor:pointer;
+  font-family:var(--m);font-size:7.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--dim);transition:color .18s ease}
+.tab .ic{display:block;margin:0 auto 4px;width:15px;height:15px}
+.tab .ic *{stroke:currentColor;fill:none;stroke-width:1.5}
+.tab[aria-current="true"]{color:#fff;font-weight:700}
+.tab .dotn{position:absolute;top:2px;right:50%;margin-right:-13px;width:4px;height:4px;
+  border-radius:50%;background:#fff;opacity:0}
+.tab.has .dotn{opacity:1;animation:bp 2.4s ease-in-out infinite}
+
+.toast{position:absolute;left:15px;right:15px;top:60px;z-index:20;border:1px solid #fff;background:#fff;
+  color:#000;padding:9px 11px;display:flex;justify-content:space-between;align-items:center;
+  font-weight:800;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;opacity:0;
+  pointer-events:none}
+.toast i{font-family:var(--m);font-style:normal}
+.toast.show{animation:toast 2600ms cubic-bezier(.16,1,.3,1) forwards}
+@keyframes toast{0%{opacity:0;transform:translateY(-12px) scale(.97)}9%{opacity:1;transform:none}
+  80%{opacity:1;transform:none}100%{opacity:0;transform:translateY(-8px)}}
+
+/* side */
+.ctrl{display:flex;flex-direction:column;gap:12px}
+.ctrlnote{margin:0;font-size:12px;color:var(--sdim);line-height:1.5;max-width:46ch}
+.ctrlnote b{display:block;font-family:var(--m);font-size:9px;letter-spacing:.14em;
+  text-transform:uppercase;color:#9A9A9A;font-weight:400;margin-bottom:4px}
+.btn{appearance:none;border:1px solid #fff;background:#fff;color:#000;font-family:var(--f);
+  font-weight:800;font-size:13px;letter-spacing:.07em;text-transform:uppercase;padding:12px 16px;
+  cursor:pointer}
+.btn:active{transform:scale(.976)}
+.btn.ghost{background:transparent;color:#fff}
+.anno{display:grid;gap:1px;background:var(--sline);border:1px solid var(--sline)}
+.anno div{background:var(--spanel);padding:11px 14px}
+.anno b{font-size:13px;font-weight:700;display:block}
+.anno em{font-family:var(--m);font-size:9px;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--sdim);font-style:normal;display:block;margin:2px 0 4px}
+.anno p{margin:0;font-size:12.5px;color:#AEAEAE}
+
+.tw{overflow-x:auto;border:1px solid var(--sline);margin:0 0 20px}
+table{border-collapse:collapse;width:100%;font-size:13px;min-width:520px}
+th{text-align:left;font-weight:700;text-transform:uppercase;letter-spacing:.06em;font-size:11px;
+  padding:8px 13px;border-bottom:1px solid #333}
+td{padding:8px 13px;border-bottom:1px solid var(--sline);vertical-align:top;color:#C0C0C0}
+tbody tr:last-child td{border-bottom:0}
+.note{border-left:2px solid #fff;background:var(--spanel);padding:14px 18px;margin:0 0 20px;max-width:72ch}
+.note .lbl{font-family:var(--m);font-size:9px;letter-spacing:.16em;text-transform:uppercase;
+  display:block;margin-bottom:7px;color:var(--sdim)}
+.note p:last-child{margin-bottom:0}
+.foot{margin-top:58px;padding-top:20px;border-top:1px solid var(--sline);font-size:12.5px;
+  color:var(--sdim);max-width:70ch}
+:focus-visible{outline:2px solid #fff;outline-offset:2px}
+@media(prefers-reduced-motion:reduce){
+  .pane.anim,.dotlive,.bk.hit,.cta::after,.row,.toast.show{animation:none!important;
+    transition:none!important}
+}
+</style>
+
+<div class="wrap">
+
+<header class="head">
+  <p class="eyebrow">Offcomfrt &middot; Athlete Program &middot; Navigation &middot; FM-OFC-08 v2</p>
+  <h1>The Whole<br>App</h1>
+  <p class="dek">Everything an athlete touches, in one phone. Sign in with a number and a code,
+  then five tabs along the bottom and five more screens behind the avatar &mdash; the ones too
+  occasional to deserve a tab. All of it works, so tap anything.</p>
+</header>
+
+<section class="doc" id="demo">
+<h2><span class="n">01</span><span>Tap through it</span></h2>
+
+<div class="stage">
+  <div class="phone">
+    <div class="field" id="field"></div>
+    <div class="scr">
+      <div class="bar">
+        <span id="crumb">@riya.runs<span style="opacity:.55">&nbsp;&middot;&nbsp;Comfort Level - 1</span></span>
+        <span style="display:flex;align-items:center;gap:9px">
+          <span class="live"><i class="dotlive"></i><span id="nowc">3</span>&nbsp;live</span>
+          <button class="av" id="avbtn" type="button" aria-label="Account"></button></span>
+      </div>
+
+      <div class="panes" id="panes">
+
+        <!-- TASK -->
+        <div class="pane on" data-tab="task">
+          <div class="banner" id="pickbanner"><div><b>October briefs are open</b>
+            <span>Pick two of five &middot; closes 31 Oct</span></div><i>&rarr;</i></div>
+
+          <div class="kick">To reach Zero Comfort</div>
+          <div class="hero" style="font-size:30px">5 tasks<br>to go</div>
+          <div class="pips" id="pips" aria-label="5 of 10 tasks done"></div>
+          <div class="duo" style="margin-top:1px">
+            <div><span class="lab2">Done</span><b>5<em style="font-size:13px;opacity:.5"> / 10</em></b>
+              <em>at this level</em></div>
+            <div><span class="lab2">XP earned</span><b class="xpv">5,400</b>
+              <em>4,600 to go</em></div>
+          </div>
+
+          <div class="rule"></div>
+          <div class="kick">Cleared at Comfort Level - 1</div>
+          <div class="donelist" id="donelist"></div>
+
+          <div class="scrollcue" id="scrollcue">
+            <span><b>Today&rsquo;s task</b> &middot; Ask a stranger for one tip</span>
+            <span class="mono" id="cue2">00:00</span>
+            <i>&darr;</i>
+          </div>
+
+          <div class="rule"></div>
+          <div class="kick">One thing today</div>
+          <div class="hero">Ask a stranger<br>for one tip</div>
+          <div class="rowx" style="border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:7px 0">
+            <div><span class="lab">Closes in</span><span class="clock" id="clk">00:00<span class="s">:00</span></span></div>
+            <span class="chip">+40 XP</span></div>
+          <div class="plate" style="flex:none;min-height:190px"><q>&ldquo;Walked into a place where nobody knew
+            me. Hardest part was the door.&rdquo;<b>Neha &middot; Comfort Level - 2</b></q></div>
+          <div class="proof">
+            <div><span class="lab">Accepted proof</span>
+              <b>Logbook page &middot; one photo &middot; two lines</b></div>
+            <div class="pf"><span>Photo</span><span>Note</span><span>Witness</span></div>
+          </div>
+          <div class="cta" id="submitbtn">Submit proof</div>
+
+          <div class="rule"></div>
+          <div class="kick">Running</div>
+          <div class="timerlist" id="timerlist"></div>
+
+          <div class="strip" style="margin-top:4px">
+            <svg class="dial" viewBox="0 0 48 48" width="46" height="46" aria-hidden="true" id="d1"></svg>
+            <div><div class="rowx"><span class="lvl">Comfort<br>Level - 1</span>
+              <span class="xpbig xpv">5,400</span></div>
+              <div class="bar2"><i style="width:54%"></i></div>
+              <div class="sub">4,600 to Zero Comfort</div></div></div>
+        </div>
+
+        <!-- CLIMB -->
+        <div class="pane" data-tab="climb">
+          <div class="kick">The climb</div>
+          <div class="strip">
+            <svg class="dial" viewBox="0 0 48 48" width="52" height="52" aria-hidden="true" id="d2"></svg>
+            <div><div class="hero" style="font-size:20px">Comfort<br>Level - 1</div>
+              <div class="sub">44 days at this level</div></div></div>
+          <div class="bar2"><i style="width:54%"></i></div>
+          <div class="rowx mono" style="color:var(--dim)"><span>5,400 XP</span><span>4,600 to go</span></div>
+          <div class="rule"></div>
+          <div class="kick">What&rsquo;s left</div>
+          <div><div class="cond"><span>Experience</span><span>5,400 / 10,000</span></div>
+            <div class="cond"><span>Standing</span><span>72 / 80</span></div>
+            <div class="cond"><span>Days at level</span><span>44 / 365</span></div></div>
+          <div class="rule"></div>
+          <div>
+            <div class="rung"><span class="d">0</span><div><b>Zero Comfort</b>
+              <em>10 seats &middot; 3 taken</em></div><v>10,000</v></div>
+            <div class="rung now"><span class="d">1</span><div><b>Comfort Level - 1</b>
+              <em>You are here</em></div><v>5,400</v></div>
+            <div class="rung past"><span class="d">2</span><div><b>Comfort Level - 2</b>
+              <em>Cleared 12 Jun</em></div><v>&check;</v></div>
+            <div class="rung past"><span class="d">3</span><div><b>Comfort Level - 3</b>
+              <em>Cleared 02 Mar</em></div><v>&check;</v></div>
+            <div class="rung past"><span class="d">4</span><div><b>Comfort Level - 4</b>
+              <em>Cleared 19 Jan</em></div><v>&check;</v></div>
+            <div class="rung past"><span class="d">5</span><div><b>Comfort Level - 5</b>
+              <em>Cleared 04 Dec</em></div><v>&check;</v></div>
+          </div>
+          <div class="card" style="margin-top:auto"><b>Unlocks at Zero Comfort</b>
+            <span>Co-created capsule. Your name on a product.</span></div>
+        </div>
+
+        <!-- GAMES -->
+        <div class="pane" data-tab="games">
+          <div class="rowx"><span class="kick">The arcade</span>
+            <span class="mono" style="color:var(--dim)">4 candidates</span></div>
+          <div class="hero" style="font-size:24px">Games</div>
+
+          <div class="shellnote"><b>Shell &mdash; not decided yet</b>
+            The four tiles below are candidate formats, not a committed set. What they pay out and
+            which ones get built are open questions &mdash; see &sect;05.</div>
+
+          <div class="ggrid" id="ggrid"></div>
+
+          <div class="rule"></div>
+          <div class="kick">In play</div>
+          <div class="matchrow">
+            <div class="mface"></div>
+            <div><b>@kabir.lifts</b><em>Head to head &middot; your move</em></div>
+            <span class="chipk go">Open</span>
+          </div>
+          <div class="chatbox">
+            <div class="cm them"><b>@kabir.lifts</b>took you three days to answer</div>
+            <div class="cm me"><b>You</b>was busy actually doing the briefs</div>
+            <div class="cinput"><span>Message&hellip;</span><i>&rarr;</i></div>
+          </div>
+          <p style="font-size:10.5px;color:var(--dim);margin:0;line-height:1.45;flex:none">
+            Chat lives inside a match and ends with it. Nobody can see another athlete&rsquo;s
+            tasks, proof or level progress from here &mdash; that was the point of removing the
+            wall.</p>
+        </div>
+
+        <!-- RANKS -->
+        <div class="pane" data-tab="ranks">
+          <div class="rowx"><span class="kick">Comfort Level - 1 &middot; 18 athletes</span>
+            <span class="mono" style="color:var(--dim)" id="reset">&mdash;</span></div>
+          <div class="hero" style="font-size:24px">Standings</div>
+
+          <div class="periods" id="periods">
+            <button type="button" data-p="w" aria-pressed="false">Week</button>
+            <button type="button" data-p="m" aria-pressed="true">Month</button>
+            <button type="button" data-p="a" aria-pressed="false">All time</button>
+          </div>
+
+          <div class="list" id="list"></div>
+          <div class="rowx" id="gapline" style="border-top:1px solid var(--line);padding-top:8px">
+            <b style="font-size:12px">&mdash;</b><span class="mono" style="color:var(--dim)"></span></div>
+
+          <div class="rule"></div>
+          <div class="rowx"><span class="kick">Where your XP came from</span>
+            <span class="mono" style="color:var(--dim)" id="brkTot">&mdash;</span></div>
+          <div class="brk" id="brk"></div>
+
+          <div class="card"><b>Only your own level</b>
+            <span>You are ranked against the 18 athletes at Comfort Level - 1. Nobody above or
+            below appears here.</span></div>
+        </div>
+
+        <!-- LOG -->
+        <div class="pane" data-tab="log">
+          <div class="rowx"><span class="kick">The logbook</span>
+            <span class="mono" style="color:var(--dim)">14 of 30</span></div>
+          <div class="hero" style="font-size:24px">Your record</div>
+          <div class="bar2"><i style="width:47%"></i></div>
+          <div class="lgrid">
+            <div class="lc done"><span>Away fixture</span></div>
+            <div class="lc done"><span>Two names</span></div>
+            <div class="lc done"><span>Go first</span></div>
+            <div class="lc done"><span>The letter</span></div>
+            <div class="lc done"><span>Cold start</span></div>
+            <div class="lc done"><span>White belt</span></div>
+            <div class="lc">07 Oct</div>
+            <div class="lc lock">+</div>
+            <div class="lc lock">+</div>
+            <div class="lc lock">+</div>
+            <div class="lc lock">+</div>
+            <div class="lc lock">+</div>
+          </div>
+          <div class="rowx" style="align-items:flex-start;gap:10px">
+            <div><span class="lab">Latest entry</span>
+              <b style="font-size:10.5px;font-weight:600;line-height:1.35">Went first in the queue.
+                Said the wrong thing. Said it anyway.</b></div>
+            <span class="mono" style="color:var(--dim);flex:none">07 Oct</span></div>
+          <div class="rowx" style="border-top:1px solid var(--line);padding-top:8px;margin-top:auto">
+            <span style="font-size:11px">Next page unlocks</span>
+            <span class="mono" style="color:var(--dim)">2 tasks</span></div>
+        </div>
+
+      </div>
+
+      <nav class="tabs" id="tabs"></nav>
+    </div>
+    <div class="login" id="login">
+      <div class="mark">Offcomfrt</div>
+      <div id="lstep1">
+        <h3>Sign in</h3>
+        <p>Your number is your account. We send a six-digit code on WhatsApp &mdash; there is no
+        password to remember.</p>
+        <div class="phonein"><span>+91</span>
+          <input id="phone" type="tel" inputmode="numeric" maxlength="10"
+            placeholder="98765 43210" aria-label="Phone number"></div>
+        <div class="err" id="lerr"></div>
+        <button class="lbtn" type="button" id="sendcode" disabled>Send the code</button>
+      </div>
+      <div id="lstep2" style="display:none">
+        <h3>Enter the<br>code</h3>
+        <p id="sentto">Sent on WhatsApp to +91 98765 43210. <b style="color:#fff">Valid 10 minutes.</b></p>
+        <div class="codein" id="codein"></div>
+        <div class="err" id="lerr2"></div>
+        <p style="font-size:10px;color:var(--dim);margin:-6px 0 11px">Demo &mdash; type
+        <b style="color:#fff;font-family:var(--m);letter-spacing:.1em">407318</b> on your keyboard.
+        Any other six digits shows the wrong-code path.</p>
+        <button class="lbtn" type="button" id="verify" disabled>Sign in</button>
+        <button class="lbtn ghost" type="button" id="resend">Resend &middot; or use a different number</button>
+      </div>
+      <div class="foot2">Signed in for 90 days. You will not see this screen again unless you
+      sign out or stay away for three months.</div>
+    </div>
+    <div class="scrim" id="scrim"></div>
+    <div class="sheet" id="sheet" role="dialog" aria-label="Account">
+      <div class="grab"></div>
+      <div class="shd">
+        <button type="button" id="shback" style="display:none" aria-label="Back">&larr;</button>
+        <b id="shtitle">Account</b>
+        <button type="button" id="shclose" aria-label="Close">&times;</button>
+      </div>
+      <div class="shb" id="shbody"></div>
+    </div>
+    <div class="toast" id="toast"><span id="tmsg"></span><i id="tval"></i></div>
+  </div>
+
+  <div class="ctrl">
+    <p class="ctrlnote"><b>Demo controls &mdash; not part of the app</b>
+    These fire events that would normally come from your console or a courier scan, so you can
+    watch how the screens react. An athlete never sees them.</p>
+    <button class="btn" id="earn">A reviewer approves my task &mdash; +60 XP</button>
+    <button class="btn ghost" id="rival">A rival earns and passes me</button>
+    <button class="btn ghost" id="pause">Pause the live leaderboard</button>
+    <button class="btn ghost" id="openav">Open the avatar menu</button>
+    <button class="btn ghost" id="signout">Sign out &mdash; show the login again</button>
+    <button class="btn ghost" id="kitship">The warehouse dispatches a kit</button>
+
+    <div class="anno">
+      <div><b>Task</b><em>Tab 1 &middot; the default</em>
+        <p>Opens on progress, not on work: how many tasks stand between them and the next level,
+        which ones are cleared, how much XP that was worth. Scroll and the one timed task for today
+        is underneath. The cue bar between them carries the countdown and jumps you to it.</p></div>
+      <div><b>Climb</b><em>Tab 2 &middot; where am I</em>
+        <p>Level, the gap, every unmet condition, the six rungs with cleared dates, and what the next
+        one unlocks.</p></div>
+      <div><b>Games</b><em>Tab 3 &middot; a shell for now</em>
+        <p>The public wall is gone &mdash; athletes no longer see each other&rsquo;s tasks or proof.
+        In its place, four candidate game formats and the match room where chat would live. What
+        games pay out is still open, and &sect;05 argues for one answer over the others.</p></div>
+      <div><b>Ranks</b><em>Tab 4 &middot; the competition</em>
+        <p>Week, month and all time, each ranking <strong>only athletes at the same Comfort
+        Level</strong>. Underneath, a breakdown of where their own XP actually came from. Leave the
+        tab and come back &mdash; the board does not pause because you looked away.</p></div>
+      <div><b>Log</b><em>Tab 5 &middot; the collection</em>
+        <p>Every discomfort task as a tile. The empty slots pull harder than the full ones.</p></div>
+      <div><b>And not a tab: the monthly menu</b><em>a push, not a destination</em>
+        <p>Tap the banner on Task. Pick-two-of-five happens once a month, so it is a card that
+        appears and then goes away &mdash; not a permanent slot competing with screens people open
+        daily.</p></div>
+      <div><b>The avatar, top right</b><em>five screens, no tabs</em>
+        <p>Your code, earnings, shipments, the athlete card and settings. Each gets opened a handful
+        of times a month, usually because a WhatsApp message sent them there. Putting any one of
+        them in the bar would cost a daily screen its place.</p></div>
+    </div>
+  </div>
+</div>
+</section>
+
+<section class="doc" id="signin">
+<h2><span class="n">02</span><span>Signing in</span></h2>
+<p>Phone number, six-digit code on WhatsApp, ninety days. No password, because a password is a
+thing to forget, a reset flow to build and a support queue to staff &mdash; and you would have to
+build phone verification anyway, since that is the only honest way to reset one. Press
+<em>Sign out</em> under the phone to see the whole flow.</p>
+
+<div class="tw"><table>
+<thead><tr><th style="width:27%">Detail</th><th>Why it is built this way</th></tr></thead>
+<tbody>
+<tr><td><strong>A wrong number looks identical to a right one</strong></td><td>Enter a number that is not on the roster and you still get the code screen, with the same wording and the same delay. A login form that says &ldquo;no such athlete&rdquo; is a tool for walking your roster.</td></tr>
+<tr><td><strong>WhatsApp first, SMS as fallback</strong></td><td>Your athletes are already in that thread, it costs less, and it is more reliable than Indian SMS routes. SMS is the backup, not the default.</td></tr>
+<tr><td><strong>Five attempts, then the code dies</strong></td><td>Try a wrong code in the demo and watch the counter. Six digits is a one-in-a-million guess only because the attempt limit makes it one &mdash; without it, it is a few hours of scripting.</td></tr>
+<tr><td><strong>Ninety-day sliding session</strong></td><td>Each visit pushes the expiry out, so an athlete who opens the app weekly never sees this screen again. The login is a doorway, not a turnstile.</td></tr>
+<tr><td><strong>Discharge logs them out instantly</strong></td><td>Sessions are rows in your database, not self-contained tokens. Blacklisting someone deletes every row in the same transaction, and their next tap is this screen.</td></tr>
+</tbody></table></div>
+
+<div class="note"><span class="lbl">What this replaced</span>
+<p>The earlier design gave every athlete a permanent private link with no login, plus four
+short-lived token links and a five-layer scheme to stop the permanent one leaking. All of it is
+gone. One login replaces five link types, and it buys something the links could never allow: an
+athlete can now see <strong>their own address, phone, order history and commission</strong>, none of
+which could ever render on a URL that might be forwarded.</p></div>
+
+<div class="note"><span class="lbl">The one thing worth keeping from the old design</span>
+<p>A <strong>whitelist serialiser</strong> on every athlete-facing response. Decide explicitly what
+goes out rather than serialising the model, and no future developer can expose internal notes,
+another athlete's standing or a reviewer's identity by adding a column. Thirty lines, and it
+outlives every refactor.</p></div>
+</section>
+
+<section class="doc" id="rules">
+<h2><span class="n">03</span><span>The rule that decides a tab</span></h2>
+<p><strong>A tab is somewhere you go repeatedly and unprompted.</strong> If a screen is only ever
+reached because something sent you there, it is a push, not a tab.</p>
+<div class="tw"><table>
+<thead><tr><th style="width:26%">Screen</th><th style="width:16%">Where</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td><strong>Task, Climb, Games, Ranks, Log</strong></td><td>Tabs</td><td>All five get opened on a day with nothing due. That is the test.</td></tr>
+<tr><td><strong>Pick two of five</strong></td><td>Card on Task</td><td>Once a month. A banner that appears on the 1st and disappears once chosen.</td></tr>
+<tr><td><strong>Submission flow</strong></td><td>Push off a task</td><td>Nobody opens an app to visit an upload form.</td></tr>
+<tr><td><strong>Brief detail</strong></td><td>Push off Task or the menu</td><td>Always reached from something, never sought out.</td></tr>
+<tr><td><strong>Your code</strong></td><td>Avatar, top right</td><td>Opened when they are writing a caption, not on a schedule. Carries the ref link and the coin balance.</td></tr>
+<tr><td><strong>Shipments</strong></td><td>Avatar &middot; dot on dispatch</td><td>Twice in a kit's life. The dot appears when something ships and clears when they look.</td></tr>
+<tr><td><strong>Athlete card, settings</strong></td><td>Avatar, top right</td><td>Occasional and personal. Nobody should spend a tab on them.</td></tr>
+<tr><td><strong>Earnings</strong></td><td>Avatar, top right</td><td>Commission and payout history. Safe to show plainly now that athletes log in &mdash; the session already proved who they are.</td></tr>
+</tbody></table></div>
+
+<div class="note"><span class="lbl">Three things I changed from the earlier mockups</span>
+<p><strong>The Wall is gone and Games replaced it.</strong> Publishing what every athlete did
+exposed one person's tasks and proof to everyone on the roster, which is not a trade this program
+needs to make. Games keep the daily reason to return without putting anybody's work on display.</p>
+<p><strong>The leaderboard headline is now Standings.</strong> It used to say &ldquo;The Board&rdquo;
+while a different Board tab sat directly underneath it, which would have confused athletes inside a
+day.</p>
+<p><strong>The top bar carries identity, not a breadcrumb.</strong> It used to echo the screen name,
+which every screen already prints in its own headline &mdash; so the same words appeared twice,
+10px apart. It now holds <em>handle &middot; current Comfort Level</em> on every tab, which is the
+one thing an athlete should never have to go looking for. Wayfinding is the tab bar&rsquo;s job.</p></div>
+
+<div class="note"><span class="lbl">On the tab-switch animation</span>
+<p>240ms, a small rise and fade, and nothing else. Tab switches happen dozens of times a session, so
+this is the one place in the app where motion must get out of the way. Save the theatre for the
+promotion &mdash; see FM-OFC-04.</p></div>
+</section>
+
+<section class="doc" id="sheet-notes">
+<h2><span class="n">04</span><span>The five behind the avatar</span></h2>
+<p>A sheet, not a sixth tab and not a separate page. It slides up over whatever the athlete was
+looking at, hugs its own content so the short screens stay short, and closes back to exactly where
+they were. Tapping a row pushes one level deep; the arrow comes back. That is the entire navigation
+model &mdash; two levels, no more.</p>
+
+<div class="tw"><table>
+<thead><tr><th style="width:21%">Screen</th><th style="width:25%">Opened when</th><th>What it must never do</th></tr></thead>
+<tbody>
+<tr><td><strong>Your code</strong></td><td>Writing a caption, answering a DM</td><td>Make them hunt for the code. It is the only element at display size on the screen.</td></tr>
+<tr><td><strong>Earnings</strong></td><td>Around payout, once or twice a month</td><td>Show a figure the athlete cannot reconcile. Every deduction is a named line &mdash; self-purchase, refunds &mdash; so nobody has to ask why the number moved.</td></tr>
+<tr><td><strong>Shipments</strong></td><td>Pushed &mdash; a dispatch message sent them</td><td>Make them ask your team where a kit is. The tracker carries the AWB and the current leg.</td></tr>
+<tr><td><strong>Athlete card</strong></td><td>After a promotion, when they want to post it</td><td>Carry anything private. Level, handle, XP, rank &mdash; nothing else, because this image leaves the app.</td></tr>
+<tr><td><strong>Settings</strong></td><td>Rarely, and usually once</td><td>Bury <em>sign out everywhere</em>. If someone has lost a phone, that is the fix, and it has to be findable without asking your team.</td></tr>
+</tbody></table></div>
+
+<h3>Three details worth copying exactly</h3>
+<ul>
+<li><strong>The sheet hugs its content.</strong> The account menu is five rows, so the sheet is
+short; Earnings after unlock is long, so it grows to 90% and scrolls inside. A fixed-height sheet
+would leave a third of the screen empty on the menu and feel broken.</li>
+<li><strong>The dot lives on the avatar, not inside it.</strong> Ship a kit using the control under
+the phone and a dot appears top right. It clears when they open Shipments &mdash; not when the
+sheet opens, and not on a timer. A badge that clears itself teaches people to ignore badges.</li>
+<li><strong>Logging in is what unlocks money, and nothing else is asked.</strong> There is no
+second code in front of Earnings. An athlete who holds a live session <em>is</em> the athlete, and
+making them prove it twice reads as distrust rather than security. The protection lives at the
+door &mdash; a 90-day session that dies the moment they are discharged, or the moment they sign out
+everywhere.</li>
+</ul>
+
+<div class="note"><span class="lbl">Why not a sixth tab</span>
+<p>Five is already the practical ceiling for a bottom bar on a phone &mdash; a sixth tab makes
+every label too narrow to read at a glance and shrinks the tap targets below comfortable. More to
+the point, none of these five earns one. The test has not changed: open the app on a day with
+nothing due, and you will open Task, Climb, Games, Ranks and Log. You will not open Settings.</p></div>
+</section>
+
+<section class="doc" id="open">
+<h2><span class="n">05</span><span>Two things still open</span></h2>
+
+<h3>What games pay out</h3>
+<p>This is the one that has to be answered before a line of game code is written, because it
+decides what the Comfort Levels mean.</p>
+<p>Sales were routed to <strong>coins</strong> rather than XP for a specific reason: so a creator
+with eight hundred followers who does every brief can out-climb one with eighty thousand who sells
+well and skips the hard ones. Games break that logic harder than sales ever could. A sale at least
+requires somebody in the world to buy something; a game requires a free evening. <strong>If games
+award XP, the fastest route to Zero Comfort is a sofa.</strong></p>
+<div class="tw"><table>
+<thead><tr><th style="width:22%">Option</th><th>What it does to the ladder</th></tr></thead>
+<tbody>
+<tr><td><strong>Coins only</strong></td><td>Games are worth playing and worth winning, and the ladder still only moves on approved discomfort work. Same rule as sales, which means one rule to explain instead of two.</td></tr>
+<tr><td><strong>XP, capped weekly</strong></td><td>Say 100 XP a week. Playing helps but can never outpace real briefs. Honest, but it is a third rule, and caps need explaining to athletes who hit them.</td></tr>
+<tr><td><strong>XP, uncapped</strong></td><td>Whoever has the most free time wins the program. Not recommended, and the reason is above.</td></tr>
+<tr><td><strong>Coins, plus Standing</strong></td><td>Coins for winning, and regular play protects the Standing score. Keeps quiet athletes engaged without touching XP &mdash; and Standing already gates promotion, so it still carries weight.</td></tr>
+</tbody></table></div>
+<div class="note red"><span class="lbl">If athletes can stake against each other</span>
+<p>Stake <strong>coins</strong>, never XP. Coins are a balance; XP is a position on a ladder. An
+athlete who loses XP in a game can be <em>demoted a Comfort Level by a game</em>, which would make
+the ladder feel arbitrary to everyone watching. Whatever the game, the rule is the same: nothing a
+player does to another player may change their level.</p></div>
+
+<h3>Cohort boards when the cohort is small</h3>
+<p>Ranking inside a Comfort Level is the right call &mdash; it is what stops a new athlete being
+permanently invisible behind people two levels above them. But the levels are not the same size.
+Comfort Level - 5 will hold most of your roster; Zero Comfort has ten seats, three of them taken.
+A board of three is not a competition, it is a list.</p>
+<ul>
+<li><strong>Set a floor.</strong> Below about eight athletes in a level, merge upward with the
+next one and label the board honestly &mdash; <em>Comfort Level - 1 &amp; Zero Comfort</em>.</li>
+<li><strong>Never merge downward from the top.</strong> Zero Comfort athletes merged into a
+Comfort Level - 3 board will sit permanently at the top of it, which is boring for them and
+demoralising for everyone else.</li>
+<li><strong>Say which pool they are in.</strong> The header on this screen reads <em>Comfort
+Level - 1 &middot; 18 athletes</em> for exactly this reason. An athlete who cannot tell who they
+are being measured against will assume the worst.</li>
+</ul>
+</section>
+
+<div class="foot">
+<p><strong>FM-OFC-08 v2 &middot; Navigation &middot; companion to FM-OFC-04 through FM-OFC-10.</strong>
+Grey plates and tiles stand in for athlete photography. Screens are drawn on the
+Comfort Level - 1 ground; the ground shifts with the athlete's level per FM-OFC-04.</p>
+</div>
+
+</div>
+
+<script>
+(function(){
+  var reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var field=document.getElementById('field'), panes=document.getElementById('panes'),
+      tabsEl=document.getElementById('tabs'),
+      toast=document.getElementById('toast'), tmsg=document.getElementById('tmsg'),
+      tval=document.getElementById('tval');
+
+  /* ambient field */
+  var COLS=12,ROWS=24,N=COLS*ROWS,bricks=[];
+  (function(){var f=document.createDocumentFragment();
+    for(var i=0;i<N;i++){var d=document.createElement('div');d.className='bk';f.appendChild(d);bricks.push(d);}
+    field.appendChild(f);
+    var o=[];for(var r=ROWS-1;r>=0;r--)for(var c=0;c<COLS;c++)o.push(r*COLS+c);
+    o.slice(0,Math.round(N*.54)).forEach(function(i){bricks[i].classList.add('on');});})();
+  function flash(n){if(reduce)return;for(var k=0;k<(n||1);k++)(function(d){setTimeout(function(){
+    var b=bricks[Math.floor(Math.random()*N)];b.classList.remove('hit');void b.offsetWidth;
+    b.classList.add('hit');},d);})(k*80);}
+
+  /* dials */
+  function dialSVG(el,lit){
+    var s='',cx=24,cy=24,r=17;
+    for(var i=0;i<5;i++){
+      var a0=(-90+i*72+5)*Math.PI/180,a1=(-90+i*72+67)*Math.PI/180;
+      s+='<path class="'+(i<lit?'litd':'dark')+'" d="M'+(cx+r*Math.cos(a0)).toFixed(2)+' '+
+        (cy+r*Math.sin(a0)).toFixed(2)+' A'+r+' '+r+' 0 0 1 '+(cx+r*Math.cos(a1)).toFixed(2)+' '+
+        (cy+r*Math.sin(a1)).toFixed(2)+'" fill="none" stroke="#fff" stroke-width="'+
+        (i<lit?'2.8':'1.3')+'" opacity="'+(i<lit?1:.26)+'"/>';
+    }
+    el.innerHTML=s+'<text class="num" x="24" y="31" text-anchor="middle">'+lit+'</text>';
+  }
+  dialSVG(document.getElementById('d1'),1); dialSVG(document.getElementById('d2'),1);
+
+  /* tabs */
+  var TABS=[
+    {id:'task', label:'Task',  ic:'<rect x="2.5" y="2.5" width="10" height="10"/><path d="M5 7.5l2 2 3.5-4"/>'},
+    {id:'climb',label:'Climb', ic:'<path d="M2 12.5h3.5v-4H9V5h4.5v7.5"/>'},
+    {id:'games',label:'Games', ic:'<rect x="1.5" y="4.5" width="12" height="7" rx="2.5"/><path d="M4 6.5v3M2.5 8h3"/><circle cx="10" cy="7.3" r=".9"/><circle cx="11.6" cy="9" r=".9"/>'},
+    {id:'ranks',label:'Ranks', ic:'<rect x="2" y="8" width="3" height="5"/><rect x="6" y="4" width="3" height="9"/><rect x="10" y="6" width="3" height="7"/>'},
+    {id:'log',  label:'Log',   ic:'<rect x="2.5" y="2" width="10" height="11"/><path d="M5 5.5h5M5 8h5M5 10.5h3"/>'}
+  ];
+  var cur='task';
+  TABS.forEach(function(t){
+    var b=document.createElement('button');
+    b.className='tab'+(t.id==='games'?' has':''); b.type='button'; b.dataset.tab=t.id;
+    b.setAttribute('aria-current', t.id===cur?'true':'false');
+    b.innerHTML='<span class="dotn"></span><svg class="ic" viewBox="0 0 15 15" aria-hidden="true">'+
+      t.ic+'</svg>'+t.label;
+    b.onclick=function(){ go(t.id); };
+    tabsEl.appendChild(b);
+  });
+  function go(id){
+    if(id===cur) return;
+    cur=id;
+    [].forEach.call(panes.children,function(p){
+      var on=p.dataset.tab===id;
+      p.classList.toggle('on',on);
+      if(on){ p.classList.remove('anim'); void p.offsetWidth; p.classList.add('anim'); p.scrollTop=0; }
+    });
+    [].forEach.call(tabsEl.children,function(b){
+      b.setAttribute('aria-current', b.dataset.tab===id?'true':'false');
+      if(b.dataset.tab===id) b.classList.remove('has');
+    });
+  }
+
+  /* clock on task */
+  var clk=document.getElementById('clk'), cue2=document.getElementById('cue2');
+  setInterval(function(){
+    var d=new Date(),e=new Date(d);e.setHours(23,59,0,0);
+    var s=Math.max(0,Math.floor((e-d)/1000));
+    var hh=String(Math.floor(s/3600)).padStart(2,'0'),
+        mm=String(Math.floor(s%3600/60)).padStart(2,'0'),
+        ss=String(s%60).padStart(2,'0');
+    clk.innerHTML=hh+':'+mm+'<span class="s">:'+ss+'</span>';
+    cue2.textContent=hh+':'+mm+' left';
+  },1000);
+  var cue=document.getElementById('scrollcue');
+  cue.onclick=function(){
+    var pane=document.querySelector('.pane[data-tab="task"]'),
+        target=document.getElementById('submitbtn');
+    pane.scrollTo({top:target.offsetTop-pane.offsetTop-300,behavior:reduce?'auto':'smooth'});
+  };
+
+  /* month reset on ranks */
+  var resetEl=document.getElementById('reset');
+  setInterval(function(){
+    var d=new Date(),e=new Date(d.getFullYear(),d.getMonth()+1,1);
+    var s=Math.max(0,Math.floor((e-d)/1000));
+    resetEl.textContent='resets in '+Math.floor(s/86400)+'d '+
+      String(Math.floor(s%86400/3600)).padStart(2,'0')+':'+
+      String(Math.floor(s%3600/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+  },1000);
+
+  /* wall feed */
+  /* task — progress first */
+  var DONE=[
+    ['Away fixture','+72'],['Cold start','+54'],['Go first','+42'],
+    ['The letter','+60'],['Two names','+48']
+  ];
+  var TODO=5;
+  (function(){
+    var pips=document.getElementById('pips'), h='';
+    for(var i=0;i<10;i++) h+='<i class="'+(i<DONE.length?'on':i===DONE.length?'next':'')+'"></i>';
+    pips.innerHTML=h;
+    document.getElementById('donelist').innerHTML=DONE.map(function(d){
+      return '<div class="dr"><svg viewBox="0 0 15 15" aria-hidden="true">'+
+        '<path d="M3 8l3 3 6-7"/></svg><b>'+d[0]+'</b><s>'+d[1]+' XP</s></div>'; }).join('');
+    document.getElementById('timerlist').innerHTML=[
+      ['Pick two of five','October menu &middot; choose by the 31st','16d','',''],
+      ['Tear my form apart','Chosen 04 Oct &middot; 50 XP','2d 04h','warn',''],
+      ['Monthly board','Resets 1 Nov','16d','','']
+    ].map(function(t){
+      return '<div class="tr2"><div><b>'+t[0]+'</b><em>'+t[1]+'</em></div>'+
+        '<s class="'+t[3]+'">'+t[2]+'</s></div>'; }).join('');
+  })();
+
+  /* games — a shell, deliberately */
+  var GAMES=[
+    {t:'Head to head',  d:'Challenge someone at your level. Both stake, winner takes it.',
+     ic:'<path d="M3 3l9 9M12 3l-9 9"/>'},
+    {t:'Daily',         d:'One quick game a day. A streak that breaks if you miss.',
+     ic:'<circle cx="7.5" cy="7.5" r="5.5"/><path d="M7.5 4.5v3.2l2.1 1.3"/>'},
+    {t:'Call the board',d:'Pick this week&rsquo;s top three. Stake on being right.',
+     ic:'<path d="M2 11.5h3v-4H2zM6 11.5h3V3H6zM10 11.5h3V6h-3z"/>'},
+    {t:'Squads',        d:'Grouped into teams that compete every week.',
+     ic:'<circle cx="5" cy="5.5" r="2"/><circle cx="10.5" cy="6" r="1.7"/><path d="M1.8 12.5c0-2 1.4-3.2 3.2-3.2s3.2 1.2 3.2 3.2M8.6 12.2c0-1.7 1-2.7 2.1-2.7s2 1 2 2.4"/>'}
+  ];
+  document.getElementById('ggrid').innerHTML=GAMES.map(function(g){
+    return '<button class="gt" type="button" data-g="'+g.t+'"><s>candidate</s>'+
+      '<svg viewBox="0 0 15 15" aria-hidden="true">'+g.ic+'</svg>'+
+      '<b>'+g.t+'</b><em>'+g.d+'</em></button>'; }).join('');
+
+  /* ranks */
+  /* every athlete here is at Comfort Level - 1. The board never crosses levels. */
+  var P='m';
+  var A=[
+    {id:'k', h:'@kabir.lifts',   w:210, m:840, a:11420},
+    {id:'n', h:'@runs.with.neha',w:260, m:720, a:9880},
+    {id:'s', h:'@smit.trains',   w:140, m:690, a:10640},
+    {id:'a', h:'@arjun.pulls',   w:185, m:540, a:8150},
+    {id:'l', h:'@thelatenight',  w: 95, m:505, a:12010},
+    {id:'d', h:'@dee.moves',     w:220, m:480, a:7640},
+    {id:'me',h:'You',            w:175, m:460, a:9310, me:true},
+    {id:'p', h:'@priya.climbs',  w:120, m:430, a:6980},
+    {id:'v', h:'@vik.rows',      w: 60, m:395, a:8820}
+  ];
+  /* where this athlete's XP came from, per period */
+  var BRK={
+    w:[['Away fixtures',70],['Logbook entries',55],['Reels',50]],
+    m:[['Away fixtures',168],['Reels',132],['Logbook entries',96],['Events',64]],
+    a:[['Reels',3420],['Away fixtures',2510],['Logbook entries',1840],['Events',880],['Referrals',660]]
+  };
+  var PLBL={w:'this week',m:'this month',a:'all time'};
+
+  function xp(r){ return r[P]; }
+  var list=document.getElementById('list'), gap=document.getElementById('gapline'), els={};
+  A.forEach(function(r){var e=document.createElement('div');
+    e.className='row'+(r.me?' me':'');e.dataset.id=r.id;
+    e.innerHTML='<div class="fb"></div><u></u><n>'+r.h+'</n><v></v>';
+    els[r.id]=e;list.appendChild(e);});
+  function order(){return A.slice().sort(function(a,b){return xp(b)-xp(a);});}
+  function posMe(){var o=order();for(var i=0;i<o.length;i++)if(o[i].id==='me')return i;return -1;}
+
+  function paintBrk(){
+    var rows=BRK[P], tot=rows.reduce(function(t,r){return t+r[1];},0), top=rows[0][1];
+    document.getElementById('brkTot').textContent=tot.toLocaleString('en-IN')+' XP '+PLBL[P];
+    document.getElementById('brk').innerHTML=rows.map(function(r){
+      return '<div class="br"><div><span class="bl">'+r[0]+'</span>'+
+        '<span class="bbar"><i style="width:'+Math.round(r[1]/top*100)+'%"></i></span></div>'+
+        '<s>'+r[1].toLocaleString('en-IN')+'</s></div>'; }).join('');
+  }
+
+  function paint(anim){
+    var first={};
+    if(anim&&!reduce)A.forEach(function(r){first[r.id]=els[r.id].getBoundingClientRect().top;});
+    var o=order(),lead=xp(o[0]);
+    o.forEach(function(r){var e=els[r.id];list.appendChild(e);
+      e.querySelector('u').textContent=String(o.indexOf(r)+1).padStart(2,'0');
+      e.querySelector('v').textContent=xp(r).toLocaleString('en-IN');
+      e.querySelector('.fb').style.width=Math.round(xp(r)/lead*100)+'%';});
+    if(anim&&!reduce)A.forEach(function(r){
+      var e=els[r.id],dy=first[r.id]-e.getBoundingClientRect().top;
+      if(Math.abs(dy)>.5){e.style.transition='none';e.style.transform='translateY('+dy+'px)';
+        requestAnimationFrame(function(){
+          e.style.transition='transform 620ms cubic-bezier(.16,1,.3,1)';e.style.transform='';});}});
+    var mi=posMe(),ord=['first','second','third','fourth','fifth','sixth','seventh','eighth','ninth'];
+    if(mi>0){var need=xp(o[mi-1])-xp(o[mi])+1;
+      gap.innerHTML='<b style="font-size:12px">'+need.toLocaleString('en-IN')+' XP off '+ord[mi-1]+
+        '</b><span class="mono" style="color:var(--dim)">'+PLBL[P]+'</span>';}
+    else gap.innerHTML='<b style="font-size:12px">Top of your level</b><span class="mono" style="color:var(--dim)">'+PLBL[P]+'</span>';
+    paintBrk();
+  }
+
+  [].forEach.call(document.getElementById('periods').children,function(b){
+    b.onclick=function(){
+      if(P===b.dataset.p) return;
+      P=b.dataset.p;
+      [].forEach.call(b.parentNode.children,function(x){
+        x.setAttribute('aria-pressed',x===b?'true':'false');});
+      paint(true);
+      say('Board switched',PLBL[P]);
+    };
+  });
+
+  paint(false);
+
+  function say(m,v){tmsg.textContent=m;tval.textContent=v||'';
+    toast.classList.remove('show');void toast.offsetWidth;toast.classList.add('show');}
+  function bump(id){var e=els[id];e.classList.remove('bump');void e.offsetWidth;e.classList.add('bump');}
+
+  function award(id,amt){
+    var before=posMe(), r=A.filter(function(x){return x.id===id;})[0];
+    /* one approval lands on all three boards at once */
+    r.w+=amt; r.m+=amt; r.a+=amt;
+    if(r.me){ BRK.w[0][1]+=amt; BRK.m[0][1]+=amt; BRK.a[1][1]+=amt; }
+    flash(id==='me'?10:3); paint(true);
+    var after=posMe();
+    if(id!=='me'&&after>before){ bump('me');bump(id);
+      say(els[id].querySelector('n').textContent+' passed you','−'+(after-before));
+      if(cur!=='ranks') tabsEl.querySelector('[data-tab="ranks"]').classList.add('has'); }
+  }
+
+  /* live */
+  var liveOn=true;
+  (function loop(){ setTimeout(function(){
+    if(liveOn){var p=A.filter(function(x){return !x.me;});
+      award(p[Math.floor(Math.random()*p.length)].id,15+Math.floor(Math.random()*55));}
+    loop();},4600+Math.random()*2800);})();
+  setInterval(function(){document.getElementById('nowc').textContent=2+Math.floor(Math.random()*4);},9000);
+
+  /* controls */
+  document.getElementById('earn').onclick=function(){
+    award('me',60); flash(12); say('Approved — Away Fixture','+60 XP');
+    [].forEach.call(document.querySelectorAll('.xpv'),function(n){
+      n.textContent=(5400+60).toLocaleString('en-IN');});
+    tabsEl.querySelector('[data-tab="log"]').classList.add('has');
+  };
+  document.getElementById('rival').onclick=function(){
+    var p=A.filter(function(x){return !x.me;});
+    award(p[Math.floor(Math.random()*p.length)].id,40+Math.floor(Math.random()*80));
+  };
+  var pb=document.getElementById('pause');
+  pb.onclick=function(){liveOn=!liveOn;pb.textContent=liveOn?'Pause live':'Resume live';};
+  document.getElementById('pickbanner').onclick=function(){ say('Opens the pick-two menu','push'); };
+  document.getElementById('submitbtn').onclick=function(){ say('Opens the submission flow','push'); };
+
+  /* ====================== THE AVATAR SHEET ====================== */
+  var scrim=document.getElementById('scrim'), sheet=document.getElementById('sheet'),
+      shb=document.getElementById('shbody'), sht=document.getElementById('shtitle'),
+      shback=document.getElementById('shback'), avb=document.getElementById('avbtn');
+  var kitSent=false;
+
+  var ICON={
+    code:'<rect x="1.5" y="3.5" width="12" height="8"/><path d="M4 7.5h2M8 7.5h3"/>',
+    cash:'<path d="M2 4.5h11v6H2zM2 7.5h11"/><circle cx="7.5" cy="7.5" r="1.6"/>',
+    ship:'<path d="M1.5 5.5h8v5h-8zM9.5 7h2.3l1.7 2v1.5h-4z"/><circle cx="4" cy="11.5" r="1.1"/><circle cx="10.6" cy="11.5" r="1.1"/>',
+    card:'<rect x="1.5" y="2.5" width="12" height="10"/><circle cx="5.5" cy="6" r="1.4"/><path d="M3 10.5c0-1.4 1.1-2.2 2.5-2.2S8 9.1 8 10.5M9.5 5.5h2.5M9.5 8h2"/>',
+    set :'<circle cx="7.5" cy="7.5" r="2.1"/><path d="M7.5 1.6v1.8M7.5 11.6v1.8M1.6 7.5h1.8M11.6 7.5h1.8M3.3 3.3l1.3 1.3M10.4 10.4l1.3 1.3M11.7 3.3l-1.3 1.3M4.6 10.4l-1.3 1.3"/>'
+  };
+
+  var MENU=[
+    {k:'code', t:'Your code',    s:'RIYA08 &middot; 35% off',        ic:'code', note:'14 orders this month'},
+    {k:'cash', t:'Earnings',     s:'&#8377;24,110 this month',  ic:'cash', note:'pays out 05 Nov'},
+    {k:'ship', t:'Shipments',    s:'1 on the way',                  ic:'ship', note:'', hot:true},
+    {k:'card', t:'Athlete card', s:'Share your level',              ic:'card', note:''},
+    {k:'set',  t:'Settings',     s:'Address, size, UPI, link',      ic:'set',  note:''}
+  ];
+
+  function menuHTML(){
+    return '<div class="idcard"><span class="big"></span><div><b>Riya Shetty</b>'+
+      '<em>@riya.runs &middot; Comfort Level - 1 &middot; OFC-0417</em></div></div>'+
+      '<div class="menu">'+MENU.map(function(m){
+        return '<button class="mrow" type="button" data-k="'+m.k+'">'+
+          '<svg viewBox="0 0 15 15" aria-hidden="true">'+ICON[m.ic]+'</svg>'+
+          '<span><b>'+m.t+'</b><em>'+m.s+'</em></span>'+
+          '<s'+(m.hot?' class="hot"':'')+'>'+(m.note||'')+'</s><i>&rsaquo;</i></button>';
+      }).join('')+'</div>'+
+      '<p style="font-size:10.5px;color:var(--dim);margin:4px 0 0;line-height:1.45;flex:none">'+
+      'Five screens, none of them worth a tab. An athlete opens any of these a handful of times a '+
+      'month &mdash; usually because something sent them here.</p>';
+  }
+
+  var VIEW={
+    code:function(){ return '<div class="codecard"><button type="button" data-cp="RIYA08">Copy</button>'+
+      '<div class="cd">RIYA08</div><div class="pc">35% off &middot; works everywhere</div></div>'+
+      '<div class="reflink"><span>offcomfrt.com/?ref=RIYA08</span>'+
+      '<button type="button" data-cp="?ref=RIYA08">Copy</button></div>'+
+      '<p style="font-size:10.5px;color:var(--dim);margin:0;line-height:1.45;flex:none">'+
+      'Use the link when the code is awkward &mdash; a Story sticker, a bio. It counts the same for '+
+      'thirty days even if they never type anything.</p>'+
+      '<div class="rule"></div><div class="kick">October</div>'+
+      '<div class="duo"><div><span class="lab">Orders</span><b>14</b><em>on your code</em></div>'+
+      '<div><span class="lab">Coins earned</span><b>3,684</b><em>from sales</em></div></div>'+
+      '<div class="settle"><div class="rowx" style="margin-bottom:6px">'+
+      '<span class="lab" style="margin:0">Coins &middot; available now</span>'+
+      '<b style="font-family:var(--m);font-size:15px;font-weight:700">2,940</b></div>'+
+      '<div class="sr"><s>Settling &middot; clears 23 Oct</s><b>+ 512</b></div>'+
+      '<div class="sr"><s>Settling &middot; clears 27 Oct</s><b>+ 232</b></div>'+
+      '<p style="font-size:10px;color:var(--dim);margin:7px 0 0;line-height:1.45">Coins from a sale '+
+      'clear fourteen days after the order, once the return window shuts. Coins from tasks are '+
+      'yours the moment the task is approved.</p></div>'; },
+
+    cash:function(){ return MONEY; },
+
+    ship:function(){
+      var k = kitSent
+        ? {t:'Level kit &middot; Comfort Level - 1',e:'DLV 9104 2277 &middot; out for delivery today',step:2}
+        : {t:'Level kit &middot; Comfort Level - 1',e:'DLV 9104 2277 &middot; picked up, Chandigarh',step:1};
+      return '<div class="kick">On the way</div>'+
+      '<div class="track"><b style="font-size:13px;font-weight:700;display:block">'+k.t+'</b>'+
+      '<em style="font-style:normal;font-family:var(--m);font-size:9px;letter-spacing:.07em;'+
+      'color:var(--dim)">'+k.e+'</em>'+
+      '<div class="tsteps">'+['Packed','Dispatched','In transit','Delivered'].map(function(x,i){
+        return '<div class="ts'+(i<k.step?' done':i===k.step?' now':'')+'">'+x+'</div>'; }).join('')+
+      '</div></div>'+
+      '<p style="font-size:10.5px;color:var(--dim);margin:0;line-height:1.45;flex:none">'+
+      'The delivery scan is what starts your first task on this level &mdash; nothing is due until '+
+      'the kit is in your hands.</p>'+
+      '<div class="rule"></div><div class="kick">Everything sent to you</div>'+
+      '<div>'+[
+        ['Hoodie &middot; M','Redemption &middot; 900 coins','Delivered 24 Sep',false],
+        ['Level kit &middot; M','Promotion prize','Delivered 05 Sep',false],
+        ['Starter kit &middot; M','Seeding','Delivered 19 Dec',false]
+      ].map(function(r){ return '<div class="shiprow"><div><b>'+r[0]+'</b><em>'+r[1]+'</em></div>'+
+        '<span class="chipk">'+r[2]+'</span></div>'; }).join('')+'</div>'+
+      '<button class="dangerbtn" type="button" data-say="Opens the address form on a single-use link">'+
+      'Change my address</button>'; },
+
+    card:function(){ return '<div class="acard"><div class="dialwrap">'+
+      '<svg class="dial" viewBox="0 0 48 48" width="56" height="56" aria-hidden="true" id="d3"></svg>'+
+      '</div><h5>Comfort<br>Level - 1</h5><div class="hd2">@riya.runs</div>'+
+      '<div class="meta"><div><em>XP</em><b>5,400</b></div>'+
+      '<div><em>Since</em><b>Dec</b></div><div><em>Rank</em><b>07</b></div></div></div>'+
+      '<button class="dangerbtn" type="button" data-say="Renders a 1080&times;1350 PNG server-side">'+
+      'Save as image</button>'+
+      '<p style="font-size:10.5px;color:var(--dim);margin:0;line-height:1.45;flex:none">'+
+      'The only screen built to leave the app. It carries the level and the handle and nothing '+
+      'else &mdash; no rupees, no address, no standing score &mdash; because it is designed to be '+
+      'posted.</p>'; },
+
+    set:function(){ return '<div><div class="setrow"><div><b>Shipping address</b>'+
+      '<em>Bandra West, Mumbai 400050</em></div><span class="chipk">Edit</span></div>'+
+      '<div class="setrow"><div><b>Size</b><em>Tops M &middot; Bottoms M</em></div>'+
+      '<span class="chipk">Edit</span></div>'+
+      '<div class="setrow"><div><b>UPI for payouts</b><em>riya@okaxis &middot; name matched</em></div>'+
+      '<span class="chipk go">Verified</span></div></div>'+
+      '<div class="rule"></div><div class="kick">Preferences</div>'+
+      '<div><div class="setrow"><div><b>Show me on the leaderboard</b>'+
+      '<em>Off means you still earn, you just stop appearing</em></div>'+
+      '<button class="sw" type="button" aria-pressed="true" aria-label="Leaderboard"></button></div>'+
+      '<div class="setrow"><div><b>WhatsApp nudges</b>'+
+      '<em>Deadlines and approvals only. Never marketing.</em></div>'+
+      '<button class="sw" type="button" aria-pressed="true" aria-label="Nudges"></button></div></div>'+
+      '<div class="rule"></div><div class="kick">Where you are signed in</div>'+
+      '<div>'+[['This phone &middot; Android','Mumbai &middot; now',true],
+               ['Chrome &middot; Windows','Mumbai &middot; 12 Sep',false]]
+        .map(function(d){ return '<div class="shiprow"><div><b>'+d[0]+'</b><em>'+d[1]+'</em></div>'+
+          '<span class="chipk'+(d[2]?' go':'')+'">'+(d[2]?'current':'sign out')+'</span></div>'; }).join('')+
+      '</div>'+
+      '<button class="dangerbtn" type="button" id="signoutall">Sign out everywhere</button>'+
+      '<p style="font-size:10.5px;color:var(--dim);margin:0;line-height:1.45;flex:none">'+
+      'Use this if you have lost a phone. Every session ends, including this one, and you sign in '+
+      'again with a fresh code.</p>'; }
+  };
+
+  var MONEY='<div class="kick">October earnings</div>'+
+    '<div class="money">'+
+    '<div class="mr"><span>Attributed net</span><b>&#8377;1,84,200</b></div>'+
+    '<div class="mr"><span>Commission at 15%</span><b>&#8377;27,630</b></div>'+
+    '<div class="mr"><span>Less self-purchase</span><b>&minus;&#8377;2,400</b></div>'+
+    '<div class="mr"><span>Less refunds</span><b>&minus;&#8377;1,120</b></div>'+
+    '<div class="mr tot"><span>Pays out 05 Nov</span><b>&#8377;24,110</b></div></div>'+
+    '<div class="rowx" style="font-family:var(--m);font-size:9px;letter-spacing:.09em;'+
+    'text-transform:uppercase;color:var(--dim);flex:none"><span>To riya@okaxis</span>'+
+    '<span>UPI verified</span></div>'+
+    '<div class="rule"></div><div class="kick">Last three months</div>'+
+    '<div>'+[['September','&#8377;19,480'],['August','&#8377;14,210'],['July','&#8377;9,950']]
+      .map(function(r){ return '<div class="shiprow"><div><b>'+r[0]+'</b></div>'+
+        '<span style="font-family:var(--m);font-size:12px;font-weight:700">'+r[1]+'</span></div>';
+      }).join('')+'</div>';
+
+  function wire(){
+    [].forEach.call(shb.querySelectorAll('.mrow'),function(b){
+      b.onclick=function(){ go2(b.dataset.k); }; });
+    [].forEach.call(shb.querySelectorAll('[data-cp]'),function(b){
+      b.onclick=function(){ say('Copied', b.dataset.cp); }; });
+    [].forEach.call(shb.querySelectorAll('[data-say]'),function(b){
+      b.onclick=function(){ say(b.dataset.say,''); }; });
+    [].forEach.call(shb.querySelectorAll('.sw'),function(b){
+      b.onclick=function(){ var on=b.getAttribute('aria-pressed')==='true';
+        b.setAttribute('aria-pressed', on?'false':'true');
+        say(on?'Turned off':'Turned on',''); }; });
+    var sa=shb.querySelector('#signoutall');
+    if(sa) sa.onclick=function(){ closeSheet(); setTimeout(signOut,260); };
+    var d3=shb.querySelector('#d3'); if(d3) dialSVG(d3,1);
+  }
+
+  function go2(k){
+    var m=MENU.filter(function(x){return x.k===k;})[0];
+    sht.textContent=m.t; shback.style.display='';
+    shb.innerHTML=VIEW[k](); shb.scrollTop=0; wire();
+    if(k==='ship') avb.classList.remove('dot');
+  }
+  function root(){ sht.textContent='Account'; shback.style.display='none';
+    shb.innerHTML=menuHTML(); shb.scrollTop=0; wire(); }
+  function openSheet(){ root(); scrim.classList.add('on'); sheet.classList.add('on'); }
+  function closeSheet(){ scrim.classList.remove('on'); sheet.classList.remove('on'); }
+
+  avb.onclick=openSheet;
+  scrim.onclick=closeSheet;
+  document.getElementById('shclose').onclick=closeSheet;
+  shback.onclick=root;
+  document.addEventListener('keydown',function(e){
+    if(e.key==='Escape'&&sheet.classList.contains('on')) closeSheet(); });
+
+  /* ====================== LOGIN ====================== */
+  var login=document.getElementById('login'),
+      st1=document.getElementById('lstep1'), st2=document.getElementById('lstep2'),
+      phone=document.getElementById('phone'), sendc=document.getElementById('sendcode'),
+      lerr=document.getElementById('lerr'), lerr2=document.getElementById('lerr2'),
+      codein=document.getElementById('codein'), verify=document.getElementById('verify'),
+      sentto=document.getElementById('sentto');
+  var CODE='407318', typed='', attempts=0;
+
+  function drawCode(){
+    codein.innerHTML='';
+    for(var i=0;i<6;i++){ var e=document.createElement('i');
+      e.textContent=typed[i]||''; if(i===typed.length) e.className='f'; codein.appendChild(e); }
+    verify.disabled = typed.length!==6;
+  }
+  function fmt(v){ return v.length>5 ? v.slice(0,5)+' '+v.slice(5) : v; }
+
+  phone.oninput=function(){
+    var v=phone.value.replace(/\D/g,'').slice(0,10);
+    phone.value=fmt(v);
+    sendc.disabled = v.length!==10;
+    lerr.textContent='';
+  };
+  phone.onkeydown=function(e){ if(e.key==='Enter'&&!sendc.disabled) sendc.click(); };
+
+  sendc.onclick=function(){
+    var v=phone.value.replace(/\D/g,'');
+    /* a number that is not on the roster must look identical to one that is */
+    sentto.innerHTML='Sent on WhatsApp to +91 '+fmt(v)+
+      '. <b style="color:#fff">Valid 10 minutes.</b>';
+    st1.style.display='none'; st2.style.display='';
+    typed=''; attempts=0; drawCode();
+    setTimeout(function(){ codein.focus(); },30);
+  };
+
+  document.addEventListener('keydown',function(e){
+    if(login.classList.contains('gone')) return;
+    if(st2.style.display==='none') return;
+    if(e.metaKey||e.ctrlKey||e.altKey) return;
+    if(/^[0-9]$/.test(e.key)){ if(typed.length<6){ typed+=e.key; drawCode(); }
+      if(typed.length===6) verify.focus(); }
+    else if(e.key==='Backspace'){ e.preventDefault(); typed=typed.slice(0,-1); drawCode(); }
+    else if(e.key==='Enter'&&typed.length===6){ e.preventDefault(); verify.click(); }
+  });
+  codein.onclick=function(){ codein.setAttribute('tabindex','-1'); codein.focus(); };
+
+  verify.onclick=function(){
+    if(typed===CODE){ lerr2.textContent=''; signIn(); return; }
+    attempts++;
+    if(attempts>=5){
+      lerr2.textContent='Too many attempts. That code is dead \u2014 ask for a new one.';
+      verify.disabled=true; return; }
+    lerr2.textContent='Wrong code. '+(5-attempts)+' attempt'+(5-attempts===1?'':'s')+' left.';
+    typed=''; drawCode();
+  };
+  document.getElementById('resend').onclick=function(){
+    st2.style.display='none'; st1.style.display=''; typed=''; attempts=0;
+    lerr2.textContent=''; verify.disabled=true; phone.focus(); };
+
+  function signIn(){ login.classList.add('gone'); say('Signed in for 90 days','+91 \u00b7 ends 18'); }
+  function signOut(){
+    login.classList.remove('gone');
+    st2.style.display='none'; st1.style.display='';
+    typed=''; attempts=0; lerr2.textContent=''; verify.disabled=true;
+    phone.value=''; sendc.disabled=true;
+    if(cur!=='task') go('task');
+  }
+  document.getElementById('signout').onclick=signOut;
+
+  /* the demo starts signed in; the control below the phone brings this back */
+  login.classList.add('gone');
+
+  document.getElementById('openav').onclick=openSheet;
+  document.getElementById('kitship').onclick=function(){
+    kitSent=true; avb.classList.add('dot');
+    say('Your level kit is out for delivery','DLV 9104 2277');
+    if(sheet.classList.contains('on')&&sht.textContent==='Shipments') go2('ship'); };
+})();
+</script>

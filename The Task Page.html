@@ -1,0 +1,447 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>The Task Page</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap">
+
+<style>
+:root{
+  --sbg:#0B0B0B; --sdim:#8A8A8A; --sline:#232323; --spanel:#131313;
+  --f:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --m:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  --bg:#0A0A0A; --ink:#fff; --dim:rgba(255,255,255,.52); --line:rgba(255,255,255,.16);
+}
+*{box-sizing:border-box}
+html{color-scheme:dark}
+body{margin:0;background:var(--sbg);color:#fff;font-family:var(--f);font-size:15px;
+  line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px;margin:0 auto;padding:0 clamp(18px,4vw,44px) 110px}
+
+.head{padding:52px 0 26px;border-bottom:1px solid var(--sline)}
+.eyebrow{font-family:var(--m);font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;
+  color:var(--sdim);margin:0 0 16px}
+h1{font-weight:900;font-size:clamp(34px,6vw:68px);line-height:.93;letter-spacing:-.03em;
+  text-transform:uppercase;margin:0}
+h1{font-size:clamp(34px,6vw,64px)}
+.dek{font-size:17px;color:#B6B6B6;max-width:60ch;margin:18px 0 0}
+
+section{padding-top:56px}
+h2{font-weight:800;font-size:clamp(19px,2.4vw,25px);text-transform:uppercase;margin:0 0 8px;
+  padding-bottom:10px;border-bottom:1px solid var(--sline);display:grid;
+  grid-template-columns:auto 1fr;gap:12px;align-items:baseline}
+h2 .n{font-family:var(--m);font-size:11.5px;font-weight:700;color:var(--sdim)}
+p{margin:0 0 14px;max-width:70ch;color:#C6C6C6}
+p strong,li strong,td strong{color:#fff;font-weight:700}
+code{font-family:var(--m);font-size:.85em;background:#191919;border:1px solid var(--sline);
+  padding:1px 5px;color:#E2E2E2}
+
+/* ---------- stage ---------- */
+.stage{display:grid;grid-template-columns:minmax(0,370px) minmax(0,1fr);
+  gap:clamp(26px,4vw,52px);align-items:start;margin-top:26px}
+@media(max-width:860px){.stage{grid-template-columns:1fr}}
+
+.phone{position:relative;width:100%;max-width:370px;margin:0 auto;aspect-ratio:9/19.3;
+  border:2px solid #333;border-radius:34px;overflow:hidden;background:var(--bg);
+  box-shadow:0 0 0 1px #000,0 28px 64px rgba(0,0,0,.72)}
+
+/* ambient brick field behind everything */
+.field{position:absolute;inset:0;display:grid;grid-template-columns:repeat(12,1fr);
+  grid-template-rows:repeat(24,1fr);z-index:0}
+.bk{outline:.4px solid rgba(255,255,255,.045)}
+.bk.on{background:rgba(255,255,255,.105)}
+.bk.hit{animation:hit 1500ms ease-out}
+@keyframes hit{0%{background:rgba(255,255,255,.42)}100%{background:rgba(255,255,255,.105)}}
+
+.scr{position:absolute;inset:0;z-index:1;display:flex;flex-direction:column;
+  padding:22px 17px 13px;gap:12px;overflow:hidden;color:var(--ink)}
+
+/* entrance */
+.rise{opacity:0;transform:translateY(14px)}
+.go .rise{animation:rise .62s cubic-bezier(.16,1,.3,1) forwards}
+@keyframes rise{to{opacity:1;transform:none}}
+
+.top{display:flex;justify-content:space-between;align-items:center;font-family:var(--m);
+  font-size:8.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--dim)}
+.live{display:flex;align-items:center;gap:5px;color:#fff}
+.dotlive{width:5px;height:5px;border-radius:50%;background:#fff;animation:bp 2s ease-in-out infinite}
+@keyframes bp{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.28;transform:scale(.72)}}
+
+.kick{font-family:var(--m);font-size:8.5px;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--dim)}
+.hero{font-weight:900;font-size:30px;line-height:.95;letter-spacing:-.028em;text-transform:uppercase}
+.hero span{display:block;overflow:hidden}
+.hero span i{display:block;font-style:normal;transform:translateY(105%)}
+.go .hero span i{animation:lift .78s cubic-bezier(.16,1,.3,1) forwards}
+.go .hero span:nth-child(2) i{animation-delay:.09s}
+@keyframes lift{to{transform:none}}
+
+.clockrow{display:flex;justify-content:space-between;align-items:baseline;
+  border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:8px 0}
+.clock{font-family:var(--m);font-size:21px;letter-spacing:.02em;font-weight:700;
+  font-variant-numeric:tabular-nums}
+.clock .s{opacity:.5}
+.clocklab{font-family:var(--m);font-size:8px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--dim);display:block;margin-bottom:2px}
+.xpchip{font-family:var(--m);font-size:11px;border:1px solid var(--line);padding:4px 7px}
+
+.plate{position:relative;flex:1 1 auto;min-height:104px;overflow:hidden;
+  background:linear-gradient(150deg,#555,#0F0F0F 62%,#2C2C2C)}
+.plate i{position:absolute;inset:-14%;display:block;
+  background:inherit;animation:burns 22s ease-in-out infinite alternate}
+@keyframes burns{0%{transform:scale(1) translate(0,0)}100%{transform:scale(1.16) translate(-3%,-2%)}}
+.plate::after{content:"";position:absolute;inset:0;opacity:.3;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/><feColorMatrix type='saturate' values='0'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='.55'/></svg>")}
+.plate q{position:absolute;left:10px;right:10px;bottom:8px;z-index:2;font-size:11px;
+  line-height:1.35;quotes:none;text-shadow:0 1px 4px #000}
+.plate q b{display:block;font-family:var(--m);font-size:7.5px;letter-spacing:.14em;
+  text-transform:uppercase;color:rgba(255,255,255,.7);font-weight:400;margin-top:3px}
+
+.cta{position:relative;overflow:hidden;border:1px solid #fff;background:#fff;color:#000;
+  font-weight:800;font-size:12px;letter-spacing:.11em;text-transform:uppercase;text-align:center;
+  padding:13px;cursor:pointer;user-select:none}
+.cta::after{content:"";position:absolute;top:0;bottom:0;width:36%;
+  background:linear-gradient(90deg,transparent,rgba(0,0,0,.14),transparent);
+  transform:translateX(-160%);animation:sweep 4.6s cubic-bezier(.4,0,.2,1) infinite}
+@keyframes sweep{0%,62%{transform:translateX(-160%)}100%{transform:translateX(330%)}}
+.cta:active{transform:scale(.978)}
+
+.statrow{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center}
+.dial .lit{stroke-dasharray:21;stroke-dashoffset:21}
+.go .dial .lit{animation:draw .9s cubic-bezier(.16,1,.3,1) .3s forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+.dial .dark{opacity:0}
+.go .dial .dark{animation:fadein .5s linear .55s forwards}
+@keyframes fadein{to{opacity:.26}}
+.dial .num{fill:#fff;font-family:var(--f);font-weight:900;font-size:19px;letter-spacing:-.04em}
+.lvl{font-weight:800;font-size:14px;letter-spacing:.02em;text-transform:uppercase;line-height:1.1}
+.sub{font-family:var(--m);font-size:9px;color:var(--dim);letter-spacing:.05em;margin-top:3px}
+.xpbig{font-weight:900;font-size:22px;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.bar{height:2px;background:var(--line);position:relative;overflow:hidden;margin-top:7px}
+.bar i{position:absolute;inset:0 auto 0 0;background:#fff;width:0}
+.go .bar i{animation:fill 1.25s cubic-bezier(.16,1,.3,1) .35s forwards}
+@keyframes fill{to{width:var(--pct)}}
+
+.strip{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);
+  border:1px solid var(--line)}
+.strip div{background:var(--bg);padding:8px 9px}
+.strip dt{font-family:var(--m);font-size:7.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--dim);margin:0 0 3px}
+.strip dd{margin:0;font-weight:900;font-size:17px;letter-spacing:-.02em;line-height:1;
+  font-variant-numeric:tabular-nums}
+.strip dd s{text-decoration:none;font-family:var(--m);font-size:9px;font-weight:400;
+  color:var(--dim);margin-left:2px}
+.tick{margin-top:auto;border-top:1px solid var(--line);padding-top:9px;overflow:hidden;
+  position:relative;--mask:linear-gradient(90deg,transparent,#000 9%,#000 91%,transparent);
+  -webkit-mask-image:var(--mask);mask-image:var(--mask)}
+.tickrail{display:flex;gap:26px;width:max-content;animation:roll 26s linear infinite}
+.tickrail span{font-family:var(--m);font-size:9px;letter-spacing:.07em;color:var(--dim);
+  white-space:nowrap}
+.tickrail b{color:#fff;font-weight:500}
+@keyframes roll{to{transform:translateX(-50%)}}
+
+.nav{display:flex;justify-content:space-between;border-top:1px solid var(--line);padding-top:9px;
+  font-family:var(--m);font-size:7.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--dim)}
+.nav b{color:#fff}
+
+/* toast when XP lands */
+.toast{position:absolute;left:17px;right:17px;top:70px;z-index:3;border:1px solid #fff;
+  background:#fff;color:#000;padding:10px 12px;display:flex;justify-content:space-between;
+  align-items:center;font-weight:800;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;
+  opacity:0;transform:translateY(-14px) scale(.97);pointer-events:none}
+.toast.show{animation:toast 2800ms cubic-bezier(.16,1,.3,1) forwards}
+.toast i{font-family:var(--m);font-style:normal;font-size:12px}
+@keyframes toast{
+  0%{opacity:0;transform:translateY(-14px) scale(.97)}
+  9%{opacity:1;transform:none}
+  82%{opacity:1;transform:none}
+  100%{opacity:0;transform:translateY(-10px) scale(.99)}
+}
+
+/* ---------- controls + notes ---------- */
+.ctrl{display:flex;flex-direction:column;gap:12px}
+.btn{appearance:none;border:1px solid #fff;background:#fff;color:#000;font-family:var(--f);
+  font-weight:800;font-size:13px;letter-spacing:.07em;text-transform:uppercase;padding:13px 16px;
+  cursor:pointer;transition:transform .08s ease}
+.btn:active{transform:scale(.976)}
+.btn.ghost{background:transparent;color:#fff}
+.anno{display:grid;gap:1px;background:var(--sline);border:1px solid var(--sline)}
+.anno div{background:var(--spanel);padding:11px 14px;display:grid;grid-template-columns:1fr auto;
+  gap:10px;align-items:baseline}
+.anno b{font-size:13px;font-weight:700}
+.anno em{font-family:var(--m);font-size:9.5px;letter-spacing:.06em;color:var(--sdim);
+  font-style:normal;white-space:nowrap}
+.anno p{grid-column:1/-1;margin:3px 0 0;font-size:12.5px;color:#AEAEAE}
+
+.tw{overflow-x:auto;border:1px solid var(--sline);margin:0 0 20px}
+table{border-collapse:collapse;width:100%;font-size:13px;min-width:540px}
+th{text-align:left;font-weight:700;text-transform:uppercase;letter-spacing:.06em;font-size:11px;
+  padding:8px 13px;border-bottom:1px solid #333}
+td{padding:8px 13px;border-bottom:1px solid var(--sline);vertical-align:top;color:#C0C0C0}
+tbody tr:last-child td{border-bottom:0}
+td.mono{font-family:var(--m);font-size:11.5px}
+.note{border-left:2px solid #fff;background:var(--spanel);padding:14px 18px;margin:0 0 20px;max-width:72ch}
+.note .lbl{font-family:var(--m);font-size:9px;letter-spacing:.16em;text-transform:uppercase;
+  display:block;margin-bottom:7px;color:var(--sdim)}
+.note p:last-child{margin-bottom:0}
+.rules{counter-reset:r;list-style:none;padding:0;margin:0}
+.rules li{counter-increment:r;display:grid;grid-template-columns:26px 1fr;gap:12px;padding:11px 0;
+  border-bottom:1px solid var(--sline);margin:0;max-width:74ch;font-size:14px;color:#C6C6C6}
+.rules li:last-child{border-bottom:0}
+.rules li::before{content:counter(r);font-family:var(--m);font-size:11px;color:var(--sdim);padding-top:3px}
+.foot{margin-top:58px;padding-top:20px;border-top:1px solid var(--sline);font-size:12.5px;
+  color:var(--sdim);max-width:70ch}
+:focus-visible{outline:2px solid #fff;outline-offset:2px}
+
+@media(prefers-reduced-motion:reduce){
+  .rise,.hero span i,.dial .lit,.dial .dark,.bar i{animation:none!important;opacity:1!important;
+    transform:none!important;stroke-dashoffset:0!important;opacity:1!important;width:var(--pct)!important}
+  .tickrail,.plate i,.cta::after,.dotlive,.bk.hit{animation:none!important}
+  .toast.show{animation:none!important;opacity:1;transform:none}
+}
+</style>
+
+<div class="wrap">
+
+<header class="head">
+  <p class="eyebrow">Offcomfrt &middot; Athlete Program &middot; Task Page</p>
+  <h1>The Task<br>Page</h1>
+  <p class="dek">Nine things move on this screen, and every one of them is answering a question the
+  athlete actually has. Press the buttons &mdash; it's running, not a picture.</p>
+</header>
+
+<section id="demo">
+<h2><span class="n">01</span><span>Live</span></h2>
+
+<div class="stage">
+  <div class="phone">
+    <div class="field" id="field"></div>
+    <div class="scr" id="scr">
+      <div class="top rise" style="animation-delay:.02s">
+        <span>Thu 09 Oct &middot; 06:14</span>
+        <span class="live"><i class="dotlive"></i><span id="now">3</span>&nbsp;out there now</span>
+      </div>
+
+      <div class="kick rise" style="animation-delay:.08s">One thing today</div>
+      <div class="hero">
+        <span><i>Ask a stranger</i></span>
+        <span><i>for one tip</i></span>
+      </div>
+
+      <div class="clockrow rise" style="animation-delay:.26s">
+        <div><span class="clocklab">Closes in</span>
+          <span class="clock" id="clock">17:45<span class="s">:12</span></span></div>
+        <span class="xpchip">+40 XP</span>
+      </div>
+
+      <div class="plate rise" style="animation-delay:.34s"><i></i>
+        <q>&ldquo;Walked into a place where nobody knew me. Hardest part was the door.&rdquo;
+        <b>Riya &middot; Comfort Level - 2 &middot; yesterday</b></q></div>
+
+      <div class="cta rise" id="cta" style="animation-delay:.42s">Open the brief</div>
+
+      <div class="statrow rise" style="animation-delay:.5s">
+        <svg class="dial" viewBox="0 0 54 54" width="52" height="52" aria-hidden="true"><path class="lit" d="M28.66 8.07 A19 19 0 0 1 44.49 19.58" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="butt"/><path class="dark" d="M45.51 22.73 A19 19 0 0 1 39.47 41.34" fill="none" stroke="#fff" stroke-width="1.4" opacity=".26" stroke-linecap="butt"/><path class="dark" d="M36.79 43.29 A19 19 0 0 1 17.21 43.29" fill="none" stroke="#fff" stroke-width="1.4" opacity=".26" stroke-linecap="butt"/><path class="dark" d="M14.53 41.34 A19 19 0 0 1 8.49 22.73" fill="none" stroke="#fff" stroke-width="1.4" opacity=".26" stroke-linecap="butt"/><path class="dark" d="M9.51 19.58 A19 19 0 0 1 25.34 8.07" fill="none" stroke="#fff" stroke-width="1.4" opacity=".26" stroke-linecap="butt"/><text class="num" x="27" y="34" text-anchor="middle">1</text></svg>
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:baseline">
+            <span class="lvl">Comfort<br>Level - 1</span>
+            <span class="xpbig" id="xp">0</span>
+          </div>
+          <div class="bar"><i style="--pct:54%"></i></div>
+          <div class="sub">4,600 to Zero Comfort</div>
+        </div>
+      </div>
+
+      <dl class="strip rise" style="animation-delay:.56s">
+        <div><dt>Streak</dt><dd>7<s>mo</s></dd></div>
+        <div><dt>October</dt><dd>460<s>xp</s></dd></div>
+        <div><dt>Board</dt><dd>#7<s>/180</s></dd></div>
+      </dl>
+
+      <div class="tick rise" style="animation-delay:.62s">
+        <div class="tickrail" id="rail"></div>
+      </div>
+
+      <div class="nav rise" style="animation-delay:.68s">
+        <b>Task</b><span>Climb</span><span>Board</span><span>Ranks</span><span>Log</span>
+      </div>
+    </div>
+    <div class="toast" id="toast"><span>Approved &mdash; The Away Fixture</span><i>+60 XP</i></div>
+  </div>
+
+  <div class="ctrl">
+    <button class="btn" id="replay">Replay the open</button>
+    <button class="btn ghost" id="earn">Simulate a task approval</button>
+
+    <div class="anno">
+      <div><b>Live countdown</b><em>1s tick</em>
+        <p>The strongest device on the screen and the cheapest to build. Seconds dimmed to 50% so the
+        minute reads first and the ticking is felt rather than watched.</p></div>
+      <div><b>Headline lift</b><em>780ms &middot; 90ms stagger</em>
+        <p>Each line rises out of its own clipped box. Reads as weight rather than a fade, and it
+        makes the task the first thing the eye lands on.</p></div>
+      <div><b>Ambient brick field</b><em>one flash / ~3.5s</em>
+        <p>The background <em>is</em> the brick field from the level mechanic, filled to their real
+        progress &mdash; the faint water line across the lower half is 54% of the way to Zero Comfort.
+        Every few seconds one brick flashes: somebody just earned XP. Nothing to read, but the screen
+        is never still and it is never lying.</p></div>
+      <div><b>Slow push on the photo</b><em>22s &middot; alternate</em>
+        <p>A 16% scale drift over twenty-two seconds. Too slow to notice, fast enough that the screen
+        feels alive if you sit on it.</p></div>
+      <div><b>Light sweep on the CTA</b><em>4.6s loop</em>
+        <p>A soft band crossing the button every few seconds. Replaces the pulse-scale cliché &mdash;
+        it reads mechanical, which suits the brand, and it never moves the layout.</p></div>
+      <div><b>Dial draws itself</b><em>1.1s &middot; 250ms in</em>
+        <p>Stroke-dashoffset from empty to current. Progress that arrives rather than progress that
+        was already there.</p></div>
+      <div><b>XP counts up</b><em>1.2s</em>
+        <p>From zero to the real number on every open. The count is the reward &mdash; never jump-cut
+        a number you want someone to feel.</p></div>
+      <div><b>The ticker</b><em>26s linear loop</em>
+        <p>What other athletes did, scrolling continuously, masked at both edges. The only element
+        that is different every single day without your team touching it.</p></div>
+      <div><b>Approval toast</b><em>2.8s</em>
+        <p>Drops in, holds, lifts away. Fires the XP count-up and a burst of brick flashes underneath
+        it. The one moment the screen is allowed to shout.</p></div>
+    </div>
+  </div>
+</div>
+</section>
+
+<section id="why">
+<h2><span class="n">02</span><span>Why these nine and not others</span></h2>
+<p>Every animation on the screen answers a question the athlete arrived with. Motion that answers
+nothing is the thing that makes an app feel cheap.</p>
+<div class="tw"><table>
+<thead><tr><th style="width:28%">Their question</th><th>What moves to answer it</th></tr></thead>
+<tbody>
+<tr><td><strong>&ldquo;How long have I got?&rdquo;</strong></td><td>The ticking clock. A static &ldquo;due today&rdquo; label is ignorable; a second hand is not.</td></tr>
+<tr><td><strong>&ldquo;What am I supposed to do?&rdquo;</strong></td><td>The headline lifting into place before anything else settles. It arrives first and it arrives heaviest.</td></tr>
+<tr><td><strong>&ldquo;Is anyone else actually doing this?&rdquo;</strong></td><td>The live count with its breathing dot, the quote from yesterday, and the ticker. Three different answers to the same anxiety.</td></tr>
+<tr><td><strong>&ldquo;Am I getting anywhere?&rdquo;</strong></td><td>The dial drawing and the XP counting. Progress that animates in reads as progress you made; progress already drawn reads as a fact about you.</td></tr>
+<tr><td><strong>&ldquo;Is this thing alive?&rdquo;</strong></td><td>The brick flashes and the slow push on the photo. Neither carries information. Both stop the screen reading as a document.</td></tr>
+</tbody></table></div>
+
+<div class="note"><span class="lbl">The one to keep if you cut everything else</span>
+<p><strong>The countdown.</strong> It is six lines of JavaScript, it needs no design, and it changes
+the emotional register of the whole screen from a list of things to a thing that is happening. Every
+other animation here is a refinement; that one is load-bearing.</p></div>
+</section>
+
+<section id="rules">
+<h2><span class="n">03</span><span>Rules for motion on this screen</span></h2>
+<ol class="rules">
+<li><strong>Nothing moves that isn't answering a question.</strong> Decoration is how motion starts feeling like a loading screen. Every animation above maps to a line in &sect;02.</li>
+<li><strong>Nothing loops faster than four seconds.</strong> The sweep is 4.6s, the photo 22s, the ticker 26s. Anything quicker gets noticed, and anything noticed on the fifth visit is annoying by the tenth.</li>
+<li><strong>One thing is allowed to shout, once.</strong> The approval toast. If the celebration also fires on open, on scroll, or on a pull-to-refresh, it stops being a celebration.</li>
+<li><strong>The entrance runs once per session, not per navigation.</strong> Coming back from the Brief screen should not replay the whole open &mdash; set a flag and skip straight to the settled state.</li>
+<li><strong>Transforms and opacity only.</strong> The one exception is the progress bar's width, which is cheap because it animates once. Nothing else touches layout.</li>
+<li><strong>Everything degrades to still.</strong> <code>prefers-reduced-motion</code> lands every element in its final state with no transition. The screen loses nothing except the theatre.</li>
+<li><strong>Time is local and honest.</strong> The countdown runs against the athlete's own clock in IST. A deadline that is wrong by a timezone is worse than no deadline at all.</li>
+</ol>
+</section>
+
+<div class="foot">
+<p><strong>FM-OFC-06 &middot; Task Page &middot; companion to FM-OFC-04 and FM-OFC-05.</strong>
+The grey plate stands in for athlete photography. Grounds shift with Comfort Level per FM-OFC-04;
+this screen is drawn on the Comfort Level - 1 ground.</p>
+</div>
+
+</div>
+
+<script>
+(function(){
+  var reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var scr=document.getElementById('scr'), field=document.getElementById('field'),
+      rail=document.getElementById('rail'), clock=document.getElementById('clock'),
+      xpEl=document.getElementById('xp'), toast=document.getElementById('toast'),
+      nowEl=document.getElementById('now');
+  var XP=5400, bricks=[];
+
+  /* ambient field — filled to the athlete's progress, with occasional activity */
+  var COLS=12, ROWS=24, N=COLS*ROWS, turned=Math.round(N*0.54);
+  (function(){
+    var order=[];
+    for(var r=ROWS-1;r>=0;r--) for(var c=0;c<COLS;c++) order.push(r*COLS+c);
+    var frag=document.createDocumentFragment();
+    for(var i=0;i<N;i++){ var d=document.createElement('div'); d.className='bk';
+      frag.appendChild(d); bricks.push(d); }
+    field.appendChild(frag);
+    order.slice(0,turned).forEach(function(i){ bricks[i].classList.add('on'); });
+  })();
+  function flash(n){
+    if(reduce) return;
+    for(var k=0;k<(n||1);k++){
+      (function(d){ setTimeout(function(){
+        var b=bricks[Math.floor(Math.random()*N)];
+        b.classList.remove('hit'); void b.offsetWidth; b.classList.add('hit');
+      }, d); })(k*90);
+    }
+  }
+  if(!reduce) setInterval(function(){ flash(1); }, 3500);
+
+  /* live countdown to 23:59 local */
+  function tick(){
+    var d=new Date(), end=new Date(d); end.setHours(23,59,0,0);
+    var s=Math.max(0,Math.floor((end-d)/1000));
+    var hh=String(Math.floor(s/3600)).padStart(2,'0');
+    var mm=String(Math.floor(s%3600/60)).padStart(2,'0');
+    var ss=String(s%60).padStart(2,'0');
+    clock.innerHTML=hh+':'+mm+'<span class="s">:'+ss+'</span>';
+  }
+  tick(); setInterval(tick,1000);
+
+  /* "out there now" drifts slowly */
+  if(!reduce) setInterval(function(){
+    var v=2+Math.floor(Math.random()*4); nowEl.textContent=v;
+  }, 9000);
+
+  /* ticker — duplicated for a seamless loop */
+  var FEED=[
+    ['@neha.runs','trained at a gym she had never been to'],
+    ['@smit.trains','asked a stranger to critique his squat'],
+    ['@dee.moves','wrote to her first coach after eleven years'],
+    ['@arjun.pulls','took a yoga class, came last at everything'],
+    ['@kabir.lifts','reached Zero Comfort'],
+    ['@the.late.lift','trained outside in the rain']
+  ];
+  (function(){
+    var html='';
+    for(var pass=0;pass<2;pass++)
+      FEED.forEach(function(f){ html+='<span><b>'+f[0]+'</b> '+f[1]+'</span>'; });
+    rail.innerHTML=html;
+  })();
+
+  /* count XP up */
+  function count(to,ms){
+    var t0=performance.now(), from=0;
+    (function step(now){
+      var p=Math.min(1,(now-t0)/ms), e=1-Math.pow(1-p,3);
+      xpEl.textContent=Math.round(from+(to-from)*e).toLocaleString('en-IN');
+      if(p<1) requestAnimationFrame(step);
+    })(t0);
+  }
+
+  function open(){
+    scr.classList.remove('go'); void scr.offsetWidth; scr.classList.add('go');
+    if(reduce){ xpEl.textContent=XP.toLocaleString('en-IN'); return; }
+    setTimeout(function(){ count(XP,1200); }, 420);
+  }
+  open();
+
+  document.getElementById('replay').onclick=open;
+  document.getElementById('cta').onclick=function(){ open(); };
+  document.getElementById('earn').onclick=function(){
+    toast.classList.remove('show'); void toast.offsetWidth; toast.classList.add('show');
+    flash(14);
+    var from=XP; XP+=60;
+    var t0=performance.now();
+    (function step(now){
+      var p=Math.min(1,(now-t0)/1100), e=1-Math.pow(1-p,3);
+      xpEl.textContent=Math.round(from+(XP-from)*e).toLocaleString('en-IN');
+      if(p<1) requestAnimationFrame(step);
+    })(t0);
+  };
+})();
+</script>
+
+</body></html>

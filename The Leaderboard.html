@@ -1,0 +1,432 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>The Leaderboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap">
+
+<style>
+:root{
+  --sbg:#0B0B0B; --sdim:#8A8A8A; --sline:#232323; --spanel:#131313;
+  --f:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --m:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  --bg:#0A0A0A; --ink:#fff; --dim:rgba(255,255,255,.52); --line:rgba(255,255,255,.16);
+}
+*{box-sizing:border-box}
+html{color-scheme:dark}
+body{margin:0;background:var(--sbg);color:#fff;font-family:var(--f);font-size:15px;
+  line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px;margin:0 auto;padding:0 clamp(18px,4vw,44px) 110px}
+
+.head{padding:52px 0 26px;border-bottom:1px solid var(--sline)}
+.eyebrow{font-family:var(--m);font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;
+  color:var(--sdim);margin:0 0 16px}
+h1{font-weight:900;font-size:clamp(34px,6vw,64px);line-height:.93;letter-spacing:-.03em;
+  text-transform:uppercase;margin:0}
+.dek{font-size:17px;color:#B6B6B6;max-width:60ch;margin:18px 0 0}
+
+section{padding-top:56px}
+h2{font-weight:800;font-size:clamp(19px,2.4vw,25px);text-transform:uppercase;margin:0 0 8px;
+  padding-bottom:10px;border-bottom:1px solid var(--sline);display:grid;
+  grid-template-columns:auto 1fr;gap:12px;align-items:baseline}
+h2 .n{font-family:var(--m);font-size:11.5px;font-weight:700;color:var(--sdim)}
+p{margin:0 0 14px;max-width:70ch;color:#C6C6C6}
+p strong,li strong,td strong{color:#fff;font-weight:700}
+code{font-family:var(--m);font-size:.85em;background:#191919;border:1px solid var(--sline);
+  padding:1px 5px;color:#E2E2E2}
+
+.stage{display:grid;grid-template-columns:minmax(0,370px) minmax(0,1fr);
+  gap:clamp(26px,4vw,52px);align-items:start;margin-top:26px}
+@media(max-width:860px){.stage{grid-template-columns:1fr}}
+
+.phone{position:relative;width:100%;max-width:370px;margin:0 auto;aspect-ratio:9/19.3;
+  border:2px solid #333;border-radius:34px;overflow:hidden;background:var(--bg);
+  box-shadow:0 0 0 1px #000,0 28px 64px rgba(0,0,0,.72)}
+
+.field{position:absolute;inset:0;display:grid;grid-template-columns:repeat(12,1fr);
+  grid-template-rows:repeat(24,1fr);z-index:0}
+.bk{outline:.4px solid rgba(255,255,255,.045)}
+.bk.on{background:rgba(255,255,255,.085)}
+.bk.hit{animation:hit 1400ms ease-out}
+@keyframes hit{0%{background:rgba(255,255,255,.4)}100%{background:rgba(255,255,255,.085)}}
+
+.scr{position:absolute;inset:0;z-index:1;display:flex;flex-direction:column;
+  padding:22px 15px 13px;gap:11px;overflow:hidden;color:var(--ink)}
+
+.rise{opacity:0;transform:translateY(13px)}
+.go .rise{animation:rise .6s cubic-bezier(.16,1,.3,1) forwards}
+@keyframes rise{to{opacity:1;transform:none}}
+
+.top{display:flex;justify-content:space-between;align-items:center;font-family:var(--m);
+  font-size:8.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--dim)}
+.live{display:flex;align-items:center;gap:5px;color:#fff}
+.dotlive{width:5px;height:5px;border-radius:50%;background:#fff;animation:bp 2s ease-in-out infinite}
+@keyframes bp{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.26;transform:scale(.7)}}
+
+.hero{font-weight:900;font-size:31px;line-height:.95;letter-spacing:-.028em;text-transform:uppercase}
+.hero span{display:block;overflow:hidden}
+.hero span i{display:block;font-style:normal;transform:translateY(105%)}
+.go .hero span i{animation:lift .76s cubic-bezier(.16,1,.3,1) forwards}
+@keyframes lift{to{transform:none}}
+
+.clockrow{display:flex;justify-content:space-between;align-items:baseline;
+  border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:7px 0}
+.clock{font-family:var(--m);font-size:17px;font-weight:700;font-variant-numeric:tabular-nums}
+.clock .s{opacity:.48}
+.clocklab{font-family:var(--m);font-size:7.5px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--dim);display:block;margin-bottom:2px}
+.resets{font-family:var(--m);font-size:8px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--dim);text-align:right;line-height:1.4}
+
+/* ---------- the list ---------- */
+.list{display:flex;flex-direction:column;position:relative}
+.row{position:relative;display:grid;grid-template-columns:20px 1fr auto;gap:8px;align-items:center;
+  padding:6px 7px;margin:0 -7px;overflow:hidden;will-change:transform}
+.row .fillbar{position:absolute;inset:0 auto 0 0;background:rgba(255,255,255,.055);width:0;
+  transition:width .9s cubic-bezier(.16,1,.3,1)}
+.row u{position:relative;font-family:var(--m);font-size:9.5px;color:var(--dim);text-decoration:none;
+  font-variant-numeric:tabular-nums}
+.row n{position:relative;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+.row v{position:relative;font-family:var(--m);font-size:11px;font-variant-numeric:tabular-nums}
+.row.top1 n{font-weight:800}
+.row.me{background:#fff;color:#000;font-weight:800}
+.row.me u,.row.me v{color:#000}
+.row.me .fillbar{background:rgba(0,0,0,.09)}
+.row.bump{animation:bump 900ms cubic-bezier(.16,1,.3,1)}
+@keyframes bump{0%{box-shadow:inset 0 0 0 2px #fff}100%{box-shadow:inset 0 0 0 0 transparent}}
+.row.gain v{animation:gain 900ms ease-out}
+@keyframes gain{0%{transform:translateY(-7px);opacity:.3}100%{transform:none;opacity:1}}
+
+.gap{display:flex;justify-content:space-between;align-items:baseline;
+  border-top:1px solid var(--line);padding-top:8px}
+.gap b{font-size:13px;font-weight:800}
+.gap span{font-family:var(--m);font-size:9px;letter-spacing:.06em;color:var(--dim)}
+
+.plate{position:relative;flex:1 1 auto;min-height:74px;overflow:hidden;
+  background:linear-gradient(150deg,#565656,#101010 62%,#2D2D2D)}
+.plate i{position:absolute;inset:-14%;background:inherit;
+  animation:burns 24s ease-in-out infinite alternate}
+@keyframes burns{0%{transform:scale(1)}100%{transform:scale(1.15) translate(-3%,-2%)}}
+.plate::after{content:"";position:absolute;inset:0;opacity:.3;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/><feColorMatrix type='saturate' values='0'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='.55'/></svg>")}
+.plate q{position:absolute;left:10px;right:10px;bottom:7px;z-index:2;quotes:none;font-size:11px;
+  line-height:1.3;text-shadow:0 1px 4px #000}
+.plate q b{display:block;font-family:var(--m);font-size:7.5px;letter-spacing:.14em;
+  text-transform:uppercase;color:rgba(255,255,255,.72);font-weight:400;margin-top:3px}
+
+.nav{display:flex;justify-content:space-between;border-top:1px solid var(--line);padding-top:9px;
+  font-family:var(--m);font-size:7.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--dim)}
+.nav b{color:#fff}
+
+.toast{position:absolute;left:15px;right:15px;top:66px;z-index:3;border:1px solid #fff;background:#fff;
+  color:#000;padding:9px 11px;display:flex;justify-content:space-between;align-items:center;
+  font-weight:800;font-size:11px;letter-spacing:.05em;text-transform:uppercase;opacity:0;
+  transform:translateY(-12px);pointer-events:none}
+.toast i{font-family:var(--m);font-style:normal;font-size:11px}
+.toast.show{animation:toast 2700ms cubic-bezier(.16,1,.3,1) forwards}
+@keyframes toast{0%{opacity:0;transform:translateY(-12px) scale(.97)}
+  9%{opacity:1;transform:none}80%{opacity:1;transform:none}
+  100%{opacity:0;transform:translateY(-8px) scale(.99)}}
+
+/* ---------- controls + notes ---------- */
+.ctrl{display:flex;flex-direction:column;gap:12px}
+.btn{appearance:none;border:1px solid #fff;background:#fff;color:#000;font-family:var(--f);
+  font-weight:800;font-size:13px;letter-spacing:.07em;text-transform:uppercase;padding:13px 16px;
+  cursor:pointer;transition:transform .08s ease}
+.btn:active{transform:scale(.976)}
+.btn.ghost{background:transparent;color:#fff}
+.anno{display:grid;gap:1px;background:var(--sline);border:1px solid var(--sline)}
+.anno div{background:var(--spanel);padding:11px 14px;display:grid;grid-template-columns:1fr auto;
+  gap:10px;align-items:baseline}
+.anno b{font-size:13px;font-weight:700}
+.anno em{font-family:var(--m);font-size:9.5px;letter-spacing:.06em;color:var(--sdim);
+  font-style:normal;white-space:nowrap}
+.anno p{grid-column:1/-1;margin:3px 0 0;font-size:12.5px;color:#AEAEAE}
+
+.tw{overflow-x:auto;border:1px solid var(--sline);margin:0 0 20px}
+table{border-collapse:collapse;width:100%;font-size:13px;min-width:520px}
+th{text-align:left;font-weight:700;text-transform:uppercase;letter-spacing:.06em;font-size:11px;
+  padding:8px 13px;border-bottom:1px solid #333}
+td{padding:8px 13px;border-bottom:1px solid var(--sline);vertical-align:top;color:#C0C0C0}
+tbody tr:last-child td{border-bottom:0}
+.note{border-left:2px solid #fff;background:var(--spanel);padding:14px 18px;margin:0 0 20px;max-width:72ch}
+.note .lbl{font-family:var(--m);font-size:9px;letter-spacing:.16em;text-transform:uppercase;
+  display:block;margin-bottom:7px;color:var(--sdim)}
+.note p:last-child{margin-bottom:0}
+.rules{counter-reset:r;list-style:none;padding:0;margin:0}
+.rules li{counter-increment:r;display:grid;grid-template-columns:26px 1fr;gap:12px;padding:11px 0;
+  border-bottom:1px solid var(--sline);margin:0;max-width:74ch;font-size:14px;color:#C6C6C6}
+.rules li:last-child{border-bottom:0}
+.rules li::before{content:counter(r);font-family:var(--m);font-size:11px;color:var(--sdim);padding-top:3px}
+.foot{margin-top:58px;padding-top:20px;border-top:1px solid var(--sline);font-size:12.5px;
+  color:var(--sdim);max-width:70ch}
+:focus-visible{outline:2px solid #fff;outline-offset:2px}
+
+@media(prefers-reduced-motion:reduce){
+  .rise,.hero span i{animation:none!important;opacity:1!important;transform:none!important}
+  .row,.row .fillbar{transition:none!important}
+  .row.bump,.row.gain v,.plate i,.dotlive,.bk.hit{animation:none!important}
+  .toast.show{animation:none!important;opacity:1;transform:none}
+}
+</style>
+
+<div class="wrap">
+
+<header class="head">
+  <p class="eyebrow">Offcomfrt &middot; Athlete Program &middot; Leaderboard</p>
+  <h1>The<br>Leaderboard</h1>
+  <p class="dek">A leaderboard has one thing no other screen has: it can change while you are looking
+  at it. Everything here is built around that. Leave it open &mdash; positions move on their own.</p>
+</header>
+
+<section id="demo">
+<h2><span class="n">01</span><span>Live</span></h2>
+
+<div class="stage">
+  <div class="phone">
+    <div class="field" id="field"></div>
+    <div class="scr" id="scr">
+      <div class="top rise" style="animation-delay:.02s">
+        <span>October</span>
+        <span class="live"><i class="dotlive"></i>Live</span>
+      </div>
+
+      <div class="hero"><span><i>The board</i></span></div>
+
+      <div class="clockrow rise" style="animation-delay:.2s">
+        <div><span class="clocklab">Resets in</span>
+          <span class="clock" id="clock">9d 04:12<span class="s">:33</span></span></div>
+        <span class="resets">Top 3 stay pinned<br>for a week after</span>
+      </div>
+
+      <div class="list rise" id="list" style="animation-delay:.28s"></div>
+
+      <div class="gap rise" id="gapline" style="animation-delay:.52s">
+        <b>45 XP off sixth</b><span>one Reel</span>
+      </div>
+
+      <div class="plate rise" style="animation-delay:.58s"><i></i>
+        <q>&ldquo;Won it in the last four days. Did a task every single night.&rdquo;
+        <b>September winner &middot; @kabir.lifts</b></q></div>
+
+      <div class="nav rise" style="animation-delay:.64s">
+        <span>Task</span><span>Climb</span><span>Board</span><b>Ranks</b><span>Log</span>
+      </div>
+    </div>
+    <div class="toast" id="toast"><span id="tmsg">Passed</span><i id="tval"></i></div>
+  </div>
+
+  <div class="ctrl">
+    <button class="btn" id="replay">Replay the open</button>
+    <button class="btn ghost" id="rival">Make a rival earn</button>
+    <button class="btn ghost" id="mine">Make me earn &mdash; +60 XP</button>
+    <button class="btn ghost" id="pause">Pause live</button>
+
+    <div class="anno">
+      <div><b>Rows move for real</b><em>620ms &middot; FLIP</em>
+        <p>When XP changes the list re-sorts and every row <em>slides</em> to its new position rather
+        than snapping. Measure each row's position, re-order, apply the inverse transform, release.
+        Standard FLIP &mdash; about fifteen lines and it is the single thing that makes a leaderboard
+        feel alive instead of printed.</p></div>
+      <div><b>Being passed is an event</b><em>toast + 900ms flash</em>
+        <p>If somebody overtakes you, their row and yours both flash a white inset border and a toast
+        names them. Getting passed should sting slightly. That sting is the entire motivational
+        engine of a leaderboard.</p></div>
+      <div><b>Your row is inverted</b><em>white on black</em>
+        <p>The one place the system spends its single accent. You can find yourself in a list of
+        180 without reading a word, and it holds wherever you sit.</p></div>
+      <div><b>Bars behind the rows</b><em>900ms fill</em>
+        <p>Each row carries a fill proportional to the leader's score. It turns a column of numbers
+        into a shape, which is how people actually read standings.</p></div>
+      <div><b>Reset countdown</b><em>1s tick</em>
+        <p>Days plus a ticking clock. A monthly board with no visible clock is just a ranking; with
+        one it is a deadline. Urgency climbs by itself in the last week.</p></div>
+      <div><b>The gap line</b><em>recalculates live</em>
+        <p><em>&ldquo;45 XP off sixth &mdash; one Reel&rdquo;.</em> Never show a raw gap. Price it in
+        a task they know how to do, and it updates every time anything moves.</p></div>
+      <div><b>Ambient brick field</b><em>flash per event</em>
+        <p>Same field as every other screen. A brick flashes whenever anyone on the board scores, so
+        peripheral vision registers activity before the list does.</p></div>
+      <div><b>Last month's winner</b><em>22s slow push</em>
+        <p>A face and one line about how they did it. Keeps the previous cycle alive for a week and
+        quietly tells everyone what winning actually took.</p></div>
+    </div>
+  </div>
+</div>
+</section>
+
+<section id="why">
+<h2><span class="n">02</span><span>What a leaderboard has to survive</span></h2>
+<p>Most leaderboards die for the same three reasons. Each has a fix, and all three fixes are on
+this screen.</p>
+<div class="tw"><table>
+<thead><tr><th style="width:30%">Failure</th><th>Fix</th></tr></thead>
+<tbody>
+<tr><td><strong>The order stops changing</strong></td><td>Monthly reset. A lifetime board is won permanently by whoever joined first, and the day the order freezes is the day people stop opening it.</td></tr>
+<tr><td><strong>The bottom two-thirds disengage</strong></td><td>Top ten public, your own row pinned wherever you sit, and the gap priced in one task. Nobody has to read their position as hopeless.</td></tr>
+<tr><td><strong>It becomes a commission table</strong></td><td>Rank on work delivered, never on rupees. Sales-ranked boards expose earnings between athletes and make small-audience creators permanently invisible.</td></tr>
+</tbody></table></div>
+
+<div class="note"><span class="lbl">The one that does the most work</span>
+<p><strong>The overtake animation.</strong> A static leaderboard is a document; a leaderboard where
+you watched someone slide past you is a competition. It costs about fifteen lines of FLIP and it is
+the difference between a screen people check once a month and a screen they leave open.</p></div>
+</section>
+
+<section id="rules">
+<h2><span class="n">03</span><span>Rules for this screen</span></h2>
+<ol class="rules">
+<li><strong>Never animate a position change the athlete caused themselves without showing the number first.</strong> XP lands, the value flashes, <em>then</em> the row moves. Reversing that order reads as a glitch.</li>
+<li><strong>Only notify on being passed, never on passing.</strong> Telling someone they overtook a rival invites gloating and makes the board feel like a fight. Being passed is private and motivating; passing should be something they notice themselves.</li>
+<li><strong>Cap the live updates.</strong> Poll at most every thirty seconds in production, and batch anything that arrives together. A board that reshuffles every two seconds is noise, not life.</li>
+<li><strong>Opted-out athletes vanish from the public ten but keep their own row.</strong> Per &sect;1.10 of the field manual. Their position still counts; their handle just is not shown.</li>
+<li><strong>Freeze the board for the final hour of the month.</strong> A position that changes at 23:58 on the 31st feels arbitrary. Announce the freeze and let the last hour be suspense rather than churn.</li>
+<li><strong>The gap line is always one task away from true.</strong> If the nearest rival is 400 XP ahead, say so plainly rather than pricing it in nine Reels. An honest impossible gap is better than a dishonest achievable one.</li>
+</ol>
+</section>
+
+<div class="foot">
+<p><strong>FM-OFC-07 &middot; Leaderboard &middot; companion to FM-OFC-04, 05 and 06.</strong>
+Leaderboard rules &mdash; monthly reset, top ten, opt-out, approved XP only &mdash; are specified in
+the field manual at &sect;1.10. Grey plate stands in for athlete photography.</p>
+</div>
+
+</div>
+
+<script>
+(function(){
+  var reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var scr=document.getElementById('scr'), field=document.getElementById('field'),
+      list=document.getElementById('list'), clock=document.getElementById('clock'),
+      gapline=document.getElementById('gapline'), toast=document.getElementById('toast'),
+      tmsg=document.getElementById('tmsg'), tval=document.getElementById('tval');
+
+  /* ambient field */
+  var COLS=12, ROWS=24, N=COLS*ROWS, bricks=[];
+  (function(){
+    var frag=document.createDocumentFragment();
+    for(var i=0;i<N;i++){var d=document.createElement('div');d.className='bk';frag.appendChild(d);bricks.push(d);}
+    field.appendChild(frag);
+    var order=[]; for(var r=ROWS-1;r>=0;r--) for(var c=0;c<COLS;c++) order.push(r*COLS+c);
+    order.slice(0,Math.round(N*0.46)).forEach(function(i){bricks[i].classList.add('on');});
+  })();
+  function flash(n){
+    if(reduce)return;
+    for(var k=0;k<(n||1);k++)(function(d){setTimeout(function(){
+      var b=bricks[Math.floor(Math.random()*N)];
+      b.classList.remove('hit');void b.offsetWidth;b.classList.add('hit');},d);})(k*80);
+  }
+
+  /* data */
+  var A=[
+    {id:'k',h:'@kabir.lifts',xp:840},{id:'n',h:'@runs.with.neha',xp:720},
+    {id:'s',h:'@smit.trains',xp:690},{id:'a',h:'@arjun.pulls',xp:540},
+    {id:'l',h:'@thelatenight.lift',xp:505},{id:'d',h:'@dee.moves',xp:480},
+    {id:'me',h:'You',xp:460,me:true},{id:'p',h:'@priya.climbs',xp:430},
+    {id:'v',h:'@vik.rows',xp:395},{id:'t',h:'@tara.trains',xp:360}
+  ];
+  var els={};
+  A.forEach(function(r){
+    var e=document.createElement('div');
+    e.className='row'+(r.me?' me':''); e.dataset.id=r.id;
+    e.innerHTML='<div class="fillbar"></div><u></u><n>'+r.h+'</n><v></v>';
+    els[r.id]=e; list.appendChild(e);
+  });
+
+  function order(){ return A.slice().sort(function(a,b){return b.xp-a.xp;}); }
+  function posOf(id){ var o=order(); for(var i=0;i<o.length;i++) if(o[i].id===id) return i; return -1; }
+
+  function paint(animate){
+    var first={};
+    if(animate&&!reduce) A.forEach(function(r){ first[r.id]=els[r.id].getBoundingClientRect().top; });
+
+    var o=order(), lead=o[0].xp;
+    o.forEach(function(r,i){
+      var e=els[r.id]; list.appendChild(e);
+      e.classList.toggle('top1', i===0);
+      e.querySelector('u').textContent=String(i+1).padStart(2,'0');
+      e.querySelector('v').textContent=r.xp.toLocaleString('en-IN');
+      e.querySelector('.fillbar').style.width=Math.round(r.xp/lead*100)+'%';
+    });
+
+    if(animate&&!reduce) A.forEach(function(r){
+      var e=els[r.id], last=e.getBoundingClientRect().top, dy=first[r.id]-last;
+      if(Math.abs(dy)>0.5){
+        e.style.transition='none'; e.style.transform='translateY('+dy+'px)';
+        requestAnimationFrame(function(){
+          e.style.transition='transform 620ms cubic-bezier(.16,1,.3,1)'; e.style.transform='';
+        });
+      }
+    });
+
+    // gap line
+    var mi=posOf('me');
+    if(mi>0){
+      var ahead=o[mi-1], need=ahead.xp-o[mi].xp+1;
+      var ord=['first','second','third','fourth','fifth','sixth','seventh','eighth','ninth','tenth'][mi-1];
+      var price = need<=15?'one Story':need<=60?'one Reel':need<=130?'two Reels':Math.ceil(need/50)+' Reels';
+      gapline.innerHTML='<b>'+need.toLocaleString('en-IN')+' XP off '+ord+'</b><span>'+price+'</span>';
+    } else gapline.innerHTML='<b>Top of the board</b><span>hold it</span>';
+  }
+
+  function bump(id){ var e=els[id]; e.classList.remove('bump'); void e.offsetWidth; e.classList.add('bump'); }
+  function gained(id){ var e=els[id]; e.classList.remove('gain'); void e.offsetWidth; e.classList.add('gain'); }
+  function say(msg,val){
+    tmsg.textContent=msg; tval.textContent=val||'';
+    toast.classList.remove('show'); void toast.offsetWidth; toast.classList.add('show');
+  }
+
+  function award(id,amt){
+    var before=posOf('me');
+    var r=A.filter(function(x){return x.id===id;})[0];
+    r.xp+=amt; gained(id); flash(id==='me'?10:3);
+    paint(true);
+    var after=posOf('me');
+    if(id!=='me' && after>before){           // we got passed
+      bump('me'); bump(id);
+      say(r.h+' passed you','−'+(after-before));
+    } else if(id==='me' && after<before){    // we passed someone
+      bump('me');
+    }
+  }
+
+  /* month-end countdown */
+  function tick(){
+    var d=new Date(), end=new Date(d.getFullYear(), d.getMonth()+1, 1, 0,0,0,0);
+    var s=Math.max(0,Math.floor((end-d)/1000));
+    var dd=Math.floor(s/86400), hh=String(Math.floor(s%86400/3600)).padStart(2,'0'),
+        mm=String(Math.floor(s%3600/60)).padStart(2,'0'), ss=String(s%60).padStart(2,'0');
+    clock.innerHTML=dd+'d '+hh+':'+mm+'<span class="s">:'+ss+'</span>';
+  }
+  tick(); setInterval(tick,1000);
+
+  /* live mode */
+  var liveOn=true, timer=null;
+  function loop(){
+    timer=setTimeout(function(){
+      if(liveOn){
+        var pool=A.filter(function(x){return !x.me;});
+        award(pool[Math.floor(Math.random()*pool.length)].id, 15+Math.floor(Math.random()*55));
+      }
+      loop();
+    }, 4200+Math.random()*2600);
+  }
+
+  function open(){
+    scr.classList.remove('go'); void scr.offsetWidth; scr.classList.add('go');
+    paint(false);
+  }
+  open(); if(!reduce) loop();
+
+  document.getElementById('replay').onclick=open;
+  document.getElementById('rival').onclick=function(){
+    var pool=A.filter(function(x){return !x.me;});
+    award(pool[Math.floor(Math.random()*pool.length)].id, 30+Math.floor(Math.random()*70));
+  };
+  document.getElementById('mine').onclick=function(){ award('me',60); };
+  var pb=document.getElementById('pause');
+  pb.onclick=function(){ liveOn=!liveOn; pb.textContent=liveOn?'Pause live':'Resume live'; };
+})();
+</script>
+
+</body></html>
