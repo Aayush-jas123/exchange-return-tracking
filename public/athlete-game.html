@@ -75,7 +75,7 @@
 (()=>{
 const C=document.getElementById('gc'),X=C.getContext('2d');
 let W,H;
-function resize(){W=C.width=window.innerWidth*devicePixelRatio;H=C.height=window.innerHeight*devicePixelRatio;X.scale(1,1)}
+function resize(){const dpr=Math.min(devicePixelRatio,2);W=C.width=window.innerWidth*dpr;H=C.height=window.innerHeight*dpr;X.scale(1,1)}
 resize();window.addEventListener('resize',resize);
 
 const G=0.44,JV=-12.5,DJV=-10.8,BS=5.2,MS=11;
@@ -616,7 +616,7 @@ function render(){
   const z=getZ();
   X.save();
   // Camera — follows the player, anchored ~35% from the left so obstacles ahead stay visible
-  const zoom=2.05;
+  const zoom=3.5;
   if(me){
     const tx=me.x+me.w/2+W*.085,ty=me.y-me.h*.5+H*.028;
     camX+=(tx-camX)*.15;camY+=(ty-camY)*.12;
