@@ -117,6 +117,161 @@ let blds=[],obs=[],cns=[],pts=[],dst=[],clouds=[];
 let birds=[],pu=[]; // birds and powerups
 let nextBX=0;
 
+/* ── SPRITE ASSET GENERATION ─ */
+// All sprites generated once at init on offscreen canvases, cached, drawn via drawImage()
+function mkSprite(w,h,fn){const c=document.createElement('canvas');c.width=w;c.height=h;fn(c.getContext('2d'),w,h);return c}
+
+// Runner sprite: 48x56, white athletic figure with headband
+const SPR_RUN=mkSprite(48,56,(c,w,h)=>{
+  // Head
+  c.fillStyle='#f0f0f0';c.beginPath();c.arc(24,12,10,0,Math.PI*2);c.fill();
+  // Headband
+  c.fillStyle='#fff';c.fillRect(13,8,22,3);
+  // Headband tail
+  c.fillStyle='rgba(255,255,255,.6)';c.fillRect(8,7,8,2);
+  // Torso
+  c.fillStyle='#ddd';c.fillRect(18,22,12,16);
+  // Arms (running pose)
+  c.fillStyle='#ccc';c.fillRect(10,24,6,14);c.fillRect(32,24,6,14);
+  // Legs
+  c.fillStyle='#bbb';c.fillRect(18,38,6,14);c.fillRect(26,38,6,10);
+  // Shoes
+  c.fillStyle='#fff';c.fillRect(16,50,8,4);c.fillRect(26,46,8,4);
+  // Detail: shirt stripe
+  c.fillStyle='rgba(255,255,255,.15)';c.fillRect(18,28,12,2);
+});
+
+// Runner slide sprite: 56x24, horizontal sliding pose
+const SPR_SLIDE=mkSprite(56,24,(c,w,h)=>{
+  c.fillStyle='#f0f0f0';c.beginPath();c.arc(44,14,9,0,Math.PI*2);c.fill();
+  c.fillStyle='#fff';c.fillRect(34,10,18,3);
+  c.fillStyle='rgba(255,255,255,.5)';c.fillRect(28,9,8,2);
+  c.fillStyle='#ddd';c.fillRect(10,10,28,10);
+  c.fillStyle='#ccc';c.fillRect(2,10,10,5);
+  c.fillStyle='#bbb';c.fillRect(38,14,14,6);
+  c.fillStyle='#fff';c.fillRect(50,13,5,4);
+  // Slide dust
+  c.fillStyle='rgba(255,255,255,.08)';c.fillRect(0,18,14,3);
+});
+
+// Runner wall-climb sprite: 48x56
+const SPR_WALL=mkSprite(48,56,(c,w,h)=>{
+  c.fillStyle='#f0f0f0';c.beginPath();c.arc(22,12,10,0,Math.PI*2);c.fill();
+  c.fillStyle='#fff';c.fillRect(11,8,22,3);
+  c.fillStyle='#ddd';c.fillRect(16,22,14,14);
+  c.fillStyle='#ccc';c.fillRect(8,14,6,14);c.fillRect(34,10,6,16);
+  c.fillStyle='#bbb';c.fillRect(16,36,6,14);c.fillRect(26,34,6,16);
+  c.fillStyle='#fff';c.fillRect(14,48,8,4);c.fillRect(26,48,8,4);
+  // Grip sparks
+  c.fillStyle='rgba(255,255,255,.2)';c.fillRect(6,16,2,2);c.fillRect(40,12,2,2);
+});
+
+// Runner jump sprite: 48x56, tucked pose
+const SPR_JUMP=mkSprite(48,56,(c,w,h)=>{
+  c.fillStyle='#f0f0f0';c.beginPath();c.arc(24,10,10,0,Math.PI*2);c.fill();
+  c.fillStyle='#fff';c.fillRect(13,6,22,3);
+  c.fillStyle='rgba(255,255,255,.5)';c.fillRect(6,5,10,2);
+  c.fillStyle='#ddd';c.fillRect(18,20,12,14);
+  c.fillStyle='#ccc';c.fillRect(10,14,6,10);c.fillRect(32,14,6,10);
+  c.fillStyle='#bbb';c.fillRect(18,34,6,10);c.fillRect(26,34,6,10);
+  c.fillStyle='#fff';c.fillRect(16,42,8,4);c.fillRect(26,42,8,4);
+  // Motion lines
+  c.strokeStyle='rgba(255,255,255,.12)';c.lineWidth=1;
+  c.beginPath();c.moveTo(6,44);c.lineTo(2,44);c.stroke();
+  c.beginPath();c.moveTo(6,38);c.lineTo(3,38);c.stroke();
+});
+
+// Bird sprite: 48x24, dark crow with wing animation
+const SPR_BIRD=mkSprite(48,24,(c,w,h)=>{
+  // Body
+  c.fillStyle='#2a2a32';c.beginPath();c.ellipse(24,14,16,6,0,0,Math.PI*2);c.fill();
+  // Wings (mid-flap)
+  c.fillStyle='#353540';
+  c.beginPath();c.moveTo(20,12);c.lineTo(6,2);c.lineTo(12,10);c.closePath();c.fill();
+  c.beginPath();c.moveTo(28,12);c.lineTo(42,2);c.lineTo(36,10);c.closePath();c.fill();
+  // Head
+  c.fillStyle='#222228';c.beginPath();c.arc(36,11,5,0,Math.PI*2);c.fill();
+  // Beak
+  c.fillStyle='#c8a040';c.beginPath();c.moveTo(40,10);c.lineTo(46,11);c.lineTo(40,12);c.closePath();c.fill();
+  // Eye
+  c.fillStyle='#fff';c.fillRect(35,9,2,2);
+  // Tail
+  c.fillStyle='#303038';c.beginPath();c.moveTo(10,13);c.lineTo(2,10);c.lineTo(4,16);c.closePath();c.fill();
+  // Wing detail
+  c.strokeStyle='rgba(255,255,255,.06)';c.lineWidth=.5;
+  c.beginPath();c.moveTo(20,12);c.lineTo(10,5);c.stroke();
+});
+
+// Helicopter powerup sprite: 72x40
+const SPR_HELI=mkSprite(72,40,(c,w,h)=>{
+  // Glow
+  c.save();c.shadowColor='rgba(100,220,255,.25)';c.shadowBlur=10;
+  // Body
+  const bg=c.createLinearGradient(10,12,60,28);
+  bg.addColorStop(0,'rgba(80,200,240,.35)');bg.addColorStop(1,'rgba(60,180,220,.2)');
+  c.fillStyle=bg;
+  c.beginPath();c.moveTo(14,16);c.lineTo(44,12);c.lineTo(52,16);c.lineTo(52,28);c.lineTo(44,32);c.lineTo(14,30);c.closePath();c.fill();
+  c.strokeStyle='rgba(100,220,255,.3)';c.lineWidth=1;c.stroke();
+  c.restore();
+  // Cockpit glass
+  c.fillStyle='rgba(180,240,255,.25)';
+  c.beginPath();c.moveTo(16,17);c.lineTo(32,14);c.lineTo(34,28);c.lineTo(16,28);c.closePath();c.fill();
+  // Tail boom
+  c.fillStyle='rgba(80,200,240,.25)';c.fillRect(50,19,14,5);
+  // Tail fin
+  c.fillStyle='rgba(80,200,240,.3)';c.beginPath();c.moveTo(62,19);c.lineTo(66,11);c.lineTo(68,19);c.closePath();c.fill();
+  // Tail rotor
+  c.strokeStyle='rgba(180,240,255,.35)';c.lineWidth=1.5;c.beginPath();c.moveTo(65,8);c.lineTo(65,18);c.stroke();
+  // Rotor mast
+  c.fillStyle='rgba(100,220,255,.35)';c.fillRect(30,8,3,6);
+  // Main rotor blades
+  c.strokeStyle='rgba(180,240,255,.4)';c.lineWidth=2;
+  c.beginPath();c.moveTo(8,10);c.lineTo(56,10);c.stroke();
+  c.beginPath();c.moveTo(32,6);c.lineTo(32,14);c.stroke();
+  // Rotor blur disc
+  c.fillStyle='rgba(100,220,255,.04)';c.beginPath();c.ellipse(32,10,24,3,0,0,Math.PI*2);c.fill();
+  // Skids
+  c.strokeStyle='rgba(100,220,255,.25)';c.lineWidth=1;
+  c.beginPath();c.moveTo(18,34);c.lineTo(46,34);c.stroke();
+  c.beginPath();c.moveTo(22,30);c.lineTo(18,34);c.stroke();
+  c.beginPath();c.moveTo(42,30);c.lineTo(46,34);c.stroke();
+  // Detail line
+  c.strokeStyle='rgba(255,255,255,.06)';c.lineWidth=.5;c.beginPath();c.moveTo(18,22);c.lineTo(50,22);c.stroke();
+});
+
+// Coin sprite: 20x20
+const SPR_COIN=mkSprite(20,20,(c,w,h)=>{
+  c.save();c.translate(10,10);
+  c.shadowColor='rgba(255,210,80,.3)';c.shadowBlur=5;
+  c.fillStyle='#ffd855';c.beginPath();c.arc(0,0,8,0,Math.PI*2);c.fill();
+  c.fillStyle='#b8960a';c.beginPath();c.arc(0,0,6,0,Math.PI*2);c.fill();
+  c.fillStyle='rgba(255,255,255,.15)';c.beginPath();c.arc(-2,-2,3,0,Math.PI*2);c.fill();
+  c.restore();
+});
+
+// Pipe obstacle sprite: 64x16
+const SPR_PIPE=mkSprite(64,16,(c,w,h)=>{
+  const pg=c.createLinearGradient(0,0,0,16);
+  pg.addColorStop(0,'rgba(200,200,210,.4)');pg.addColorStop(.5,'rgba(160,160,170,.28)');pg.addColorStop(1,'rgba(120,120,130,.35)');
+  c.fillStyle=pg;c.fillRect(0,2,64,12);
+  c.fillStyle='rgba(255,255,255,.15)';c.fillRect(0,3,64,2);
+  c.fillStyle='rgba(0,0,0,.2)';c.fillRect(0,12,64,2);
+  c.fillStyle='rgba(255,255,255,.12)';
+  for(let rx=4;rx<60;rx+=8){c.fillRect(rx,3,3,3);c.fillRect(rx,10,3,3)}
+  c.fillStyle='rgba(180,180,190,.35)';c.fillRect(-2,0,4,16);c.fillRect(62,0,4,16);
+  // Warning stripes
+  c.fillStyle='rgba(255,200,50,.06)';for(let sx=0;sx<64;sx+=6)c.fillRect(sx,2,3,12);
+});
+
+// Wire obstacle sprite: 96x10
+const SPR_WIRE=mkSprite(96,10,(c,w,h)=>{
+  c.strokeStyle='rgba(180,180,190,.35)';c.lineWidth=1.5;
+  c.beginPath();c.moveTo(0,5);c.quadraticCurveTo(48,9,96,5);c.stroke();
+  c.fillStyle='rgba(200,200,210,.25)';
+  for(let ix=8;ix<88;ix+=14){c.beginPath();c.arc(ix,5+Math.sin(ix/48*Math.PI)*1.5,1.5,0,Math.PI*2);c.fill()}
+  c.fillStyle='rgba(160,160,170,.25)';c.fillRect(-1,1,3,8);c.fillRect(94,1,3,8);
+});
+
 /* BG layers */
 const stars=[];for(let i=0;i<100;i++)stars.push({x:Math.random()*W,y:Math.random()*H*.6,s:Math.random()*1.5+.2,sp:Math.random()*.08+.01,b:Math.random()*.5+.15});
 const farB=[];for(let bx=0;bx<W+400;){const bw=15+Math.random()*40;farB.push({x:bx,w:bw,h:50+Math.random()*130});bx+=bw+Math.random()*8}
@@ -465,40 +620,9 @@ function drawObs(o){
     X.fillStyle='rgba(255,200,100,.15)';X.fillRect(0,0,o.w,1.5);
     X.restore();
   } else if(o.type==='pipe'){
-    // Industrial pipe — must slide under
-    X.save();X.shadowColor='rgba(180,180,200,.15)';X.shadowBlur=8;
-    // Main pipe body
-    const pg=X.createLinearGradient(0,0,0,o.h);
-    pg.addColorStop(0,'rgba(200,200,210,.35)');pg.addColorStop(.5,'rgba(160,160,170,.25)');pg.addColorStop(1,'rgba(120,120,130,.3)');
-    X.fillStyle=pg;X.fillRect(0,0,o.w,o.h);
-    // Pipe highlight
-    X.fillStyle='rgba(255,255,255,.12)';X.fillRect(0,1,o.w,2);
-    // Pipe shadow
-    X.fillStyle='rgba(0,0,0,.2)';X.fillRect(0,o.h-2,o.w,2);
-    // Rivets/bolts
-    X.fillStyle='rgba(255,255,255,.15)';
-    for(let rx=4;rx<o.w-4;rx+=8){X.fillRect(rx,2,3,3);X.fillRect(rx,o.h-5,3,3)}
-    // Flange at ends
-    X.fillStyle='rgba(180,180,190,.3)';X.fillRect(-2,-2,4,o.h+4);X.fillRect(o.w-2,-2,4,o.h+4);
-    // Warning stripe
-    X.fillStyle='rgba(255,200,50,.08)';
-    for(let sx=0;sx<o.w;sx+=6){X.fillRect(sx,0,3,o.h)}
-    X.restore();
+    X.drawImage(SPR_PIPE,0,0,o.w,o.h);
   } else if(o.type==='wire'){
-    // Cable/wire — thin, must slide under
-    X.save();X.shadowColor='rgba(100,100,120,.2)';X.shadowBlur=4;
-    // Main cable
-    X.strokeStyle='rgba(180,180,190,.3)';X.lineWidth=2;
-    X.beginPath();X.moveTo(0,o.h/2);
-    // Slight sag in the middle
-    X.quadraticCurveTo(o.w/2,o.h/2+3,o.w,o.h/2);
-    X.stroke();
-    // Insulator beads
-    X.fillStyle='rgba(200,200,210,.25)';
-    for(let ix=6;ix<o.w-6;ix+=12){X.beginPath();X.arc(ix,o.h/2,2,0,Math.PI*2);X.fill()}
-    // Support brackets at ends
-    X.fillStyle='rgba(160,160,170,.2)';X.fillRect(-1,-3,3,o.h+6);X.fillRect(o.w-2,-3,3,o.h+6);
-    X.restore();
+    X.drawImage(SPR_WIRE,0,0,o.w,o.h);
   }
   X.restore();
 }
@@ -506,27 +630,10 @@ function drawObs(o){
 function drawBird(b){
   if(b.hit)return;
   X.save();X.translate(b.x,b.y);
-  // Wing flap animation
-  const wingY=Math.sin(b.wingPhase)*b.h*.6;
-  // Body
-  X.fillStyle='rgba(30,30,35,.7)';
-  X.beginPath();X.ellipse(0,0,b.w/2,b.h/3,0,0,Math.PI*2);X.fill();
-  // Left wing
-  X.fillStyle='rgba(40,40,45,.6)';
-  X.beginPath();X.moveTo(-2,0);X.lineTo(-b.w*.7,-wingY-b.h/2);X.lineTo(-b.w*.3,-wingY*.3);X.closePath();X.fill();
-  // Right wing
-  X.beginPath();X.moveTo(2,0);X.lineTo(b.w*.7,-wingY-b.h/2);X.lineTo(b.w*.3,-wingY*.3);X.closePath();X.fill();
-  // Head
-  X.fillStyle='rgba(25,25,30,.8)';
-  X.beginPath();X.arc(b.w*.35,-1,3,0,Math.PI*2);X.fill();
-  // Beak
-  X.fillStyle='rgba(200,160,60,.5)';
-  X.beginPath();X.moveTo(b.w*.35+2,-2);X.lineTo(b.w*.35+7,-1);X.lineTo(b.w*.35+2,0);X.closePath();X.fill();
-  // Eye
-  X.fillStyle='rgba(255,255,255,.6)';X.fillRect(b.w*.33,-3,1.5,1.5);
-  // Tail feathers
-  X.fillStyle='rgba(35,35,40,.5)';
-  X.beginPath();X.moveTo(-b.w*.4,0);X.lineTo(-b.w*.6,-2);X.lineTo(-b.w*.55,2);X.closePath();X.fill();
+  // Slight bob and tilt based on wing phase
+  const tilt=Math.sin(b.wingPhase)*.15;
+  X.rotate(tilt);
+  X.drawImage(SPR_BIRD,-b.w/2,-b.h/2,b.w,b.h);
   X.restore();
 }
 
@@ -538,47 +645,18 @@ function drawPowerup(p){
   X.save();X.translate(p.x,by);
   // Glow aura
   X.save();X.shadowColor='rgba(100,220,255,.3)';X.shadowBlur=16*glow;
-  X.fillStyle='rgba(100,220,255,'+(.08*glow)+')';
-  X.beginPath();X.ellipse(0,0,p.w/2+6,p.h/2+6,0,0,Math.PI*2);X.fill();
+  X.fillStyle='rgba(100,220,255,'+(.06*glow)+')';
+  X.beginPath();X.ellipse(0,0,p.w/2+8,p.h/2+8,0,0,Math.PI*2);X.fill();
   X.restore();
-  // Helicopter body
-  X.fillStyle='rgba(100,220,255,.25)';
-  X.fillRect(-p.w/2,-p.h/2,p.w,p.h);
-  // Cockpit
-  X.fillStyle='rgba(180,240,255,.3)';
-  X.fillRect(-p.w/2+4,-p.h/2+2,p.w/3,p.h-4);
-  // Tail boom
-  X.fillStyle='rgba(100,220,255,.2)';
-  X.fillRect(p.w/2-4,-2,p.w/3,4);
-  // Tail rotor
-  X.strokeStyle='rgba(180,240,255,.3)';X.lineWidth=1;
-  X.beginPath();X.moveTo(p.w/2+p.w/3-2,-6);X.lineTo(p.w/2+p.w/3-2,6);X.stroke();
-  // Main rotor
-  X.strokeStyle='rgba(180,240,255,'+(.3*glow)+')';X.lineWidth=1.5;
-  const rotorAngle=fr*.3;
-  X.beginPath();X.moveTo(-p.w/2+Math.cos(rotorAngle)*p.w/2,-p.h/2-2);X.lineTo(-p.w/2+Math.cos(rotorAngle+Math.PI)*p.w/2,-p.h/2-2);X.stroke();
-  // Rotor mast
-  X.fillStyle='rgba(100,220,255,.3)';X.fillRect(-2,-p.h/2-4,4,4);
-  // Skids
-  X.strokeStyle='rgba(100,220,255,.2)';X.lineWidth=1;
-  X.beginPath();X.moveTo(-p.w/3,p.h/2);X.lineTo(p.w/3,p.h/2);X.stroke();
-  X.beginPath();X.moveTo(-p.w/4,p.h/2-3);X.lineTo(-p.w/3,p.h/2);X.stroke();
-  X.beginPath();X.moveTo(p.w/4,p.h/2-3);X.lineTo(p.w/3,p.h/2);X.stroke();
-  // Label
-  X.fillStyle='rgba(100,220,255,'+(.4*glow)+')';
-  X.font='600 5px "JetBrains Mono"';X.textAlign='center';
-  X.fillText('HELI',0,p.h/2+8);
+  // Draw helicopter sprite
+  X.drawImage(SPR_HELI,-p.w/2-8,-p.h/2-4,p.w+16,p.h+8);
   X.restore();
 }
 
 function drawCoins(){
   cns.forEach(c=>{
     if(c.got)return;c.bob+=.04;const by=c.y+Math.sin(c.bob)*3;
-    X.save();X.translate(c.x,by);
-    X.shadowColor='rgba(255,210,80,.2)';X.shadowBlur=6;
-    X.fillStyle='#ffd855';X.beginPath();X.arc(0,0,c.r,0,Math.PI*2);X.fill();
-    X.fillStyle='#b8960a';X.beginPath();X.arc(0,0,c.r-2,0,Math.PI*2);X.fill();
-    X.shadowBlur=0;X.restore();
+    X.drawImage(SPR_COIN,c.x-c.r-2,by-c.r-2,(c.r+2)*2,(c.r+2)*2);
   });
 }
 
@@ -612,31 +690,20 @@ function drawRunner(p){
   }
   const col=p.col;
   if(p.ws){
-    X.fillStyle=col;X.fillRect(2,-36,10,10);X.fillRect(3,-26,8,14);
-    if(p.wd>0)X.fillRect(12,-24,6,2.5);else X.fillRect(-4,-24,6,2.5);
-    X.fillRect(3,-12,4,10);X.fillRect(8,-13,4,8);
+    X.drawImage(SPR_WALL,-12,-44,24,44);
   } else if(p.wc){
     const pr=1-p.ct/16;
-    X.fillStyle=col;X.fillRect(3,-36+pr*6,10,10);X.fillRect(4,-24+pr*4,8,12);
-    X.fillRect(0,-28+pr*3,5,2.5);X.fillRect(12,-28+pr*3,5,2.5);
+    X.drawImage(SPR_WALL,-12,-44+pr*6,24,44);
   } else if(p.sl){
-    X.fillStyle=col;X.fillRect(-1,-8,22,6);X.fillRect(16,-11,7,7);
+    X.drawImage(SPR_SLIDE,-14,-12,28,12);
     if(fr%2===0&&p.isMe)dst.push({x:p.x+4+Math.random()*5,y:p.y-1,vx:-Math.random()*1.5-.8,vy:-Math.random()*.8,s:.8+Math.random(),life:.35});
+  } else if(!p.gnd){
+    X.drawImage(SPR_JUMP,-12,-44,24,44);
+    if(p.jc>=2){X.save();X.globalAlpha*=.18;X.strokeStyle=col;X.lineWidth=1.2;X.beginPath();X.arc(0,-20,11,fr*.18,fr*.18+Math.PI*1.2);X.stroke();X.restore()}
+    if(p.isMe){X.save();X.shadowColor='rgba(255,255,255,.08)';X.shadowBlur=12;X.fillStyle='rgba(255,255,255,.02)';X.fillRect(-6,-42,13,42);X.shadowBlur=0;X.restore()}
   } else {
-    X.fillStyle=col;
-    X.fillRect(3,-40,9,9);
-    X.fillStyle=p.isMe?'rgba(255,255,255,.4)':'rgba(255,255,255,.18)';
-    X.fillRect(1,-38,12,2);
-    if(!p.gnd){X.fillRect(-3,-38,5,1.5);X.fillRect(-6,-39,4,1.5)}
-    else{const tw=Math.sin(fr*.08)*1.5;X.fillRect(-2,-38+tw,5,1.5)}
-    X.fillStyle=col;
-    X.fillRect(3,-30,8,12);
-    if(p.gnd){const f=p.rF%2;if(f===0){X.fillRect(-1,-28,4,2.5);X.fillRect(11,-24,4,2.5)}else{X.fillRect(-1,-24,4,2.5);X.fillRect(11,-28,4,2.5)}}
-    else{X.fillRect(-2,-32,4,2.5);X.fillRect(12,-32,4,2.5)}
-    if(p.gnd){const f=p.rF%2;if(f===0){X.fillRect(2,-18,4,14);X.fillRect(8,-18,4,8)}else{X.fillRect(2,-18,4,8);X.fillRect(8,-18,4,14)}}
-    else{X.fillRect(2,-18,4,5);X.fillRect(8,-18,4,5);
-      if(p.jc>=2){X.save();X.globalAlpha*=.18;X.strokeStyle=col;X.lineWidth=1.2;X.beginPath();X.arc(7,-20,11,fr*.18,fr*.18+Math.PI*1.2);X.stroke();X.restore()}}
-    if(!p.gnd&&p.isMe){X.save();X.shadowColor='rgba(255,255,255,.08)';X.shadowBlur=12;X.fillStyle='rgba(255,255,255,.02)';X.fillRect(0,-42,13,42);X.shadowBlur=0;X.restore()}
+    const bob=p.rF%2===0?0:-1.5;
+    X.drawImage(SPR_RUN,-12,-44+bob,24,44);
   }
   X.globalAlpha=1;X.restore();
   if(p.isMe&&(!p.gnd||p.sl||p.ws)){p.trail.push({x:p.x+6,y:p.y-(p.sl?3:p.ws?16:16),a:.3,s:2.5});p.scarf.push({x:p.x+4,y:p.y-36})}
