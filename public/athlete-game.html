@@ -99,6 +99,11 @@ let spd=BS,running=false,dead=false,fr=0,dist=0;
 let skX=0,skY=0,skD=0,fl=0;
 let bldCount=0; // tracks buildings spawned for gap scheduling
 
+/* ── CORRIDOR SYSTEM ─ */
+// Multi-building underground tunnel shortcuts spanning 4-5 buildings
+let corridor=null; // {startBldIdx, endBldIdx, length, floorY, entryX, exitX}
+let nextCorridorAt=8+Math.floor(Math.random()*5); // spawn first corridor after 8-12 buildings
+
 /* Player */
 function mkP(isMe,name,col){
   return{isMe,name,col,x:0,y:0,vy:0,w:24,h:44,gnd:false,jc:0,mj:2,
@@ -399,18 +404,48 @@ function spawnBld(){
   const fl=Math.floor(bH/32);
   const wc=Math.floor(w/24);
   const rt=Math.floor(Math.random()*8);
-  // Hollow building corridor — ~15% chance, creates alternate path through building
-  const hollow=w>200&&Math.random()<.15;
-  const corridorY=hollow?ry+50+Math.random()*30:0; // corridor floor below rooftop
-  const corridorH=hollow?35+Math.random()*15:0; // corridor height
   const b={x:bx,w,ry,h:bH,fl,wc,rt,ws:Math.random()*1e3,
     hr:Math.random()>.4,hd:Math.random()>.5,dx:bx+15+Math.random()*(w-35),
     hp:Math.random()>.5,px:bx+w-8-Math.random()*16,bd:Math.random()>.72,bs:Math.random()*6.28,
     neon:Math.random()>.75?['rgba(255,100,100,.08)','rgba(100,200,255,.08)','rgba(200,100,255,.08)'][Math.floor(Math.random()*3)]:null,
-    cracks:[],hollow,corridorY,corridorH};
+    cracks:[],
+    corridorRole:null}; // 'entry', 'mid', 'exit', or null
   if(Math.random()>.6)b.cracks=[{x:bx+Math.random()*w,y:ry+20+Math.random()*30,l:6+Math.random()*15}];
+
+  // Check if we should start a new corridor
+  if(!corridor&&bldCount>=nextCorridorAt&&w>150){
+    const span=4+Math.floor(Math.random()*2); // 4-5 buildings
+    const floorY=ry+80+Math.random()*40; // tunnel floor well below rooftop
+    corridor={
+      startIdx:blds.length,
+      span,
+      floorY,
+      entryX:bx+w*0.3,
+      buildings:[]
+    };
+    b.corridorRole='entry';
+    corridor.buildings.push(blds.length);
+  }
+  // Continue corridor
+  else if(corridor&&corridor.buildings.length<corridor.span){
+    b.corridorRole=corridor.buildings.length===0?'entry':'mid';
+    corridor.buildings.push(blds.length);
+    // End corridor
+    if(corridor.buildings.length>=corridor.span){
+      b.corridorRole='exit';
+      corridor.exitX=bx+w*0.7;
+      corridor.endIdx=blds.length;
+    }
+  }
+
   blds.push(b);
   bldCount++;
+
+  // Reset corridor tracker after corridor ends
+  if(corridor&&corridor.buildings.length>=corridor.span){
+    nextCorridorAt=bldCount+10+Math.floor(Math.random()*8); // next corridor in 10-17 buildings
+    corridor=null;
+  }
 
   // Ground obstacles — chance scales with difficulty
   if(Math.random()>d.spawnRate&&w>120){
@@ -793,6 +828,96 @@ function drawPowerup(p){
   X.restore();
 }
 
+/* ── CORRIDOR RENDERING ─ */
+function drawCorridor(){
+  if(!corridor||corridor.buildings.length<2)return;
+  const firstB=blds[corridor.buildings[0]];
+  const lastB=blds[corridor.buildings[corridor.buildings.length-1]];
+  if(!firstB||!lastB)return;
+
+  const floorY=corridor.floorY;
+  const tunnelH=50; // tunnel height
+  const ceilingY=floorY-tunnelH;
+  const entryX=firstB.x+firstB.w*0.3;
+  const exitX=lastB.x+lastB.w*0.7;
+
+  // Tunnel background (dark underground)
+  X.fillStyle='rgba(10,10,15,.85)';
+  X.fillRect(entryX,ceilingY,exitX-entryX,tunnelH);
+
+  // Tunnel floor
+  X.fillStyle='rgba(60,60,70,.6)';
+  X.fillRect(entryX,floorY-3,exitX-entryX,3);
+
+  // Tunnel ceiling
+  X.fillStyle='rgba(50,50,60,.5)';
+  X.fillRect(entryX,ceilingY,exitX-entryX,3);
+
+  // Tunnel walls (left and right)
+  X.fillStyle='rgba(40,40,50,.7)';
+  X.fillRect(entryX,ceilingY,4,tunnelH);
+  X.fillRect(exitX-4,ceilingY,4,tunnelH);
+
+  // Interior lights along the tunnel
+  for(let lx=entryX+20;lx<exitX-20;lx+=40){
+    // Light fixture
+    X.fillStyle='rgba(255,220,120,.4)';
+    X.fillRect(lx,ceilingY+5,12,4);
+    // Light glow
+    X.save();
+    X.shadowColor='rgba(255,200,100,.3)';
+    X.shadowBlur=8;
+    X.fillStyle='rgba(255,220,120,.15)';
+    X.beginPath();
+    X.arc(lx+6,ceilingY+12,8,0,Math.PI*2);
+    X.fill();
+    X.restore();
+  }
+
+  // Entry ramp (sloped entrance)
+  X.fillStyle='rgba(80,80,90,.5)';
+  X.beginPath();
+  X.moveTo(entryX-20,firstB.ry);
+  X.lineTo(entryX,firstB.ry);
+  X.lineTo(entryX,floorY);
+  X.lineTo(entryX-30,floorY+10);
+  X.closePath();
+  X.fill();
+
+  // Exit ramp (sloped exit)
+  X.fillStyle='rgba(80,80,90,.5)';
+  X.beginPath();
+  X.moveTo(exitX,lastB.ry);
+  X.lineTo(exitX+20,lastB.ry);
+  X.lineTo(exitX+30,floorY+10);
+  X.lineTo(exitX,floorY);
+  X.closePath();
+  X.fill();
+
+  // Entry sign
+  X.fillStyle='rgba(100,255,200,.6)';
+  X.font='bold 10px monospace';
+  X.textAlign='center';
+  X.fillText('SHORTCUT',entryX,ceilingY-8);
+  X.fillStyle='rgba(100,255,200,.4)';
+  X.font='bold 8px monospace';
+  X.fillText('▼ SLIDE TO ENTER ▼',entryX,ceilingY-18);
+
+  // Exit sign
+  X.fillStyle='rgba(100,200,255,.5)';
+  X.font='bold 9px monospace';
+  X.fillText('EXIT →',exitX,ceilingY-8);
+
+  // Tunnel border glow
+  X.save();
+  X.shadowColor='rgba(100,200,255,.2)';
+  X.shadowBlur=10;
+  X.strokeStyle='rgba(100,200,255,.3)';
+  X.lineWidth=2;
+  X.strokeRect(entryX,ceilingY,exitX-entryX,tunnelH);
+  X.restore();
+}
+
 function drawCoins(){
   cns.forEach(c=>{
     if(c.got)return;c.bob+=.04;const by=c.y+Math.sin(c.bob)*3;
@@ -1017,14 +1142,19 @@ function update(){
   }
 
     // Player physics
-  // Corridor mode — running through hollow building
-  if(me.corridor&&me.corridorBld){
-    const b=me.corridorBld;
-    // Lock to corridor floor
-    me.y=b.corridorY;me.vy=0;me.gnd=true;
-    // Check if exited building
-    if(me.x+me.w<b.x||me.x>b.x+b.w){
-      me.corridor=false;me.corridorBld=null;me.gnd=false;
+    // Corridor mode — running through underground tunnel shortcut
+  if(me.corridor&&corridor){
+    const floorY=corridor.floorY;
+    const exitX=blds[corridor.buildings[corridor.buildings.length-1]].x+blds[corridor.buildings[corridor.buildings.length-1]].w*0.7;
+    // Lock to corridor floor with faster speed (shortcut bonus)
+    me.y=floorY;me.vy=0;me.gnd=true;
+    spd=Math.min(spd*1.02,spd+0.1); // Slight speed boost in corridor
+    // Check if exited corridor
+    if(me.x>exitX){
+      me.corridor=false;me.gnd=false;
+      // Launch player up to rooftop level at exit
+      me.y=blds[corridor.buildings[corridor.buildings.length-1]].ry;
+      me.vy=-2; // Small hop out
     }
   }
   else if(me.wc){me.ct--;me.y+=CLS;if(me.ct<=0){me.wc=false;for(const b of blds){if(me.x+me.w>b.x&&me.x<b.x+b.w){me.y=b.ry;me.vy=0;me.gnd=true;me.jc=0;break}}}}
@@ -1112,6 +1242,7 @@ function render(){
   X.fillStyle=fog;X.fillRect(camX-W,camY-H,W*2,H*2);
   X.fillStyle='rgba(0,0,0,.45)';X.fillRect(0,H*.75,W,H*.25);
   blds.forEach(b=>drawBld(b,z));
+  drawCorridor(); // Draw tunnel corridors across buildings
   drawDst();drawCoins();obs.forEach(o=>drawObs(o));
   birds.forEach(b=>drawBird(b));
   pu.forEach(p=>drawPowerup(p));
@@ -1150,12 +1281,18 @@ function doJump(){
 function doSlide(){
   if(!running||dead)return;
   if(me.gnd&&!me.sl&&!me.ws&&!me.wc&&!me.heli&&!me.corridor){
-    // Check if on a hollow building — enter corridor instead of sliding
-    const bld=bldUnder(me);
-    if(bld&&bld.hollow){
-      me.corridor=true;me.corridorBld=bld;me.y=bld.corridorY;me.vy=0;me.gnd=true;
-      for(let i=0;i<4;i++)dst.push({x:me.x+Math.random()*me.w,y:me.y-2,vx:(Math.random()-.5)*1.5,vy:-Math.random()*.5,s:1+Math.random(),life:.3});
-      return;
+    // Check if at corridor entry point
+    if(corridor&&corridor.buildings.length>0){
+      const entryBld=blds[corridor.buildings[0]];
+      const entryX=entryBld.x+entryBld.w*0.3;
+      // Player is near entry point
+      if(Math.abs(me.x-entryX)<40){
+        me.corridor=true;
+        me.y=corridor.floorY;me.vy=0;me.gnd=true;
+        // Entry particles
+        for(let i=0;i<6;i++)dst.push({x:me.x+Math.random()*me.w,y:me.y-2,vx:(Math.random()-.5)*2,vy:-Math.random(),s:1+Math.random()*1.5,life:.4});
+        return;
+      }
     }
     me.sl=true;me.st=me.sm;
     for(let i=0;i<3;i++)dst.push({x:me.x+4+Math.random()*4,y:me.y-1,vx:-Math.random()*1.2-.8,vy:-Math.random()*.6,s:.8+Math.random(),life:.3});
