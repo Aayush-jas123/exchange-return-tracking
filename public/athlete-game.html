@@ -24,9 +24,9 @@
     .hud-v.sm{font-size:13px}
     .hud-pos{font:900 11px var(--m);letter-spacing:.08em;color:rgba(255,255,255,.5)}
     .hud-zone{font:600 8px var(--m);letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.2);transition:opacity .6s}
+    .hud-pu{font:700 10px var(--m);letter-spacing:.1em;text-transform:uppercase;color:rgba(100,220,255,.7);text-shadow:0 0 10px rgba(100,220,255,.3)}
     .prog{position:fixed;bottom:0;left:0;right:0;height:3px;z-index:2;background:rgba(255,255,255,.03)}
     .prog-fill{height:100%;background:rgba(255,255,255,.18);transition:width .3s;box-shadow:0 0 8px rgba(255,255,255,.1)}
-    .prog-dots{position:absolute;inset:0}
     .ov{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(6,6,8,.92);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);transition:opacity .4s}
     .ov.hidden{opacity:0;pointer-events:none}
     .ov h1{font:900 28px var(--f);letter-spacing:-.02em;text-transform:uppercase}
@@ -52,22 +52,25 @@
   <div class="hud hud-tl">
     <div class="hud-g"><span class="hud-l">Distance</span><span class="hud-v" id="sD">0m</span></div>
     <div class="hud-g" style="align-items:center"><span class="hud-zone" id="zL">Zone 1</span></div>
-    <div class="hud-g" style="align-items:end"><span class="hud-l">Position</span><span class="hud-pos" id="pD">—/5</span></div>
+    <div class="hud-g" style="align-items:end"><span class="hud-l">Best</span><span class="hud-v sm" id="hD">0m</span></div>
+  </div>
+  <div class="hud hud-bl" id="puHud" style="display:none">
+    <div class="hud-g"><span class="hud-pu" id="puLabel">HELICOPTER</span><span class="hud-v sm" id="puTimer">12s</span></div>
   </div>
   <div class="prog"><div class="prog-fill" id="pF" style="width:0%"></div></div>
 
   <div class="ov" id="sO">
     <h1>Rooftop Race</h1>
-    <p class="sub">Race across the city — 5000m</p>
-    <button class="pb" id="sB">Start race</button>
+    <p class="sub">Infinite rooftop runner — survive as long as you can</p>
+    <button class="pb" id="sB">Start run</button>
   </div>
   <div class="ov hidden" id="oO">
-    <p class="sub" id="oT">Race over</p>
+    <p class="sub" id="oT">Run over</p>
     <div class="fs" id="fS">0m</div>
     <div class="fl" id="fL">distance</div>
     <div class="nb hidden" id="nB">New record</div>
     <div class="res" id="resBox"></div>
-    <button class="pb" id="rB">Race again</button>
+    <button class="pb" id="rB">Run again</button>
   </div>
   <div class="ctrl-hint" id="cH">Tap right = Jump · Tap left = Slide · Hold jump = Higher · Wall = Grab & Climb</div>
 
@@ -78,9 +81,8 @@ let W,H;
 function resize(){const dpr=Math.min(devicePixelRatio,2);W=C.width=window.innerWidth*dpr;H=C.height=window.innerHeight*dpr;X.scale(1,1)}
 resize();window.addEventListener('resize',resize);
 
-const G=0.44,JV=-12.5,DJV=-10.8,BS=5.2,MS=11;
+const G=0.44,JV=-12.5,DJV=-10.8,BS=5.2;
 const WSS=1.5,CLS=-3;
-const RACE=30000;
 
 /* Zones */
 const ZN=[
@@ -92,9 +94,10 @@ const ZN=[
 ];
 let cZone=0;
 
-let sc=0,co=0,hi=+localStorage.getItem('off_rr_hi')||0;
-let spd=BS,running=false,dead=false,finished=false,fr=0,dist=0;
-let skX=0,skY=0,skD=0,fl=0,camShake=0;
+let hi=+localStorage.getItem('off_rr_hi')||0;
+let spd=BS,running=false,dead=false,fr=0,dist=0;
+let skX=0,skY=0,skD=0,fl=0;
+let bldCount=0; // tracks buildings spawned for gap scheduling
 
 /* Player */
 function mkP(isMe,name,col){
@@ -103,13 +106,15 @@ function mkP(isMe,name,col){
     rF:0,rT:0,trail:[],alive:true,jh:0,jhM:10,
     dist:0,sm2:.94+Math.random()*.12,fin:false,ft:0,
     aiT:0,aiN:50+Math.random()*50,
-    scarf:[],dustT:0};
+    scarf:[],dustT:0,
+    heli:false,heliT:0};
 }
 let me,runners=[];
 const AN=['@neha.runs','@kabir.lifts','@dee.moves','@smit.trains'];
 const AC=['rgba(255,170,90,.65)','rgba(90,170,255,.65)','rgba(170,110,255,.65)','rgba(90,255,170,.65)'];
 
 let blds=[],obs=[],cns=[],pts=[],dst=[],clouds=[];
+let birds=[],pu=[]; // birds and powerups
 let nextBX=0;
 
 /* BG layers */
@@ -125,21 +130,41 @@ const grainPat=X.createPattern(gnc,'repeat');
 const motes=[];for(let i=0;i<22;i++)motes.push({x:Math.random()*W,y:Math.random()*H,s:Math.random()*1.4+.4,sp:Math.random()*.5+.2,ph:Math.random()*6.28});
 
 /* DOM */
-const sD=document.getElementById('sD'),pD=document.getElementById('pD'),zL=document.getElementById('zL');
+const sD=document.getElementById('sD'),hD=document.getElementById('hD'),pD=document.getElementById('pD'),zL=document.getElementById('zL');
 const pF=document.getElementById('pF');
 const sO=document.getElementById('sO'),oO=document.getElementById('oO');
 const fS=document.getElementById('fS'),nB=document.getElementById('nB');
 const oT=document.getElementById('oT'),fL=document.getElementById('fL'),resBox=document.getElementById('resBox');
+const puHud=document.getElementById('puHud'),puLabel=document.getElementById('puLabel'),puTimer=document.getElementById('puTimer');
+
+hD.textContent=hi+'m';
+
+/* Difficulty curve — speed and spawn rates scale with distance */
+function getDiff(){
+  // Every 2000m is a "tier". Tiers stack indefinitely.
+  const tier=Math.floor(dist/2000);
+  return{
+    tier,
+    speedCap:11+tier*0.8,          // max speed grows per tier
+    spawnRate:Math.max(.55,.82-tier*.04), // obstacle chance decreases slightly but...
+    overheadRate:Math.min(.45,.12+tier*.04), // ...overhead obstacles increase
+    birdRate:Math.min(.012,.003+tier*.0012), // birds spawn more often
+    gapFreq:Math.max(3,6-Math.floor(tier/2)), // gaps every 3-6 buildings
+    heightSwing:Math.min(220,170+tier*8), // more dramatic heights
+    puRate:Math.max(.0008,.002-tier*.00015) // powerups slightly rarer at high tiers
+  };
+}
 
 function spawnBld(){
+  const d=getDiff();
   const minW=160,maxW=340;
   const hMin=H*.28,hMax=H*.72;
   const w=minW+Math.random()*(maxW-minW);
   const prevY=blds.length>0?blds[blds.length-1].ry:H*.55;
-  // Height varies very dramatically — swings up to ±170px between rooftops
-  let ry=prevY+(Math.random()-.5)*340;
+  const swing=d.heightSwing;
+  let ry=prevY+(Math.random()-.5)*swing*2;
   ry=Math.max(hMin,Math.min(hMax,ry));
-  // Chain off the last building's actual position — no gap, buildings touch
+  // Chain off the last building's actual position
   const bx=blds.length>0?blds[blds.length-1].x+blds[blds.length-1].w:nextBX;
   const bH=H-ry+40;
   const fl=Math.floor(bH/32);
@@ -152,10 +177,11 @@ function spawnBld(){
     cracks:[]};
   if(Math.random()>.6)b.cracks=[{x:bx+Math.random()*w,y:ry+20+Math.random()*30,l:6+Math.random()*15}];
   blds.push(b);
-  // Sparse obstacles — only 30% chance, max 1 per building
-  if(Math.random()>.7&&w>120){
+  bldCount++;
+
+  // Ground obstacles — chance scales with difficulty
+  if(Math.random()>d.spawnRate&&w>120){
     const ox=bx+30+Math.random()*(w-60);
-    // Slow-down hazards: mud, debris, puddle, barrier
     const ts=['mud','debris','puddle','barrier'];
     const t=ts[Math.floor(Math.random()*ts.length)];
     let o={x:ox,type:t,slowMul:.55,hit:false};
@@ -165,11 +191,79 @@ function spawnBld(){
     else{o.w=16;o.h=22;o.y=ry-o.h;o.slowMul=.35;o.mustJump=true}
     obs.push(o);
   }
+
+  // Overhead obstacles — pipes/wires that require sliding
+  // Spawn rate increases with difficulty
+  if(Math.random()>d.overheadRate&&w>140){
+    const ox=bx+20+Math.random()*(w-50);
+    const types=['pipe','wire'];
+    const t=types[Math.floor(Math.random()*types.length)];
+    let o={x:ox,type:t,slowMul:.4,hit:false};
+    if(t==='pipe'){
+      // Thick pipe — must slide under
+      o.w=28+Math.random()*20;o.h=14;
+      o.y=ry-55-Math.random()*15; // ~55-70px above roof
+      o.slowMul=.35;
+    } else {
+      // Wire/cable — thinner, lower
+      o.w=40+Math.random()*30;o.h=4;
+      o.y=ry-42-Math.random()*10; // ~42-52px above roof
+      o.slowMul=.45;
+    }
+    obs.push(o);
+  }
+
+  // Coins
   if(Math.random()>.3){const cx=bx+10+Math.random()*(w-20);cns.push({x:cx,y:ry-25-Math.random()*18,r:5,got:false,bob:Math.random()*6.28})}
+
+  // Building gap every N buildings — gap size grows with difficulty
+  const gapEvery=d.gapFreq;
+  if(bldCount%gapEvery===0&&bldCount>3){
+    const gapW=50+Math.random()*40+d.tier*5; // gaps get wider over time
+    nextBX=bx+w+gapW;
+    // Spawn a coin in the gap for risk/reward
+    if(Math.random()>.3){
+      cns.push({x:bx+w+gapW/2,y:ry-30-Math.random()*20,r:6,got:false,bob:Math.random()*6.28});
+    }
+  } else {
+    nextBX=bx+w;
+  }
+}
+
+function spawnBird(){
+  const d=getDiff();
+  const side=Math.random()>.5?1:-1;
+  const bx=side>0?W+30:-30;
+  const by=H*.15+Math.random()*H*.45;
+  const speed=2+Math.random()*2+d.tier*0.3;
+  birds.push({
+    x:bx,y:by,
+    vx:side>0?-speed:speed,
+    w:28+Math.random()*12,h:10+Math.random()*6,
+    wingPhase:Math.random()*6.28,
+    wingSpeed:.12+Math.random()*.06,
+    altitude:by, // target altitude for bobbing
+    bobPhase:Math.random()*6.28,
+    hit:false
+  });
+}
+
+function spawnPowerup(){
+  const d=getDiff();
+  const bx=W+40+Math.random()*200;
+  const by=H*.2+Math.random()*H*.3;
+  pu.push({
+    x:bx,y:by,
+    w:36,h:20,
+    type:'helicopter',
+    bobPhase:Math.random()*6.28,
+    glowPhase:Math.random()*6.28,
+    got:false
+  });
 }
 
 function getZ(){
-  const idx=Math.min(ZN.length-1,Math.floor(dist/RACE*ZN.length));
+  const idx=Math.min(ZN.length-1,Math.floor(dist/8000*ZN.length));
   if(idx!==cZone){cZone=idx;zL.style.opacity='0';setTimeout(()=>{zL.textContent=ZN[idx].n;zL.style.opacity='1'},300)}
   return ZN[cZone];
 }
@@ -179,10 +273,8 @@ function drawSky(z){
   const g=X.createLinearGradient(0,0,0,H);
   g.addColorStop(0,z.s1);g.addColorStop(.6,z.s2);g.addColorStop(1,'#000');
   X.fillStyle=g;X.fillRect(camX-W,camY-H,W*2,H*2);
-  // Moon
   if(z.moon){
     const mx=W*.82,my=H*.12,mr=18;
-    // Light shaft
     X.save();
     const sh=X.createLinearGradient(mx,my,mx-W*.15,H*.75);
     sh.addColorStop(0,'rgba(255,240,200,.045)');sh.addColorStop(1,'rgba(255,240,200,0)');
@@ -240,37 +332,27 @@ function drawMidB(z){
 
 function drawBld(b,z){
   const bx=b.x,by=b.ry,bw=b.w,bh=b.h;
-  // Shadow below
   X.fillStyle='rgba(0,0,0,.3)';X.fillRect(bx-2,by,bw+4,bh);
-  // Facade gradient
   const fg=X.createLinearGradient(bx,by,bx+bw,by);
   fg.addColorStop(0,z.g);fg.addColorStop(.3,'rgba(255,255,255,.015)');fg.addColorStop(.7,'rgba(255,255,255,.008)');fg.addColorStop(1,z.g);
   X.fillStyle=fg;X.fillRect(bx,by,bw,bh);
-  // Vertical pilasters / column striping
   X.fillStyle='rgba(255,255,255,.014)';
   for(let px2=bx+((b.ws*7)%18);px2<bx+bw-4;px2+=26)X.fillRect(px2,by+2,3,bh-4);
   X.fillStyle='rgba(0,0,0,.08)';
   for(let px2=bx+((b.ws*3)%26);px2<bx+bw-4;px2+=34)X.fillRect(px2,by+2,2,bh-4);
-  // Weathering streaks from the roofline
   X.fillStyle='rgba(0,0,0,.06)';
   for(let s2=0;s2<3;s2++){const sx=bx+8+((b.ws+s2*53)%(bw-24));X.fillRect(sx,by+2,2,10+((s2*37)%(bh*.4)))}
-  // Edges
   X.fillStyle='rgba(0,0,0,.2)';X.fillRect(bx,by,3,bh);
   X.fillStyle='rgba(255,255,255,.025)';X.fillRect(bx+bw-2,by,2,bh);
-  // Cornice — layered parapet under the roof edge
   X.fillStyle='rgba(255,255,255,.05)';X.fillRect(bx,by+3,bw,2);
   X.fillStyle='rgba(0,0,0,.14)';X.fillRect(bx,by+5,bw,1.5);
-  // Parapet blocks along the roof edge
   X.fillStyle='rgba(255,255,255,.045)';
   for(let pbx=bx+3;pbx<bx+bw-6;pbx+=14)X.fillRect(pbx,by,8,2.5);
-  // Roof edge glow
   X.save();X.shadowColor='rgba(255,255,255,.06)';X.shadowBlur=6;
   X.fillStyle='rgba(255,255,255,.12)';X.fillRect(bx,by,bw,1.5);
   X.shadowBlur=0;X.restore();
-  // Roof surface
   X.fillStyle='rgba(255,255,255,.02)';
   for(let rx=bx+4;rx<bx+bw-4;rx+=10)X.fillRect(rx,by+3,6,1);
-  // Windows with sills, depth and occasional warm glow
   for(let fy=0;fy<b.fl;fy++){
     const wy=by+22+fy*30;if(wy>H-5)break;
     X.fillStyle='rgba(0,0,0,.1)';X.fillRect(bx+2,by+20+fy*30,bw-4,.8);
@@ -278,26 +360,19 @@ function drawBld(b,z){
       const wx=bx+10+fx*22;if(wx+9>bx+bw-6)break;
       const lit=Math.sin(wx*2.5+wy*1.8+b.ws)>.4;
       const warm=Math.sin(wx*1.3+wy*.7+b.bs)>.55;
-      // Recessed frame
       X.fillStyle='rgba(0,0,0,.2)';X.fillRect(wx-1.5,wy-1.5,12,14);
-      // Glass
       if(lit){
         X.save();X.shadowColor=warm?'rgba(255,190,110,.14)':'rgba(150,200,255,.1)';X.shadowBlur=5;
         X.fillStyle=warm?'rgba(255,190,110,.13)':'rgba(140,190,255,.1)';X.fillRect(wx,wy,9,11);
         X.restore();
       } else X.fillStyle='rgba(255,255,255,.012)';X.fillRect(wx,wy,9,11);
-      // Glass reflection diagonal
       X.fillStyle='rgba(255,255,255,.03)';X.fillRect(wx+1,wy+1,3,3);
-      // Mullions
       X.fillStyle='rgba(255,255,255,.05)';X.fillRect(wx+4,wy,.6,11);X.fillRect(wx,wy+5,9,.6);
-      // Sill with shadow
       X.fillStyle='rgba(255,255,255,.05)';X.fillRect(wx-2,wy+11,13,1.5);
       X.fillStyle='rgba(0,0,0,.16)';X.fillRect(wx-2,wy+12.5,13,1);
-      // AC unit on some windows
       if((fx*7+fy*3+Math.floor(b.ws))%9===0){X.fillStyle='rgba(255,255,255,.06)';X.fillRect(wx+1,wy+7,5,4);X.fillStyle='rgba(0,0,0,.15)';X.fillRect(wx+2,wy+8,3,2)}
     }
   }
-  // Facade billboard — large glowing ad panel
   if(b.bd&&bh>120){
     const bwx=bx+bw*.12,bwy=by+bh*.2,bww=bw*.76,bwh=Math.min(64,bh*.3);
     const flick=Math.sin(fr*.11+b.ws*3)>-.85?1:.55;
@@ -311,21 +386,17 @@ function drawBld(b,z){
     X.strokeStyle='rgba(255,255,255,'+(.08*flick)+')';X.strokeRect(bwx,bwy,bww,bwh);
     for(let lx=bwx+5;lx<bwx+bww-4;lx+=10){X.fillStyle='rgba(255,235,190,'+(.12*flick)+')';X.fillRect(lx,bwy-2,3,3)}
   }
-  // Neon sign
   if(b.neon){
     X.save();X.shadowColor=b.neon;X.shadowBlur=12;
     X.fillStyle=b.neon;X.fillRect(bx+bw*.3,by+10,bw*.4,6);
     X.shadowBlur=0;X.restore();
   }
-  // Door
   if(b.hd){X.fillStyle='rgba(0,0,0,.25)';X.fillRect(b.dx,by+bh-26,13,26);X.strokeStyle='rgba(255,255,255,.05)';X.strokeRect(b.dx,by+bh-26,13,26);X.fillStyle='rgba(255,255,255,.05)';X.fillRect(b.dx+10,by+bh-14,1.5,1.5)}
-  // Roof props — antenna (blinking), shed, grille vent, scaffold, dish, water tower, steam vent, billboard
   if(b.rt===1){const ax=bx+bw*.3;X.strokeStyle='rgba(255,255,255,.08)';X.lineWidth=1.2;X.beginPath();X.moveTo(ax,by);X.lineTo(ax,by-20);X.stroke();X.lineWidth=1;X.fillStyle='rgba(255,40,40,.4)';X.fillRect(ax-1,by-22,2,2);if(Math.sin(fr*.06)>.3){X.save();X.shadowColor='rgba(255,40,40,.3)';X.shadowBlur=8;X.fillStyle='rgba(255,40,40,.15)';X.fillRect(ax-3,by-24,6,6);X.restore()}}
   else if(b.rt===2){const tx=bx+bw*.55;X.fillStyle='rgba(255,255,255,.04)';X.fillRect(tx,by-13,16,13);X.strokeStyle='rgba(255,255,255,.05)';X.strokeRect(tx,by-13,16,13);X.fillStyle='rgba(0,0,0,.14)';X.fillRect(tx+2,by-11,12,9)}
   else if(b.rt===3){const ax=bx+bw*.4;X.fillStyle='rgba(255,255,255,.035)';X.fillRect(ax,by-9,14,9);X.strokeStyle='rgba(255,255,255,.04)';X.strokeRect(ax,by-9,14,9);for(let gy=by-7;gy<by;gy+=2.5){X.strokeStyle='rgba(255,255,255,.02)';X.beginPath();X.moveTo(ax+1,gy);X.lineTo(ax+13,gy);X.stroke()}}
   else if(b.rt===4){const sx=bx+bw*.2;X.strokeStyle='rgba(255,255,255,.06)';X.lineWidth=1;X.beginPath();X.moveTo(sx,by);X.lineTo(sx,by-16);X.stroke();X.beginPath();X.moveTo(sx-6,by-16);X.lineTo(sx+6,by-16);X.stroke();X.beginPath();X.moveTo(sx-4,by-12);X.lineTo(sx+4,by-12);X.stroke()}
   else if(b.rt===5){
-    // Water tower
     const tx=bx+bw*.5,ty=by-30;
     X.strokeStyle='rgba(255,255,255,.07)';X.lineWidth=1;
     X.beginPath();X.moveTo(tx-4,by);X.lineTo(tx-6,ty+14);X.moveTo(tx+10,by);X.lineTo(tx+12,ty+14);X.stroke();
@@ -335,7 +406,6 @@ function drawBld(b,z){
     X.fillStyle='rgba(0,0,0,.14)';X.fillRect(tx-6,ty+2,12,10);
   }
   else if(b.rt===6){
-    // Steam vent
     const vx=bx+bw*.62;
     X.fillStyle='rgba(255,255,255,.05)';X.fillRect(vx,by-6,10,6);
     X.strokeStyle='rgba(255,255,255,.05)';X.strokeRect(vx,by-6,10,6);
@@ -346,7 +416,6 @@ function drawBld(b,z){
     X.restore();
   }
   else if(b.rt===7){
-    // Rooftop billboard — large, glowing, framed with bulbs
     const bxx=bx+bw*.18,byy=by-40,bww=Math.min(110,bw*.6),bwh=26;
     const flick=Math.sin(fr*.09+b.ws)>-.9?1:.6;
     X.strokeStyle='rgba(255,255,255,.07)';X.lineWidth=1.5;
@@ -360,9 +429,7 @@ function drawBld(b,z){
     X.strokeStyle='rgba(255,255,255,'+(.09*flick)+')';X.strokeRect(bxx,byy,bww,bwh);
     for(let lx=bxx+6;lx<bxx+bww-4;lx+=12){X.fillStyle='rgba(255,235,190,'+(.14*flick)+')';X.fillRect(lx,byy-2.5,3,3)}
   }
-  // Railing
   if(b.hr){X.strokeStyle='rgba(255,255,255,.06)';X.lineWidth=.8;const ry2=by-10;X.beginPath();X.moveTo(bx+2,ry2);X.lineTo(bx+bw-2,ry2);X.stroke();for(let px=bx+14;px<bx+bw-10;px+=18){X.beginPath();X.moveTo(px,by);X.lineTo(px,ry2);X.stroke()}}
-  // Pipes
   if(b.hp){X.strokeStyle='rgba(255,255,255,.03)';X.lineWidth=1.5;X.beginPath();X.moveTo(b.px,by);X.lineTo(b.px,by+bh*.45);X.stroke();X.lineWidth=1;X.fillStyle='rgba(255,255,255,.04)';X.fillRect(b.px-1.5,by+bh*.45-3,4,3)}
   b.cracks.forEach(c=>{X.strokeStyle='rgba(255,255,255,.025)';X.beginPath();X.moveTo(c.x,c.y);X.lineTo(c.x+2,c.y+c.l);X.stroke()});
 }
@@ -375,7 +442,6 @@ function drawObs(o){
     X.fillStyle='rgba(80,55,20,.3)';
     for(let mx=3;mx<o.w-3;mx+=5){X.fillRect(mx,0,2.5,o.h)}
     X.fillStyle='rgba(180,140,80,.12)';X.fillRect(o.w*.2,0,o.w*.3,1);
-    X.fillStyle='rgba(180,140,80,.08)';X.fillRect(o.w*.5,o.h-1,o.w*.25,1);
     X.restore();
   } else if(o.type==='debris'){
     X.save();X.shadowColor='rgba(255,255,255,.08)';X.shadowBlur=4;
@@ -390,8 +456,6 @@ function drawObs(o){
     X.fillStyle='rgba(60,120,200,.18)';X.fillRect(0,0,o.w,o.h);
     X.fillStyle='rgba(140,200,255,.1)';
     X.fillRect(o.w*.15,0,o.w*.35,1);X.fillRect(o.w*.5,o.h-1,o.w*.3,1);
-    X.fillStyle='rgba(180,220,255,.06)';
-    X.fillRect(o.w*.1,o.h*.3,o.w*.2,o.h*.4);
     X.restore();
   } else if(o.type==='barrier'){
     X.save();X.shadowColor='rgba(255,160,50,.2)';X.shadowBlur=10;
@@ -400,7 +464,110 @@ function drawObs(o){
     for(let sy=0;sy<o.h;sy+=5){X.fillRect(0,sy,o.w,2.5)}
     X.fillStyle='rgba(255,200,100,.15)';X.fillRect(0,0,o.w,1.5);
     X.restore();
+  } else if(o.type==='pipe'){
+    // Industrial pipe — must slide under
+    X.save();X.shadowColor='rgba(180,180,200,.15)';X.shadowBlur=8;
+    // Main pipe body
+    const pg=X.createLinearGradient(0,0,0,o.h);
+    pg.addColorStop(0,'rgba(200,200,210,.35)');pg.addColorStop(.5,'rgba(160,160,170,.25)');pg.addColorStop(1,'rgba(120,120,130,.3)');
+    X.fillStyle=pg;X.fillRect(0,0,o.w,o.h);
+    // Pipe highlight
+    X.fillStyle='rgba(255,255,255,.12)';X.fillRect(0,1,o.w,2);
+    // Pipe shadow
+    X.fillStyle='rgba(0,0,0,.2)';X.fillRect(0,o.h-2,o.w,2);
+    // Rivets/bolts
+    X.fillStyle='rgba(255,255,255,.15)';
+    for(let rx=4;rx<o.w-4;rx+=8){X.fillRect(rx,2,3,3);X.fillRect(rx,o.h-5,3,3)}
+    // Flange at ends
+    X.fillStyle='rgba(180,180,190,.3)';X.fillRect(-2,-2,4,o.h+4);X.fillRect(o.w-2,-2,4,o.h+4);
+    // Warning stripe
+    X.fillStyle='rgba(255,200,50,.08)';
+    for(let sx=0;sx<o.w;sx+=6){X.fillRect(sx,0,3,o.h)}
+    X.restore();
+  } else if(o.type==='wire'){
+    // Cable/wire — thin, must slide under
+    X.save();X.shadowColor='rgba(100,100,120,.2)';X.shadowBlur=4;
+    // Main cable
+    X.strokeStyle='rgba(180,180,190,.3)';X.lineWidth=2;
+    X.beginPath();X.moveTo(0,o.h/2);
+    // Slight sag in the middle
+    X.quadraticCurveTo(o.w/2,o.h/2+3,o.w,o.h/2);
+    X.stroke();
+    // Insulator beads
+    X.fillStyle='rgba(200,200,210,.25)';
+    for(let ix=6;ix<o.w-6;ix+=12){X.beginPath();X.arc(ix,o.h/2,2,0,Math.PI*2);X.fill()}
+    // Support brackets at ends
+    X.fillStyle='rgba(160,160,170,.2)';X.fillRect(-1,-3,3,o.h+6);X.fillRect(o.w-2,-3,3,o.h+6);
+    X.restore();
   }
+  X.restore();
+}
+
+function drawBird(b){
+  if(b.hit)return;
+  X.save();X.translate(b.x,b.y);
+  // Wing flap animation
+  const wingY=Math.sin(b.wingPhase)*b.h*.6;
+  // Body
+  X.fillStyle='rgba(30,30,35,.7)';
+  X.beginPath();X.ellipse(0,0,b.w/2,b.h/3,0,0,Math.PI*2);X.fill();
+  // Left wing
+  X.fillStyle='rgba(40,40,45,.6)';
+  X.beginPath();X.moveTo(-2,0);X.lineTo(-b.w*.7,-wingY-b.h/2);X.lineTo(-b.w*.3,-wingY*.3);X.closePath();X.fill();
+  // Right wing
+  X.beginPath();X.moveTo(2,0);X.lineTo(b.w*.7,-wingY-b.h/2);X.lineTo(b.w*.3,-wingY*.3);X.closePath();X.fill();
+  // Head
+  X.fillStyle='rgba(25,25,30,.8)';
+  X.beginPath();X.arc(b.w*.35,-1,3,0,Math.PI*2);X.fill();
+  // Beak
+  X.fillStyle='rgba(200,160,60,.5)';
+  X.beginPath();X.moveTo(b.w*.35+2,-2);X.lineTo(b.w*.35+7,-1);X.lineTo(b.w*.35+2,0);X.closePath();X.fill();
+  // Eye
+  X.fillStyle='rgba(255,255,255,.6)';X.fillRect(b.w*.33,-3,1.5,1.5);
+  // Tail feathers
+  X.fillStyle='rgba(35,35,40,.5)';
+  X.beginPath();X.moveTo(-b.w*.4,0);X.lineTo(-b.w*.6,-2);X.lineTo(-b.w*.55,2);X.closePath();X.fill();
+  X.restore();
+}
+
+function drawPowerup(p){
+  if(p.got)return;
+  p.bobPhase+=.03;p.glowPhase+=.06;
+  const by=p.y+Math.sin(p.bobPhase)*4;
+  const glow=.5+Math.sin(p.glowPhase)*.3;
+  X.save();X.translate(p.x,by);
+  // Glow aura
+  X.save();X.shadowColor='rgba(100,220,255,.3)';X.shadowBlur=16*glow;
+  X.fillStyle='rgba(100,220,255,'+(.08*glow)+')';
+  X.beginPath();X.ellipse(0,0,p.w/2+6,p.h/2+6,0,0,Math.PI*2);X.fill();
+  X.restore();
+  // Helicopter body
+  X.fillStyle='rgba(100,220,255,.25)';
+  X.fillRect(-p.w/2,-p.h/2,p.w,p.h);
+  // Cockpit
+  X.fillStyle='rgba(180,240,255,.3)';
+  X.fillRect(-p.w/2+4,-p.h/2+2,p.w/3,p.h-4);
+  // Tail boom
+  X.fillStyle='rgba(100,220,255,.2)';
+  X.fillRect(p.w/2-4,-2,p.w/3,4);
+  // Tail rotor
+  X.strokeStyle='rgba(180,240,255,.3)';X.lineWidth=1;
+  X.beginPath();X.moveTo(p.w/2+p.w/3-2,-6);X.lineTo(p.w/2+p.w/3-2,6);X.stroke();
+  // Main rotor
+  X.strokeStyle='rgba(180,240,255,'+(.3*glow)+')';X.lineWidth=1.5;
+  const rotorAngle=fr*.3;
+  X.beginPath();X.moveTo(-p.w/2+Math.cos(rotorAngle)*p.w/2,-p.h/2-2);X.lineTo(-p.w/2+Math.cos(rotorAngle+Math.PI)*p.w/2,-p.h/2-2);X.stroke();
+  // Rotor mast
+  X.fillStyle='rgba(100,220,255,.3)';X.fillRect(-2,-p.h/2-4,4,4);
+  // Skids
+  X.strokeStyle='rgba(100,220,255,.2)';X.lineWidth=1;
+  X.beginPath();X.moveTo(-p.w/3,p.h/2);X.lineTo(p.w/3,p.h/2);X.stroke();
+  X.beginPath();X.moveTo(-p.w/4,p.h/2-3);X.lineTo(-p.w/3,p.h/2);X.stroke();
+  X.beginPath();X.moveTo(p.w/4,p.h/2-3);X.lineTo(p.w/3,p.h/2);X.stroke();
+  // Label
+  X.fillStyle='rgba(100,220,255,'+(.4*glow)+')';
+  X.font='600 5px "JetBrains Mono"';X.textAlign='center';
+  X.fillText('HELI',0,p.h/2+8);
   X.restore();
 }
 
@@ -419,7 +586,24 @@ function drawRunner(p){
   if(!p||(!p.alive&&!p.isMe))return;
   const bx=p.x,by=p.y;
   X.save();X.translate(bx,by);X.globalAlpha=p.isMe?1:.55;
-  // Scarf trail
+
+  // Helicopter mode — draw chopper around player
+  if(p.isMe&&p.heli){
+    X.save();
+    const rotorAngle=fr*.4;
+    // Rotor blur disc
+    X.fillStyle='rgba(100,220,255,.06)';
+    X.beginPath();X.ellipse(12,-30,22,4,0,0,Math.PI*2);X.fill();
+    // Rotor blades
+    X.strokeStyle='rgba(180,240,255,.25)';X.lineWidth=2;
+    X.beginPath();X.moveTo(12+Math.cos(rotorAngle)*20,-30);X.lineTo(12+Math.cos(rotorAngle+Math.PI)*20,-30);X.stroke();
+    X.beginPath();X.moveTo(12+Math.cos(rotorAngle+1.57)*20,-30);X.lineTo(12+Math.cos(rotorAngle+1.57+Math.PI)*20,-30);X.stroke();
+    // Body outline
+    X.strokeStyle='rgba(100,220,255,.15)';X.lineWidth=1;
+    X.strokeRect(-4,-36,28,36);
+    X.restore();
+  }
+
   if(p.isMe&&p.scarf.length>1){
     X.strokeStyle='rgba(255,255,255,.15)';X.lineWidth=2;X.beginPath();
     X.moveTo(p.scarf[0].x-bx,p.scarf[0].y-by);
@@ -440,27 +624,21 @@ function drawRunner(p){
     if(fr%2===0&&p.isMe)dst.push({x:p.x+4+Math.random()*5,y:p.y-1,vx:-Math.random()*1.5-.8,vy:-Math.random()*.8,s:.8+Math.random(),life:.35});
   } else {
     X.fillStyle=col;
-    // Head
     X.fillRect(3,-40,9,9);
-    // Headband
     X.fillStyle=p.isMe?'rgba(255,255,255,.4)':'rgba(255,255,255,.18)';
     X.fillRect(1,-38,12,2);
     if(!p.gnd){X.fillRect(-3,-38,5,1.5);X.fillRect(-6,-39,4,1.5)}
     else{const tw=Math.sin(fr*.08)*1.5;X.fillRect(-2,-38+tw,5,1.5)}
     X.fillStyle=col;
-    // Torso
     X.fillRect(3,-30,8,12);
-    // Arms
     if(p.gnd){const f=p.rF%2;if(f===0){X.fillRect(-1,-28,4,2.5);X.fillRect(11,-24,4,2.5)}else{X.fillRect(-1,-24,4,2.5);X.fillRect(11,-28,4,2.5)}}
     else{X.fillRect(-2,-32,4,2.5);X.fillRect(12,-32,4,2.5)}
-    // Legs
     if(p.gnd){const f=p.rF%2;if(f===0){X.fillRect(2,-18,4,14);X.fillRect(8,-18,4,8)}else{X.fillRect(2,-18,4,8);X.fillRect(8,-18,4,14)}}
     else{X.fillRect(2,-18,4,5);X.fillRect(8,-18,4,5);
       if(p.jc>=2){X.save();X.globalAlpha*=.18;X.strokeStyle=col;X.lineWidth=1.2;X.beginPath();X.arc(7,-20,11,fr*.18,fr*.18+Math.PI*1.2);X.stroke();X.restore()}}
     if(!p.gnd&&p.isMe){X.save();X.shadowColor='rgba(255,255,255,.08)';X.shadowBlur=12;X.fillStyle='rgba(255,255,255,.02)';X.fillRect(0,-42,13,42);X.shadowBlur=0;X.restore()}
   }
   X.globalAlpha=1;X.restore();
-  // Trail
   if(p.isMe&&(!p.gnd||p.sl||p.ws)){p.trail.push({x:p.x+6,y:p.y-(p.sl?3:p.ws?16:16),a:.3,s:2.5});p.scarf.push({x:p.x+4,y:p.y-36})}
   if(p.isMe&&p.scarf.length>12)p.scarf=p.scarf.slice(-12);
   if(p.isMe&&fr%3===0)p.trail=p.trail.filter(t=>{t.a-=.035;return t.a>0});
@@ -491,10 +669,22 @@ function hitO(p,o){
   return px<ox+ow&&px+pw>ox&&py<oy+oh&&py+ph>oy;
 }
 function coinH(p,c){const dx=p.x+p.w/2-c.x,dy=p.y-(p.sl?4:p.h/2)-c.y;return Math.sqrt(dx*dx+dy*dy)<c.r+14}
+function hitBird(p,b){
+  if(b.hit)return false;
+  const px=p.x+4,py=p.y-p.h+4,pw=p.w-8,ph=p.h-8;
+  const bx=b.x-b.w/2,by=b.y-b.h/2,bw=b.w,bh=b.h;
+  return px<bx+bw&&px+pw>bx&&py<by+bh&&py+ph>by;
+}
+function hitPu(p,pu2){
+  if(pu2.got)return false;
+  const px=p.x,py=p.y-p.h,pw=p.w,ph=p.h;
+  const ux=pu2.x-pu2.w/2,uy=pu2.y-pu2.h/2,uw=pu2.w,uh=pu2.h;
+  return px<ux+uw&&px+pw>ux&&py<uy+uh&&py+ph>uy;
+}
 
-/* Wall blocking — players cannot pass through building sides */
+/* Wall blocking — only when grounded to allow gap jumping */
 function wallBlock(p){
-  if(p.vy<0)return null; // rising mid-jump — let it carry over
+  if(!p.gnd)return null;
   const feet=p.y;
   for(const b of blds){
     if(p.x+p.w>b.x+1&&p.x<b.x+b.w&&feet>b.ry+4&&p.y-p.h<b.ry+b.h)return b;
@@ -503,28 +693,38 @@ function wallBlock(p){
 }
 function bldUnder(p){const cx=p.x+p.w/2;for(const b of blds){if(cx>=b.x&&cx<b.x+b.w)return b}return null}
 
-/* ── AI ── */
+/* ─ AI ── */
 function updAI(p){
   if(!p.alive||p.fin)return;
   p.aiT++;p.dist+=spd*p.sm2;
   const la=p.x+50+spd*7;
-  // AI obstacle avoidance
   for(const o of obs){
     if(o.hit)continue;
-    // AI collision with obstacles — gets slowed
     if(hitO(p,o)){
       o.hit=true;
-      if(o.mustJump&&!p.gnd){/* jumped over */}
+      if(o.mustJump&&!p.gnd){}
+      else if(o.type==='pipe'||o.type==='wire'){
+        // AI slides under overhead obstacles
+        if(p.gnd){p.sl=true;p.st=p.sm;p.aiT=0;p.aiN=30+Math.random()*30}
+        else{p.dist=Math.max(0,p.dist-8);p.aiT=0;p.aiN=20+Math.random()*20}
+      }
       else{p.dist=Math.max(0,p.dist-8);p.aiT=0;p.aiN=20+Math.random()*20}
     }
-    // AI tries to jump over barriers and hazards
     else if(o.x>p.x-8&&o.x<la){
       if(o.mustJump&&p.gnd&&p.aiT>p.aiN){p.vy=JV*.82;p.gnd=false;p.jc=1;p.aiT=0;p.aiN=35+Math.random()*40}
       else if((o.type==='mud'||o.type==='puddle')&&p.gnd&&p.aiT>p.aiN){p.vy=JV*.75;p.gnd=false;p.jc=1;p.aiT=0;p.aiN=40+Math.random()*40}
+      else if((o.type==='pipe'||o.type==='wire')&&p.gnd&&p.aiT>p.aiN){p.sl=true;p.st=p.sm;p.aiT=0;p.aiN=30+Math.random()*30}
+    }
+  }
+  // AI bird avoidance
+  for(const b of birds){
+    if(b.hit)continue;
+    if(b.x>p.x-20&&b.x<p.x+60&&Math.abs(b.y-(p.y-p.h/2))<30){
+      if(b.y<p.y-p.h&&p.gnd&&p.aiT>p.aiN){p.vy=JV*.8;p.gnd=false;p.jc=1;p.aiT=0;p.aiN=30+Math.random()*30}
+      else if(b.y>p.y-p.h*.5&&p.gnd&&p.aiT>p.aiN){p.sl=true;p.st=p.sm;p.aiT=0;p.aiN=25+Math.random()*25}
     }
   }
   if(!p.gnd){p.vy+=G;p.y+=p.vy;const lc=platC(p);if(lc&&p.vy>=0){p.y=lc.ry;p.vy=0;p.gnd=true;p.jc=0}}
-  // AI stays on rooftops — hops up walls, falls down steps
   else{const ub=bldUnder(p);
     if(ub){const dh=p.y-ub.ry;
       if(dh>6){p.vy=JV*.8;p.gnd=false;p.jc=1}
@@ -533,42 +733,60 @@ function updAI(p){
   if(p.sl){p.st--;if(p.st<=0)p.sl=false}
   if(p.y>H+25)p.alive=false;
   p.rT++;if(p.rT>=5){p.rF++;p.rT=0}
-  if(p.dist>=RACE&&!p.fin){p.fin=true;p.ft=fr}
 }
 
 function getPos(){
-  const a=[me,...runners].filter(r=>r.alive||r.fin);
-  a.sort((a,b)=>{if(a.fin&&b.fin)return a.ft-b.ft;if(a.fin)return-1;if(b.fin)return 1;return b.dist-a.dist});
+  const a=[me,...runners].filter(r=>r.alive);
+  a.sort((a,b)=>b.dist-a.dist);
   return a;
 }
 
-function die(){dead=true;running=false;me.alive=false;skD=10;fl=.35;
+function die(){
+  dead=true;running=false;me.alive=false;skD=10;fl=.35;
   for(let i=0;i<16;i++)pts.push({x:me.x+10,y:me.y-16,vx:(Math.random()-.5)*5,vy:(Math.random()-.8)*5,s:1.5+Math.random()*3,life:.5+Math.random()*.2,r:255,g:255,b:255});
-  endR(false);}
-function fin(){finished=true;me.fin=true;me.ft=fr;fl=.15;endR(true);}
-function endR(won){
+  endR();
+}
+
+function endR(){
   running=false;const md=Math.floor(dist);let nw=false;
-  if(md>hi){hi=md;localStorage.setItem('off_rr_hi',''+hi);nw=true}
-  fS.textContent=md+'m';oT.textContent=won?'You won!':'Race over';fL.textContent=won?'finish time':'distance';
+  if(md>hi){hi=md;localStorage.setItem('off_rr_hi',''+hi);nw=true;hD.textContent=hi+'m'}
+  fS.textContent=md+'m';oT.textContent='Run over';fL.textContent='distance survived';
   nB.classList.toggle('hidden',!nw);
   const pos=getPos();let html='';
-  pos.forEach((r,i)=>{const d=r.isMe?md:Math.floor(r.dist);html+=`<div class="rr ${r.isMe?'me':''}"><span class="rp">${i+1}. ${r.name}</span><span class="rt">${d}m</span></div>`});
+  pos.forEach((r,i)=>{const d=Math.floor(r.dist);html+=`<div class="rr ${r.isMe?'me':''}"><span class="rp">${i+1}. ${r.name}</span><span class="rt">${d}m</span></div>`});
   resBox.innerHTML=html;setTimeout(()=>oO.classList.remove('hidden'),500);
 }
 
 /* ── Update ── */
 function update(){
-  if(!running||dead||finished)return;
-  fr++;spd=Math.min(MS,BS+fr*.0003);dist+=spd;me.dist=dist;
+  if(!running||dead)return;
+  fr++;
+  // Speed ramps up continuously with distance — no cap, just diminishing returns
+  const d=getDiff();
+  spd=Math.min(d.speedCap,BS+fr*.0004);
+  dist+=spd;me.dist=dist;
   sD.textContent=Math.floor(dist)+'m';
-  if(dist>=RACE)fin();
   getZ();
+
   blds.forEach(b=>b.x-=spd);obs.forEach(o=>o.x-=spd);cns.forEach(c=>c.x-=spd);
+  birds.forEach(b=>{b.x+=b.vx;b.wingPhase+=b.wingSpeed;b.bobPhase+=.02;b.y=b.altitude+Math.sin(b.bobPhase)*8});
+  pu.forEach(p=>{p.x-=spd*.5}); // powerups scroll slower than world
   runners.forEach(r=>{r.x=me.x+(r.dist-dist)*.4});
-  blds=blds.filter(b=>b.x+b.w>-30);obs=obs.filter(o=>o.x+o.w>-30);cns=cns.filter(c=>c.x>-20);
+
+  blds=blds.filter(b=>b.x+b.w>-30);
+  obs=obs.filter(o=>o.x+o.w>-30);
+  cns=cns.filter(c=>c.x>-20);
+  birds=birds.filter(b=>b.x>-60&&b.x<W+60&&!b.hit);
+  pu=pu.filter(p=>p.x>-60&&!p.got);
+
   const last=blds[blds.length-1];if(!last||last.x+last.w<W+50)spawnBld();
 
-  // Wall blocking — stay on rooftops: step up small ledges, get stopped by tall walls
+  // Spawn birds
+  if(Math.random()<d.birdRate)spawnBird();
+  // Spawn powerups
+  if(Math.random()<d.puRate&&pu.length<2)spawnPowerup();
+
+  // Wall blocking — grounded only
   const wb=wallBlock(me);
   if(wb){
     const dh=me.y-wb.ry;
@@ -576,33 +794,80 @@ function update(){
     else{me.x=wb.x-me.w+2;skD=Math.max(skD,2)}
   }
 
-  // Player
+  // Helicopter powerup timer
+  if(me.heli){
+    me.heliT--;
+    me.vy=-1.5; // gentle upward force
+    me.y+=me.vy;
+    // Keep player above rooftops
+    const ub=bldUnder(me);
+    if(ub&&me.y<ub.ry+20){me.y=ub.ry+20;me.vy=0}
+    // Update HUD
+    const secs=Math.ceil(me.heliT/60);
+    puTimer.textContent=secs+'s';
+    if(me.heliT<=0){me.heli=false;puHud.style.display='none'}
+  }
+
+  // Player physics
   if(me.wc){me.ct--;me.y+=CLS;if(me.ct<=0){me.wc=false;for(const b of blds){if(me.x+me.w>b.x&&me.x<b.x+b.w){me.y=b.ry;me.vy=0;me.gnd=true;me.jc=0;break}}}}
   else if(me.ws){me.vy=WSS;me.y+=me.vy;if(!wallC(me))me.ws=false;const lc=platC(me);if(lc){me.y=lc.ry;me.vy=0;me.gnd=true;me.jc=0;me.ws=false}if(me.y>H+25){die();return}}
-  else{me.vy+=G;me.y+=me.vy;me.gnd=false;
+  else if(!me.heli){
+    me.vy+=G;me.y+=me.vy;me.gnd=false;
     if(!me.gnd&&me.vy<0&&me.jh>0){me.vy+=G*-.28;me.jh--}
     const lc=platC(me);if(lc&&me.vy>=0){me.y=lc.ry;me.vy=0;me.gnd=true;me.jc=0;
       for(let i=0;i<3;i++)dst.push({x:me.x+Math.random()*me.w,y:me.y-1,vx:-Math.random()*.8,vy:-Math.random()*.6,s:.8+Math.random(),life:.25})}
     const wc=wallC(me);if(wc&&me.vy>0){me.ws=true;me.wd=wc.dir;me.jc=0;
       for(let i=0;i<2;i++)dst.push({x:wc.wx,y:me.y-6+Math.random()*5,vx:-wc.dir*Math.random()*1.2,vy:-Math.random()*.8,s:.8+Math.random(),life:.3})}
-    if(me.y>H+35){die();return}}
+    if(me.y>H+35){die();return}
+  }
 
-  // Obstacle collision — slows player instead of killing
+  // Obstacle collision
   for(const o of obs){if(!o.hit&&hitO(me,o)){
     o.hit=true;
-    if(o.mustJump&&!me.gnd){/* jumped over — no penalty */}
+    if(me.heli){/* invincible */}
+    else if(o.mustJump&&!me.gnd){}
+    else if((o.type==='pipe'||o.type==='wire')&&me.sl){/* slid under — safe */}
     else{
       spd=Math.max(BS*.5,spd*o.slowMul);
       skD=4;fl=.08;
       for(let i=0;i<4;i++)pts.push({x:o.x+o.w/2,y:o.y,vx:(Math.random()-.5)*2,vy:-Math.random()*2,s:1+Math.random(),life:.3,r:200,g:200,b:200});
     }
   }}
+
+  // Bird collision
+  for(const b of birds){
+    if(!b.hit&&hitBird(me,b)){
+      if(me.heli){
+        // Helicopter smashes through birds
+        b.hit=true;
+        for(let i=0;i<8;i++)pts.push({x:b.x,y:b.y,vx:(Math.random()-.5)*4,vy:(Math.random()-.5)*4,s:1+Math.random()*2,life:.4,r:100,g:220,b:255});
+        dist+=50; // bonus distance
+      } else {
+        b.hit=true;
+        spd=Math.max(BS*.4,spd*.4);
+        skD=6;fl=.12;
+        for(let i=0;i<6;i++)pts.push({x:b.x,y:b.y,vx:(Math.random()-.5)*3,vy:(Math.random()-.5)*3,s:1+Math.random()*2,life:.35,r:200,g:200,b:200});
+      }
+    }
+  }
+
+  // Powerup collection
+  for(const p of pu){
+    if(!p.got&&hitPu(me,p)){
+      p.got=true;
+      me.heli=true;
+      me.heliT=60*12; // 12 seconds at 60fps
+      puHud.style.display='flex';
+      puTimer.textContent='12s';
+      for(let i=0;i<12;i++)pts.push({x:p.x,y:p.y,vx:(Math.random()-.5)*3,vy:(Math.random()-.5)*3,s:1.5+Math.random()*2,life:.5,r:100,g:220,b:255});
+    }
+  }
+
+  // Coins
   for(const c of cns){if(!c.got&&coinH(me,c)){c.got=true;dist+=12;sD.textContent=Math.floor(dist)+'m';
     for(let j=0;j<5;j++)pts.push({x:c.x,y:c.y,vx:(Math.random()-.5)*2.5,vy:(Math.random()-.5)*2.5,s:1+Math.random()*1.5,life:.35,r:255,g:210,b:80})}}
 
   runners.forEach(updAI);
-  const pos=getPos();const mp=pos.findIndex(r=>r.isMe)+1;
-  pD.textContent=mp+'/5';pF.style.width=Math.min(100,dist/RACE*100)+'%';
 
   if(me.sl){me.st--;if(me.st<=0)me.sl=false}
   me.rT++;if(me.rT>=Math.max(3,7-Math.floor(spd))){me.rF++;me.rT=0}
@@ -615,7 +880,6 @@ let camX=W/2,camY=H/2;
 function render(){
   const z=getZ();
   X.save();
-  // Camera — follows the player, anchored ~35% from the left so obstacles ahead stay visible
   const zoom=3.5;
   if(me){
     const tx=me.x+me.w/2+W*.085,ty=me.y-me.h*.5+H*.028;
@@ -625,38 +889,30 @@ function render(){
   X.translate(skX,skY);
   X.clearRect(camX-W*.6,camY-H*.6,W*1.2,H*1.2);
   drawSky(z);drawStars(z);drawClouds();drawFarB(z);drawMidB(z);
-  // Atmospheric fog band
   const fog=X.createLinearGradient(0,H*.4,0,H*.85);
   fog.addColorStop(0,'rgba(120,140,170,0)');fog.addColorStop(.5,'rgba(120,140,170,.035)');fog.addColorStop(1,'rgba(120,140,170,0)');
   X.fillStyle=fog;X.fillRect(camX-W,camY-H,W*2,H*2);
-  // Alley darkness
   X.fillStyle='rgba(0,0,0,.45)';X.fillRect(0,H*.75,W,H*.25);
   blds.forEach(b=>drawBld(b,z));
   drawDst();drawCoins();obs.forEach(o=>drawObs(o));
+  birds.forEach(b=>drawBird(b));
+  pu.forEach(p=>drawPowerup(p));
   runners.forEach(r=>{if(r.alive)drawRunner(r)});
   drawRunner(me);drawPts();
-  // Finish line
-  if(dist>RACE-180){const fx=W-((RACE-dist)/spd)*spd*6;
-    if(fx>0&&fx<W){X.strokeStyle='rgba(255,255,255,.2)';X.lineWidth=1.5;X.setLineDash([5,4]);X.beginPath();X.moveTo(fx,0);X.lineTo(fx,H);X.stroke();X.setLineDash([]);
-      X.fillStyle='rgba(255,255,255,.1)';X.font='700 9px "JetBrains Mono"';X.fillText('FINISH',fx-18,18)}}
   X.restore();
-  // Screen-space overlays
   if(fl>0){X.fillStyle=`rgba(255,255,255,${fl})`;X.fillRect(0,0,W,H)}
   const vg=X.createRadialGradient(W/2,H/2,H*.3,W/2,H/2,H*.9);
   vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,.35)');
   X.fillStyle=vg;X.fillRect(0,0,W,H);
-  // Speed lines at high speed
   if(spd>7.5&&running){
     X.save();X.strokeStyle='rgba(255,255,255,.05)';X.lineWidth=1;
     for(let i=0;i<6;i++){const ly=(Math.sin(fr*.7+i*2.4)*.5+.5)*H;const lw=40+((fr*spd+i*80)%(W*.4));const lx=W-((fr*spd*2+i*160)%(W*1.2));X.beginPath();X.moveTo(lx,ly);X.lineTo(lx+lw,ly);X.stroke()}
     X.restore();
   }
-  // Atmospheric dust motes
   X.save();
   motes.forEach(m=>{m.x-=m.sp+spd*.15;m.y+=Math.sin(fr*.02+m.ph)*.15;if(m.x<-4){m.x=W+4;m.y=Math.random()*H}
     X.fillStyle='rgba(255,255,255,.05)';X.fillRect(m.x,m.y,m.s,m.s)});
   X.restore();
-  // Film grain
   X.save();X.globalAlpha=.035;X.fillStyle=grainPat;
   X.translate(Math.random()*64,Math.random()*64);X.fillRect(-64,-64,W+128,H+128);X.restore();
 }
@@ -665,36 +921,37 @@ function loop(){if(me&&runners)update();render();requestAnimationFrame(loop)}
 
 /* ── Actions ── */
 function doJump(){
-  if(!running||dead||finished)return;
+  if(!running||dead)return;
+  if(me.heli)return; // can't jump while in helicopter
   if(me.ws){me.ws=false;me.wc=true;me.ct=14;me.vy=0;
     for(let i=0;i<4;i++)pts.push({x:me.x+10,y:me.y-16,vx:(Math.random()-.5)*2,vy:-Math.random()*2,s:1.2+Math.random()*1.5,life:.3,r:255,g:255,b:255});return}
   if(me.wc)return;
   if(me.jc<me.mj){me.vy=me.jc===0?JV:DJV;me.gnd=false;me.jc++;me.sl=false;me.jh=me.jhM;
     if(me.jc===2)for(let i=0;i<3;i++)pts.push({x:me.x+10,y:me.y-5,vx:(Math.random()-.5)*1.8,vy:Math.random()*1.2+.8,s:1+Math.random()*1.2,life:.25,r:255,g:255,b:255})}
 }
-function doSlide(){if(!running||dead||finished)return;if(me.gnd&&!me.sl&&!me.ws&&!me.wc){me.sl=true;me.st=me.sm;for(let i=0;i<3;i++)dst.push({x:me.x+4+Math.random()*4,y:me.y-1,vx:-Math.random()*1.2-.8,vy:-Math.random()*.6,s:.8+Math.random(),life:.3})}}
-function endJH(){me.jh=0}
+function doSlide(){if(!running||dead)return;if(me.gnd&&!me.sl&&!me.ws&&!me.wc&&!me.heli){me.sl=true;me.st=me.sm;for(let i=0;i<3;i++)dst.push({x:me.x+4+Math.random()*4,y:me.y-1,vx:-Math.random()*1.2-.8,vy:-Math.random()*.6,s:.8+Math.random(),life:.3})}}
 
 function startGame(){
-  resize();blds=[];obs=[];cns=[];pts=[];dst=[];nextBX=0;
+  resize();blds=[];obs=[];cns=[];pts=[];dst=[];birds=[];pu=[];nextBX=0;bldCount=0;
   blds.push({x:-20,w:280,ry:H*.55,h:H-H*.55+40,fl:3,wc:8,rt:0,ws:42,hr:true,hd:true,dx:100,hp:false,px:0,neon:null,cracks:[]});
   nextBX=260;for(let i=0;i<10;i++)spawnBld();
   me=mkP(true,'YOU','#fff');me.x=W*.2;me.y=H*.55;me.gnd=true;
   camX=me.x+me.w/2+W*.085;camY=me.y-me.h*.5+H*.028;
   runners=[];for(let i=0;i<4;i++){const r=mkP(false,AN[i],AC[i]);r.x=W*.2-18-i*15;r.y=H*.55;r.gnd=true;runners.push(r)}
   dist=0;spd=BS;fr=0;cZone=0;skD=0;skX=0;skY=0;fl=0;
-  sD.textContent='0m';pD.textContent='1/5';pF.style.width='0%';zL.textContent=ZN[0].n;zL.style.opacity='1';
-  running=true;dead=false;finished=false;
+  sD.textContent='0m';pF.style.width='0%';zL.textContent=ZN[0].n;zL.style.opacity='1';
+  puHud.style.display='none';
+  running=true;dead=false;
   sO.classList.add('hidden');oO.classList.add('hidden');
 }
 
 /* ── Input ── */
 let tSY=0,tSX=0;
 document.addEventListener('keydown',e=>{
-  if(e.code==='Space'||e.key===' '){e.preventDefault();if(!running&&!dead&&!finished)startGame();else if(dead||finished)startGame();else doJump()}
-  if(e.code==='ArrowDown'||e.key==='s'||e.key==='S'){e.preventDefault();if(running&&!dead&&!finished)doSlide()}
+  if(e.code==='Space'||e.key===' '){e.preventDefault();if(!running&&!dead)startGame();else if(dead)startGame();else doJump()}
+  if(e.code==='ArrowDown'||e.key==='s'||e.key==='S'){e.preventDefault();if(running&&!dead)doSlide()}
 });
-document.addEventListener('keyup',e=>{if(e.code==='Space'||e.key===' ')endJH()});
+document.addEventListener('keyup',e=>{if(e.code==='Space'||e.key===' ')me.jh=0});
 
 document.addEventListener('touchstart',e=>{
   if(e.target.tagName==='BUTTON')return;
@@ -705,18 +962,16 @@ document.addEventListener('touchend',e=>{
   const dy=e.changedTouches[0].clientY-tSY;
   const dx=e.changedTouches[0].clientX-tSX;
   const tx=e.changedTouches[0].clientX;
-  // Swipe down = slide
-  if(dy>30&&Math.abs(dy)>Math.abs(dx)){if(running&&!dead&&!finished)doSlide();return}
-  // Tap left third = slide, rest = jump
-  if(tx<window.innerWidth*.3){if(running&&!dead&&!finished)doSlide();return}
-  if(!running&&!dead&&!finished){startGame();return}
-  if(dead||finished){startGame();return}
+  if(dy>30&&Math.abs(dy)>Math.abs(dx)){if(running&&!dead)doSlide();return}
+  if(tx<window.innerWidth*.3){if(running&&!dead)doSlide();return}
+  if(!running&&!dead){startGame();return}
+  if(dead){startGame();return}
   doJump();
 },{passive:true});
 document.addEventListener('mousedown',e=>{
   if(e.target.tagName==='BUTTON')return;
-  if(!running&&!dead&&!finished){startGame();return}
-  if(dead||finished){startGame();return}
+  if(!running&&!dead){startGame();return}
+  if(dead){startGame();return}
   if(e.clientX<window.innerWidth*.3){doSlide();return}
   doJump();
 });
