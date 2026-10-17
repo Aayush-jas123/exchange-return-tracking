@@ -81,8 +81,8 @@ let W,H;
 function resize(){const dpr=Math.min(devicePixelRatio,2);W=C.width=window.innerWidth*dpr;H=C.height=window.innerHeight*dpr;X.scale(1,1)}
 resize();window.addEventListener('resize',resize);
 
-/* ── AI-GENERATED IMAGE ASSETS ── */
-// Images loaded from /game-assets/ (served by Express); procedural fallbacks if unavailable
+/* ── AI-GENERATED IMAGE ASSETS ─ */
+// Images loaded from /game-assets/ (served by Express); backgrounds removed via canvas processing
 const IMG={};
 const IMG_PATHS={
   cityBg:'game-assets/city-bg.png',
@@ -92,10 +92,71 @@ const IMG_PATHS={
   rooftop:'game-assets/rooftop.png',
   facade:'game-assets/facade.png'
 };
+// Sprite images that need background removal (cityBg, rooftop, facade are full-bg images)
+const SPRITE_IMGS=['runner','heli','bird'];
 let imgsLoaded=0,imgsTotal=Object.keys(IMG_PATHS).length;
+
+// Remove background from sprite images using flood-fill from corners
+function removeBg(srcImg){
+  const c=document.createElement('canvas');
+  c.width=srcImg.width;c.height=srcImg.height;
+  const ctx=c.getContext('2d');
+  ctx.drawImage(srcImg,0,0);
+  const data=ctx.getImageData(0,0,c.width,c.height);
+  const d=data.data;
+  const w=c.width,h=c.height;
+
+  // Sample background color from all 4 corners
+  function cornerColor(x,y){
+    const i=(y*w+x)*4;
+    return[d[i],d[i+1],d[i+2]];
+  }
+  const corners=[cornerColor(0,0),cornerColor(w-1,0),cornerColor(0,h-1),cornerColor(w-1,h-1)];
+  // Average corner color = background
+  let br=0,bg2=0,bb=0;
+  corners.forEach(c2=>{br+=c2[0];bg2+=c2[1];bb+=c2[2]});
+  br=Math.round(br/4);bg2=Math.round(bg2/4);bb=Math.round(bb/4);
+
+  // Flood fill from all 4 corners — mark background pixels
+  const visited=new Uint8Array(w*h);
+  const tolerance=40; // how similar to bg color to remove
+  function isBg(i){
+    const dr=d[i]-br,dg=d[i+1]-bg2,db=d[i+2]-bb;
+    return Math.sqrt(dr*dr+dg*dg+db*db)<tolerance;
+  }
+  // BFS from corners
+  const queue=[];
+  function enqueue(x,y){
+    const idx=y*w+x;
+    if(visited[idx])return;
+    const pi=idx*4;
+    if(isBg(pi)){visited[idx]=1;queue.push(idx)}
+  }
+  enqueue(0,0);enqueue(w-1,0);enqueue(0,h-1);enqueue(w-1,h-1);
+  while(queue.length>0){
+    const pi=queue.shift();
+    d[pi+3]=0; // make transparent
+    const idx=pi/4;
+    const x=idx%w,y=Math.floor(idx/w);
+    if(x>0)enqueue(x-1,y);
+    if(x<w-1)enqueue(x+1,y);
+    if(y>0)enqueue(x,y-1);
+    if(y<h-1)enqueue(x,y+1);
+  }
+  ctx.putImageData(data,0,0);
+  return c;
+}
+
 for(const[k,src]of Object.entries(IMG_PATHS)){
   const img=new Image();
-  img.onload=()=>{IMG[k]=img;imgsLoaded++};
+  img.onload=()=>{
+    if(SPRITE_IMGS.includes(k)){
+      IMG[k]=removeBg(img); // processed canvas with transparent bg
+    } else {
+      IMG[k]=img; // full-bg images used as-is
+    }
+    imgsLoaded++;
+  };
   img.onerror=()=>{imgsLoaded++}; // fallback to procedural
   img.src=src;
 }
