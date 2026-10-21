@@ -98,6 +98,18 @@ function verifyGokwikWebhook(payload, signature, secret) {
     }
 }
 
+// Build exchange/replacement product name in Zoho Books catalog format:
+// "PRODUCT ( COLOR ) - SIZE" — the " - SIZE" suffix is required so the
+// Zoho item resolver can match the line against the catalog and deduct
+// stock for the correct size variant.
+function buildExchangeProductName(title, variant) {
+    const base = title || 'Item';
+    if (!variant || variant === 'Same') return base;
+    // Avoid duplicating the size if the title already ends with " - SIZE"
+    if (/\s-\s\S+\s*$/.test(base)) return base;
+    return base + ' - ' + variant;
+}
+
 // In-memory cache for Shopify customer name lookups (avoids repeated API calls)
 const _customerNameCache = new Map();
 const CUSTOMER_NAME_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
@@ -2855,8 +2867,7 @@ async function createShiprocketForwardOrder(requestData) {
         for (const item of items) {
             const isDifferentProduct = item.replacementProductId && item.replacementProductId !== item.productId;
             const title = item.replacementProductTitle || item.name;
-            const variantStr = (item.replacementVariant && item.replacementVariant !== 'Same') ? ` (${item.replacementVariant})` : '';
-            const finalName = title + variantStr;
+            const finalName = buildExchangeProductName(title, item.replacementVariant);
             let finalVariantId = (item.replacementVariantId && item.replacementVariantId !== 'Same') ? item.replacementVariantId : (item.variantId || item.id);
 
             console.log(`[${requestData.requestId}] Item: ${title}`);
@@ -3138,8 +3149,7 @@ async function createDelhiveryReturnOrder(requestData, shopifyOrder) {
         let productsDesc = [];
         for (const item of items) {
             const title = item.replacementProductTitle || item.name;
-            const variantStr = (item.replacementVariant && item.replacementVariant !== 'Same') ? ` (${item.replacementVariant})` : '';
-            const productName = title + variantStr;
+            const productName = buildExchangeProductName(title, item.replacementVariant);
             const quantity = parseInt(item.quantity) || 1;
             const price = parseFloat(item.replacementPrice || item.price) || 0;
             
@@ -3517,8 +3527,7 @@ async function createDelhiveryForwardOrder(requestData, shopifyOrder) {
             const item = items[i];
             const isDifferentProduct = item.replacementProductId && item.replacementProductId !== item.productId;
             const title = item.replacementProductTitle || item.name;
-            const variantStr = (item.replacementVariant && item.replacementVariant !== 'Same') ? ` (${item.replacementVariant})` : '';
-            const productName = title + variantStr;
+            const productName = buildExchangeProductName(title, item.replacementVariant);
             const quantity = parseInt(item.quantity) || 1;
             const price = parseFloat(item.replacementPrice || item.price) || 0;
             
@@ -3934,12 +3943,11 @@ async function createEkartReturnOrder(requestData, shopifyOrder) {
         const productsDesc = [];
         for (const item of items) {
             const title = item.replacementProductTitle || item.name || 'Item';
-            const variantStr = (item.replacementVariant && item.replacementVariant !== 'Same') ? ` (${item.replacementVariant})` : '';
             const quantity = parseInt(item.quantity) || 1;
             const price = parseFloat(item.replacementPrice || item.price) || 0;
             totalQuantity += quantity;
             totalAmount += price * quantity;
-            productsDesc.push(title + variantStr);
+            productsDesc.push(buildExchangeProductName(title, item.replacementVariant));
         }
 
         const orderIdSuffix = requestData.delhiveryOrderIdSuffix || requestData.ekartOrderIdSuffix || '';
@@ -4051,12 +4059,11 @@ async function createEkartForwardOrder(requestData, shopifyOrder) {
         const productsDesc = [];
         for (const item of items) {
             const title = item.replacementProductTitle || item.name || 'Item';
-            const variantStr = (item.replacementVariant && item.replacementVariant !== 'Same') ? ` (${item.replacementVariant})` : '';
             const quantity = parseInt(item.quantity) || 1;
             const price = parseFloat(item.replacementPrice || item.price) || 0;
             totalQuantity += quantity;
             totalAmount += price * quantity;
-            productsDesc.push(title + variantStr);
+            productsDesc.push(buildExchangeProductName(title, item.replacementVariant));
         }
 
         // 'fws-' prefix keeps forward order ids distinct from return pickups of the same request;
@@ -4948,7 +4955,10 @@ async function notifyZohoExchange(requestDetails, items) {
             price: parseFloat(i.paidPrice || i.price || 0)
         })),
         exchanged_items: (items || []).map(i => ({
-            title: i.replacementProductTitle || i.name || i.title || '',
+            title: buildExchangeProductName(
+                i.replacementProductTitle || i.name || i.title || '',
+                i.replacementVariant || i.variant || ''
+            ),
             sku: i.replacementSku || i.sku || '',
             quantity: parseInt(i.quantity || 1),
             variant: i.replacementVariant || i.variant || ''
