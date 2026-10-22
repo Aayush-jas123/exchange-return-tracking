@@ -29,7 +29,7 @@
     }
     *{box-sizing:border-box}
     html{color-scheme:dark;background:var(--sbg)}
-    body{margin:0;min-height:100svh;min-height:100dvh;background:var(--sbg);color:#fff;font-family:var(--f);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased;overscroll-behavior:none}
+    body{margin:0;min-height:100svh;min-height:100dvh;background:var(--sbg);color:#fff;font-family:var(--f);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased;overscroll-behavior:none;overflow-x:hidden}
     button,input,textarea{font:inherit}
 
     .loading,.auth{position:fixed;inset:0;z-index:20;display:grid;place-items:center;background:var(--sbg)}
@@ -662,8 +662,8 @@
       .sidebar.collapsed .sidebar-collapse svg{transform:rotate(180deg)}
       .sidebar.collapsed .sidebar-collapse span{display:none}
       .tabs{display:none!important}
-      .phone{margin-left:240px;transition:margin-left .3s cubic-bezier(.16,1,.3,1)}
-      .sidebar.collapsed ~ .phone,.sidebar.collapsed + .phone{margin-left:64px}
+      .phone{margin-left:240px;width:calc(100% - 240px);transition:margin-left .3s cubic-bezier(.16,1,.3,1),width .3s cubic-bezier(.16,1,.3,1)}
+      .sidebar.collapsed ~ .phone,.sidebar.collapsed + .phone{margin-left:64px;width:calc(100% - 64px)}
     }
   </style>
 </head>
