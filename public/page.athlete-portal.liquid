@@ -644,6 +644,32 @@
       .bar i{width:var(--pct)!important}
       .footer video{display:none}
     }
+
+    /* ── Desktop sidebar navigation ── */
+    .sidebar{display:none}
+    @media(min-width:768px){
+      .sidebar{display:flex;position:fixed;left:0;top:0;bottom:0;z-index:20;width:240px;background:linear-gradient(180deg,#0A0A0A 0%,#0E0E0E 100%);border-right:1px solid var(--line);flex-direction:column;transition:width .3s cubic-bezier(.16,1,.3,1)}
+      .sidebar.collapsed{width:64px}
+      .sidebar-brand{padding:20px 20px 16px;border-bottom:1px solid var(--line);flex:none;display:flex;align-items:center;gap:12px}
+      .sidebar-brand b{font-size:14px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;color:#fff;white-space:nowrap;overflow:hidden}
+      .sidebar.collapsed .sidebar-brand b{display:none}
+      .sidebar-nav{flex:1;padding:12px 0;overflow-y:auto;scrollbar-width:none}
+      .sidebar-nav::-webkit-scrollbar{display:none}
+      .sidebar-btn{display:flex;align-items:center;gap:12px;width:100%;background:none;border:none;color:var(--dim);font-family:var(--m);font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:12px 20px;cursor:pointer;transition:color .18s ease,background .18s ease;white-space:nowrap}
+      .sidebar-btn:hover{color:#fff;background:rgba(255,255,255,.04)}
+      .sidebar-btn.active{color:#fff;font-weight:700;background:rgba(255,255,255,.06)}
+      .sidebar-btn svg{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-width:1.5}
+      .sidebar.collapsed .sidebar-btn span{display:none}
+      .sidebar-footer{padding:12px 20px;border-top:1px solid var(--line);flex:none}
+      .sidebar-collapse{display:flex;align-items:center;gap:12px;width:100%;background:none;border:none;color:var(--dim);font-family:var(--m);font-size:9px;letter-spacing:.08em;text-transform:uppercase;padding:8px 0;cursor:pointer;transition:color .18s ease}
+      .sidebar-collapse:hover{color:#fff}
+      .sidebar-collapse svg{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:1.5;transition:transform .3s ease}
+      .sidebar.collapsed .sidebar-collapse svg{transform:rotate(180deg)}
+      .sidebar.collapsed .sidebar-collapse span{display:none}
+      .tabs{display:none!important}
+      .phone{margin-left:240px;transition:margin-left .3s cubic-bezier(.16,1,.3,1)}
+      .sidebar.collapsed ~ .phone,.sidebar.collapsed + .phone{margin-left:64px}
+    }
   </style>
 </head>
 <body>
@@ -699,7 +725,21 @@
     </form>
   </div>
 
-  <main class="portal" id="portal"><div class="phone">
+  <main class="portal" id="portal">
+    <nav class="sidebar" id="sidebar" aria-label="Portal navigation">
+      <div class="sidebar-brand"><b>OFFCOMFRT</b></div>
+      <div class="sidebar-nav">
+        <button class="sidebar-btn active" type="button" data-view="tasks"><svg viewBox="0 0 15 15" aria-hidden="true"><rect x="2.5" y="2.5" width="10" height="10"/><path d="M5 7.5l2 2 3.5-4"/></svg><span>Task</span></button>
+        <button class="sidebar-btn" type="button" data-view="climb"><svg viewBox="0 0 15 15" aria-hidden="true"><path d="M2 12.5h3.5v-4H9V5h4.5v7.5"/></svg><span>Climb</span></button>
+        <button class="sidebar-btn" type="button" data-view="games"><svg viewBox="0 0 15 15" aria-hidden="true"><rect x="1.5" y="4.5" width="12" height="7" rx="2.5"/><path d="M4 6.5v3M2.5 8h3"/><circle cx="10" cy="7.3" r=".9"/><circle cx="11.6" cy="9" r=".9"/></svg><span>Games</span></button>
+        <button class="sidebar-btn" type="button" data-view="ranks"><svg viewBox="0 0 15 15" aria-hidden="true"><rect x="2" y="8" width="3" height="5"/><rect x="6" y="4" width="3" height="9"/><rect x="10" y="6" width="3" height="7"/></svg><span>Ranks</span></button>
+        <button class="sidebar-btn" type="button" data-view="log"><svg viewBox="0 0 15 15" aria-hidden="true"><rect x="2.5" y="2" width="10" height="11"/><path d="M5 5.5h5M5 8h5M5 10.5h3"/></svg><span>Log</span></button>
+      </div>
+      <div class="sidebar-footer">
+        <button class="sidebar-collapse" type="button" id="sidebarToggle"><svg viewBox="0 0 15 15" aria-hidden="true"><path d="M9 3L5 7.5 9 12"/></svg><span>Collapse</span></button>
+      </div>
+    </nav>
+    <div class="phone">
     <div class="field" id="field"></div>
 
     <div class="screens">
@@ -1566,6 +1606,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   const feed=[['@neha.runs','trained at a gym she had never been to'],['@smit.trains','asked a stranger to critique his squat'],['@dee.moves','submitted a reel'],['@kabir.lifts','reached a new comfort level'],['@the.late.lift','trained outside in the rain']];
   $('taskRail').innerHTML=[...feed,...feed].map(x=>`<span><b>${x[0]}</b> ${x[1]}</span>`).join('');
   document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>show(b.dataset.view)));
+  $('sidebarToggle')?.addEventListener('click',()=>{$('sidebar').classList.toggle('collapsed')});
   $('athleteList').addEventListener('click',e=>{
     const b=e.target.closest('[data-invite]');
     if(!b||b.disabled)return;
