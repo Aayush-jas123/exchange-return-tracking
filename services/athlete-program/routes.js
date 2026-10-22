@@ -152,12 +152,15 @@ module.exports = function mountAthleteRoutes(app) {
       // Get CL5 level
       const { data: cl5 } = await supabase.from('comfort_levels').select('id').eq('ordinal', 1).single();
 
+      // Normalize phone to 91XXXXXXXXXX format for consistent lookup
+      const normalizedAppPhone = otpService.normalizeIndianPhone(app.phone) || app.phone;
+
       // Create influencer
       const { data: influencer, error: infErr } = await supabase
         .from('influencers')
         .insert([{
           name: app.payload?.name || app.email,
-          phone: app.phone,
+          phone: normalizedAppPhone,
           email: app.email,
           athlete_no: athleteNo,
           athlete_status: 'ON_TRIAL',
@@ -615,8 +618,8 @@ module.exports = function mountAthleteRoutes(app) {
         return res.status(400).json({ error: 'Please enter a valid 10-digit mobile number' });
       }
 
-      // Look up athlete by phone
-      const { data: athlete, error: athErr } = await supabase
+      // Look up athlete by phone (try normalized format first, then raw 10-digit fallback)
+      let { data: athlete, error: athErr } = await supabase
         .from('influencers')
         .select('id, name, athlete_status, phone')
         .eq('phone', normalized)
@@ -624,7 +627,19 @@ module.exports = function mountAthleteRoutes(app) {
 
       if (athErr) throw athErr;
       if (!athlete) {
-        return res.status(404).json({ error: 'No athlete found with this mobile number' });
+        // Fallback: try raw 10-digit format for legacy records stored without country code
+        const raw10 = normalized.substring(2);
+        const { data: legacyAthlete } = await supabase
+          .from('influencers')
+          .select('id, name, athlete_status, phone')
+          .eq('phone', raw10)
+          .maybeSingle();
+        if (!legacyAthlete) {
+          return res.status(404).json({ error: 'No athlete found with this mobile number' });
+        }
+        // Fix the legacy record for next time
+        await supabase.from('influencers').update({ phone: normalized }).eq('id', legacyAthlete.id);
+        athlete = legacyAthlete;
       }
 
       // Get or create PROGRESS token for this athlete
@@ -672,12 +687,26 @@ module.exports = function mountAthleteRoutes(app) {
         return res.status(400).json({ error: 'Please enter a valid 10-digit mobile number' });
       }
 
-      // Check if this phone belongs to a registered athlete
-      const { data: athlete } = await supabase
+      // Check if this phone belongs to a registered athlete (try normalized first, then raw 10-digit)
+      let { data: athlete } = await supabase
         .from('influencers')
         .select('id, name, athlete_status')
         .eq('phone', normalized)
         .maybeSingle();
+
+      if (!athlete) {
+        const raw10 = normalized.substring(2);
+        const { data: legacyAthlete } = await supabase
+          .from('influencers')
+          .select('id, name, athlete_status')
+          .eq('phone', raw10)
+          .maybeSingle();
+        if (legacyAthlete) {
+          // Fix legacy record and use it
+          await supabase.from('influencers').update({ phone: normalized }).eq('id', legacyAthlete.id);
+          athlete = legacyAthlete;
+        }
+      }
 
       if (!athlete) {
         return res.status(404).json({ error: 'No athlete account found with this number. Please apply first.' });
@@ -717,14 +746,27 @@ module.exports = function mountAthleteRoutes(app) {
       // Verify OTP via Message Central
       await otpService.verifyOtp(normalized, otp);
 
-      // Look up athlete
-      const { data: athlete, error: athErr } = await supabase
+      // Look up athlete (try normalized first, then raw 10-digit fallback)
+      let { data: athlete, error: athErr } = await supabase
         .from('influencers')
         .select('id, name, athlete_status')
         .eq('phone', normalized)
         .maybeSingle();
 
       if (athErr) throw athErr;
+      if (!athlete) {
+        const raw10 = normalized.substring(2);
+        const { data: legacyAthlete } = await supabase
+          .from('influencers')
+          .select('id, name, athlete_status')
+          .eq('phone', raw10)
+          .maybeSingle();
+        if (legacyAthlete) {
+          await supabase.from('influencers').update({ phone: normalized }).eq('id', legacyAthlete.id);
+          athlete = legacyAthlete;
+        }
+      }
+
       if (!athlete) {
         return res.status(404).json({ error: 'No athlete account found with this number' });
       }
@@ -793,9 +835,12 @@ module.exports = function mountAthleteRoutes(app) {
       else if (followers >= 10000) autoScore = 30;
       else autoScore = 15;
 
+      // Normalize phone to 91XXXXXXXXXX format for consistent lookup
+      const normalizedPhone = otpService.normalizeIndianPhone(phone) || phone;
+
       const { data, error } = await supabase.from('applications').insert([{
         payload: { name, platform, followers, niche, city, why_join },
-        email, phone, primary_handle: handle, auto_score: autoScore, status: 'APPLIED'
+        email, phone: normalizedPhone, primary_handle: handle, auto_score: autoScore, status: 'APPLIED'
       }]).select().single();
 
       if (error) throw error;
