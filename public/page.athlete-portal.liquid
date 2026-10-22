@@ -645,18 +645,19 @@
     @media(min-width:1024px){
       .sidebar{display:flex;position:fixed;left:0;top:0;bottom:0;z-index:20;width:240px;background:linear-gradient(180deg,#0A0A0A 0%,#0E0E0E 100%);border-right:1px solid var(--line);flex-direction:column;transition:width .3s cubic-bezier(.16,1,.3,1)}
       .sidebar.collapsed{width:64px}
-      .sidebar-brand{padding:20px 20px 16px;border-bottom:1px solid var(--line);flex:none;display:flex;align-items:center;gap:12px}
-      .sidebar-brand b{font-size:14px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;color:#fff;white-space:nowrap;overflow:hidden}
+      .sidebar-brand{padding:24px 24px 20px;border-bottom:1px solid var(--line);flex:none;display:flex;align-items:center;gap:12px}
+      .sidebar-brand b{font-size:15px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;color:#fff;white-space:nowrap;overflow:hidden}
       .sidebar.collapsed .sidebar-brand b{display:none}
-      .sidebar-nav{flex:1;padding:12px 0;overflow-y:auto;scrollbar-width:none}
+      .sidebar-nav{flex:1;padding:16px 0;overflow-y:auto;scrollbar-width:none}
       .sidebar-nav::-webkit-scrollbar{display:none}
-      .sidebar-btn{display:flex;align-items:center;gap:12px;width:100%;background:none;border:none;color:var(--dim);font-family:var(--m);font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:12px 20px;cursor:pointer;transition:color .18s ease,background .18s ease;white-space:nowrap}
+      .sidebar-btn{display:flex;align-items:center;gap:14px;width:100%;background:none;border:none;border-left:3px solid transparent;color:var(--dim);font-family:var(--m);font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;padding:14px 24px;cursor:pointer;transition:color .18s ease,background .18s ease,border-color .18s ease;white-space:nowrap}
       .sidebar-btn:hover{color:#fff;background:rgba(255,255,255,.04)}
-      .sidebar-btn.active{color:#fff;font-weight:700;background:rgba(255,255,255,.06)}
-      .sidebar-btn svg{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-width:1.5}
+      .sidebar-btn.active{color:#fff;font-weight:700;background:rgba(255,255,255,.06);border-left-color:#fff}
+      .sidebar-btn svg{width:20px;height:20px;flex:none;stroke:currentColor;fill:none;stroke-width:1.5}
+      .sidebar.collapsed .sidebar-btn{padding:14px 0;justify-content:center;gap:0}
       .sidebar.collapsed .sidebar-btn span{display:none}
-      .sidebar-footer{padding:12px 20px;border-top:1px solid var(--line);flex:none}
-      .sidebar-collapse{display:flex;align-items:center;gap:12px;width:100%;background:none;border:none;color:var(--dim);font-family:var(--m);font-size:9px;letter-spacing:.08em;text-transform:uppercase;padding:8px 0;cursor:pointer;transition:color .18s ease}
+      .sidebar-footer{padding:16px 24px;border-top:1px solid var(--line);flex:none}
+      .sidebar-collapse{display:flex;align-items:center;gap:12px;width:100%;background:none;border:none;color:var(--dim);font-family:var(--m);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;padding:8px 0;cursor:pointer;transition:color .18s ease}
       .sidebar-collapse:hover{color:#fff}
       .sidebar-collapse svg{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:1.5;transition:transform .3s ease}
       .sidebar.collapsed .sidebar-collapse svg{transform:rotate(180deg)}
