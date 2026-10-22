@@ -751,8 +751,7 @@
           <div class="kick rise" style="animation-delay:.08s" id="progressKick">To reach next level</div>
           <div class="hero rise" style="font-size:30px;animation-delay:.10s"><span><i id="xpCurrent">0</i></span><span><i id="xpLabel">XP earned</i></span></div>
           <div class="pips rise" id="pips" style="animation-delay:.12s" aria-label="Progress"></div>
-          <div class="duo rise" style="margin-top:1px;animation-delay:.14s">
-            <div><span class="lab" style="margin:0">Done</span><b id="doneCount">0<em style="font-size:13px;opacity:.5"> / —</em></b><em id="doneLabel">at this level</em></div>
+          <div class="duo rise" style="margin-top:1px;animation-delay:.14s;grid-template-columns:1fr">
             <div><span class="lab" style="margin:0">XP earned</span><b class="xpv" id="xpEarned">0</b><em id="xpToGo">— to go</em></div>
           </div>
 
@@ -1232,7 +1231,6 @@ function renderTasks(){
   // Progress hero — show XP earned and XP remaining to next level
   $('xpCurrent').textContent=xp.toLocaleString('en-IN');
   $('xpLabel').textContent=xpToNext?xpToNext.toLocaleString('en-IN')+' XP to next level':'Maximum level reached';
-  $('doneCount').innerHTML=doneAtLevel+'<em style="font-size:13px;opacity:.5"> / '+totalAtLevel+'</em>';
   $('xpEarned').textContent=xp.toLocaleString('en-IN');
   $('xpToGo').textContent=xpToNext?xpToNext.toLocaleString('en-IN')+' to go':'Level complete';
 
