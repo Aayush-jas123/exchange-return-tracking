@@ -856,7 +856,7 @@ module.exports = function mountAthleteRoutes(app) {
 
       const { data: athlete, error } = await supabase
         .from('influencers')
-        .select('id, name, athlete_no, athlete_status, xp_total, coin_balance, standing_score, level_id, joined_at')
+        .select('id, name, athlete_no, athlete_status, xp_total, coin_balance, standing_score, level_id, joined_at, instagram_handle, phone, leaderboard_opt_out, shipping_address, shipping_city, shipping_state, shipping_pin, shipping_landmark, address_type')
         .eq('id', influencerId)
         .single();
 
@@ -880,13 +880,14 @@ module.exports = function mountAthleteRoutes(app) {
         .maybeSingle();
       if (dc) discountCode = { code: dc.code, percent: dc.percent, is_active: dc.is_active };
 
-      // Count orders this month
+      // Count coupon orders this month (cancelled/refunded ones don't count)
       const now = new Date();
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
       const { count: monthOrders } = await supabase
         .from('attributed_orders')
         .select('*', { count: 'exact', head: true })
         .eq('influencer_id', influencerId)
+        .eq('is_cancelled', false)
         .gte('placed_at', monthStart);
 
       // WHITELIST fields per spec §09 — only expose safe fields
@@ -902,6 +903,12 @@ module.exports = function mountAthleteRoutes(app) {
         instagram_handle: athlete.instagram_handle,
         phone: athlete.phone,
         leaderboard_opt_out: athlete.leaderboard_opt_out,
+        shipping_address: athlete.shipping_address,
+        shipping_city: athlete.shipping_city,
+        shipping_state: athlete.shipping_state,
+        shipping_pin: athlete.shipping_pin,
+        shipping_landmark: athlete.shipping_landmark,
+        address_type: athlete.address_type,
         level: level ? { display_name: level.display_name, ordinal: level.ordinal, display_number: level.display_number, dial_segments_lit: level.dial_segments_lit, min_xp: level.min_xp } : null,
         next_level: nextLevel ? { display_name: nextLevel.display_name, min_xp: nextLevel.min_xp } : null,
         discount_code: discountCode,
@@ -1018,10 +1025,12 @@ module.exports = function mountAthleteRoutes(app) {
         (levels || []).forEach(l => levelsMap[l.id] = l);
       }
 
+      // An open portal/game socket on the RaceHub counts as live right now.
+      const hub = require('./RaceHub').getHub();
       const enriched = (data || []).map(a => ({
         ...a,
         level_name: levelsMap[a.level_id]?.display_name || '—',
-        last_seen: portalPresence.get(a.id) || null
+        last_seen: (hub && hub.isOnline(a.id)) ? Date.now() : (portalPresence.get(a.id) || null)
       }));
 
       res.json({ success: true, data: enriched });
@@ -1302,6 +1311,29 @@ module.exports = function mountAthleteRoutes(app) {
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
 
+  // ── Arcade: XP for a finished mini-game run ──
+  app.post('/api/athlete/:token/games/xp', authAthlete, async (req, res) => {
+    try {
+      const { influencerId, scope } = req.athleteScope;
+      if (scope !== 'PROGRESS') return res.status(403).json({ error: 'Wrong scope' });
+      const { game, score, run_id } = req.body || {};
+      const result = await GamificationService.awardGameXp(influencerId, game, score, run_id);
+      if (result.awarded > 0) {
+        try { await LevelEngine.evaluate(influencerId); } catch (e) { console.error('[Arcade] Level evaluation failed:', e.message); }
+      }
+      res.json({ success: true, data: result });
+    } catch (err) { res.status(err.status || 500).json({ error: err.message }); }
+  });
+
+  // ── Coin Shop (balance, coin sources, level-up bonuses; products land later) ──
+  app.get('/api/athlete/:token/shop', authAthlete, async (req, res) => {
+    try {
+      const { influencerId, scope } = req.athleteScope;
+      if (scope !== 'PROGRESS') return res.status(403).json({ error: 'Wrong scope' });
+      res.json({ success: true, data: await GamificationService.getCoinSummary(influencerId) });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
   // ── Personal Ranks / History ──
   app.get('/api/athlete/:token/ranks', authAthlete, async (req, res) => {
     try {
@@ -1395,6 +1427,25 @@ module.exports = function mountAthleteRoutes(app) {
       const monthly = Object.values(monthlyMap).sort((a, b) => b.month.localeCompare(a.month));
 
       res.json({ success: true, data: { summary, monthly } });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // ─ Update athlete profile ──
+  app.patch('/api/athlete/:token/profile', authAthlete, async (req, res) => {
+    try {
+      const { influencerId, scope } = req.athleteScope;
+      if (scope !== 'PROGRESS') return res.status(403).json({ error: 'Wrong scope' });
+
+      const ALLOWED = ['name','instagram_handle','phone','shipping_address','shipping_city','shipping_state','shipping_pin','shipping_landmark','address_type'];
+      const patch = {};
+      for (const k of ALLOWED) {
+        if (req.body[k] !== undefined) patch[k] = req.body[k];
+      }
+      if (Object.keys(patch).length === 0) return res.status(400).json({ error: 'No valid fields' });
+
+      const { data, error } = await supabase.from('influencers').update(patch).eq('id', influencerId).select('id,name,instagram_handle,phone,shipping_address,shipping_city,shipping_state,shipping_pin,shipping_landmark,address_type').single();
+      if (error) throw error;
+      res.json({ success: true, data });
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
 

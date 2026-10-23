@@ -82,28 +82,28 @@
 
     .screen{position:absolute;inset:0;z-index:1;display:none;flex-direction:column;overflow:hidden;color:var(--ink)}
     .screen.active{display:flex}
-    .screen-top{flex-shrink:0;padding:18px 15px 0;padding-top:calc(18px + env(safe-area-inset-top,0px))}
-    @media(min-width:768px){.screen-top{padding:24px 28px 0;padding-top:calc(24px + env(safe-area-inset-top,0px))}}
+    .screen-top{flex-shrink:0;padding:20px 15px 0;padding-top:calc(20px + env(safe-area-inset-top,0px))}
+    @media(min-width:768px){.screen-top{padding:28px 40px 0;padding-top:calc(28px + env(safe-area-inset-top,0px))}}
     .screen-scroll{flex:1 1 auto;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding:0;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.15) transparent}
     .screen-scroll::-webkit-scrollbar{width:6px}
     .screen-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:3px}
     .scroll-inner{padding:14px 15px;padding-bottom:14px}
-    @media(min-width:768px){.scroll-inner{padding:20px 28px;padding-bottom:20px}}
+    @media(min-width:768px){.scroll-inner{padding:24px 40px;padding-bottom:24px}}
     .screens{position:relative;flex:1 1 auto;min-height:0}
     .rise{opacity:0;transform:translateY(13px)}
     .open .rise{animation:rise .6s cubic-bezier(.16,1,.3,1) forwards}
     .tabs.rise{animation:rise .6s cubic-bezier(.16,1,.3,1) forwards}
     @keyframes rise{to{opacity:1;transform:none}}
 
-    .top{display:flex;justify-content:space-between;align-items:center;font-family:var(--m);font-size:8.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--dim)}
-    @media(min-width:768px){.top{font-size:10px}}
+    .top{display:flex;justify-content:space-between;align-items:center;font-family:var(--m);font-size:8.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--dim);min-height:36px}
+    @media(min-width:768px){.top{font-size:10px;min-height:0}}
     .live{display:flex;align-items:center;gap:5px;color:#fff}
     .dotlive{width:5px;height:5px;border-radius:50%;background:#fff;animation:bp 2s ease-in-out infinite}
     @keyframes bp{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.26;transform:scale(.7)}}
 
     .kick{font-family:var(--m);font-size:8.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--dim);margin-top:7px}
     .hero{font-weight:900;font-size:31px;line-height:.95;letter-spacing:-.028em;text-transform:uppercase}
-    @media(min-width:768px){.hero{font-size:42px}}
+    @media(min-width:768px){.hero{font-size:48px}}
     .hero span{display:block;overflow:hidden}
     .hero i{display:block;font-style:normal;transform:translateY(105%)}
     .open .hero i{animation:lift .78s cubic-bezier(.16,1,.3,1) forwards}
@@ -118,21 +118,22 @@
     .xpchip{font-family:var(--m);font-size:11px;border:1px solid var(--line);padding:4px 7px}
 
     .plate{position:relative;min-height:190px;margin:16px 12px 0;overflow:hidden;border-radius:8px;background:linear-gradient(150deg,#565656,#101010 62%,#2D2D2D)}
-    @media(min-width:768px){.plate{min-height:220px;margin:20px 28px 0;border-radius:12px}}
+    @media(min-width:768px){.plate{min-height:260px;margin:24px 0 0;border-radius:12px}}
     .plate i{position:absolute;inset:-14%;background:inherit;animation:burns 22s ease-in-out infinite alternate}
     @keyframes burns{0%{transform:scale(1)}100%{transform:scale(1.15) translate(-3%,-2%)}}
     .plate::after{content:"";position:absolute;inset:0;opacity:.3;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/><feColorMatrix type='saturate' values='0'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='.55'/></svg>")}
     .plate q{position:absolute;left:16px;right:16px;bottom:10px;z-index:2;quotes:none;font-size:11px;line-height:1.4;text-shadow:0 1px 4px #000}
+    @media(min-width:768px){.plate q{left:40px;right:40px;bottom:16px;font-size:13px}}
     .plate q b{display:block;font-family:var(--m);font-size:7.5px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.72);font-weight:400;margin-top:3px}
 
     .cta{position:relative;overflow:hidden;border:1px solid #fff;background:#fff;color:#000;font-weight:800;font-size:12px;letter-spacing:.11em;text-transform:uppercase;text-align:center;padding:13px;width:100%;cursor:pointer;user-select:none}
-    @media(min-width:768px){.cta{font-size:14px;padding:16px;max-width:480px;margin:0 auto}}
+    @media(min-width:768px){.cta{font-size:14px;padding:16px;max-width:420px;margin:12px auto 0}}
     .cta::after{content:"";position:absolute;top:0;bottom:0;width:36%;background:linear-gradient(90deg,transparent,rgba(0,0,0,.14),transparent);transform:translateX(-160%);animation:sweep 4.6s cubic-bezier(.4,0,.2,1) infinite}
     @keyframes sweep{0%,62%{transform:translateX(-160%)}100%{transform:translateX(330%)}}
     .cta:active{transform:scale(.978)}
 
     .statrow{display:grid;grid-template-columns:56px 1fr;gap:14px;align-items:center;padding:16px 18px;border-top:1px solid var(--line);background:rgba(255,255,255,.02)}
-    @media(min-width:768px){.statrow{grid-template-columns:72px 1fr;gap:20px;padding:20px 28px}}
+    @media(min-width:768px){.statrow{grid-template-columns:80px 1fr;gap:24px;padding:24px 40px}}
     .statrow .stat-label{font-family:var(--m);font-size:7.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
     .dial .lit{stroke-dasharray:21;stroke-dashoffset:21}
     .open .dial .lit{animation:draw .9s cubic-bezier(.16,1,.3,1) .3s forwards}
@@ -153,13 +154,13 @@
 
     .strip{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.12)}
     .strip div{background:var(--bg);padding:12px 14px}
-    @media(min-width:768px){.strip{max-width:540px;margin:0 auto}}
     .strip dt{font-family:var(--m);font-size:7.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
     .strip dd{margin:4px 0 0;font-size:20px;font-weight:900;line-height:1}
-    @media(min-width:768px){.strip dd{font-size:26px}}
+    @media(min-width:768px){.strip dd{font-size:28px}}
     .strip s{font-family:var(--m);font-size:9px;color:var(--dim);text-decoration:none}
 
     .tick{overflow:hidden;border-top:1px solid var(--line);padding-top:9px;margin-bottom:14px;mask-image:linear-gradient(90deg,transparent,#000 9%,#000 91%,transparent)}
+
     .tickrail{display:flex;gap:26px;width:max-content;animation:roll 26s linear infinite}
     .tickrail span{font-family:var(--m);font-size:9px;letter-spacing:.07em;color:var(--dim);white-space:nowrap}
     .tickrail b{color:#fff}
@@ -260,6 +261,14 @@
     .climb-weekly h3{font-size:15px;font-weight:800;text-transform:uppercase;margin:0 0 4px;line-height:1.2}
     .climb-weekly p{font-size:11px;color:var(--dim);line-height:1.45;margin:0}
     .climb-weekly .cw-status{margin-top:10px;font-family:var(--m);font-size:8px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+    .climb-fuel{border-top:1px solid var(--line);padding:16px 18px}
+    .climb-fuel .cf-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);margin-top:8px}
+    .climb-fuel .cf-grid div{background:var(--bg,#0a0a0a);padding:10px 8px}
+    .climb-fuel dt{font-family:var(--m);font-size:7px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+    .climb-fuel dd{margin:3px 0 0;font-size:15px;font-weight:900;line-height:1}
+    .climb-fuel ul{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:6px}
+    .climb-fuel li{display:flex;justify-content:space-between;gap:10px;font-size:11px;color:var(--dim);line-height:1.35}
+    .climb-fuel li b{color:var(--ink,#fff);font-weight:700;white-space:nowrap}
 
     /* ── Climb: level movement ── */
     .climb-history{border-top:1px solid var(--line);padding:16px 18px}
@@ -268,6 +277,14 @@
     .history-row:last-child{border-bottom:none}
     .history-row b{color:#fff;font:700 11px var(--f)}
     .history-row span{color:var(--dim);font-family:var(--m);font-size:8px;letter-spacing:.04em}
+
+    /* ── Shop: coin drops (products land later) ── */
+    .shop-drops{border-top:1px solid var(--line)}
+    .shop-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line);margin:12px 18px 0}
+    @media(min-width:768px){.shop-tiles{margin:14px 28px 0}}
+    .shop-tiles div{aspect-ratio:3/4;display:grid;place-items:center;background:repeating-linear-gradient(135deg,rgba(255,255,255,.025) 0 6px,transparent 6px 12px),var(--bg,#0a0a0a);font-family:var(--m);font-size:7.5px;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.25)}
+    .shop-note{font-size:11px;color:var(--dim);line-height:1.45;margin:10px 18px 16px}
+    @media(min-width:768px){.shop-note{margin:12px 28px 20px}}
 
     /* ── Log: commission hero ── */
     .comm-hero{position:relative;overflow:hidden;background:linear-gradient(150deg,#565656,#101010 62%,#2D2D2D);min-height:140px;padding:22px 18px 18px}
@@ -373,11 +390,78 @@
     .product-loading{padding:20px;text-align:center;font-family:var(--m);font-size:10px;color:var(--dim);letter-spacing:.08em;text-transform:uppercase}
     .product-empty{padding:20px;text-align:center;font-family:var(--m);font-size:10px;color:var(--dim)}
 
-    .rank-card{border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:10px 0}
-    .rank-card strong{display:block;font-size:48px;line-height:.9;letter-spacing:-.06em}
+    .rank-card{border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:16px 0}
+    .rank-card .rk-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+    .rank-card .rk-num{font-size:56px;line-height:.85;letter-spacing:-.06em;font-weight:900}
+    .rank-card .rk-meta{display:flex;flex-direction:column;gap:4px;margin-top:6px}
+    .rank-card .rk-delta{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border:1px solid var(--line);border-radius:4px;font-family:var(--m);font-size:9px;letter-spacing:.08em;text-transform:uppercase}
+    .rank-card .rk-delta.up{color:#4ade80;border-color:rgba(74,222,128,.3)}
+    .rank-card .rk-delta.down{color:#f87171;border-color:rgba(248,113,113,.3)}
+    .rank-card .rk-delta.same{color:var(--dim)}
+    .rank-card .rk-level{font-family:var(--m);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+    .rank-card .rk-score{font-size:13px;font-weight:700;letter-spacing:-.02em}
     .rank-card p{margin:6px 0 0;color:var(--dim);font-family:var(--m);font-size:9px;letter-spacing:.06em}
-    .chart{display:flex;height:104px;align-items:end;gap:3px;margin-top:13px;padding-bottom:8px;border-bottom:1px solid var(--line)}
-    .chart i{display:block;min-width:3px;flex:1;background:#fff;opacity:.76}
+    /* Stats grid */
+    .rk-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border-bottom:1px solid var(--line)}
+    .rk-stat{padding:12px 0;border-right:1px solid var(--line);text-align:center}
+    .rk-stat:last-child{border-right:none}
+    .rk-stat b{display:block;font-size:18px;font-weight:800;letter-spacing:-.04em;line-height:1}
+    .rk-stat span{display:block;margin-top:4px;font-family:var(--m);font-size:7px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+    /* Percentile bar */
+    .rk-pct{padding:14px 0;border-bottom:1px solid var(--line)}
+    .rk-pct-bar{position:relative;height:6px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden;margin-top:8px}
+    .rk-pct-fill{position:absolute;left:0;top:0;height:100%;background:#fff;border-radius:3px;transition:width .6s ease}
+    .rk-pct-label{display:flex;justify-content:space-between;align-items:center}
+    .rk-pct-label b{font-size:20px;font-weight:800;letter-spacing:-.04em}
+    .rk-pct-label span{font-family:var(--m);font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+    /* XP gaps */
+    .rk-gaps{display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:1px solid var(--line)}
+    .rk-gap{padding:12px 0;text-align:center}
+    .rk-gap:first-child{border-right:1px solid var(--line)}
+    .rk-gap b{display:block;font-size:16px;font-weight:800;letter-spacing:-.03em}
+    .rk-gap span{display:block;margin-top:3px;font-family:var(--m);font-size:7px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+    .rk-gap em{display:block;margin-top:2px;font-family:var(--m);font-size:8px;color:var(--dim);font-style:normal}
+    /* Chart */
+    .chart{display:flex;height:120px;align-items:end;gap:2px;margin-top:13px;padding-bottom:8px;border-bottom:1px solid var(--line);position:relative}
+    .chart i{display:block;min-width:3px;flex:1;background:#fff;opacity:.76;border-radius:1px 1px 0 0;transition:opacity .2s}
+    .chart i:hover{opacity:1}
+    .chart-legend{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
+    .chart-legend span{font-family:var(--m);font-size:7.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+    .chart-legend b{font-size:9px;font-weight:700}
+    /* Filter pills */
+    .rk-filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+    .rk-pill{padding:5px 12px;border:1px solid var(--line);border-radius:20px;background:transparent;color:var(--dim);font-family:var(--m);font-size:8px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:all .2s}
+    .rk-pill:hover,.rk-pill.active{background:#fff;color:#000;border-color:#fff}
+    /* Nearby list */
+    .rk-nearby-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+    .rk-nearby-hdr span{font-family:var(--m);font-size:7.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+    .rk-nearby-hdr b{font-size:10px;font-weight:700}
+    .rk-athlete-row{display:grid;grid-template-columns:32px 1fr auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+    .rk-athlete-row:last-child{border-bottom:none}
+    .rk-athlete-row.me{background:rgba(255,255,255,.04);margin:0 -14px;padding:10px 14px;border-radius:6px;border-bottom:none}
+    .rk-pos{font-family:var(--m);font-size:10px;font-weight:700;color:var(--dim);text-align:center}
+    .rk-athlete-row.me .rk-pos{color:#fff}
+    .rk-ainfo{display:flex;flex-direction:column;gap:2px}
+    .rk-ainfo b{font-size:11px;font-weight:700;letter-spacing:.02em}
+    .rk-ainfo em{font-family:var(--m);font-size:8px;color:var(--dim);font-style:normal;letter-spacing:.06em}
+    .rk-axp{text-align:right}
+    .rk-axp b{font-size:12px;font-weight:800;letter-spacing:-.02em}
+    .rk-axp em{display:block;font-family:var(--m);font-size:7px;color:var(--dim);font-style:normal;letter-spacing:.08em;text-transform:uppercase}
+    /* Milestones */
+    .rk-milestone{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+    .rk-milestone:last-child{border-bottom:none}
+    .rk-milestone .mc-icon{width:28px;height:28px;border:1px solid var(--line);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px}
+    .rk-milestone .mc-icon.up{color:#4ade80;border-color:rgba(74,222,128,.3)}
+    .rk-milestone .mc-icon.down{color:#f87171;border-color:rgba(248,113,113,.3)}
+    .rk-milestone .mc-body{display:flex;flex-direction:column;gap:2px}
+    .rk-milestone .mc-body b{font-size:11px;font-weight:700}
+    .rk-milestone .mc-body span{font-family:var(--m);font-size:8px;color:var(--dim);letter-spacing:.04em}
+    .rk-milestone .mc-date{text-align:right;font-family:var(--m);font-size:8px;color:var(--dim);letter-spacing:.04em}
+    /* Trend indicator */
+    .rk-trend{display:flex;align-items:center;gap:6px;padding:10px 0;border-bottom:1px solid var(--line)}
+    .rk-trend span{font-family:var(--m);font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+    .rk-trend b{font-size:11px;font-weight:700}
+    .rk-trend svg{width:16px;height:16px}
 
     .mission-row{position:relative;display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:start;padding:14px 14px;margin:0;border:1px solid var(--line);border-radius:8px;background:rgba(255,255,255,.03);cursor:pointer;transition:background .3s ease,border-color .3s}
     .mission-row:before{content:attr(data-number);font-family:var(--m);font-size:11px;color:var(--dim);line-height:1}
@@ -431,6 +515,7 @@
     .footer video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.35;filter:brightness(.3) contrast(1.15) saturate(.4)}
     .footer::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,10,10,.3) 0%,rgba(10,10,10,.65) 35%,rgba(10,10,10,.92) 100%);z-index:1}
     .footer-inner{position:relative;z-index:2;padding:30px 18px 24px;display:flex;flex-direction:column;justify-content:flex-end;min-height:170px}
+    @media(min-width:768px){.footer-inner{padding:36px 40px 28px}}
     .footer-brand{font-weight:900;font-size:22px;letter-spacing:.18em;text-transform:uppercase;color:#fff;text-shadow:0 2px 12px rgba(0,0,0,.6)}
     .footer-tag{font-family:var(--m);font-size:7.5px;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.5);margin-top:4px}
     .footer-rule{width:28px;height:1px;background:rgba(255,255,255,.35);margin:10px 0}
@@ -439,13 +524,25 @@
 
     /* shared helpers from the Field Manual navigation spec */
     .rowx{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+    @media(min-width:768px){.rowx{padding:10px 0}}
     .mono{font-family:var(--m);font-size:9.5px;letter-spacing:.05em}
     .rule{height:1px;background:var(--line);flex:none}
 
     /* avatar button in top bar */
-    .avbtn{width:20px;height:20px;border-radius:50%;background:linear-gradient(140deg,#6A6A6A,#161616);border:1px solid var(--line);cursor:pointer;padding:0;flex:none;position:relative}
-    .avbtn:hover{border-color:#fff}
-    .avbtn.dot::after{content:"";position:absolute;top:-2px;right:-2px;width:6px;height:6px;border-radius:50%;background:#fff;border:1.5px solid var(--bg)}
+.avbtn{display:none}
+
+    /* ── Edit fields in settings (shared mobile + desktop) ── */
+    .sb-field{margin-bottom:10px}
+    .sb-field label{display:block;font-family:var(--m);font-size:7.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin-bottom:4px}
+    .sb-field input,.sb-field select,.sb-field textarea{width:100%;background:#111;border:1px solid var(--line);color:#fff;font-family:var(--m);font-size:12px;padding:8px 10px;border-radius:4px;outline:none;transition:border-color .18s}
+    .sb-field input:focus,.sb-field select:focus,.sb-field textarea:focus{border-color:rgba(255,255,255,.5)}
+    .sb-field textarea{resize:vertical;min-height:56px}
+    .sb-field-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .sb-savebtn{width:100%;background:#fff;color:#000;font-family:var(--m);font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;border:none;padding:10px;cursor:pointer;border-radius:4px;margin-top:6px;transition:opacity .18s}
+    .sb-savebtn:hover{opacity:.85}
+    .sb-savebtn:disabled{opacity:.4;cursor:default}
+    .sb-cancelbtn{width:100%;background:transparent;color:var(--dim);font-family:var(--m);font-size:9px;letter-spacing:.1em;text-transform:uppercase;border:1px solid var(--line);padding:8px;cursor:pointer;border-radius:4px;margin-top:6px;transition:color .18s,border-color .18s}
+    .sb-cancelbtn:hover{color:#fff;border-color:#fff}
 
     /* scrim + sheet overlay */
     .scrim{position:absolute;inset:0;z-index:12;background:rgba(0,0,0,.62);opacity:0;pointer-events:none;transition:opacity .22s}
@@ -567,6 +664,25 @@
     .dr svg{width:12px;height:12px;flex:none;fill:none;stroke:#fff;stroke-width:2}
     .dr b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .dr s{text-decoration:none;font-family:var(--m);font-size:10px;color:var(--dim);font-variant-numeric:tabular-nums}
+
+    /* task pool — collapsible mission rows */
+    .taskpool{display:flex;flex-direction:column;flex:none;gap:0}
+    .mpool{border:1px solid var(--line);border-radius:6px;overflow:hidden;margin-top:2px;transition:border-color .25s}
+    .mpool:hover{border-color:rgba(255,255,255,.35)}
+    .mpool.open{border-color:rgba(255,255,255,.55)}
+    .mpool-head{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:10px 12px;cursor:pointer;user-select:none}
+    .mpool-head b{font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .mpool-head .mxp{font-family:var(--m);font-size:10px;font-weight:700;color:var(--dim);font-variant-numeric:tabular-nums;white-space:nowrap}
+    .mpool-head .marr{font-style:normal;font-size:11px;color:var(--dim);transition:transform .3s cubic-bezier(.16,1,.3,1);flex:none}
+    .mpool.open .marr{transform:rotate(180deg);color:#fff}
+    .mpool-body{max-height:0;overflow:hidden;transition:max-height .35s cubic-bezier(.16,1,.3,1)}
+    .mpool.open .mpool-body{max-height:200px}
+    .mpool-body-inner{padding:0 12px 12px;border-top:1px solid rgba(255,255,255,.07)}
+    .mpool-body-inner p{font-size:11px;color:var(--dim);line-height:1.5;margin:10px 0 0}
+    .mpool-body-inner .mpick{display:inline-block;margin-top:10px;font-family:var(--m);font-size:9px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;color:#000;background:#fff;border:0;padding:7px 14px;border-radius:4px;cursor:pointer;transition:transform .15s}
+    .mpool-body-inner .mpick:active{transform:scale(.96)}
+    .mpool-body-inner .mpick:disabled{opacity:.4;cursor:default}
+
     .scrollcue{display:grid;grid-template-columns:1fr auto auto;gap:9px;align-items:center;border:1px solid var(--line);padding:9px 11px;font-size:11px;color:var(--dim);flex:none;cursor:pointer;margin-top:2px;border-radius:6px}
     .scrollcue b{color:#fff;font-weight:700}
     .scrollcue i{font-style:normal;font-size:13px;animation:nudge 1.9s ease-in-out infinite}
@@ -581,10 +697,12 @@
     .tr2 s.warn{color:#E0A33C}
 
     /* proof row on task */
-    .proof{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;flex:none}
-    .proof b{font-size:10.5px;font-weight:600;line-height:1.3}
-    .pf{display:flex;gap:4px;flex:none}
-    .pf span{font-family:var(--m);font-size:7.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);border:1px solid var(--line);padding:3px 5px;border-radius:3px}
+    .lab{font-family:var(--m);font-size:7.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);display:block;margin-bottom:3px}
+    .proof{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex:none}
+    .proof>div:first-child{flex:1 1 auto}
+    .proof b{font-size:11px;font-weight:600;line-height:1.4}
+    .pf{display:flex;gap:5px;flex:none}
+    .pf span{font-family:var(--m);font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);border:1px solid var(--line);padding:4px 7px;border-radius:3px}
 
     /* simplified level strip for task tab */
     .bar2{height:2px;background:var(--line);position:relative;overflow:hidden;margin-top:6px}
@@ -627,6 +745,10 @@
     .invt{font-family:var(--m);font-size:7.5px;letter-spacing:.12em;text-transform:uppercase;border:1px solid #fff;background:none;color:#fff;padding:3.5px 9px;cursor:pointer;transition:opacity .18s ease,transform .12s ease}
     .invt:active{transform:scale(.95)}
     .invt:disabled{border-color:var(--line);color:var(--dim);cursor:default}
+    .invt.w{background:#fff;color:#000}
+    .rinv{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top,0px));transform:translate(-50%,-140%);z-index:9999;display:flex;align-items:center;gap:10px;max-width:calc(100% - 24px);background:rgba(10,10,12,.96);border:1px solid rgba(255,255,255,.2);padding:10px 10px 10px 14px;font-size:12px;box-shadow:0 18px 50px rgba(0,0,0,.55);transition:transform .35s cubic-bezier(.2,.8,.2,1)}
+    .rinv.show{transform:translate(-50%,0)}
+    .rinv b{font-weight:800}
     .roomnote{font-family:var(--m);font-size:8px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);line-height:1.6;margin:10px 0 0}
 
     .empty{padding:18px 0;color:var(--dim);font-family:var(--m);font-size:10px;letter-spacing:.08em;text-transform:uppercase}
@@ -643,8 +765,8 @@
     /* ── Desktop sidebar navigation ── */
     .sidebar{display:none}
     @media(min-width:1024px){
-      .sidebar{display:flex;position:fixed;left:0;top:0;bottom:0;z-index:20;width:240px;background:linear-gradient(180deg,#0A0A0A 0%,#0E0E0E 100%);border-right:1px solid var(--line);flex-direction:column;transition:width .3s cubic-bezier(.16,1,.3,1)}
-      .sidebar.collapsed{width:64px}
+      .sidebar{display:flex;position:fixed;left:0;top:0;bottom:0;z-index:20;width:280px;background:linear-gradient(180deg,#0A0A0A 0%,#0E0E0E 100%);border-right:1px solid var(--line);flex-direction:column;transition:width .3s cubic-bezier(.16,1,.3,1)}
+      .sidebar.collapsed{width:72px}
       .sidebar-brand{padding:24px 24px 20px;border-bottom:1px solid var(--line);flex:none;display:flex;align-items:center;gap:12px}
       .sidebar-brand b{font-size:15px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;color:#fff;white-space:nowrap;overflow:hidden}
       .sidebar.collapsed .sidebar-brand b{display:none}
@@ -662,9 +784,72 @@
       .sidebar-collapse svg{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:1.5;transition:transform .3s ease}
       .sidebar.collapsed .sidebar-collapse svg{transform:rotate(180deg)}
       .sidebar.collapsed .sidebar-collapse span{display:none}
+
+      /* ── Sidebar account section ── */
+      .sidebar-acct{border-top:1px solid var(--line);flex:none;overflow:hidden}
+      .sidebar-acct-head{display:flex;align-items:center;gap:12px;padding:16px 20px;cursor:pointer;user-select:none;transition:background .18s ease}
+      .sidebar-acct-head:hover{background:rgba(255,255,255,.04)}
+      .sidebar-acct-avatar{width:36px;height:36px;border-radius:50%;background:linear-gradient(140deg,#6A6A6A,#161616);border:1.5px solid var(--line);flex:none;position:relative}
+      .sidebar-acct-avatar::after{content:"";position:absolute;top:-1px;right:-1px;width:8px;height:8px;border-radius:50%;background:#22c55e;border:2px solid #0A0A0A}
+      .sidebar-acct-info{flex:1;min-width:0}
+      .sidebar-acct-info b{display:block;font-size:13px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .sidebar-acct-info em{font-style:normal;font-family:var(--m);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);display:block;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .sidebar-acct-arrow{font-style:normal;color:var(--dim);font-size:14px;transition:transform .25s cubic-bezier(.16,1,.3,1);flex:none}
+      .sidebar-acct-head.open .sidebar-acct-arrow{transform:rotate(180deg)}
+      .sidebar-acct-menu{max-height:0;overflow:hidden;transition:max-height .35s cubic-bezier(.16,1,.3,1)}
+      .sidebar-acct-menu.open{max-height:400px}
+      .sidebar-acct-item{display:flex;align-items:center;gap:12px;width:100%;background:none;border:none;border-left:3px solid transparent;color:var(--dim);font-family:var(--m);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;padding:11px 20px 11px 24px;cursor:pointer;transition:color .18s ease,background .18s ease,border-color .18s ease;white-space:nowrap;text-align:left}
+      .sidebar-acct-item:hover{color:#fff;background:rgba(255,255,255,.04)}
+      .sidebar-acct-item.active{color:#fff;border-left-color:#fff;background:rgba(255,255,255,.06)}
+      .sidebar-acct-item svg{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:1.5}
+      .sidebar-acct-item span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+      .sidebar-acct-item .acct-val{font-size:9px;color:var(--dim);font-weight:400;text-transform:none;letter-spacing:.04em;flex:none}
+      .sidebar.collapsed .sidebar-acct{display:none}
+
+      /* ── Sidebar account sub-screen ── */
+      .sidebar-acct-sub{position:absolute;left:0;top:0;bottom:0;width:280px;background:linear-gradient(180deg,#0A0A0A 0%,#0E0E0E 100%);border-right:1px solid var(--line);z-index:21;transform:translateX(-100%);transition:transform .3s cubic-bezier(.16,1,.3,1);display:flex;flex-direction:column;overflow:hidden}
+      .sidebar-acct-sub.open{transform:none}
+      .sidebar-acct-sub-head{display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--line);flex:none}
+      .sidebar-acct-sub-head button{background:none;border:none;color:var(--dim);cursor:pointer;padding:0;font-size:16px;line-height:1}
+      .sidebar-acct-sub-head button:hover{color:#fff}
+      .sidebar-acct-sub-head b{flex:1;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#fff}
+      .sidebar-acct-sub-body{flex:1;overflow-y:auto;scrollbar-width:none;padding:16px 20px}
+      .sidebar-acct-sub-body::-webkit-scrollbar{display:none}
+
+      /* Sidebar sub-screen content styles */
+      .sb-idcard{display:flex;align-items:center;gap:12px;padding-bottom:14px;border-bottom:1px solid var(--line);margin-bottom:14px}
+      .sb-idcard .big{width:40px;height:40px;border-radius:50%;background:linear-gradient(140deg,#6A6A6A,#161616);border:1px solid var(--line);flex:none}
+      .sb-idcard b{display:block;font-size:13px;font-weight:700;color:#fff}
+      .sb-idcard em{font-style:normal;font-family:var(--m);font-size:8.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);display:block;margin-top:2px}
+      .sb-kick{font-family:var(--m);font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin-bottom:8px}
+      .sb-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:11px}
+      .sb-row:last-child{border-bottom:0}
+      .sb-row b{font-family:var(--m);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;color:#fff}
+      .sb-row em{font-style:normal;font-size:9.5px;color:var(--dim)}
+      .sb-row s{text-decoration:none;font-family:var(--m);font-size:8.5px;color:var(--dim)}
+      .sb-codecard{border:1px solid #fff;padding:12px;text-align:center;margin-bottom:10px;position:relative}
+      .sb-codecard .cd{font-family:var(--m);font-size:22px;font-weight:700;letter-spacing:.08em}
+      .sb-codecard .pc{font-family:var(--m);font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin-top:4px}
+      .sb-codecard button{position:absolute;top:6px;right:6px;font-family:var(--m);font-size:7.5px;letter-spacing:.1em;text-transform:uppercase;background:transparent;border:1px solid var(--line);color:var(--dim);padding:2px 5px;cursor:pointer}
+      .sb-codecard button:hover{color:#fff;border-color:#fff}
+      .sb-duo{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line);margin-bottom:10px}
+      .sb-duo div{background:var(--bg);padding:10px}
+      .sb-duo b{display:block;font-size:18px;font-weight:800;font-variant-numeric:tabular-nums}
+      .sb-duo em{font-style:normal;font-size:8.5px;color:var(--dim)}
+      .sb-note{font-size:9.5px;color:var(--dim);line-height:1.5;margin-top:8px}
+      .sb-shiprow{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+      .sb-shiprow:last-child{border-bottom:0}
+      .sb-shiprow b{display:block;font-size:11px;font-weight:600;color:#fff}
+      .sb-shiprow em{font-style:normal;font-family:var(--m);font-size:8.5px;color:var(--dim);display:block;margin-top:1px}
+      .sb-chip{font-family:var(--m);font-size:7.5px;letter-spacing:.1em;text-transform:uppercase;border:1px solid var(--line);padding:2px 5px;color:var(--dim)}
+      .sb-chip.go{border-color:#fff;color:#fff}
+      .sb-danger{width:100%;background:transparent;border:1px solid rgba(255,80,80,.4);color:rgba(255,80,80,.8);font-family:var(--m);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;padding:10px;cursor:pointer;margin-top:12px;transition:border-color .18s,color .18s}
+      .sb-danger:hover{border-color:#ff5050;color:#ff5050}
+
+      .avbtn{display:none}
       .tabs{display:none!important}
-      .phone{margin-left:240px;width:calc(100% - 240px);transition:margin-left .3s cubic-bezier(.16,1,.3,1),width .3s cubic-bezier(.16,1,.3,1)}
-      .sidebar.collapsed ~ .phone,.sidebar.collapsed + .phone{margin-left:64px;width:calc(100% - 64px)}
+      .phone{margin-left:280px;width:calc(100% - 280px);transition:margin-left .3s cubic-bezier(.16,1,.3,1),width .3s cubic-bezier(.16,1,.3,1)}
+      .sidebar.collapsed ~ .phone,.sidebar.collapsed + .phone{margin-left:72px;width:calc(100% - 72px)}
     }
   </style>
 </head>
@@ -730,18 +915,41 @@
         <button class="sidebar-btn" type="button" data-view="games"><svg viewBox="0 0 15 15" aria-hidden="true"><rect x="1.5" y="4.5" width="12" height="7" rx="2.5"/><path d="M4 6.5v3M2.5 8h3"/><circle cx="10" cy="7.3" r=".9"/><circle cx="11.6" cy="9" r=".9"/></svg><span>Games</span></button>
         <button class="sidebar-btn" type="button" data-view="ranks"><svg viewBox="0 0 15 15" aria-hidden="true"><rect x="2" y="8" width="3" height="5"/><rect x="6" y="4" width="3" height="9"/><rect x="10" y="6" width="3" height="7"/></svg><span>Ranks</span></button>
         <button class="sidebar-btn" type="button" data-view="log"><svg viewBox="0 0 15 15" aria-hidden="true"><rect x="2.5" y="2" width="10" height="11"/><path d="M5 5.5h5M5 8h5M5 10.5h3"/></svg><span>Log</span></button>
+        <button class="sidebar-btn" type="button" data-view="shop"><svg viewBox="0 0 15 15" aria-hidden="true"><path d="M2.5 5h10l-.8 8H3.3z"/><path d="M5.5 5V4a2 2 0 0 1 4 0v1"/></svg><span>Shop</span></button>
+      </div>
+      <div class="sidebar-acct" id="sidebarAcct">
+        <div class="sidebar-acct-head" id="sidebarAcctHead" onclick="toggleSidebarAcct()">
+          <div class="sidebar-acct-avatar"></div>
+          <div class="sidebar-acct-info"><b id="sbAcctName">Athlete</b><em id="sbAcctMeta">Loading&hellip;</em></div>
+          <i class="sidebar-acct-arrow">&#8250;</i>
+        </div>
+        <div class="sidebar-acct-menu" id="sidebarAcctMenu">
+          <button class="sidebar-acct-item" type="button" data-ak="code" onclick="openSidebarAcctSub('code')"><svg viewBox="0 0 15 15" aria-hidden="true"><rect x="1.5" y="3.5" width="12" height="8"/><path d="M4 7.5h2M8 7.5h3"/></svg><span>Your code</span><span class="acct-val" id="sbValCode">&mdash;</span></button>
+          <button class="sidebar-acct-item" type="button" data-ak="cash" onclick="openSidebarAcctSub('cash')"><svg viewBox="0 0 15 15" aria-hidden="true"><path d="M2 4.5h11v6H2zM2 7.5h11"/><circle cx="7.5" cy="7.5" r="1.6"/></svg><span>Earnings</span><span class="acct-val" id="sbValCash">&mdash;</span></button>
+          <button class="sidebar-acct-item" type="button" data-ak="ship" onclick="openSidebarAcctSub('ship')"><svg viewBox="0 0 15 15" aria-hidden="true"><path d="M1.5 5.5h8v5h-8zM9.5 7h2.3l1.7 2v1.5h-4z"/><circle cx="4" cy="11.5" r="1.1"/><circle cx="10.6" cy="11.5" r="1.1"/></svg><span>Shipments</span><span class="acct-val" id="sbValShip">&mdash;</span></button>
+          <button class="sidebar-acct-item" type="button" data-ak="shop" onclick="sbGoShop()"><svg viewBox="0 0 15 15" aria-hidden="true"><path d="M2.5 5h10l-.8 8H3.3z"/><path d="M5.5 5V4a2 2 0 0 1 4 0v1"/></svg><span>Shop</span><span class="acct-val" id="sbValShop">&mdash;</span></button>
+          <button class="sidebar-acct-item" type="button" data-ak="card" onclick="openSidebarAcctSub('card')"><svg viewBox="0 0 15 15" aria-hidden="true"><rect x="1.5" y="2.5" width="12" height="10"/><circle cx="5.5" cy="6" r="1.4"/><path d="M3 10.5c0-1.4 1.1-2.2 2.5-2.2S8 9.1 8 10.5M9.5 5.5h2.5M9.5 8h2"/></svg><span>Athlete card</span></button>
+          <button class="sidebar-acct-item" type="button" data-ak="set" onclick="openSidebarAcctSub('set')"><svg viewBox="0 0 15 15" aria-hidden="true"><circle cx="7.5" cy="7.5" r="2.1"/><path d="M7.5 1.6v1.8M7.5 11.6v1.8M1.6 7.5h1.8M11.6 7.5h1.8M3.3 3.3l1.3 1.3M10.4 10.4l1.3 1.3M11.7 3.3l-1.3 1.3M4.6 10.4l-1.3 1.3"/></svg><span>Settings</span></button>
+        </div>
       </div>
       <div class="sidebar-footer">
         <button class="sidebar-collapse" type="button" id="sidebarToggle"><svg viewBox="0 0 15 15" aria-hidden="true"><path d="M9 3L5 7.5 9 12"/></svg><span>Collapse</span></button>
       </div>
     </nav>
+    <div class="sidebar-acct-sub" id="sidebarAcctSub">
+      <div class="sidebar-acct-sub-head">
+        <button type="button" onclick="closeSidebarAcctSub()" aria-label="Back">&larr;</button>
+        <b id="sbSubTitle">Account</b>
+      </div>
+      <div class="sidebar-acct-sub-body" id="sbSubBody"></div>
+    </div>
     <div class="phone">
     <div class="field" id="field"></div>
 
     <div class="screens">
     <section class="screen active" id="tasks">
       <div class="screen-top">
-        <div class="top rise" style="animation-delay:.02s"><span id="taskDate">TODAY</span><span style="display:flex;align-items:center;gap:9px"><span class="live"><i class="dotlive"></i><span id="taskLive">3</span>&nbsp;out there now</span><button class="avbtn" id="avbtn" type="button" aria-label="Account"></button></span></div>
+        <div class="top rise" style="animation-delay:.02s"><span id="taskDate">TODAY</span></div>
       </div>
       <div class="screen-scroll">
         <div class="scroll-inner">
@@ -750,7 +958,7 @@
 
           <!-- Progress toward next level -->
           <div class="kick rise" style="animation-delay:.08s" id="progressKick">To reach next level</div>
-          <div class="hero rise" style="font-size:30px;animation-delay:.10s"><span><i id="xpCurrent">0</i></span><span><i id="xpLabel">XP earned</i></span></div>
+          <div class="hero rise" style="font-size:38px;animation-delay:.10s"><span><i id="xpLabel">XP earned</i></span></div>
           <div class="pips rise" id="pips" style="animation-delay:.12s" aria-label="Progress"></div>
           <div class="duo rise" style="margin-top:1px;animation-delay:.14s;grid-template-columns:1fr">
             <div><span class="lab" style="margin:0">XP earned</span><b class="xpv" id="xpEarned">0</b><em id="xpToGo">— to go</em></div>
@@ -758,12 +966,16 @@
 
           <div class="rule" style="margin-top:12px"></div>
 
+          <!-- Task pool: available missions -->
+          <div class="kick rise" style="animation-delay:.16s" id="poolKick">Mission pool</div>
+          <div class="taskpool rise" id="taskpool" style="animation-delay:.17s"></div>
+
           <!-- Cleared tasks at this level -->
-          <div class="kick rise" style="animation-delay:.16s" id="clearedKick">Cleared tasks</div>
-          <div class="donelist rise" id="donelist" style="animation-delay:.18s"></div>
+          <div class="kick rise" style="animation-delay:.19s" id="clearedKick">Cleared tasks</div>
+          <div class="donelist rise" id="donelist" style="animation-delay:.21s"></div>
 
           <!-- Scroll cue to today's task -->
-          <div class="scrollcue rise" id="scrollcue" style="animation-delay:.20s">
+          <div class="scrollcue rise" id="scrollcue" style="animation-delay:.23s">
             <span><b id="cueTitle">Today's task</b> &middot; <span id="cueSub">Loading…</span></span>
             <span class="mono" id="cueClock">00:00</span>
             <i>&darr;</i>
@@ -772,27 +984,27 @@
           <div class="rule" style="margin-top:12px"></div>
 
           <!-- Today's timed task -->
-          <div class="kick rise" style="animation-delay:.22s">One thing today</div>
-          <div class="hero rise" style="animation-delay:.24s"><span><i id="heroA">Choose your</i></span><span><i id="heroB">mission</i></span></div>
-          <div class="rowx rise" style="border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:7px 0;animation-delay:.26s">
+          <div class="kick rise" style="animation-delay:.25s">One thing today</div>
+          <div class="hero rise" style="animation-delay:.27s"><span><i id="heroA">Choose your</i></span><span><i id="heroB">mission</i></span></div>
+          <div class="rowx rise" style="border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:7px 0;animation-delay:.29s">
             <div><span class="clocklab">Closes in</span><span class="clock" id="taskClock">00:00<span class="s">:00</span></span></div>
             <span class="chip" id="taskReward">+0 XP</span>
           </div>
-          <div class="plate rise" style="flex:none;min-height:190px;animation-delay:.28s"><i></i><q>"The work starts exactly where comfort ends."<b>Daily field note</b></q></div>
-          <div class="proof rise" style="animation-delay:.30s">
+          <div class="plate rise" style="flex:none;min-height:190px;animation-delay:.31s"><i></i><q>"The work starts exactly where comfort ends."<b>Daily field note</b></q></div>
+          <div class="proof rise" style="animation-delay:.33s">
             <div><span class="lab" style="margin:0">Accepted proof</span><b id="proofFormat">Logbook page &middot; one photo &middot; two lines</b></div>
             <div class="pf"><span>Photo</span><span>Note</span><span>Witness</span></div>
           </div>
-          <button class="cta rise" id="taskAction" style="animation-delay:.32s;margin-top:10px">Open the brief</button>
+          <button class="cta rise" id="taskAction" style="animation-delay:.35s;margin-top:10px">Open the brief</button>
 
           <div class="rule" style="margin-top:12px"></div>
 
           <!-- Running timers -->
-          <div class="kick rise" style="animation-delay:.34s">Running</div>
-          <div class="timerlist rise" id="timerlist" style="animation-delay:.36s"></div>
+          <div class="kick rise" style="animation-delay:.37s">Running</div>
+          <div class="timerlist rise" id="timerlist" style="animation-delay:.39s"></div>
 
           <!-- Comfort Level strip -->
-          <div class="statrow rise" style="margin-top:4px;animation-delay:.38s">
+          <div class="statrow rise" style="margin-top:4px;animation-delay:.41s">
             <svg class="dial" viewBox="0 0 54 54" width="48" height="48" aria-hidden="true">
               <path class="lit" d="M28.66 8.07 A19 19 0 0 1 44.49 19.58" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="butt"/>
               <path class="dark" d="M45.51 22.73 A19 19 0 0 1 39.47 41.34" fill="none" stroke="#fff" stroke-width="1.4" opacity=".26" stroke-linecap="butt"/>
@@ -812,15 +1024,15 @@
           </div>
 
           <!-- Streak / Today / Rank strip -->
-          <dl class="strip rise" style="animation-delay:.42s">
+          <dl class="strip rise" style="animation-delay:.45s">
             <div><dt>Streak</dt><dd id="taskStreak">0<s> days</s></dd></div>
             <div><dt>Today</dt><dd id="taskPicked">0<s>/5</s></dd></div>
             <div><dt>Rank</dt><dd id="taskRank">#—</dd></div>
           </dl>
-          <div class="tick rise" style="animation-delay:.46s"><div class="tickrail" id="taskRail"></div></div>
+          <div class="tick rise" style="animation-delay:.49s"><div class="tickrail" id="taskRail"></div></div>
 
           <!-- Video footer -->
-          <div class="footer rise" style="animation-delay:.50s">
+          <div class="footer rise" style="animation-delay:.53s">
             {% # theme-check-disable RemoteAsset %}
             <video muted autoplay loop playsinline preload="metadata" poster="" loading="lazy"><source src="https://exchange-return-tracking.onrender.com/videos/athlete-running-loop.mp4" type="video/mp4"></video>
             {% # theme-check-enable RemoteAsset %}
@@ -846,13 +1058,13 @@
           <div class="ggrid rise" style="animation-delay:.28s">
             <a class="gt" href="https://exchange-return-tracking.onrender.com/athlete-game.html" target="_blank" rel="noopener">
               <img class="gt-bg" src="https://exchange-return-tracking.onrender.com/images/games/rooftop-racing-thumb.jpg" alt="" loading="lazy" width="1280" height="714">
-              <div class="gt-top"><span class="gi">01 &middot; Racing</span><s><i class="dotlive"></i>Live</s></div>
+              <div class="gt-top"><span class="gi">01 &middot; Racing</span></div>
               <b>Rooftop Racing</b>
-              <em>Race four rivals across 30,000m of skyline. Jump, slide, climb &mdash; hazards slow you down.</em>
+              <em>Race athletes live across the skyline. Invite, join open lobbies &mdash; XP paid by finishing position.</em>
               <span class="go">Tap to play <i>&rarr;</i></span></a>
             <a class="gt" href="https://exchange-return-tracking.onrender.com/games/fruit-ninja/index.html" target="_blank" rel="noopener">
               <img class="gt-bg" src="https://exchange-return-tracking.onrender.com/images/games/fruit-ninja-thumb.jpg" alt="" loading="lazy" width="1280" height="714">
-              <div class="gt-top"><span class="gi">02 &middot; Arcade</span><s><i class="dotlive"></i>Live</s></div>
+              <div class="gt-top"><span class="gi">02 &middot; Arcade</span></div>
               <b>Fruit Ninja</b>
               <em>Swipe to slice. Chain combos, dodge the bombs &mdash; three misses ends the run.</em>
               <span class="go">Tap to play <i>&rarr;</i></span></a>
@@ -860,9 +1072,13 @@
           {% # theme-check-enable RemoteAsset %}
 
           <div class="rule" style="margin-top:12px"></div>
+          <div id="lobbyWrap" hidden>
+            <div class="rowx" style="margin-top:10px"><span class="kick" style="margin-top:0">Open race lobbies</span><span class="mono" id="lobbyCount" style="color:var(--dim)"></span></div>
+            <div class="alist" id="raceLobbies"></div>
+          </div>
           <div class="rowx" style="margin-top:10px"><span class="kick" style="margin-top:0">Athletes</span><span class="mono" id="athleteCount" style="color:var(--dim)"></span></div>
           <div class="alist rise" id="athleteList" style="animation-delay:.42s"></div>
-          <p class="roomnote">Invites open a private room &mdash; play together, chat together. Tasks, proof and level progress stay yours.</p>
+          <p class="roomnote">Invite a live athlete to open a Rooftop Race room &mdash; they get the invite instantly. Race XP by finish: P1 +20 &middot; P2 +14 &middot; P3 +10 &middot; P4 +7 &middot; P5&ndash;6 +5 (2+ racers, 400m+).</p>
         </div>
       </div>
     </section>
@@ -899,6 +1115,17 @@
       </div>
       <div class="screen-scroll">
         <div id="logContent"></div>
+      </div>
+    </section>
+
+    <section class="screen" id="shop">
+      <div class="screen-top">
+        <div class="top rise"><span>Coin shop</span><span class="live"><i class="dotlive"></i>Live</span></div>
+        <div class="kick rise">Spend coins / not XP</div>
+        <div class="hero"><span><i>The shop</i></span></div>
+      </div>
+      <div class="screen-scroll">
+        <div id="shopContent"></div>
       </div>
     </section>
     </div>
@@ -1002,7 +1229,7 @@
 <script>
 const API='https://exchange-return-tracking.onrender.com/api/athlete';
 const BASE='https://exchange-return-tracking.onrender.com';
-const S={token:null,athlete:null,tasks:[],picks:[],maxPicks:5,streak:0,leaderboard:[],climb:null,ranks:null,log:[],weekly:null,assignment:null,bricks:[],active:'tasks',orders:[],commissions:null,productRequests:[],shopifyProducts:[],invited:new Set()};
+const S={token:null,athlete:null,tasks:[],picks:[],maxPicks:5,streak:0,leaderboard:[],climb:null,ranks:null,log:[],weekly:null,assignment:null,bricks:[],active:'tasks',orders:[],commissions:null,productRequests:[],shopifyProducts:[],shop:null,invited:new Set()};
 const $=id=>document.getElementById(id);
 const esc=v=>{const e=document.createElement('div');e.textContent=v||'';return e.innerHTML};
 const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1041,11 +1268,12 @@ function tick(id,month){const run=()=>{const d=new Date(),end=month?new Date(d.g
 function toast(msg,value=''){$('toastMessage').textContent=msg;$('toastValue').textContent=value;$('toast').classList.remove('show');void $('toast').offsetWidth;$('toast').classList.add('show')}
 
 // ── Avatar sheet ──
-let avScreen='menu'; // 'menu' | 'code' | 'cash' | 'ship' | 'card' | 'set'
+let avScreen='menu'; // 'menu' | 'code' | 'cash' | 'ship' | 'card' | 'set' ('shop' jumps to the Shop screen)
 const AV_ICONS={
   code:'<rect x="1.5" y="3.5" width="12" height="8"/><path d="M4 7.5h2M8 7.5h3"/>',
   cash:'<path d="M2 4.5h11v6H2zM2 7.5h11"/><circle cx="7.5" cy="7.5" r="1.6"/>',
   ship:'<path d="M1.5 5.5h8v5h-8zM9.5 7h2.3l1.7 2v1.5h-4z"/><circle cx="4" cy="11.5" r="1.1"/><circle cx="10.6" cy="11.5" r="1.1"/>',
+  shop:'<path d="M2.5 5h10l-.8 8H3.3z"/><path d="M5.5 5V4a2 2 0 0 1 4 0v1"/>',
   card:'<rect x="1.5" y="2.5" width="12" height="10"/><circle cx="5.5" cy="6" r="1.4"/><path d="M3 10.5c0-1.4 1.1-2.2 2.5-2.2S8 9.1 8 10.5M9.5 5.5h2.5M9.5 8h2"/>',
   set:'<circle cx="7.5" cy="7.5" r="2.1"/><path d="M7.5 1.6v1.8M7.5 11.6v1.8M1.6 7.5h1.8M11.6 7.5h1.8M3.3 3.3l1.3 1.3M10.4 10.4l1.3 1.3M11.7 3.3l-1.3 1.3M4.6 10.4l-1.3 1.3"/>'
 };
@@ -1053,6 +1281,7 @@ const AV_MENU=[
   {k:'code',t:'Your code',s:'—',ic:'code',note:''},
   {k:'cash',t:'Earnings',s:'—',ic:'cash',note:''},
   {k:'ship',t:'Shipments',s:'—',ic:'ship',note:''},
+  {k:'shop',t:'Shop',s:'—',ic:'shop',note:''},
   {k:'card',t:'Athlete card',s:'Share your level',ic:'card',note:''},
   {k:'set',t:'Settings',s:'Address, size, UPI, link',ic:'set',note:''}
 ];
@@ -1060,6 +1289,7 @@ const AV_MENU=[
 function openAvSheet(){avScreen='menu';renderAvMenu();$('avScrim').classList.add('on');$('avSheet').classList.add('on')}
 function closeAvSheet(){$('avScrim').classList.remove('on');$('avSheet').classList.remove('on')}
 function avGo(key){
+  if(key==='shop'){closeAvSheet();show('shop');return}
   const m=AV_MENU.find(x=>x.k===key);if(!m)return;
   avScreen=key;$('avTitle').textContent=m.t;$('avBack').style.display='';
   const renderers={code:renderAvCode,cash:renderAvEarnings,ship:renderAvShipments,card:renderAvCard,set:renderAvSettings};
@@ -1070,7 +1300,7 @@ function avBack(){avScreen='menu';$('avTitle').textContent='Account';$('avBack')
 function renderAvMenu(){
   const a=S.athlete||{};
   const dc=a.discount_code||null;
-  const handle=a.instagram_handle||('OFC-'+String(a.athlete_no||a.id||'').slice(-4));
+  const handle=a.instagram_handle||'@athlete';
   const lvl=a.level?a.level.display_name:'—';
   // Update menu labels with live data
   AV_MENU[0].s=dc?`${dc.code} · ${dc.percent}% off`:'No code yet';
@@ -1078,7 +1308,8 @@ function renderAvMenu(){
   const fmt=v=>'\u20B9'+Number(v||0).toLocaleString('en-IN');
   AV_MENU[1].s=S.commissions?fmt((S.commissions.summary||{}).earned||0):'—';
   AV_MENU[2].note=(S.orders||[]).filter(o=>o.fulfillment_status&&!['DELIVERED','delivered'].includes(o.fulfillment_status)).length?`${(S.orders||[]).filter(o=>o.fulfillment_status&&!['DELIVERED','delivered'].includes(o.fulfillment_status)).length} on the way`:'';
-  $('avBody').innerHTML=`<div class="idcard"><span class="big"></span><div><b>${esc(a.name||'Athlete')}</b><em>${esc(handle)} · ${esc(lvl)} · OFC-${String(a.athlete_no||a.id||'').padStart(4,'0')}</em></div></div><div class="menu">${AV_MENU.map(m=>`<button class="mrow" type="button" data-k="${m.k}"><svg viewBox="0 0 15 15" aria-hidden="true">${AV_ICONS[m.ic]}</svg><span><b>${m.t}</b><em>${m.s}</em></span><s${m.note?' class="hot"':''}>${m.note||''}</s><i>&rsaquo;</i></button>`).join('')}</div><p style="font-size:10.5px;color:var(--dim);margin:4px 0 0;line-height:1.45;flex:none">Five screens, none of them worth a tab. An athlete opens any of these a handful of times a month — usually because something sent them here.</p>`;
+  AV_MENU.find(m=>m.k==='shop').s=`${coinBalance().toLocaleString('en-IN')} coins`;
+  $('avBody').innerHTML=`<div class="idcard"><span class="big"></span><div><b>${esc(a.name||'Athlete')}</b><em>${esc(handle)} · ${esc(lvl)}</em></div></div><div class="menu">${AV_MENU.map(m=>`<button class="mrow" type="button" data-k="${m.k}"><svg viewBox="0 0 15 15" aria-hidden="true">${AV_ICONS[m.ic]}</svg><span><b>${m.t}</b><em>${m.s}</em></span><s${m.note?' class="hot"':''}>${m.note||''}</s><i>&rsaquo;</i></button>`).join('')}</div><p style="font-size:10.5px;color:var(--dim);margin:4px 0 0;line-height:1.45;flex:none">Five screens, none of them worth a tab. An athlete opens any of these a handful of times a month — usually because something sent them here.</p>`;
   $('avBody').querySelectorAll('.mrow').forEach(b=>{b.onclick=()=>avGo(b.dataset.k)});
 }
 
@@ -1146,8 +1377,32 @@ function renderAvCard(){
 function renderAvSettings(){
   const a=S.athlete||{};
   const fmt=v=>'\u20B9'+Number(v||0).toLocaleString('en-IN');
-  $('avBody').innerHTML=`<div><div class="setrow"><div><b>Shipping address</b><em>${esc(a.city||'Not set')}</em></div><span class="chipk">Edit</span></div><div class="setrow"><div><b>Phone</b><em>${esc(a.phone||'Not set')}</em></div><span class="chipk">Edit</span></div><div class="setrow"><div><b>Commission rate</b><em>${a.level?'7% flat per order':'—'}</em></div><span class="chipk go">Fixed</span></div></div><div class="rule"></div><div class="kick">Preferences</div><div><div class="setrow"><div><b>Show me on the leaderboard</b><em>Off means you still earn, you just stop appearing</em></div><button class="sw" type="button" aria-pressed="${a.leaderboard_opt_out?'false':'true'}" aria-label="Leaderboard"></button></div><div class="setrow"><div><b>WhatsApp nudges</b><em>Deadlines and approvals only. Never marketing.</em></div><button class="sw" type="button" aria-pressed="true" aria-label="Nudges"></button></div></div><div class="rule"></div><div class="kick">Session</div><div><div class="shiprow"><div><b>This device</b><em>Active now</em></div><span class="chipk go">current</span></div></div><button class="dangerbtn" type="button" id="signoutAll">Sign out everywhere</button><p style="font-size:10.5px;color:var(--dim);margin:0;line-height:1.45;flex:none">Use this if you have lost a phone. Every session ends, including this one, and you sign in again with a fresh code.</p>`;
-  // Wire toggles
+  $('avBody').innerHTML=`<div class="kick">Personal</div>
+    <div class="sb-field"><label>Name</label><input type="text" id="editName" value="${esc(a.name||'')}"></div>
+    <div class="sb-field"><label>Instagram handle</label><input type="text" id="editHandle" value="${esc(a.instagram_handle||'')}"></div>
+    <div class="sb-field"><label>Phone</label><input type="tel" id="editPhone" value="${esc(a.phone||'')}"></div>
+    <div class="kick" style="margin-top:14px">Shipping address</div>
+    <div class="sb-field"><label>Address line</label><textarea id="editAddress">${esc(a.shipping_address||'')}</textarea></div>
+    <div class="sb-field-row">
+      <div class="sb-field"><label>City</label><input type="text" id="editCity" value="${esc(a.shipping_city||'')}"></div>
+      <div class="sb-field"><label>State</label><input type="text" id="editState" value="${esc(a.shipping_state||'')}"></div>
+    </div>
+    <div class="sb-field-row">
+      <div class="sb-field"><label>Pincode</label><input type="text" id="editPin" value="${esc(a.shipping_pin||'')}"></div>
+      <div class="sb-field"><label>Landmark</label><input type="text" id="editLandmark" value="${esc(a.shipping_landmark||'')}"></div>
+    </div>
+    <div class="sb-field"><label>Address type</label><select id="editAddrType"><option value="home"${a.address_type==='home'?' selected':''}>Home</option><option value="office"${a.address_type==='office'?' selected':''}>Office</option></select></div>
+    <button class="sb-savebtn" type="button" id="avSaveProfile">Save changes</button>
+    <button class="sb-cancelbtn" type="button" onclick="renderAvSettings()">Cancel</button>
+    <div class="rule"></div>
+    <div class="kick">Preferences</div>
+    <div><div class="setrow"><div><b>Show me on the leaderboard</b><em>Off means you still earn, you just stop appearing</em></div><button class="sw" type="button" aria-pressed="${a.leaderboard_opt_out?'false':'true'}" aria-label="Leaderboard"></button></div><div class="setrow"><div><b>WhatsApp nudges</b><em>Deadlines and approvals only. Never marketing.</em></div><button class="sw" type="button" aria-pressed="true" aria-label="Nudges"></button></div></div>
+    <div class="rule"></div>
+    <div class="kick">Session</div>
+    <div><div class="shiprow"><div><b>This device</b><em>Active now</em></div><span class="chipk go">current</span></div></div>
+    <button class="dangerbtn" type="button" id="signoutAll">Sign out everywhere</button>
+    <p style="font-size:10.5px;color:var(--dim);margin:0;line-height:1.45;flex:none">Use this if you have lost a phone. Every session ends, including this one, and you sign in again with a fresh code.</p>`;
+  $('avSaveProfile').onclick=saveProfile;
   $('avBody').querySelectorAll('.sw').forEach(b=>{
     b.onclick=()=>{
       const on=b.getAttribute('aria-pressed')==='true';
@@ -1156,6 +1411,142 @@ function renderAvSettings(){
     };
   });
   $('signoutAll').onclick=()=>{closeAvSheet();sessionStorage.removeItem('ap_token');S.token=null;showAuthError();toast('Signed out','everywhere')};
+}
+
+// ── Sidebar account ──
+function toggleSidebarAcct(){
+  $('sidebarAcctHead').classList.toggle('open');
+  $('sidebarAcctMenu').classList.toggle('open');
+}
+function openSidebarAcctSub(key){
+  const titles={code:'Your code',cash:'Earnings',ship:'Shipments',card:'Athlete card',set:'Settings'};
+  $('sbSubTitle').textContent=titles[key]||'Account';
+  const renderers={code:sbRenderCode,cash:sbRenderEarnings,ship:sbRenderShipments,card:sbRenderCard,set:sbRenderSettings};
+  (renderers[key]||sbRenderCode)();
+  $('sidebarAcctSub').classList.add('open');
+}
+function closeSidebarAcctSub(){$('sidebarAcctSub').classList.remove('open')}
+function sbGoShop(){
+  closeSidebarAcctSub();
+  $('sidebarAcctHead').classList.remove('open');
+  $('sidebarAcctMenu').classList.remove('open');
+  show('shop');
+}
+
+function updateSidebarAcct(){
+  const a=S.athlete||{};
+  const handle=a.instagram_handle||'@athlete';
+  const lvl=a.level?a.level.display_name:'—';
+  $('sbAcctName').textContent=a.name||'Athlete';
+  $('sbAcctMeta').textContent=`${esc(handle)} · ${esc(lvl)}`;
+  const dc=a.discount_code||null;
+  $('sbValCode').textContent=dc?`${dc.code} · ${dc.percent}%`:'No code';
+  const fmt=v=>'\u20B9'+Number(v||0).toLocaleString('en-IN');
+  $('sbValCash').textContent=S.commissions?fmt((S.commissions.summary||{}).earned||0):'\u20B90';
+  const active=(S.orders||[]).filter(o=>o.fulfillment_status&&!['DELIVERED','delivered','CANCELLED','cancelled'].includes(o.fulfillment_status)).length;
+  $('sbValShip').textContent=active?`${active} active`:'None';
+  $('sbValShop').textContent=`${coinBalance().toLocaleString('en-IN')} coins`;
+}
+
+function sbRenderCode(){
+  const a=S.athlete||{},dc=a.discount_code||null;
+  const code=dc?dc.code:'\u2014';
+  const pct=dc?dc.percent+'%':'\u2014';
+  const fmt=v=>'\u20B9'+Number(v||0).toLocaleString('en-IN');
+  const monthly=(S.commissions?.monthly||[])[0]||null;
+  const orders=monthly?monthly.orders:(a.month_orders||0);
+  const coins=a.coin_balance||0;
+  const pending=(S.commissions?.summary||{}).pending||0;
+  $('sbSubBody').innerHTML=`<div class="sb-idcard"><div class="big"></div><div><b>${esc(a.name||'Athlete')}</b><em>${esc(a.instagram_handle||'@athlete')} · ${esc(a.level?a.level.display_name:'\u2014')}</em></div></div><div class="sb-kick">Your discount code</div><div class="sb-codecard"><button type="button" onclick="navigator.clipboard.writeText('${esc(code)}').then(()=>toast('Copied','${esc(code)}'))">Copy</button><div class="cd">${esc(code)}</div><div class="pc">${esc(pct)} off · works everywhere</div></div><div class="sb-note">Use the link offcomfrt.com/?ref=${esc(code)} when the code is awkward — a Story sticker, a bio. It counts the same for thirty days.</div><div class="sb-kick" style="margin-top:14px">This month</div><div class="sb-duo"><div><span class="sb-kick" style="margin:0">Orders</span><b>${orders}</b><em>on your code</em></div><div><span class="sb-kick" style="margin:0">Coins</span><b>${Number(coins).toLocaleString('en-IN')}</b><em>from sales</em></div></div>${pending?`<div class="sb-row"><span>Settling</span><b>+ ${fmt(pending)}</b></div>`:''}<p class="sb-note">Coins from a sale clear fourteen days after the order, once the return window shuts. Coins from tasks are yours the moment the task is approved.</p>`;
+}
+function sbRenderEarnings(){
+  const c=S.commissions||{},s=c.summary||{},monthly=c.monthly||[];
+  const fmt=v=>'\u20B9'+Number(v||0).toLocaleString('en-IN');
+  const rate=s.commission_rate||7;
+  const last3=monthly.slice(0,3);
+  $('sbSubBody').innerHTML=`<div class="sb-kick">This month</div><div class="sb-row"><span>Attributed net</span><b>${fmt(s.total_revenue)}</b></div><div class="sb-row"><span>Commission at ${rate}%</span><b>${fmt(s.total_commission)}</b></div><div class="sb-row"><span>Less refunds</span><b>\u2212${fmt(s.reversed||0)}</b></div><div class="sb-row" style="border-top:1px solid var(--line);padding-top:10px;margin-top:4px"><span>Earned so far</span><b style="font-size:14px">${fmt(s.earned)}</b></div><div class="sb-note" style="margin-top:10px">Pending: ${fmt(s.pending)}${s.paid?' · Paid: '+fmt(s.paid):''}</div>${last3.length?`<div class="sb-kick" style="margin-top:14px">Last months</div>${last3.map(m=>`<div class="sb-shiprow"><div><b>${m.month}</b><em>${m.orders} orders · ${fmt(m.revenue)} revenue</em></div><span style="font-family:var(--m);font-size:11px;font-weight:700">${fmt(m.commission)}</span></div>`).join('')}`:''}`;
+}
+function sbRenderShipments(){
+  const orders=S.orders||[];
+  const active=orders.filter(o=>o.fulfillment_status&&!['DELIVERED','delivered','CANCELLED','cancelled'].includes(o.fulfillment_status));
+  const past=orders.filter(o=>['DELIVERED','delivered'].includes(o.fulfillment_status)).slice(0,5);
+  const fmt=v=>'\u20B9'+Number(v||0).toLocaleString('en-IN');
+  const latest=active[0]||null;
+  $('sbSubBody').innerHTML=`${latest?`<div class="sb-kick">On the way</div><div class="sb-shiprow" style="padding:10px 0;border-bottom:1px solid var(--line)"><div><b>Order #${esc(String(latest.shopify_order_id||'').slice(-6))}</b><em>${esc(latest.fulfillment_status||'Processing')}</em></div><span class="sb-chip go">Active</span></div>`:'<div class="sb-note">No active shipments. When a kit ships, it appears here.</div>'}<div class="sb-kick" style="margin-top:14px">Delivered</div>${past.length?past.map(o=>`<div class="sb-shiprow"><div><b>#${esc(String(o.shopify_order_id||'').slice(-6))}</b><em>${esc(o.customer_name||'')} · ${fmt(o.net_value)}</em></div><span class="sb-chip go">Delivered</span></div>`).join(''):'<div class="sb-note">Your first delivery will appear here.</div>'}`;
+}
+function sbRenderCard(){
+  const a=S.athlete||{};
+  const lvl=a.level||{};
+  const fmt=v=>Number(v||0).toLocaleString('en-IN');
+  const rank=S.ranks?S.ranks.current_rank:'\u2014';
+  const since=a.joined_at?new Date(a.joined_at).toLocaleDateString('en-US',{month:'short'}):'\u2014';
+  const lit=lvl.dial_segments_lit||1;
+  let dialSvg='<svg viewBox="0 0 48 48" width="52" height="52" style="flex:none">';
+  let cx=24,cy=24,r=17;
+  for(let i=0;i<5;i++){
+    const a0=(-90+i*72+5)*Math.PI/180,a1=(-90+i*72+67)*Math.PI/180;
+    dialSvg+=`<path d="M${(cx+r*Math.cos(a0)).toFixed(2)} ${(cy+r*Math.sin(a0)).toFixed(2)} A${r} ${r} 0 0 1 ${(cx+r*Math.cos(a1)).toFixed(2)} ${(cy+r*Math.sin(a1)).toFixed(2)}" fill="none" stroke="#fff" stroke-width="${i<lit?'2.8':'1.3'}" opacity="${i<lit?1:.26}"/>`;
+  }
+  dialSvg+=`<text x="24" y="31" text-anchor="middle" fill="#fff" font-family="var(--f)" font-weight="900" font-size="18">${lit}</text></svg>`;
+  $('sbSubBody').innerHTML=`<div class="sb-idcard"><div class="big"></div><div><b>${esc(a.name||'Athlete')}</b><em>${esc(a.instagram_handle||'@athlete')}</em></div></div><div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">${dialSvg}<div><div style="font-size:13px;font-weight:700">${esc(lvl.display_name||'Comfort Level')}</div><div style="font-family:var(--m);font-size:8.5px;color:var(--dim);margin-top:3px">${fmt(a.xp_total)} XP · Rank #${rank} · Since ${since}</div></div></div><button class="sb-danger" type="button" onclick="toast('Card export','Coming soon')">Save as image</button><p class="sb-note">The only screen built to leave the app. It carries the level and the handle — no rupees, no address.</p>`;
+}
+function sbRenderSettings(){
+  const a=S.athlete||{};
+  $('sbSubBody').innerHTML=`
+    <div class="sb-kick">Personal</div>
+    <div class="sb-field"><label>Name</label><input type="text" id="editName" value="${esc(a.name||'')}"></div>
+    <div class="sb-field"><label>Instagram handle</label><input type="text" id="editHandle" value="${esc(a.instagram_handle||'')}"></div>
+    <div class="sb-field"><label>Phone</label><input type="tel" id="editPhone" value="${esc(a.phone||'')}"></div>
+    <div class="sb-kick" style="margin-top:14px">Shipping address</div>
+    <div class="sb-field"><label>Address line</label><textarea id="editAddress">${esc(a.shipping_address||'')}</textarea></div>
+    <div class="sb-field-row">
+      <div class="sb-field"><label>City</label><input type="text" id="editCity" value="${esc(a.shipping_city||'')}"></div>
+      <div class="sb-field"><label>State</label><input type="text" id="editState" value="${esc(a.shipping_state||'')}"></div>
+    </div>
+    <div class="sb-field-row">
+      <div class="sb-field"><label>Pincode</label><input type="text" id="editPin" value="${esc(a.shipping_pin||'')}"></div>
+      <div class="sb-field"><label>Landmark</label><input type="text" id="editLandmark" value="${esc(a.shipping_landmark||'')}"></div>
+    </div>
+    <div class="sb-field"><label>Address type</label><select id="editAddrType"><option value="home"${a.address_type==='home'?' selected':''}>Home</option><option value="office"${a.address_type==='office'?' selected':''}>Office</option></select></div>
+    <button class="sb-savebtn" type="button" id="sbSaveProfile">Save changes</button>
+    <button class="sb-cancelbtn" type="button" onclick="sbRenderSettings()">Cancel</button>
+    <div class="sb-kick" style="margin-top:16px">Preferences</div>
+    <div class="sb-shiprow" style="padding:10px 0;border-bottom:1px solid var(--line)"><div><b>Show on leaderboard</b><em>Off means you still earn, just hidden</em></div><button class="sb-chip" type="button" onclick="this.textContent=this.textContent==='On'?'Off':'On';toast(this.textContent==='On'?'Visible':'Hidden','')">${a.leaderboard_opt_out?'Off':'On'}</button></div>
+    <div class="sb-shiprow" style="padding:10px 0"><div><b>WhatsApp nudges</b><em>Deadlines and approvals only</em></div><span class="sb-chip go">On</span></div>
+    <div class="sb-kick" style="margin-top:14px">Session</div>
+    <div class="sb-shiprow" style="padding:10px 0"><div><b>This device</b><em>Active now</em></div><span class="sb-chip go">current</span></div>
+    <button class="sb-danger" type="button" onclick="sessionStorage.removeItem('ap_token');S.token=null;showAuthError();toast('Signed out','everywhere')">Sign out everywhere</button>
+    <p class="sb-note">Use this if you have lost a phone. Every session ends, including this one.</p>`;
+  $('sbSaveProfile').onclick=saveProfile;
+}
+
+async function saveProfile(){
+  const btn=$('sbSaveProfile');
+  btn.disabled=true;btn.textContent='Saving…';
+  try{
+    const body={
+      name:$('editName').value.trim(),
+      instagram_handle:$('editHandle').value.trim(),
+      phone:$('editPhone').value.trim(),
+      shipping_address:$('editAddress').value.trim(),
+      shipping_city:$('editCity').value.trim(),
+      shipping_state:$('editState').value.trim(),
+      shipping_pin:$('editPin').value.trim(),
+      shipping_landmark:$('editLandmark').value.trim(),
+      address_type:$('editAddrType').value
+    };
+    const updated=await api('/profile',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    // Merge updated fields back into S.athlete
+    if(updated&&S.athlete){
+      for(const k of Object.keys(updated)){S.athlete[k]=updated[k];}
+    }
+    updateSidebarAcct();
+    toast('Profile saved','');
+    sbRenderSettings();
+  }catch(e){
+    toast(e.message||'Save failed','');
+    btn.disabled=false;btn.textContent='Save changes';
+  }
 }
 
 async function api(path,options){
@@ -1202,6 +1593,7 @@ function show(id){
     const vid=$(id).querySelector('.footer video');
     if(vid){vid.play().catch(()=>{})}
   });
+  if(id==='shop'&&S.token)loadShop();
 }
 
 function renderProfile(){
@@ -1229,8 +1621,7 @@ function renderTasks(){
   for(let i=0;i<totalAtLevel;i++) pipsHTML+=`<i class="${i<doneAtLevel?'on':i===doneAtLevel?'next':''}"></i>`;
   $('pips').innerHTML=pipsHTML;
 
-  // Progress hero — show XP earned and XP remaining to next level
-  $('xpCurrent').textContent=xp.toLocaleString('en-IN');
+  // Progress hero — show XP remaining to next level
   $('xpLabel').textContent=xpToNext?xpToNext.toLocaleString('en-IN')+' XP to next level':'Maximum level reached';
   $('xpEarned').textContent=xp.toLocaleString('en-IN');
   $('xpToGo').textContent=xpToNext?xpToNext.toLocaleString('en-IN')+' to go':'Level complete';
@@ -1238,6 +1629,33 @@ function renderTasks(){
   // Cleared tasks (from today's completed picks)
   const cleared=tasks.filter(x=>x.picked&&!['PICKED','ASSIGNED','IN_PROGRESS','CHANGES_REQUESTED'].includes(x.pick_status));
   $('donelist').innerHTML=cleared.length?cleared.map(t=>`<div class="dr"><svg viewBox="0 0 15 15" aria-hidden="true"><path d="M3 8l3 3 6-7"/></svg><b>${esc(t.title)}</b><s>+${t.xp_value||0} XP</s></div>`).join(''):'<div class="dr" style="color:var(--dim);font-size:11px">No tasks cleared yet at this level</div>';
+
+  // Task pool — show all missions, 1 pick per 24h
+  const available=tasks.filter(x=>!x.picked);
+  const alreadyPicked=picked.length>=1; // 1 pick per day
+  if(available.length){
+    $('poolKick').textContent=`Mission pool · ${alreadyPicked?'1 picked · choose again tomorrow':available.length+' available'}`;
+    $('taskpool').innerHTML=available.map((t,i)=>{
+      const typeLabel=t.type?t.type.replace(/_/g,' '):'';
+      const platLabel=t.platform||'';
+      const tags=[typeLabel,platLabel].filter(Boolean).join(' · ');
+      return `<div class="mpool" data-idx="${i}">
+        <div class="mpool-head" onclick="togglePool(this)">
+          <b>${esc(t.title)}</b>
+          <span class="mxp">+${t.xp_value||0} XP</span>
+          <i class="marr">&#8250;</i>
+        </div>
+        <div class="mpool-body"><div class="mpool-body-inner">
+          ${t.brief_md?`<p>${esc(t.brief_md)}</p>`:''}
+          ${tags?`<p style="margin-top:6px;font-family:var(--m);font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)">${tags}</p>`:''}
+          <button class="mpick" ${alreadyPicked?'disabled':''} onclick="event.stopPropagation();pickTask(${t.id})">${alreadyPicked?'Already picked today':'Pick mission'}</button>
+        </div></div>
+      </div>`;
+    }).join('');
+  }else{
+    $('poolKick').textContent='Mission pool';
+    $('taskpool').innerHTML='<div class="dr" style="color:var(--dim);font-size:11px">All missions picked for today</div>';
+  }
 
   // Find focused task
   let focus=tasks.find(x=>x.picked&&['PICKED','ASSIGNED','IN_PROGRESS','CHANGES_REQUESTED'].includes(x.pick_status));
@@ -1252,22 +1670,22 @@ function renderTasks(){
 
   // Banner
   $('bannerTitle').textContent='Daily pool is open';
-  $('bannerSub').textContent=`${picked.length} of ${S.maxPicks} picked · closes midnight`;
+  $('bannerSub').textContent=`${picked.length} of 1 picked · closes midnight`;
 
-  $('taskPicked').innerHTML=`${picked.length}<s>/${S.maxPicks}</s>`;
+  $('taskPicked').innerHTML=`${picked.length}<s>/1</s>`;
   if(!focus){$('heroA').textContent='No';$('heroB').textContent='missions';$('taskReward').textContent='+0 XP';$('taskAction').textContent='No missions today';$('taskAction').disabled=true;return}
   $('heroA').textContent=focus.picked?'Finish your':'Choose your';
   $('heroB').textContent='mission';
   $('taskReward').textContent=`+${focus.xp_value||0} XP`;
   $('cueClock').textContent=$('taskClock').textContent.replace(/:\d+$/,'')+' left';
-  const canPick=!focus.picked&&picked.length<S.maxPicks;
+  const canPick=!focus.picked&&picked.length<1;
   const done=focus.picked&&!['PICKED','ASSIGNED','IN_PROGRESS','CHANGES_REQUESTED'].includes(focus.pick_status);
   if(focus.picked){$('taskAction').textContent='Submit proof';$('taskAction').onclick=()=>openSubmission(focus.assignment_id)}
-  else{$('taskAction').textContent=canPick?'Pick this mission':'Daily pool full';$('taskAction').onclick=()=>{if(canPick)pickTask(focus.id);else toast('Daily mission pool full or unavailable')}}
+  else{$('taskAction').textContent=canPick?'Pick this mission':'Already picked today';$('taskAction').onclick=()=>{if(canPick)pickTask(focus.id);else toast('You can only pick 1 mission per day')}}
 
   // Running timers
   const timerItems=[];
-  if(tasks.length)timerItems.push([`${picked.length} of ${S.maxPicks} picked`,`Daily pool · ${picked.length} chosen`,'—','','']);
+  if(tasks.length)timerItems.push([`${picked.length} of 1 picked`,`Daily pick · ${picked.length} chosen`,'—','','']);
   if(S.weekly&&S.weekly.challenge)timerItems.push(['Weekly challenge',S.weekly.challenge.title||'Active challenge','—','','']);
   $('timerlist').innerHTML=timerItems.length?timerItems.map(t=>`<div class="tr2"><div><b>${t[0]}</b><em>${t[1]}</em></div><s class="${t[3]}">${t[2]}</s></div>`).join(''):'<div class="tr2"><div><b>Nothing running</b><em>Pick a mission to start</em></div></div>';
 
@@ -1286,12 +1704,22 @@ function renderClimb(){
   const xpReq=cur.min_xp||0;
   const xpHave=S.athlete?.xp_total||0;
   const xpPct=nxt?Math.min(100,Math.round((xpHave-(xpReq||0))/Math.max(1,(nxt.min_xp||xpReq)-(xpReq||0))*100)):100;
+  const req=c.requirements||null;
+  let gate=' Final level reached.';
+  if(nxt&&req){
+    const xpLeft=Math.max(0,(nxt.min_xp||0)-xpHave);
+    const daysLeft=Math.max(0,(req.days?.required||0)-days);
+    const parts=[];
+    if(xpLeft)parts.push(`${xpLeft.toLocaleString('en-IN')} XP`);
+    if(daysLeft)parts.push(`${daysLeft} more day${daysLeft!==1?'s':''}`);
+    gate=parts.length?` ${parts.join(' + ')} to ${esc(nxt.display_name)}.`:` ${esc(nxt.display_name)} unlocks at tonight's check.`;
+  }
 
   let html=`<div class="climb-hero">
     <div class="ch-top"><span class="ch-label">Current position</span><span class="ch-live"><i></i>Live</span></div>
     <div class="ch-level">${esc(cur.display_name||'Unranked')}</div>
     <div class="ch-name">Comfort Level &ndash; ${cur.display_number??'0'}</div>
-    <div class="ch-sub">${days} day${days!==1?'s':''} at this level.${nxt?' Next: '+esc(nxt.display_name)+'.':' Final level reached.'}</div>
+    <div class="ch-sub">${days} day${days!==1?'s':''} at this level.${gate}</div>
     <div class="ch-bar"><i style="width:${xpPct}%"></i></div>
     <dl class="ch-stats">
       <div><dt>XP</dt><dd>${Number(xpHave||0).toLocaleString('en-IN')}</dd></div>
@@ -1312,13 +1740,30 @@ function renderClimb(){
       <b class="ladder-num">${l.display_number??'0'}</b>
       <div>
         <div class="ladder-title">${esc(l.display_name)}</div>
-        <div class="ladder-meta">${Number(l.min_xp||0).toLocaleString('en-IN')} XP &middot; ${l.min_standing??'&mdash;'} standing</div>
+        <div class="ladder-meta">${Number(l.min_xp||0).toLocaleString('en-IN')} XP${l.min_days_in_previous?` &middot; ${l.min_days_in_previous} days at previous level`:' &middot; start'}</div>
         <div class="ladder-prog"><i style="width:${progPct}%"></i></div>
       </div>
       <span class="state ${tagCls}">${tag}</span>
     </div>`;
   }).join('');
   html+=`<div class="ladder"><div class="ladder-head"><span class="lh-title">Comfort ladder</span><span class="lh-count">${(c.ladder||[]).length} levels</span></div>${ladder}</div>`;
+
+  const src=c.xp_sources||{},rules=c.xp_rules||{};
+  const n=v=>Number(v||0).toLocaleString('en-IN');
+  html+=`<div class="climb-fuel">
+    <div class="cw-label" style="font-family:var(--m);font-size:7.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)">What fuels your climb</div>
+    <dl class="cf-grid">
+      <div><dt>Missions</dt><dd>${n(src.tasks)}</dd></div>
+      <div><dt>Coupon orders</dt><dd>${n(src.orders)}</dd></div>
+      <div><dt>Arcade</dt><dd>${n(src.games)}</dd></div>
+      <div><dt>Bonus</dt><dd>${n(src.bonus)}</dd></div>
+    </dl>
+    <ul>
+      <li><span>Approved mission</span><b>XP on the mission</b></li>
+      <li><span>Order with your code</span><b>+${n(rules.xp_per_order)} XP + ${n(rules.xp_per_1000_revenue)}/&#8377;1,000</b></li>
+      <li><span>Arcade today</span><b>${n(c.game_xp_today)} / ${n(rules.game_daily_xp_cap)} XP</b></li>
+    </ul>
+  </div>`;
 
   if(S.weekly?.challenge){
     const w=S.weekly.challenge;
@@ -1346,25 +1791,141 @@ function renderBoard(){
 }
 
 function renderLobby(){
-  const LIVE_MS=90000; // portal polls /leaderboard every 30s — 3 missed beats = offline
+  const LIVE_MS=90000; // fallback when the live socket is down: /leaderboard last_seen
   const rows=S.leaderboard.filter(a=>a.id!==S.athlete?.id)
-    .map(a=>({...a,seen:a.last_seen?Date.now()-a.last_seen:Infinity}))
+    .map(a=>{const p=RACE.live.get(String(a.id));return{...a,p,seen:p?0:a.last_seen?Date.now()-a.last_seen:Infinity}})
     .sort((x,y)=>x.seen-y.seen||(y.xp_total||0)-(x.xp_total||0));
   const live=rows.filter(a=>a.seen<LIVE_MS).length;
   $('athleteCount').textContent=live?`${live} live now`:`${rows.length} on the ladder`;
   $('athleteList').innerHTML=rows.length?rows.map(a=>{
     const ini=(a.name||'A').split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase();
-    const st=a.seen<LIVE_MS?'Live now':a.seen<3600000?`Seen ${Math.max(1,Math.floor(a.seen/60000))}m ago`:'Offline';
+    const p=a.p,isLive=a.seen<LIVE_MS;
+    const st=p?(p.r&&p.s==='lobby'?`In lobby &middot; ${esc(p.r)}`:p.r?'Racing':p.w==='game'?'In arcade':'Live now'):isLive?'Live now':a.seen<3600000?`Seen ${Math.max(1,Math.floor(a.seen/60000))}m ago`:'Offline';
     const sent=S.invited.has(String(a.id));
-    return `<div class="arow${a.seen<LIVE_MS?' on':a.seen>=3600000?' off':''}"><span class="aface">${esc(ini)}</span><span class="am"><b>${esc(a.name||'Athlete')}</b><em>${esc(a.level_name||'—')} &middot; ${Number(a.xp_total||0).toLocaleString('en-IN')} XP</em></span><span class="aright"><span class="astat"><i></i>${st}</span><button class="invt" type="button" data-invite="${esc(String(a.id))}" data-name="${esc(a.name||'')}"${sent?' disabled':''}>${sent?'Sent &check;':'Invite'}</button></span></div>`;
+    const btn=p&&p.r&&p.s==='lobby'?`<button class="invt w" type="button" data-join="${esc(p.r)}">Join</button>`
+      :isLive?`<button class="invt" type="button" data-invite="${esc(String(a.id))}" data-name="${esc(a.name||'')}"${sent?' disabled':''}>${sent?'Sent &check;':'Invite'}</button>`:'';
+    return `<div class="arow${isLive?' on':a.seen>=3600000?' off':''}"><span class="aface">${esc(ini)}</span><span class="am"><b>${esc(a.name||'Athlete')}</b><em>${esc(a.level_name||'—')} &middot; ${Number(a.xp_total||0).toLocaleString('en-IN')} XP</em></span><span class="aright"><span class="astat"><i></i>${st}</span>${btn}</span></div>`;
   }).join(''):'<div class="empty">No athletes on the ladder yet</div>';
+  const rooms=RACE.rooms;
+  $('lobbyWrap').hidden=!rooms.length;
+  $('lobbyCount').textContent=rooms.length?`${rooms.length} open`:'';
+  $('raceLobbies').innerHTML=rooms.map(r=>{
+    const full=r.n>=r.max;
+    return `<div class="arow on"><span class="aface">${r.n}</span><span class="am"><b>${esc((r.h||'Athlete').split(/\s+/)[0])}'s room</b><em>${esc(r.r)} &middot; ${r.n}/${r.max} racers</em></span><span class="aright"><span class="astat"><i></i>${r.s==='lobby'?'In lobby':'Racing'}</span><button class="invt${r.s==='lobby'&&!full?' w':''}" type="button" data-join="${esc(r.r)}"${full?' disabled':''}>${full?'Full':r.s==='lobby'?'Join':'Join next'}</button></span></div>`;
+  }).join('');
 }
 
+// ── Live race presence: one socket to the RaceHub for who's online, open lobbies and
+// real-time invites. Inviting opens the game, which creates the room and delivers it. ──
+const RACE={ws:null,tries:0,timer:0,live:new Map(),rooms:[]};
+function raceConnect(){
+  if(!S.token||RACE.ws)return;
+  let ws;
+  try{ws=new WebSocket(BASE.replace(/^http/,'ws')+'/ws/race?c=portal&t='+encodeURIComponent(S.token))}catch(e){return raceRetry()}
+  RACE.ws=ws;
+  ws.onmessage=e=>{
+    let m;try{m=JSON.parse(e.data)}catch(_){return}
+    if(m.t==='hello')RACE.tries=0;
+    else if(m.t==='pr'){RACE.live=new Map((m.a||[]).map(a=>[String(a.id),a]));RACE.rooms=m.rooms||[];renderLobby()}
+    else if(m.t==='inv')raceInvite(m);
+  };
+  ws.onclose=()=>{if(RACE.ws!==ws)return;RACE.ws=null;RACE.live=new Map();RACE.rooms=[];renderLobby();raceRetry()};
+}
+function raceRetry(){clearTimeout(RACE.timer);if(S.token)RACE.timer=setTimeout(raceConnect,Math.min(30000,1000*2**RACE.tries++))}
+function raceClose(){clearTimeout(RACE.timer);const ws=RACE.ws;RACE.ws=null;if(ws)ws.close()}
+function gameUrl(extra){return BASE+'/athlete-game.html#t='+encodeURIComponent(S.token||'')+(extra||'')}
+function raceInvite(m){
+  let el=$('raceInv');
+  if(!el){
+    el=document.createElement('div');el.id='raceInv';el.className='rinv';document.body.appendChild(el);
+    el.addEventListener('click',e=>{
+      const b=e.target.closest('[data-rinv]');if(!b)return;
+      if(b.dataset.rinv==='join')window.open(gameUrl('&r='+encodeURIComponent(el.dataset.r)),'_blank','noopener');
+      el.classList.remove('show');
+    });
+  }
+  el.dataset.r=m.r;
+  el.innerHTML=`<span><b>${esc(m.from?.n||'An athlete')}</b> invited you to Rooftop Race</span><button type="button" class="invt w" data-rinv="join">Join</button><button type="button" class="invt" data-rinv="x" aria-label="Dismiss">&times;</button>`;
+  el.classList.add('show');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('show'),25000);
+}
+
+let rkFilter='all';
 function renderRanks(){
-  const r=S.ranks||{},points=r.snapshots||[],max=Math.max(1,...points.map(x=>x.global_rank||1));
-  const chart=points.length?points.map(x=>`<i title="${x.captured_on}: #${x.global_rank}" style="height:${Math.max(8,(max-(x.global_rank||max)+1)/max*100)}%"></i>`).join(''):'<span class="empty">First snapshot captured overnight</span>';
-  const nearby=(r.nearby||[]).map(a=>`<div class="row${a.is_self?' me':''}"><u class="rank">${String(a.global_rank||'—').padStart(2,'0')}</u><n class="name">${esc(a.name||'ATHLETE')}</n><v class="score">${Number(a.xp_total||0).toLocaleString('en-IN')}</v></div>`).join('');
-  $('ranksContent').innerHTML=`<div class="rank-card"><span class="label">Current global rank</span><strong>#${r.current_rank??'—'}</strong><p>${r.rank_delta>0?'UP '+r.rank_delta+' POSITIONS':r.rank_delta<0?'DOWN '+Math.abs(r.rank_delta)+' POSITIONS':'NO CHANGE SINCE LAST SNAPSHOT'}</p><div class="chart">${chart}</div></div><div class="module"><span class="label">Around you</span>${nearby||'<p>No nearby ranks available.</p>'}</div><div class="module"><span class="label">Rank milestones</span>${(r.level_history||[]).map(x=>`<div class="history-row"><span>${new Date(x.occurred_at).toLocaleDateString()}</span><b>${esc(x.direction)}</b><span>${esc(x.reason_code)}</span></div>`).join('')||'<p>No milestones recorded yet.</p>'}</div>`;
+  const r=S.ranks||{};
+  const allPts=r.snapshots||[];
+  const pts=rkFilter==='7d'?allPts.slice(-7):rkFilter==='30d'?allPts.slice(-30):rkFilter==='90d'?allPts.slice(-90):allPts;
+  const max=Math.max(1,...pts.map(x=>x.global_rank||1));
+  const delta=r.rank_delta||0;
+  const deltaCls=delta>0?'up':delta<0?'down':'same';
+  const deltaTxt=delta>0?'▲ UP '+delta+' POS':delta<0?'▼ DOWN '+Math.abs(delta)+' POS':'● NO CHANGE';
+  const trendSvg=r.trend>0?'<svg viewBox="0 0 16 16" fill="none" stroke="#4ade80" stroke-width="1.5"><path d="M2 12L8 4L14 8"/></svg>':r.trend<0?'<svg viewBox="0 0 16 16" fill="none" stroke="#f87171" stroke-width="1.5"><path d="M2 4L8 12L14 8"/></svg>':'<svg viewBox="0 0 16 16" fill="none" stroke="var(--dim)" stroke-width="1.5"><path d="M2 8H14"/></svg>';
+  const chart=pts.length?pts.map(x=>`<i title="${x.captured_on}: #${x.global_rank}" style="height:${Math.max(8,(max-(x.global_rank||max)+1)/max*100)}%"></i>`).join(''):'<span class="empty">First snapshot captured overnight</span>';
+  const chartLegend=pts.length?`<span>${pts[0]?.captured_on||''} — ${pts[pts.length-1]?.captured_on||''}</span><b>BEST #${r.best_rank||'—'} · AVG #${r.avg_rank||'—'}</b>`:'<span>NO DATA YET</span>';
+  const nearby=(r.nearby||[]).map(a=>{
+    const gap=a.is_self?'':a.global_rank<(r.current_rank||999)?`+${((r.xp_total||0)-(a.xp_total||0)).toLocaleString('en-IN')} XP`:`-${((a.xp_total||0)-(r.xp_total||0)).toLocaleString('en-IN')} XP`;
+    return `<div class="rk-athlete-row${a.is_self?' me':''}"><span class="rk-pos">${String(a.global_rank||'—').padStart(2,'0')}</span><div class="rk-ainfo"><b>${esc(a.name||'ATHLETE')}${a.is_self?' (YOU)':''}</b><em>${esc(a.level_name||'—')}</em></div><div class="rk-axp"><b>${Number(a.xp_total||0).toLocaleString('en-IN')}</b><em>${gap||Number(a.standing_score||0).toFixed(1)+' STANDING'}</em></div></div>`;
+  }).join('');
+  const milestones=(r.level_history||[]).map(x=>{
+    const isUp=x.direction==='PROMOTED'||x.direction==='UP';
+    const icon=isUp?'↑':'↓';
+    const iconCls=isUp?'up':'down';
+    const fromName=x.from_level?x.from_level.display_name:'';
+    const toName=x.to_level?x.to_level.display_name:'';
+    const label=fromName&&toName?`${fromName} → ${toName}`:esc(x.reason_code||'LEVEL CHANGE');
+    return `<div class="rk-milestone"><div class="mc-icon ${iconCls}">${icon}</div><div class="mc-body"><b>${esc(x.direction)}</b><span>${label}</span></div><div class="mc-date">${new Date(x.occurred_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'2-digit'})}</div></div>`;
+  }).join('');
+  $('ranksContent').innerHTML=`
+<div class="rank-card">
+  <div class="rk-top">
+    <div>
+      <span class="label">Current global rank</span>
+      <div class="rk-num">#${r.current_rank??'—'}</div>
+    </div>
+    <div class="rk-meta">
+      <span class="rk-delta ${deltaCls}">${deltaTxt}</span>
+      <span class="rk-level">${esc(r.current_level_name||'—')}</span>
+      <span class="rk-score">${Number(r.xp_total||0).toLocaleString('en-IN')} XP · ${Number(r.standing_score||0).toFixed(1)} STANDING</span>
+    </div>
+  </div>
+</div>
+<div class="rk-stats">
+  <div class="rk-stat"><b>#${r.best_rank||'—'}</b><span>Best rank</span></div>
+  <div class="rk-stat"><b>#${r.avg_rank||'—'}</b><span>Avg rank</span></div>
+  <div class="rk-stat"><b>${r.total_athletes||'—'}</b><span>Athletes</span></div>
+</div>
+<div class="rk-pct">
+  <div class="rk-pct-label"><b>Top ${r.percentile||0}%</b><span>Percentile standing</span></div>
+  <div class="rk-pct-bar"><div class="rk-pct-fill" style="width:${r.percentile||0}%"></div></div>
+</div>
+<div class="rk-gaps">
+  <div class="rk-gap"><b>${r.xp_gap_above?r.xp_gap_above.toLocaleString('en-IN'):'—'}</b><span>XP to rank above</span>${r.xp_gap_above?`<em>${Math.ceil(r.xp_gap_above/50)} missions away</em>`:''}</div>
+  <div class="rk-gap"><b>${r.xp_gap_below?r.xp_gap_below.toLocaleString('en-IN'):'—'}</b><span>XP lead over below</span>${r.xp_gap_below?`<em>Safe by ${r.xp_gap_below.toLocaleString('en-IN')} XP</em>`:''}</div>
+</div>
+<div class="rk-trend">
+  ${trendSvg}
+  <span>Overall trend</span>
+  <b>${r.trend>0?'IMPROVING':r.trend<0?'DECLINING':'STABLE'}</b>
+  <span style="margin-left:auto">${r.trend>0?'+'+r.trend:r.trend} positions over ${allPts.length} days</span>
+</div>
+<div class="module">
+  <div class="rk-filters">
+    <button class="rk-pill${rkFilter==='7d'?' active':''}" onclick="rkFilter='7d';renderRanks()">7 DAYS</button>
+    <button class="rk-pill${rkFilter==='30d'?' active':''}" onclick="rkFilter='30d';renderRanks()">30 DAYS</button>
+    <button class="rk-pill${rkFilter==='90d'?' active':''}" onclick="rkFilter='90d';renderRanks()">90 DAYS</button>
+    <button class="rk-pill${rkFilter==='all'?' active':''}" onclick="rkFilter='all';renderRanks()">ALL TIME</button>
+  </div>
+  <span class="label">Rank history</span>
+  <div class="chart">${chart}</div>
+  <div class="chart-legend">${chartLegend}</div>
+</div>
+<div class="module">
+  <div class="rk-nearby-hdr"><span>Competitors near you</span><b>${(r.nearby||[]).length} athletes</b></div>
+  ${nearby||'<p>No nearby ranks available.</p>'}
+</div>
+<div class="module">
+  <span class="label">Rank milestones</span>
+  ${milestones||'<p>No milestones recorded yet.</p>'}
+</div>`;
 }
 
 function renderLog(){
@@ -1450,6 +2011,15 @@ function renderLog(){
 
   $('logContent').innerHTML=html;
   $('openPrSheet')?.addEventListener('click',openProductRequest);
+}
+
+function togglePool(head){
+  const row=head.closest('.mpool');
+  const wasOpen=row.classList.contains('open');
+  // Close all rows
+  document.querySelectorAll('.mpool.open').forEach(r=>r.classList.remove('open'));
+  // Toggle the tapped row
+  if(!wasOpen)row.classList.add('open');
 }
 
 async function pickTask(id){try{await api('/daily-tasks/pick',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({task_template_id:id})});toast('Mission picked');flash(6);await loadTasks()}catch(e){toast(e.message)}}
@@ -1542,7 +2112,92 @@ async function submitProductRequest(){
 async function loadTasks(){const data=await api('/daily-tasks');S.tasks=data?.tasks||[];S.picks=data?.picks||[];S.maxPicks=data?.maxPicks||5;renderTasks()}
 async function refreshBoard(){try{const board=await api('/leaderboard');if(JSON.stringify(board)!==JSON.stringify(S.leaderboard)){S.leaderboard=board||[];renderBoard();flash(2)}else{renderLobby()}}catch(e){}}
 
-function enterPortal(){$('loading').hidden=true;$('portal').classList.add('ready');show('tasks');if(!reduce)setInterval(refreshBoard,30000)}
+function enterPortal(){$('loading').hidden=true;$('portal').classList.add('ready');show('tasks');linkGames();raceConnect();if(!reduce)setInterval(refreshBoard,30000)}
+
+// ── Coin shop: spend-only currency earned from the arcade and level-ups. Coins
+// never feed XP, level or rank. Products land later — for now the screen shows
+// the balance, where coins come from and the level-up bonus ladder. ──
+const COIN_REASONS={GAME_COINS:'Arcade run',LEVEL_UP_BONUS:'Level-up bonus',TASK_COINS:'Mission approved',WEEKLY_CHALLENGE_WIN:'Weekly challenge'};
+function coinBalance(){return Number(S.shop?.balance??S.athlete?.coin_balance??0)}
+function renderShop(){
+  const el=$('shopContent');if(!el)return;
+  const sh=S.shop,src=sh?.sources||{},rules=sh?.rules||{};
+  const n=v=>Number(v||0).toLocaleString('en-IN');
+  const earned=Object.values(src).reduce((sum,v)=>sum+Number(v||0),0);
+  let html=`<div class="climb-hero">
+    <div class="ch-top"><span class="ch-label">Coin balance</span><span class="ch-live"><i></i>Live</span></div>
+    <div class="ch-level">${n(coinBalance())}</div>
+    <div class="ch-name">Coins</div>
+    <div class="ch-sub">Spend them on drops in this shop. Coins never count toward XP, levels or rank.</div>
+    <dl class="ch-stats">
+      <div><dt>Earned</dt><dd>${sh?n(earned):'&mdash;'}</dd></div>
+      <div><dt>Spent</dt><dd>${sh?n(sh.spent):'&mdash;'}</dd></div>
+      <div><dt>Arcade today</dt><dd>${sh?`${n(sh.game_coins_today)}/${n(rules.game_daily_coin_cap)}`:'&mdash;'}</dd></div>
+    </dl>
+  </div>`;
+
+  html+=`<div class="shop-drops">
+    <div class="ladder-head"><span class="lh-title">Drops</span><span class="lh-count">Coming soon</span></div>
+    <div class="shop-tiles"><div>Soon</div><div>Soon</div><div>Soon</div></div>
+    <p class="shop-note">Gear and rewards land here soon. Bank your coins now so you can grab the first drop the day it opens.</p>
+  </div>`;
+
+  if(sh){
+    html+=`<div class="climb-fuel">
+      <div style="font-family:var(--m);font-size:7.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)">Where your coins come from</div>
+      <dl class="cf-grid">
+        <div><dt>Arcade</dt><dd>${n(src.games)}</dd></div>
+        <div><dt>Level-ups</dt><dd>${n(src.levels)}</dd></div>
+        <div><dt>Missions</dt><dd>${n(src.tasks)}</dd></div>
+        <div><dt>Other</dt><dd>${n((src.challenges||0)+(src.other||0))}</dd></div>
+      </dl>
+      <ul>
+        <li><span>Mini-game run</span><b>up to ${n(rules.game_coins_per_run_max)} coins</b></li>
+        <li><span>Arcade today</span><b>${n(sh.game_coins_today)} / ${n(rules.game_daily_coin_cap)} coins</b></li>
+        <li><span>New comfort level</span><b>one-time bonus</b></li>
+      </ul>
+    </div>`;
+
+    const bonuses=sh.level_bonuses||[];
+    if(bonuses.length){
+      const nextIdx=bonuses.findIndex(b=>!b.reached);
+      html+=`<div class="ladder" style="border-top:1px solid var(--line)"><div class="ladder-head"><span class="lh-title">Level-up bonus</span><span class="lh-count">paid once per level</span></div>${bonuses.map((b,i)=>{
+        const state=b.reached?'cleared':i===nextIdx?'current':'locked';
+        const tag=b.reached?'REACHED':i===nextIdx?'NEXT':'LOCKED';
+        const tagCls=b.reached?'cleared':i===nextIdx?'you':'locked';
+        return `<div class="ladder-row ${state}"><b class="ladder-num">${b.display_number??'0'}</b><div><div class="ladder-title">${esc(b.display_name)}</div><div class="ladder-meta">+${n(b.coins)} coins on promotion</div></div><span class="state ${tagCls}">${tag}</span></div>`;
+      }).join('')}</div>`;
+    }
+
+    const recent=sh.recent||[];
+    html+=`<div class="climb-history"><div class="chist-label">Coin activity</div>${recent.length?recent.map(e=>`<div class="history-row"><span>${new Date(e.created_at).toLocaleDateString('en-IN',{day:'2-digit',month:'short'})}</span><b>${esc(COIN_REASONS[e.reason_code]||String(e.reason_code||'').replace(/_/g,' ').toLowerCase())}</b><span>${e.amount>0?'+':''}${n(e.amount)}</span></div>`).join(''):'<div class="history-row"><span>&mdash;</span><b>No coins yet</b><span>Play a mini-game</span></div>'}</div>`;
+  }
+  el.innerHTML=html;
+}
+async function loadShop(){
+  try{S.shop=await api('/shop');renderShop();updateSidebarAcct()}catch(e){}
+}
+
+// Arcade runs earn XP: hand the game the session token via the URL hash (never
+// sent to the server), and refresh XP + climb when the athlete comes back.
+function linkGames(){
+  document.querySelectorAll('#games a.gt').forEach(a=>{
+    a.href=a.href.split('#')[0]+'#t='+encodeURIComponent(S.token||'');
+  });
+}
+let lastXpRefresh=0;
+async function refreshXp(){
+  if(!S.token||Date.now()-lastXpRefresh<15000)return;
+  lastXpRefresh=Date.now();
+  try{
+    const [progress,climb,shop]=await Promise.all([api('/progress'),api('/climb'),api('/shop').catch(()=>null)]);
+    if(progress){S.athlete=progress;renderProfile()}
+    if(climb){S.climb=climb;renderClimb()}
+    if(shop)S.shop=shop;
+    if(progress||shop){renderShop();updateSidebarAcct()}
+  }catch(e){}
+}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshXp()});
 
 const ENDPOINTS=['/progress','/streak','/leaderboard','/climb','/ranks','/log','/weekly-challenge','/orders','/commissions','/product-requests'];
 
@@ -1556,7 +2211,7 @@ async function attempt(path){
 }
 
 function showAuthError(){
-  sessionStorage.removeItem('ap_token');S.token=null;
+  sessionStorage.removeItem('ap_token');S.token=null;raceClose();
   $('loading').hidden=true;$('auth').hidden=false;
   $('dbgPanel').hidden=false;
   if(typeof resetOtpUI==='function')resetOtpUI();
@@ -1586,7 +2241,9 @@ async function loadPortal(){
     const [progress,streak,board,climb,ranks,log,weekly,orders,commissions,productRequests]=results.map(r=>r.data);
     Object.assign(S,{athlete:progress,streak:streak?.current_streak||0,leaderboard:board||[],climb,ranks,log:log||[],weekly,orders:orders||[],commissions:commissions||null,productRequests:productRequests||[]});
     dbg('all endpoints OK — entering portal','ok');
-    renderProfile();$('taskStreak').innerHTML=S.streak+'<s> days</s>';renderClimb();renderBoard();renderRanks();renderLog();await loadTasks();enterPortal();
+    renderProfile();updateSidebarAcct();$('taskStreak').innerHTML=S.streak+'<s> days</s>';renderClimb();renderBoard();renderRanks();renderLog();renderShop();await loadTasks();enterPortal();
+    // Shop loads outside ENDPOINTS so a missing /shop route never blocks login.
+    loadShop();
   }catch(e){
     showAuthError();
     dbg(`login crashed: ${e.message}`,'err');
@@ -1602,13 +2259,19 @@ document.addEventListener('DOMContentLoaded',()=>{
   $('taskRail').innerHTML=[...feed,...feed].map(x=>`<span><b>${x[0]}</b> ${x[1]}</span>`).join('');
   document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>show(b.dataset.view)));
   $('sidebarToggle')?.addEventListener('click',()=>{$('sidebar').classList.toggle('collapsed')});
-  $('athleteList').addEventListener('click',e=>{
+  const onLobbyClick=e=>{
+    const j=e.target.closest('[data-join]');
+    if(j&&!j.disabled){window.open(gameUrl('&r='+encodeURIComponent(j.dataset.join)),'_blank','noopener');return}
     const b=e.target.closest('[data-invite]');
     if(!b||b.disabled)return;
-    S.invited.add(b.dataset.invite);
+    const id=b.dataset.invite;
+    S.invited.add(id);setTimeout(()=>{S.invited.delete(id);renderLobby()},10000);
     b.disabled=true;b.textContent='Sent \u2713';
-    toast(`Invite sent to ${b.dataset.name||'athlete'}`,'PENDING');
-  });
+    window.open(gameUrl('&inv='+encodeURIComponent(id)),'_blank','noopener');
+    toast(`Race room opened — invite sent to ${b.dataset.name||'athlete'}`,'LIVE');
+  };
+  $('athleteList').addEventListener('click',onLobbyClick);
+  $('raceLobbies').addEventListener('click',onLobbyClick);
   // ── Login tab switching ──
   let otpPhone=null,otpResendTimer=null,otpExpiryTimer=null;
   $('authForm').onsubmit=e=>e.preventDefault();
@@ -1765,7 +2428,6 @@ document.addEventListener('DOMContentLoaded',()=>{
   $('submitPr').onclick=submitProductRequest;
   $('productSearch').addEventListener('input',function(){renderProductGrid(this.value)});
   // Avatar sheet
-  $('avbtn').onclick=openAvSheet;
   $('avScrim').onclick=closeAvSheet;
   $('avClose').onclick=closeAvSheet;
   $('avBack').onclick=avBack;
