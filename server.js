@@ -3628,6 +3628,53 @@ async function createDelhiveryForwardOrder(requestData, shopifyOrder) {
             return null;
         }
 
+        // ── Duplicate order id detection (mirrors createDelhiveryReturnOrder recovery) ──
+        // Delhivery rejects re-used order ids with packages[0].remarks = ['Duplicate order id']
+        // and echoes back the existing waybill. Recover it instead of returning null.
+        if (data && data.packages && data.packages.length > 0) {
+            const firstPkg = data.packages[0];
+            if (firstPkg.status === 'Fail' && Array.isArray(firstPkg.remarks) &&
+                firstPkg.remarks.some(r => r.toLowerCase().includes('duplicate'))) {
+                console.warn(`⚠️ [Delhivery Forward] Duplicate order id detected for ${forwardOrderId}. Recovering existing waybill...`);
+                if (firstPkg.waybill) {
+                    return {
+                        waybill: firstPkg.waybill,
+                        waybills: [firstPkg.waybill],
+                        shipment_id: firstPkg.refnum || firstPkg.shipment_id || forwardOrderId,
+                        shipment_ids: [firstPkg.refnum || firstPkg.shipment_id || forwardOrderId],
+                        order_id: forwardOrderId,
+                        package_count: 1,
+                        recovered: true,
+                        duplicateOrder: true
+                    };
+                }
+                // No waybill in response — try to retrieve via tracking API
+                try {
+                    const trackingData = await delhiveryAPI(`/v1/packages/json/?refnos=${forwardOrderId}`);
+                    if (trackingData && trackingData.packages && trackingData.packages.length > 0) {
+                        const existingPkg = trackingData.packages[0];
+                        const existingWaybill = existingPkg.waybill_code || existingPkg.awb || existingPkg.waybill;
+                        if (existingWaybill) {
+                            console.log(`✅ [Delhivery Forward] Recovered existing waybill: ${existingWaybill}`);
+                            return {
+                                waybill: existingWaybill,
+                                waybills: [existingWaybill],
+                                shipment_id: existingPkg.refnum || existingPkg.shipment_id || forwardOrderId,
+                                shipment_ids: [existingPkg.refnum || existingPkg.shipment_id || forwardOrderId],
+                                order_id: forwardOrderId,
+                                package_count: 1,
+                                recovered: true,
+                                existingWaybill: true
+                            };
+                        }
+                    }
+                } catch (recoverError) {
+                    console.error(`❌ [Delhivery Forward] Failed to recover existing waybill:`, recoverError.message);
+                }
+                throw new Error(`Delhivery duplicate order: ${forwardOrderId} already exists. ${firstPkg.remarks.join(', ')}`);
+            }
+        }
+
         // Extract waybill(s) and shipment details - support multiple packages for multi-product orders
         const packages = data.packages || [];
         const waybills = packages.map(pkg => pkg.waybill).filter(Boolean);
@@ -5377,6 +5424,12 @@ async function finalizeRequestAfterPayment(requestId, paymentId, paymentAmount) 
             return { success: true, alreadyProcessed: true };
         }
 
+        // Idempotency guard: if request already has an AWB, skip duplicate Delhivery order creation
+        if (request.awbNumber || request.carrierAwb) {
+            console.log(`[${requestId}] ℹ️ Request already has AWB ${request.awbNumber || request.carrierAwb}, skipping duplicate pickup creation`);
+            return { success: true, alreadyProcessed: true, existingAwb: request.awbNumber || request.carrierAwb };
+        }
+
         // 1. Prepare Updates
         const updates = {
             paymentId: paymentId,
@@ -5726,6 +5779,16 @@ app.post('/api/submit-exchange', upload.any(), async (req, res) => {
         let allCarriersUnserviceable = false;
 
         if (!isFeeWaived && !needsPayment) {
+            // Guard: if resubmitting a waiting_payment request that already has an AWB,
+            // skip duplicate Delhivery order creation and reuse the existing booking
+            if (reuseRequestId && (activeExisting[0].awbNumber || activeExisting[0].carrierAwb)) {
+                const existingAwb = activeExisting[0].awbNumber || activeExisting[0].carrierAwb;
+                console.log(`[${requestId}] ♻️  Existing waiting_payment request already has AWB ${existingAwb}, skipping duplicate Delhivery order`);
+                awbNumber = existingAwb;
+                shipmentId = activeExisting[0].shipmentId || activeExisting[0].carrierShipmentId;
+                carrierUsed = activeExisting[0].carrier;
+                pickupDate = activeExisting[0].pickupDate;
+            } else {
             // Get carrier mode from settings
             const carrierMode = await getCarrierMode('pickup');
             console.log(`[${requestId}] Auto-Pickup with carrier mode: ${carrierMode} for paid reason: ${req.body.reason}`);
@@ -5773,6 +5836,7 @@ app.post('/api/submit-exchange', upload.any(), async (req, res) => {
             } catch (error) {
                 console.error(`[${requestId}] ❌ Auto-pickup failed:`, error.message);
                 // Continue without shipment - will be pending
+            }
             }
         } else if (isFeeWaived) {
             console.log(`[${requestId}] Reason (${req.body.reason}) is fee-waived. Deferring pickup for manual admin review.`);
@@ -6046,6 +6110,16 @@ app.post('/api/submit-return', upload.any(), async (req, res) => {
         let allCarriersUnserviceable = false;
 
         if (!isFeeWaivedReturn && !needsPayment) {
+            // Guard: if resubmitting a waiting_payment request that already has an AWB,
+            // skip duplicate Delhivery order creation and reuse the existing booking
+            if (reuseRequestId && (activeExisting[0].awbNumber || activeExisting[0].carrierAwb)) {
+                const existingAwb = activeExisting[0].awbNumber || activeExisting[0].carrierAwb;
+                console.log(`[${requestId}] ♻️  Existing waiting_payment request already has AWB ${existingAwb}, skipping duplicate Delhivery order`);
+                awbNumber = existingAwb;
+                shipmentId = activeExisting[0].shipmentId || activeExisting[0].carrierShipmentId;
+                carrierUsed = activeExisting[0].carrier;
+                pickupDate = activeExisting[0].pickupDate;
+            } else {
             // Get carrier mode from settings
             const carrierMode = await getCarrierMode('pickup');
             console.log(`[${requestId}] Auto-Pickup with carrier mode: ${carrierMode} for paid reason: ${req.body.reason}`);
@@ -6093,6 +6167,7 @@ app.post('/api/submit-return', upload.any(), async (req, res) => {
             } catch (error) {
                 console.error(`[${requestId}] ❌ Auto-pickup failed:`, error.message);
                 // Continue without shipment - will be pending
+            }
             }
         } else if (isFeeWaivedReturn) {
             console.log(`[${requestId}] Reason (${req.body.reason}) is fee-waived. Deferring pickup for manual admin review.`);
@@ -7921,6 +7996,20 @@ app.post(['/api/admin/approve', '/api/admin/approve-return', '/api/admin/approve
             if (requestDetails.status === 'pickup_pending') {
                 console.log(`[${requestId}] RE-INITIATING pickup (was already pickup_pending). Previous carrier: ${requestDetails.carrier || 'unknown'}`);
                 adminNotes += `\n--- Pickup Re-initiated by Admin (Previous: ${requestDetails.carrier || 'unknown'}) ---`;
+
+                // Guard: if an AWB already exists, skip duplicate Delhivery order creation
+                if (requestDetails.awbNumber || requestDetails.carrierAwb) {
+                    console.log(`[${requestId}] AWB already exists (${requestDetails.awbNumber || requestDetails.carrierAwb}), skipping duplicate Delhivery order`);
+                    return res.json({
+                        success: true,
+                        message: `Pickup already booked via ${requestDetails.carrier || 'unknown'}. Use "Create Duplicate Pickup" for a fresh booking.`,
+                        existingBooking: {
+                            awbNumber: requestDetails.awbNumber || requestDetails.carrierAwb,
+                            shipmentId: requestDetails.shipmentId || requestDetails.carrierShipmentId,
+                            carrier: requestDetails.carrier
+                        }
+                    });
+                }
             }
             
             // Get carrier mode from settings (supports separate pickup/dispatch settings)
@@ -8034,6 +8123,11 @@ app.post(['/api/admin/approve', '/api/admin/approve-return', '/api/admin/approve
         // 2. Final Approval -> Quality Check Passed -> Process Resolution
         // Trigger Forward Shipment based on carrier settings (Shiprocket and/or Delhivery)
         if (requestDetails.type === 'exchange' && requestDetails.status !== 'approved') {
+            // Guard: skip forward order creation if one already exists (prevents duplicate Delhivery orders on re-approval)
+            if (requestDetails.forwardAwbNumber || requestDetails.forwardShipmentId) {
+                console.log(`[${requestId}] Forward shipment already exists (AWB: ${requestDetails.forwardAwbNumber || 'N/A'}), skipping duplicate creation`);
+                updates.status = 'approved';
+            } else {
             console.log(`[${requestId}] Finalizing exchange resolution...`);
 
             // Get carrier mode for dispatch (forward shipment)
@@ -8119,6 +8213,7 @@ app.post(['/api/admin/approve', '/api/admin/approve-return', '/api/admin/approve
                     requestId: requestId
                 });
             }
+        } // ← closes forwardAwbNumber guard else
         } else {
             // For non-exchange types or already approved, just mark as approved
             updates.status = 'approved';
@@ -11194,11 +11289,16 @@ app.post('/api/influencer/verify', async (req, res) => {
             return res.status(401).json({ error: 'Invalid or inactive influencer link' });
         }
 
-        // Match phone (clean non-digits for robust comparison)
+        // Normalize both phones to 10-digit format for comparison
+        // Database may have 91XXXXXXXXXX (12 digits) or XXXXXXXXXX (10 digits)
         const cleanDbPhone = (influencer.phone || '').replace(/\D/g, '');
         const cleanInputPhone = (phone || '').replace(/\D/g, '');
+        
+        // Extract last 10 digits from database phone (handles both 91-prefixed and raw formats)
+        const dbPhone10 = cleanDbPhone.length >= 10 ? cleanDbPhone.slice(-10) : cleanDbPhone;
+        const inputPhone10 = cleanInputPhone.length >= 10 ? cleanInputPhone.slice(-10) : cleanInputPhone;
 
-        if (cleanInputPhone === cleanDbPhone && cleanDbPhone.length > 0) {
+        if (inputPhone10 === dbPhone10 && dbPhone10.length >= 10) {
             res.json({ success: true });
         } else {
             res.status(401).json({ error: 'Incorrect phone number. Please check and try again.' });
