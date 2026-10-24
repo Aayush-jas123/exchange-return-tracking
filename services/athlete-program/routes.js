@@ -1492,4 +1492,339 @@ module.exports = function mountAthleteRoutes(app) {
       res.json({ success: true, data });
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // ADMIN — PRODUCT REQUEST MANAGEMENT
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // ── List All Product Requests ──
+  app.get('/api/athlete-admin/product-requests', authAdmin, async (req, res) => {
+    try {
+      const { status, athlete_id } = req.query;
+      let query = supabase
+        .from('shipment_requests')
+        .select('*, influencers(name, athlete_no, instagram_handle)')
+        .order('requested_at', { ascending: false })
+        .limit(200);
+
+      if (status) query = query.eq('status', status.toUpperCase());
+      if (athlete_id) query = query.eq('influencer_id', athlete_id);
+
+      const { data, error } = await query;
+      if (error) throw error;
+      res.json({ success: true, data: data || [] });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // ── Approve Product Request ──
+  app.post('/api/athlete-admin/product-requests/:id/approve', authAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { notes, shipping_method } = req.body;
+
+      const { data: request, error: fetchError } = await supabase
+        .from('shipment_requests')
+        .select('*')
+        .eq('id', id)
+        .single();
+      if (fetchError || !request) throw new Error('Request not found');
+
+      const { data, error } = await supabase
+        .from('shipment_requests')
+        .update({
+          status: 'APPROVED',
+          approved_at: new Date().toISOString(),
+          approved_by: 'admin',
+          admin_notes: notes || null,
+          shipping_method: shipping_method || null
+        })
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) throw error;
+      res.json({ success: true, data });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // ── Reject Product Request ──
+  app.post('/api/athlete-admin/product-requests/:id/reject', authAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { reason } = req.body;
+
+      const { data, error } = await supabase
+        .from('shipment_requests')
+        .update({
+          status: 'REJECTED',
+          rejected_at: new Date().toISOString(),
+          rejected_by: 'admin',
+          rejection_reason: reason || null
+        })
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) throw error;
+      res.json({ success: true, data });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // ADMIN — GAME RESULTS & LEADERBOARDS
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // ── Global Leaderboard ──
+  app.get('/api/athlete-admin/leaderboard', authAdmin, async (req, res) => {
+    try {
+      const { limit = 100 } = req.query;
+      const { data, error } = await supabase
+        .from('influencers')
+        .select('id, name, athlete_no, xp_total, coin_balance, level_id, standing_score, leaderboard_opt_out')
+        .eq('leaderboard_opt_out', false)
+        .order('xp_total', { ascending: false })
+        .limit(parseInt(limit));
+      if (error) throw error;
+      res.json({ success: true, data: data || [] });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // ── Game XP/Coins Ledger ──
+  app.get('/api/athlete-admin/game-ledger', authAdmin, async (req, res) => {
+    try {
+      const { athlete_id, reason_code, limit = 200 } = req.query;
+      let query = supabase
+        .from('ledger_entries')
+        .select('*, influencers(name, athlete_no)')
+        .in('reason_code', ['GAME_XP', 'GAME_COINS', 'RACE_XP'])
+        .order('created_at', { ascending: false })
+        .limit(parseInt(limit));
+
+      if (athlete_id) query = query.eq('influencer_id', athlete_id);
+      if (reason_code) query = query.eq('reason_code', reason_code);
+
+      const { data, error } = await query;
+      if (error) throw error;
+      res.json({ success: true, data: data || [] });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // ── Weekly Challenge Entries with Scores ──
+  app.get('/api/athlete-admin/weekly-challenges/:id/entries', authAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { data, error } = await supabase
+        .from('weekly_challenge_entries')
+        .select('*, influencers(name, athlete_no, instagram_handle)')
+        .eq('challenge_id', id)
+        .order('score', { ascending: false });
+      if (error) throw error;
+      res.json({ success: true, data: data || [] });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // ADMIN — OVERRIDE CONTROLS
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // ── Override Athlete XP ──
+  app.post('/api/athlete-admin/athletes/:id/override-xp', authAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { xp_total, reason } = req.body;
+      if (xp_total === undefined) throw new Error('xp_total is required');
+
+      const { data, error } = await supabase
+        .from('influencers')
+        .update({ xp_total: parseInt(xp_total) })
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) throw error;
+
+      // Log the override in ledger
+      if (reason) {
+        await LedgerService.log({
+          influencerId: id,
+          currency: 'XP',
+          amount: 0,
+          balance: parseInt(xp_total),
+          source: 'ADMIN_OVERRIDE',
+          reasonCode: 'ADMIN_ADJUSTMENT',
+          idempotencyKey: `admin-override-xp-${id}-${Date.now()}`,
+          meta: { reason, set_to: parseInt(xp_total) }
+        });
+      }
+
+      res.json({ success: true, data });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // ── Override Athlete Coins ──
+  app.post('/api/athlete-admin/athletes/:id/override-coins', authAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { coin_balance, reason } = req.body;
+      if (coin_balance === undefined) throw new Error('coin_balance is required');
+
+      const { data, error } = await supabase
+        .from('influencers')
+        .update({ coin_balance: parseInt(coin_balance) })
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) throw error;
+
+      // Log the override in ledger
+      if (reason) {
+        await LedgerService.log({
+          influencerId: id,
+          currency: 'COIN',
+          amount: 0,
+          balance: parseInt(coin_balance),
+          source: 'ADMIN_OVERRIDE',
+          reasonCode: 'ADMIN_ADJUSTMENT',
+          idempotencyKey: `admin-override-coins-${id}-${Date.now()}`,
+          meta: { reason, set_to: parseInt(coin_balance) }
+        });
+      }
+
+      res.json({ success: true, data });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // ── Override Athlete Status ──
+  app.post('/api/athlete-admin/athletes/:id/override-status', authAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { athlete_status, reason } = req.body;
+      if (!athlete_status) throw new Error('athlete_status is required');
+
+      const { data, error } = await supabase
+        .from('influencers')
+        .update({ athlete_status: athlete_status.toUpperCase() })
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) throw error;
+
+      res.json({ success: true, data });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // ── Reset Athlete Streak ──
+  app.post('/api/athlete-admin/athletes/:id/reset-streak', authAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { data, error } = await supabase
+        .from('athlete_streaks')
+        .update({ current_streak: 0, last_active_date: null })
+        .eq('influencer_id', id)
+        .select()
+        .single();
+      if (error) throw error;
+      res.json({ success: true, data });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // ── Manual Badge Award ──
+  app.post('/api/athlete-admin/athletes/:id/award-badge', authAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { badge_code, reason } = req.body;
+      if (!badge_code) throw new Error('badge_code is required');
+
+      const result = await GamificationService.awardBadge(id, badge_code, reason || 'Admin manual award');
+      res.json({ success: true, data: result });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // ADMIN — CONFIGURATION MANAGEMENT
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // ── Get All Configuration ──
+  app.get('/api/athlete-admin/config/all', authAdmin, async (req, res) => {
+    try {
+      const [settings, gameSettings, levels, badges] = await Promise.all([
+        supabase.from('program_settings').select('*').order('key'),
+        GamificationService.getGameSettings(),
+        supabase.from('comfort_levels').select('*').order('sort_order', { ascending: true }),
+        supabase.from('badge_definitions').select('*').order('category', { ascending: true })
+      ]);
+
+      res.json({
+        success: true,
+        data: {
+          program_settings: settings.data || [],
+          game_settings: gameSettings,
+          levels: levels.data || [],
+          badges: badges.data || []
+        }
+      });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // ── Update Multiple Settings ──
+  app.post('/api/athlete-admin/config/bulk-update', authAdmin, async (req, res) => {
+    try {
+      const { settings } = req.body;
+      if (!settings || !Array.isArray(settings)) throw new Error('settings array is required');
+
+      const results = [];
+      for (const { key, value } of settings) {
+        const { data, error } = await supabase
+          .from('program_settings')
+          .update({ value: String(value), updated_at: new Date().toISOString() })
+          .eq('key', key)
+          .select()
+          .single();
+        if (error) {
+          results.push({ key, success: false, error: error.message });
+        } else {
+          results.push({ key, success: true, data });
+        }
+      }
+
+      res.json({ success: true, results });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // ── Reset Gamification Settings to Defaults ──
+  app.post('/api/athlete-admin/config/reset-gamification', authAdmin, async (req, res) => {
+    try {
+      const defaults = {
+        'daily_task.max_picks': '5',
+        'weekly_challenge.xp_reward_1st': '500',
+        'weekly_challenge.xp_reward_2nd': '300',
+        'weekly_challenge.xp_reward_3rd': '200',
+        'weekly_challenge.coin_reward_1st': '100',
+        'weekly_challenge.coin_reward_2nd': '60',
+        'weekly_challenge.coin_reward_3rd': '40',
+        'weekly_challenge.max_winners': '10',
+        'streak.bonus_xp_per_day': '10',
+        'streak.milestone_7_day': '50',
+        'streak.milestone_30_day': '200',
+        'streak.milestone_100_day': '1000',
+        'streak.milestone_365_day': '5000',
+        'game.daily_xp_cap': '500',
+        'game.daily_coin_cap': '100',
+        'game.xp_per_run_max': '100',
+        'game.coins_per_run_max': '20',
+        'gamification.confetti_enabled': 'true',
+        'gamification.sound_enabled': 'true'
+      };
+
+      const results = [];
+      for (const [key, value] of Object.entries(defaults)) {
+        const { data, error } = await supabase
+          .from('program_settings')
+          .update({ value, updated_at: new Date().toISOString() })
+          .eq('key', key)
+          .select()
+          .single();
+        results.push({ key, success: !error, data: data || null });
+      }
+
+      res.json({ success: true, results });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
 };

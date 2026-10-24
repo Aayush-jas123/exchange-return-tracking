@@ -375,6 +375,13 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);
         <div class="ah-nav-item" data-section="weekly-challenges">Weekly Challenge</div>
         <div class="ah-nav-item" data-section="game-settings">Game Settings</div>
         <div class="ah-nav-item" data-section="streaks-badges">Streaks & Badges</div>
+        <div class="ah-nav-item" data-section="game-results">Game Results</div>
+      </div>
+      <div class="ah-nav-group">
+        <div class="ah-nav-group-label">Operations</div>
+        <div class="ah-nav-item" data-section="product-requests">Product Requests <span class="count" id="navProductCount">0</span></div>
+        <div class="ah-nav-item" data-section="overrides">Override Controls</div>
+        <div class="ah-nav-item" data-section="config">Configuration</div>
       </div>
     </nav>
     <div class="ah-sidebar-foot">FM-OFC-03 v1.0</div>
@@ -588,6 +595,143 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);
           <button class="ah-btn ah-btn-sm" onclick="openAwardBadgeModal()">Award Badge Manually</button>
         </div>
       </div>
+
+      <!-- GAME RESULTS -->
+      <div class="ah-section" id="sec-game-results">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem">
+          <h2 style="font-size:.65rem;letter-spacing:.18em;text-transform:uppercase;font-weight:700">Game Results & Leaderboards</h2>
+          <button class="ah-btn ah-btn-sm ah-btn-outline" onclick="loadGameResults()">Refresh</button>
+        </div>
+        <div style="margin-bottom:1.5rem">
+          <h3 style="font-size:.6rem;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:.75rem">Global Leaderboard</h3>
+          <div class="ah-table-wrap">
+            <table class="ah-table">
+              <thead><tr><th>Rank</th><th>Athlete</th><th>XP Total</th><th>Coins</th><th>Level</th><th>Standing</th></tr></thead>
+              <tbody id="globalLeaderboardTable"></tbody>
+            </table>
+          </div>
+        </div>
+        <div style="margin-bottom:1.5rem">
+          <h3 style="font-size:.6rem;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:.75rem">Game Activity Ledger</h3>
+          <div style="margin-bottom:.75rem">
+            <select class="ah-input" style="margin:0;width:200px;padding:.45rem .75rem;font-size:.7rem" id="gameLedgerFilter">
+              <option value="">All Game Types</option>
+              <option value="GAME_XP">Game XP</option>
+              <option value="GAME_COINS">Game Coins</option>
+              <option value="RACE_XP">Race XP</option>
+            </select>
+          </div>
+          <div class="ah-table-wrap">
+            <table class="ah-table">
+              <thead><tr><th>Date</th><th>Athlete</th><th>Type</th><th>Amount</th><th>Balance After</th><th>Source</th></tr></thead>
+              <tbody id="gameLedgerTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- PRODUCT REQUESTS -->
+      <div class="ah-section" id="sec-product-requests">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem">
+          <h2 style="font-size:.65rem;letter-spacing:.18em;text-transform:uppercase;font-weight:700">Product Requests</h2>
+          <div style="display:flex;gap:.5rem">
+            <select class="ah-input" style="margin:0;width:140px;padding:.45rem .75rem;font-size:.7rem" id="prStatusFilter">
+              <option value="">All Status</option>
+              <option value="REQUESTED">Requested</option>
+              <option value="APPROVED">Approved</option>
+              <option value="REJECTED">Rejected</option>
+            </select>
+            <button class="ah-btn ah-btn-sm ah-btn-outline" onclick="loadProductRequests()">Refresh</button>
+          </div>
+        </div>
+        <div class="ah-table-wrap">
+          <table class="ah-table">
+            <thead><tr><th>Date</th><th>Athlete</th><th>Reason</th><th>Items</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="productRequestsTable"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- OVERRIDE CONTROLS -->
+      <div class="ah-section" id="sec-overrides">
+        <h2 style="font-size:.65rem;letter-spacing:.18em;text-transform:uppercase;font-weight:700;margin-bottom:1.25rem">Override Controls</h2>
+        <p style="font-size:.75rem;color:var(--text-2);margin-bottom:1.5rem">Directly modify athlete attributes. Use with caution — all changes are logged.</p>
+        <div style="display:flex;gap:1rem;margin-bottom:1.5rem">
+          <input type="text" class="ah-input" style="margin:0;flex:1;padding:.45rem .75rem;font-size:.7rem" placeholder="Enter athlete ID or name..." id="overrideAthleteSearch">
+          <button class="ah-btn ah-btn-sm" onclick="searchAthleteForOverride()">Search</button>
+        </div>
+        <div id="overridePanel" style="display:none">
+          <div style="background:var(--surface-2);border:1px solid var(--border);padding:1.5rem;margin-bottom:1rem">
+            <h3 style="font-size:.7rem;letter-spacing:.15em;text-transform:uppercase;font-weight:700;margin-bottom:1rem" id="overrideAthleteName">Athlete</h3>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem">
+              <div>
+                <label style="font-size:.6rem;color:var(--muted);display:block;margin-bottom:.35rem">XP Total</label>
+                <input type="number" class="ah-input" style="margin:0;padding:.45rem .75rem;font-size:.7rem" id="overrideXP">
+                <button class="ah-btn ah-btn-sm" style="margin-top:.5rem;width:100%" onclick="overrideXP()">Set XP</button>
+              </div>
+              <div>
+                <label style="font-size:.6rem;color:var(--muted);display:block;margin-bottom:.35rem">Coin Balance</label>
+                <input type="number" class="ah-input" style="margin:0;padding:.45rem .75rem;font-size:.7rem" id="overrideCoins">
+                <button class="ah-btn ah-btn-sm" style="margin-top:.5rem;width:100%" onclick="overrideCoins()">Set Coins</button>
+              </div>
+              <div>
+                <label style="font-size:.6rem;color:var(--muted);display:block;margin-bottom:.35rem">Status</label>
+                <select class="ah-input" style="margin:0;padding:.45rem .75rem;font-size:.7rem" id="overrideStatus">
+                  <option value="ACTIVE">Active</option>
+                  <option value="ON_TRIAL">On Trial</option>
+                  <option value="RESERVE">Reserve</option>
+                  <option value="SUSPENDED">Suspended</option>
+                </select>
+                <button class="ah-btn ah-btn-sm" style="margin-top:.5rem;width:100%" onclick="overrideStatus()">Set Status</button>
+              </div>
+            </div>
+            <div style="margin-top:1rem;display:flex;gap:.5rem">
+              <button class="ah-btn ah-btn-sm ah-btn-outline" onclick="overrideResetStreak()">Reset Streak</button>
+              <button class="ah-btn ah-btn-sm ah-btn-outline" onclick="openAwardBadgeModal()">Award Badge</button>
+              <button class="ah-btn ah-btn-sm ah-btn-outline" onclick="overrideLevel()">Override Level</button>
+            </div>
+            <input type="text" class="ah-input" style="margin-top:1rem" placeholder="Reason for override (optional)" id="overrideReason">
+          </div>
+        </div>
+      </div>
+
+      <!-- CONFIGURATION -->
+      <div class="ah-section" id="sec-config">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem">
+          <h2 style="font-size:.65rem;letter-spacing:.18em;text-transform:uppercase;font-weight:700">Configuration Management</h2>
+          <div style="display:flex;gap:.5rem">
+            <button class="ah-btn ah-btn-sm ah-btn-outline" onclick="loadAllConfig()">Refresh</button>
+            <button class="ah-btn ah-btn-sm ah-btn-danger" onclick="resetGamificationDefaults()">Reset to Defaults</button>
+          </div>
+        </div>
+        <div style="margin-bottom:1.5rem">
+          <h3 style="font-size:.6rem;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:.75rem">Program Settings</h3>
+          <div id="configProgramSettings"></div>
+        </div>
+        <div style="margin-bottom:1.5rem">
+          <h3 style="font-size:.6rem;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:.75rem">Game Settings</h3>
+          <div id="configGameSettings"></div>
+        </div>
+        <div style="margin-bottom:1.5rem">
+          <h3 style="font-size:.6rem;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:.75rem">Comfort Levels</h3>
+          <div class="ah-table-wrap">
+            <table class="ah-table">
+              <thead><tr><th>Sort</th><th>Code</th><th>Name</th><th>XP Required</th><th>Perks</th></tr></thead>
+              <tbody id="configLevelsTable"></tbody>
+            </table>
+          </div>
+        </div>
+        <div>
+          <h3 style="font-size:.6rem;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:.75rem">Badge Definitions</h3>
+          <div class="ah-table-wrap">
+            <table class="ah-table">
+              <thead><tr><th>Icon</th><th>Code</th><th>Name</th><th>Category</th><th>Criteria</th></tr></thead>
+              <tbody id="configBadgesTable"></tbody>
+            </table>
+          </div>
+        </div>
+        <button class="ah-btn ah-btn-sm" style="margin-top:1.5rem" onclick="saveBulkConfig()">Save All Changes</button>
+      </div>
     </div>
   </div>
 </div>
@@ -793,6 +937,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);
 const API = 'https://exchange-return-tracking.onrender.com/api/athlete-admin';
 let adminToken = null;
 let athletes = [], applications = [], tasks = [], reviewItems = [], levels = [], settings = [], payouts = [];
+let productRequests = [], allConfig = {};
 
 // ── INIT ──
 document.addEventListener('DOMContentLoaded', () => {
@@ -833,14 +978,15 @@ async function initShell() {
 
 async function loadAll() {
   const headers = { 'Authorization': 'Bearer ' + adminToken };
-  const [athRes, appRes, taskRes, revRes, lvlRes, setRes, payRes] = await Promise.allSettled([
+  const [athRes, appRes, taskRes, revRes, lvlRes, setRes, payRes, prRes] = await Promise.allSettled([
     fetch(API + '/athletes', { headers }).then(r => r.json()),
     fetch(API + '/applications', { headers }).then(r => r.json()),
     fetch(API + '/tasks', { headers }).then(r => r.json()),
     fetch(API + '/review-queue', { headers }).then(r => r.json()),
     fetch(API + '/levels', { headers }).then(r => r.json()),
     fetch(API + '/settings', { headers }).then(r => r.json()),
-    fetch(API + '/payouts', { headers }).then(r => r.json())
+    fetch(API + '/payouts', { headers }).then(r => r.json()),
+    fetch(API + '/product-requests', { headers }).then(r => r.json())
   ]);
   athletes = athRes.value?.data || [];
   applications = appRes.value?.data || [];
@@ -849,6 +995,7 @@ async function loadAll() {
   levels = lvlRes.value?.data || [];
   settings = setRes.value?.data || [];
   payouts = payRes.value?.data || [];
+  productRequests = prRes.value?.data || [];
 }
 
 function renderAll() {
@@ -864,6 +1011,7 @@ function renderAll() {
   document.getElementById('navAthleteCount').textContent = athletes.length;
   document.getElementById('navAppCount').textContent = applications.filter(a => a.status === 'APPLIED').length;
   document.getElementById('navReviewCount').textContent = reviewItems.length;
+  document.getElementById('navProductCount').textContent = productRequests.filter(pr => pr.status === 'REQUESTED').length;
 }
 
 async function refreshData() { await loadAll(); renderAll(); }
@@ -1876,8 +2024,410 @@ document.querySelectorAll('.ah-nav-item').forEach(item => {
     if (sec === 'weekly-challenges') loadWeeklyChallenges();
     if (sec === 'game-settings') loadGameSettings();
     if (sec === 'streaks-badges') { loadStreaks(); loadBadges(); }
+    if (sec === 'game-results') loadGameResults();
+    if (sec === 'product-requests') loadProductRequests();
+    if (sec === 'config') loadAllConfig();
   });
 });
+
+// ══════════════════════════════════════════════════════════════════════════
+// GAME RESULTS & LEADERBOARDS
+// ══════════════════════════════════════════════════════════════════════════
+
+async function loadGameResults() {
+  try {
+    const [leaderboardRes, ledgerRes] = await Promise.allSettled([
+      fetch(API + '/leaderboard?limit=100', { headers: ah() }).then(r => r.json()),
+      fetch(API + '/game-ledger?limit=200', { headers: ah() }).then(r => r.json())
+    ]);
+    
+    if (leaderboardRes.value?.success) renderGlobalLeaderboard(leaderboardRes.value.data || []);
+    if (ledgerRes.value?.success) renderGameLedger(ledgerRes.value.data || []);
+  } catch (err) { console.error('Game results load:', err); }
+}
+
+function renderGlobalLeaderboard(data) {
+  const tbody = document.getElementById('globalLeaderboardTable');
+  if (data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--muted)">No leaderboard data</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.map((a, i) => `
+    <tr onclick="openAthleteDrawer(${a.id})" style="cursor:pointer">
+      <td><strong style="color:${i < 3 ? 'var(--warning)' : 'var(--text)'}">#${i + 1}</strong></td>
+      <td><strong>${esc(a.name)}</strong><div class="muted mono" style="font-size:.6rem;margin-top:2px">${a.athlete_no || '—'}</div></td>
+      <td class="mono" style="font-weight:700">${(a.xp_total||0).toLocaleString()}</td>
+      <td class="mono">${(a.coin_balance||0).toLocaleString()}</td>
+      <td>${levelBadge(a)}</td>
+      <td>${standingMini(a.standing_score)}</td>
+    </tr>`).join('');
+}
+
+function renderGameLedger(data) {
+  const tbody = document.getElementById('gameLedgerTable');
+  if (data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--muted)">No game activity</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.map(e => `
+    <tr>
+      <td class="muted">${new Date(e.created_at).toLocaleString('en-IN',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</td>
+      <td><strong>${esc(e.influencers?.name||'Athlete '+e.influencer_id)}</strong></td>
+      <td><span style="font-size:.55rem;padding:2px 6px;border:1px solid var(--border)">${e.reason_code}</span></td>
+      <td class="mono" style="font-weight:700;color:${e.amount > 0 ? 'var(--success)' : 'var(--danger)'}">${e.amount > 0 ? '+' : ''}${e.amount}</td>
+      <td class="mono">${e.balance_after}</td>
+      <td class="muted">${e.source}</td>
+    </tr>`).join('');
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// PRODUCT REQUESTS MANAGEMENT
+// ══════════════════════════════════════════════════════════════════════════
+
+async function loadProductRequests() {
+  try {
+    const statusFilter = document.getElementById('prStatusFilter').value;
+    const url = API + '/product-requests' + (statusFilter ? '?status=' + statusFilter : '');
+    const res = await fetch(url, { headers: ah() });
+    const data = await res.json();
+    productRequests = data.data || [];
+    renderProductRequests();
+    document.getElementById('navProductCount').textContent = productRequests.filter(pr => pr.status === 'REQUESTED').length;
+  } catch (err) { console.error('Product requests load:', err); }
+}
+
+function renderProductRequests() {
+  const tbody = document.getElementById('productRequestsTable');
+  if (productRequests.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--muted)">No product requests</td></tr>';
+    return;
+  }
+  tbody.innerHTML = productRequests.map(pr => `
+    <tr>
+      <td class="muted">${new Date(pr.requested_at).toLocaleDateString('en-IN',{day:'numeric',month:'short'})}</td>
+      <td><strong>${esc(pr.influencers?.name||'Athlete')}</strong><div class="muted mono" style="font-size:.6rem">${pr.influencers?.instagram_handle||''}</div></td>
+      <td>${esc(pr.reason)}</td>
+      <td style="max-width:200px;font-size:.65rem">${pr.items ? JSON.stringify(pr.items).slice(0, 80) + '...' : '—'}</td>
+      <td>${statusBadge(pr.status)}</td>
+      <td>
+        ${pr.status === 'REQUESTED' ? `
+          <button class="ah-btn ah-btn-sm" style="padding:.3rem .6rem;font-size:.5rem;margin-right:.25rem" onclick="approveProductRequest(${pr.id})">Approve</button>
+          <button class="ah-btn ah-btn-sm ah-btn-danger" style="padding:.3rem .6rem;font-size:.5rem" onclick="rejectProductRequest(${pr.id})">Reject</button>
+        ` : '<span class="muted" style="font-size:.6rem">—</span>'}
+      </td>
+    </tr>`).join('');
+}
+
+async function approveProductRequest(id) {
+  const notes = prompt('Approval notes (optional):') || '';
+  const shippingMethod = prompt('Shipping method (e.g. Delhivery, Ekart):') || 'Delhivery';
+  
+  try {
+    const res = await fetch(API + '/product-requests/' + id + '/approve', {
+      method: 'POST',
+      headers: { ...ah(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notes, shipping_method: shippingMethod })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('Product request approved!', 'success');
+      loadProductRequests();
+    } else {
+      showToast(data.error || 'Failed', 'error');
+    }
+  } catch (err) { showToast('Network error', 'error'); }
+}
+
+async function rejectProductRequest(id) {
+  const reason = prompt('Rejection reason:');
+  if (!reason) return;
+  
+  try {
+    const res = await fetch(API + '/product-requests/' + id + '/reject', {
+      method: 'POST',
+      headers: { ...ah(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('Product request rejected', 'success');
+      loadProductRequests();
+    } else {
+      showToast(data.error || 'Failed', 'error');
+    }
+  } catch (err) { showToast('Network error', 'error'); }
+}
+
+document.getElementById('prStatusFilter').addEventListener('change', loadProductRequests);
+
+// ══════════════════════════════════════════════════════════════════════════
+// OVERRIDE CONTROLS
+// ══════════════════════════════════════════════════════════════════════════
+
+let selectedOverrideAthlete = null;
+
+function searchAthleteForOverride() {
+  const query = document.getElementById('overrideAthleteSearch').value.trim().toLowerCase();
+  if (!query) return;
+  
+  const found = athletes.find(a => 
+    a.id.toString() === query || 
+    a.name.toLowerCase().includes(query) || 
+    (a.athlete_no && a.athlete_no.toLowerCase() === query)
+  );
+  
+  if (!found) {
+    showToast('Athlete not found', 'error');
+    return;
+  }
+  
+  selectedOverrideAthlete = found;
+  document.getElementById('overridePanel').style.display = 'block';
+  document.getElementById('overrideAthleteName').textContent = found.name + ' (' + (found.athlete_no || 'ID: ' + found.id) + ')';
+  document.getElementById('overrideXP').value = found.xp_total || 0;
+  document.getElementById('overrideCoins').value = found.coin_balance || 0;
+  document.getElementById('overrideStatus').value = found.athlete_status || 'ACTIVE';
+}
+
+async function overrideXP() {
+  if (!selectedOverrideAthlete) return;
+  const xp = parseInt(document.getElementById('overrideXP').value);
+  const reason = document.getElementById('overrideReason').value || 'Admin override';
+  
+  if (!confirm('Set XP to ' + xp + ' for ' + selectedOverrideAthlete.name + '?')) return;
+  
+  try {
+    const res = await fetch(API + '/athletes/' + selectedOverrideAthlete.id + '/override-xp', {
+      method: 'POST',
+      headers: { ...ah(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ xp_total: xp, reason })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('XP updated!', 'success');
+      refreshData();
+    } else {
+      showToast(data.error || 'Failed', 'error');
+    }
+  } catch (err) { showToast('Network error', 'error'); }
+}
+
+async function overrideCoins() {
+  if (!selectedOverrideAthlete) return;
+  const coins = parseInt(document.getElementById('overrideCoins').value);
+  const reason = document.getElementById('overrideReason').value || 'Admin override';
+  
+  if (!confirm('Set coins to ' + coins + ' for ' + selectedOverrideAthlete.name + '?')) return;
+  
+  try {
+    const res = await fetch(API + '/athletes/' + selectedOverrideAthlete.id + '/override-coins', {
+      method: 'POST',
+      headers: { ...ah(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ coin_balance: coins, reason })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('Coins updated!', 'success');
+      refreshData();
+    } else {
+      showToast(data.error || 'Failed', 'error');
+    }
+  } catch (err) { showToast('Network error', 'error'); }
+}
+
+async function overrideStatus() {
+  if (!selectedOverrideAthlete) return;
+  const status = document.getElementById('overrideStatus').value;
+  const reason = document.getElementById('overrideReason').value || 'Admin override';
+  
+  if (!confirm('Set status to ' + status + ' for ' + selectedOverrideAthlete.name + '?')) return;
+  
+  try {
+    const res = await fetch(API + '/athletes/' + selectedOverrideAthlete.id + '/override-status', {
+      method: 'POST',
+      headers: { ...ah(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ athlete_status: status, reason })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('Status updated!', 'success');
+      refreshData();
+    } else {
+      showToast(data.error || 'Failed', 'error');
+    }
+  } catch (err) { showToast('Network error', 'error'); }
+}
+
+async function overrideResetStreak() {
+  if (!selectedOverrideAthlete) return;
+  if (!confirm('Reset streak for ' + selectedOverrideAthlete.name + '?')) return;
+  
+  try {
+    const res = await fetch(API + '/athletes/' + selectedOverrideAthlete.id + '/reset-streak', {
+      method: 'POST',
+      headers: { ...ah(), 'Content-Type': 'application/json' }
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('Streak reset!', 'success');
+      refreshData();
+    } else {
+      showToast(data.error || 'Failed', 'error');
+    }
+  } catch (err) { showToast('Network error', 'error'); }
+}
+
+async function overrideLevel() {
+  if (!selectedOverrideAthlete) return;
+  const levelId = parseInt(prompt('Level ID to set:'));
+  if (!levelId) return;
+  
+  try {
+    const res = await fetch(API + '/athletes/' + selectedOverrideAthlete.id + '/override-level', {
+      method: 'POST',
+      headers: { ...ah(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ level_id: levelId })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('Level overridden!', 'success');
+      refreshData();
+    } else {
+      showToast(data.error || 'Failed', 'error');
+    }
+  } catch (err) { showToast('Network error', 'error'); }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// CONFIGURATION MANAGEMENT
+// ══════════════════════════════════════════════════════════════════════════
+
+async function loadAllConfig() {
+  try {
+    const res = await fetch(API + '/config/all', { headers: ah() });
+    const data = await res.json();
+    if (data.success) {
+      allConfig = data.data;
+      renderConfigProgramSettings(allConfig.program_settings || []);
+      renderConfigGameSettings(allConfig.game_settings || []);
+      renderConfigLevels(allConfig.levels || []);
+      renderConfigBadges(allConfig.badges || []);
+    }
+  } catch (err) { console.error('Config load:', err); }
+}
+
+function renderConfigProgramSettings(settings) {
+  const el = document.getElementById('configProgramSettings');
+  const groups = {};
+  settings.forEach(s => {
+    const group = s.key.split('.')[0];
+    if (!groups[group]) groups[group] = [];
+    groups[group].push(s);
+  });
+
+  el.innerHTML = Object.entries(groups).map(([group, items]) => `
+    <div class="ah-settings-group" style="margin-bottom:1.5rem">
+      <h4 style="font-size:.6rem;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:.75rem">${group.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}</h4>
+      ${items.map(s => `
+        <div class="ah-setting-row" style="display:flex;gap:1rem;align-items:center;padding:.5rem 0;border-bottom:1px solid var(--border)">
+          <div style="flex:1"><div class="key" style="font-family:var(--mono);font-size:.7rem">${s.key}</div><div class="desc" style="font-size:.6rem;color:var(--muted);margin-top:2px">${esc(s.description||'')}</div></div>
+          <input type="text" value="${esc(s.value||'')}" data-config-key="${s.key}" class="ah-input" style="margin:0;width:200px;padding:.45rem .75rem;font-size:.7rem" onchange="updateConfigVal(this)">
+        </div>`).join('')}
+    </div>`).join('');
+}
+
+function renderConfigGameSettings(settings) {
+  const el = document.getElementById('configGameSettings');
+  if (!settings || settings.length === 0) {
+    el.innerHTML = '<p style="color:var(--muted);font-size:.75rem">No game settings configured</p>';
+    return;
+  }
+  el.innerHTML = settings.map(s => `
+    <div class="ah-setting-row" style="display:flex;gap:1rem;align-items:center;padding:.5rem 0;border-bottom:1px solid var(--border)">
+      <div style="flex:1"><div class="key" style="font-family:var(--mono);font-size:.7rem">${s.key}</div><div class="desc" style="font-size:.6rem;color:var(--muted);margin-top:2px">${esc(s.description||'')}</div></div>
+      <input type="text" value="${esc(typeof s.value === 'string' ? s.value : JSON.stringify(s.value))}" data-game-key="${s.key}" class="ah-input" style="margin:0;width:200px;padding:.45rem .75rem;font-size:.7rem">
+    </div>`).join('');
+}
+
+function renderConfigLevels(levels) {
+  const tbody = document.getElementById('configLevelsTable');
+  tbody.innerHTML = levels.map(l => `
+    <tr>
+      <td class="mono">${l.sort_order}</td>
+      <td class="mono" style="font-weight:700">${l.code}</td>
+      <td><strong>${esc(l.name)}</strong></td>
+      <td class="mono">${l.xp_required?.toLocaleString() || '—'}</td>
+      <td style="font-size:.65rem;max-width:300px">${l.perks ? JSON.stringify(l.perks).slice(0, 100) : '—'}</td>
+    </tr>`).join('');
+}
+
+function renderConfigBadges(badges) {
+  const tbody = document.getElementById('configBadgesTable');
+  tbody.innerHTML = badges.map(b => `
+    <tr>
+      <td style="font-size:1.2rem">${b.icon||'🏅'}</td>
+      <td class="mono" style="font-size:.65rem">${b.code}</td>
+      <td><strong>${esc(b.name)}</strong></td>
+      <td><span style="font-size:.55rem;padding:2px 6px;border:1px solid var(--border)">${b.category}</span></td>
+      <td class="muted" style="font-size:.65rem">${b.criteria_type}${b.criteria_value ? ' (>='+b.criteria_value+')' : ''}</td>
+    </tr>`).join('');
+}
+
+function updateConfigVal(input) {
+  const key = input.dataset.configKey;
+  const setting = (allConfig.program_settings || []).find(s => s.key === key);
+  if (setting) setting.value = input.value;
+}
+
+async function saveBulkConfig() {
+  const programSettings = (allConfig.program_settings || []).map(s => ({ key: s.key, value: s.value }));
+  
+  const gameSettingsInputs = document.querySelectorAll('[data-game-key]');
+  const gameSettings = Array.from(gameSettingsInputs).map(input => ({
+    key: input.dataset.gameKey,
+    value: input.value
+  }));
+
+  try {
+    const [progRes, gameRes] = await Promise.allSettled([
+      fetch(API + '/config/bulk-update', {
+        method: 'POST',
+        headers: { ...ah(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: programSettings })
+      }).then(r => r.json()),
+      fetch(API + '/game-settings', {
+        method: 'PATCH',
+        headers: { ...ah(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: gameSettings })
+      }).then(r => r.json())
+    ]);
+
+    if (progRes.value?.success && gameRes.value?.success) {
+      showToast('All configuration saved!', 'success');
+      loadAllConfig();
+    } else {
+      showToast('Some settings failed to save', 'error');
+    }
+  } catch (err) { showToast('Network error', 'error'); }
+}
+
+async function resetGamificationDefaults() {
+  if (!confirm('Reset all gamification settings to defaults? This cannot be undone.')) return;
+  
+  try {
+    const res = await fetch(API + '/config/reset-gamification', {
+      method: 'POST',
+      headers: { ...ah(), 'Content-Type': 'application/json' }
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('Gamification settings reset to defaults!', 'success');
+      loadAllConfig();
+    } else {
+      showToast(data.error || 'Failed', 'error');
+    }
+  } catch (err) { showToast('Network error', 'error'); }
+}
 </script>
 </body>
 </html>
