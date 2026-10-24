@@ -23,7 +23,7 @@
   const MAX_SPEED = 11;
   const SPEED_INCREMENT = 0.04;   // per paddle hit
   const POINT_SPEED_BONUS = 0.15; // per total point scored
-  const PADDLE_SPEED = 6;
+  const PADDLE_SPEED = 10;
   const AI_BASE_REACTION = 0.06;  // lerp factor
   const AI_REACTION_IMPROVE = 0.003; // per rally hit
   const AI_MAX_REACTION = 0.14;
@@ -173,10 +173,11 @@
   }
 
   function renderMissDots(containerId, count) {
-    const dots = $(containerId).children;
+    const el = $(containerId);
+    if (!el.children.length) return;
     for (let i = 0; i < MAX_MISSES; i++) {
-      if (i < count) dots[i].classList.add('filled');
-      else dots[i].classList.remove('filled');
+      if (i < count) el.children[i].classList.add('filled');
+      else el.children[i].classList.remove('filled');
     }
   }
 
@@ -218,8 +219,7 @@
     if (keys['w'] || keys['W']) { p1.y -= PADDLE_SPEED; }
     if (keys['s'] || keys['S']) { p1.y += PADDLE_SPEED; }
     if (touchP1 !== null) {
-      const target = touchP1 * GH - PADDLE_H / 2;
-      p1.y += (target - p1.y) * 0.25;
+      p1.y = touchP1 * GH - PADDLE_H / 2;
     }
     p1.y = Math.max(0, Math.min(GH - PADDLE_H, p1.y));
 
