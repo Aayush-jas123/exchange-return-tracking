@@ -29,6 +29,10 @@
   const AI_MAX_REACTION = 0.14;
   const AI_ERROR = 18;            // px random offset
   const TRAIL_LENGTH = 8;
+  const PARTICLE_COUNT = 7;
+  const PARTICLE_LIFE = 15;
+  const SQUASH_FRAMES = 6;
+  const BORDER_FLASH_FRAMES = 20;
 
   // ── State ──
   let mode = 'menu';       // menu | lobby | countdown | playing | paused | gameover
@@ -41,6 +45,11 @@
   // Game objects
   let ball, p1, p2, trail, rallyCount, totalPoints, speedMult;
   let countdownVal = 3, countdownTimer = null;
+
+  // Visual effects state
+  let particles = [];
+  let squashTimer = 0;
+  let borderFlash = 0;
 
   // Input
   const keys = {};
@@ -65,6 +74,9 @@
     rallyCount = 0;
     totalPoints = 0;
     speedMult = 1;
+    particles = [];
+    squashTimer = 0;
+    borderFlash = 0;
     resetBall();
   }
 
@@ -303,6 +315,12 @@
     // Hit flash
     paddle.hitFlash = 6;
 
+    // Squash effect
+    squashTimer = SQUASH_FRAMES;
+
+    // Spawn hit particles
+    spawnParticles(ball.x, ball.y, ball.vx);
+
     // Send paddle state in online mode
     if (gameMode === 'online' && window.PingPongNet) {
       window.PingPongNet.sendState(p1.y / GH, rallyCount);
@@ -315,6 +333,9 @@
     rallyCount = 0;
     speedMult = 1;
     aiReaction = AI_BASE_REACTION;
+
+    // Border flash on score
+    borderFlash = BORDER_FLASH_FRAMES;
 
     // Check 3-miss rule
     if (p1.misses >= MAX_MISSES) {
@@ -371,57 +392,231 @@
     $('pauseBtn').hidden = true;
   }
 
-  // ── Render ──
-  function render() {
-    ctx.clearRect(0, 0, GW, GH);
+  // ── Particles ──
+  function spawnParticles(x, y, dirX) {
+    const dir = dirX > 0 ? 1 : -1;
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      const angle = (Math.random() - 0.5) * 1.2; // cone spread
+      const speed = 1.5 + Math.random() * 3;
+      particles.push({
+        x: x,
+        y: y,
+        vx: Math.cos(angle) * speed * dir,
+        vy: Math.sin(angle) * speed,
+        life: PARTICLE_LIFE,
+        maxLife: PARTICLE_LIFE,
+        size: 1.5 + Math.random() * 1.5
+      });
+    }
+  }
 
-    // Background
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, GW, GH);
+  function updateParticles() {
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vx *= 0.94;
+      p.vy *= 0.94;
+      p.life--;
+      if (p.life <= 0) particles.splice(i, 1);
+    }
+  }
 
-    // Center line
-    ctx.setLineDash([8, 8]);
-    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(GW / 2, 0);
-    ctx.lineTo(GW / 2, GH);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    // Ball trail
-    for (let i = 0; i < trail.length; i++) {
-      const alpha = (i / trail.length) * 0.3;
-      const r = BALL_R * (i / trail.length) * 0.8;
+  function drawParticles() {
+    for (const p of particles) {
+      const alpha = (p.life / p.maxLife) * 0.7;
       ctx.beginPath();
-      ctx.arc(trail[i].x, trail[i].y, r, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(255,255,255,' + alpha + ')';
       ctx.fill();
     }
+  }
 
-    // Ball
-    ctx.beginPath();
-    ctx.arc(ball.x, ball.y, BALL_R, 0, Math.PI * 2);
-    ctx.fillStyle = '#fff';
-    ctx.fill();
+  // ── Render ─
+  function render() {
+    ctx.clearRect(0, 0, GW, GH);
 
-    // Paddles
+    // 1. Court background — cached radial gradient
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, GW, GH);
+
+    // 2. Court border lines
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0.5, 0.5, GW - 1, GH - 1);
+
+    // 3. Center line — pre-rendered offscreen canvas
+    ctx.drawImage(centerLineCanvas, 0, 0);
+
+    // 4. Ball trail — smooth tapered path
+    drawTrail();
+
+    // 5. Particles
+    drawParticles();
+
+    // 6. Ball — 3D sphere with glow
+    drawBall();
+
+    // 7. Paddles — gradient with shadow
     drawPaddle(0, p1.y, p1.hitFlash);
     drawPaddle(GW - PADDLE_W, p2.y, p2.hitFlash);
 
     // Decay hit flash
     if (p1.hitFlash > 0) p1.hitFlash--;
     if (p2.hitFlash > 0) p2.hitFlash--;
+
+    // Decay squash timer
+    if (squashTimer > 0) squashTimer--;
+
+    // Decay border flash
+    if (borderFlash > 0) borderFlash--;
+
+    // 8. Vignette overlay — cached gradient
+    ctx.fillStyle = vignetteGrad;
+    ctx.fillRect(0, 0, GW, GH);
+
+    // 9. Border flash
+    if (borderFlash > 0) {
+      const alpha = (borderFlash / BORDER_FLASH_FRAMES) * 0.3;
+      ctx.strokeStyle = 'rgba(255,255,255,' + alpha + ')';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(1, 1, GW - 2, GH - 2);
+    }
   }
 
-  function drawPaddle(x, y, flash) {
-    ctx.fillStyle = flash > 0 ? '#fff' : '#ccc';
-    ctx.fillRect(x, y, PADDLE_W, PADDLE_H);
-    // Rounded ends
+  function drawTrail() {
+    if (trail.length < 2) return;
+    for (let i = 0; i < trail.length; i++) {
+      const t = i / trail.length;
+      const alpha = t * 0.25;
+      const r = BALL_R * t * 0.7;
+      ctx.beginPath();
+      ctx.arc(trail[i].x, trail[i].y, r, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,' + alpha + ')';
+      ctx.fill();
+    }
+  }
+
+  function drawBall() {
+    ctx.save();
+
+    // Squash/stretch transform
+    if (squashTimer > 0) {
+      const progress = 1 - squashTimer / SQUASH_FRAMES;
+      const ease = 1 - Math.pow(1 - progress, 3); // ease-out cubic
+      const scaleX = 1 + 0.3 * Math.sin(ease * Math.PI);
+      const scaleY = 1 - 0.4 * Math.sin(ease * Math.PI);
+      ctx.translate(ball.x, ball.y);
+      ctx.scale(scaleX, scaleY);
+      ctx.translate(-ball.x, -ball.y);
+    }
+
+    // Glow
+    ctx.shadowBlur = 14;
+    ctx.shadowColor = 'rgba(255,255,255,0.45)';
+
+    // 3D sphere — gradient must be at ball position (absolute coords)
+    const grad = ctx.createRadialGradient(
+      ball.x - BALL_R * 0.3, ball.y - BALL_R * 0.3, BALL_R * 0.1,
+      ball.x, ball.y, BALL_R
+    );
+    grad.addColorStop(0, '#fff');
+    grad.addColorStop(0.6, '#ddd');
+    grad.addColorStop(1, '#999');
+
     ctx.beginPath();
-    ctx.arc(x + PADDLE_W / 2, y, PADDLE_W / 2, Math.PI, 0);
-    ctx.arc(x + PADDLE_W / 2, y + PADDLE_H, PADDLE_W / 2, 0, Math.PI);
+    ctx.arc(ball.x, ball.y, BALL_R, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
     ctx.fill();
+
+    ctx.restore();
+  }
+
+  // ─ Cached static assets (position-independent, built once) ──
+  let bgGrad = null;
+  let vignetteGrad = null;
+  let centerLineCanvas = null;
+
+  function buildCachedAssets() {
+    // Background radial gradient
+    const bg = ctx.createRadialGradient(GW / 2, GH / 2, 0, GW / 2, GH / 2, GW * 0.7);
+    bg.addColorStop(0, '#111');
+    bg.addColorStop(1, '#000');
+    bgGrad = bg;
+
+    // Vignette overlay
+    const vg = ctx.createRadialGradient(GW / 2, GH / 2, GH * 0.3, GW / 2, GH / 2, GW * 0.75);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, 'rgba(0,0,0,0.45)');
+    vignetteGrad = vg;
+
+    // Pre-render center line to offscreen canvas (static, never changes)
+    const clc = document.createElement('canvas');
+    clc.width = GW;
+    clc.height = GH;
+    const clx = clc.getContext('2d');
+    const dashLen = 10;
+    const gapLen = 8;
+    const segments = Math.floor(GH / (dashLen + gapLen));
+    const startY = (GH - segments * (dashLen + gapLen)) / 2;
+    for (let i = 0; i < segments; i++) {
+      const y = startY + i * (dashLen + gapLen);
+      const midY = y + dashLen / 2;
+      const distFromCenter = Math.abs(midY - GH / 2) / (GH / 2);
+      const alpha = Math.max(0.04, 0.15 * (1 - distFromCenter * 0.7));
+      clx.strokeStyle = 'rgba(255,255,255,' + alpha + ')';
+      clx.lineWidth = 2;
+      clx.beginPath();
+      clx.moveTo(GW / 2, y);
+      clx.lineTo(GW / 2, y + dashLen);
+      clx.stroke();
+    }
+    centerLineCanvas = clc;
+  }
+  buildCachedAssets();
+
+  function drawPaddle(x, y, flash) {
+    ctx.save();
+
+    // Drop shadow
+    ctx.shadowBlur = 8;
+    ctx.shadowColor = 'rgba(255,255,255,0.12)';
+
+    // Gradient must match paddle position (canvas gradients are in absolute coords)
+    const grad = ctx.createLinearGradient(x, y, x, y + PADDLE_H);
+    if (flash > 0) {
+      grad.addColorStop(0, '#fff');
+      grad.addColorStop(0.5, '#fff');
+      grad.addColorStop(1, '#eee');
+    } else {
+      grad.addColorStop(0, '#fff');
+      grad.addColorStop(0.4, '#ccc');
+      grad.addColorStop(1, '#888');
+    }
+    ctx.fillStyle = grad;
+
+    // Capsule shape — arc radius must be <= PADDLE_W / 2
+    const r = PADDLE_W / 2;
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + PADDLE_W - r, y);
+    ctx.arc(x + PADDLE_W / 2, y, r, -Math.PI / 2, Math.PI / 2, true);
+    ctx.lineTo(x + r, y + PADDLE_H);
+    ctx.arc(x + PADDLE_W / 2, y + PADDLE_H, r, Math.PI / 2, -Math.PI / 2, true);
+    ctx.closePath();
+    ctx.fill();
+
+    // Hit glow ring
+    if (flash > 0) {
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = 'rgba(255,255,255,' + (flash / 6) * 0.5 + ')';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(x + PADDLE_W / 2, y + PADDLE_H / 2, PADDLE_H / 2 + 4, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    ctx.restore();
   }
 
   // ── Game loop ──
@@ -430,6 +625,7 @@
     lastTime = timestamp;
     movePaddles();
     updateBall();
+    updateParticles();
     render();
     animId = requestAnimationFrame(gameLoop);
   }
