@@ -96,7 +96,7 @@ function createWorld(seed) {
         for (let j = 0; j < 3; j++) b.orbs.push({ x: sx + gap * (j + 1) / 4, y: top - arc((j + 1) / 4) * 22, got: false });
       }
       // Birds — head height (slide) or jump height (stay grounded); faster later on
-      if (i > 2 && r() < Math.min(.42, .05 + d * .28)) {
+      if (i > 2 && r() < Math.min(.72, .18 + d * .38)) {
         const high = r() < .5;
         b.birds.push({ x0: x + w * (.5 + r() * .4), y: high ? ry - 47 : ry - 23, sp: 100 + r() * 60 + d * 70, on: false, t: 0, bx: 0, hit: false, ph: r() * 6 });
       }
@@ -263,7 +263,7 @@ function step(S, dt) {
   for (const b of B) for (const d of b.birds) {
     if (!d.on) { if (p.x >= d.x0 - 560) { d.on = true; d.t = 0; } else continue; }
     d.t += dt; d.bx = d.x0 - d.t * d.sp;
-    if (!d.hit && Math.abs(d.bx - p.x) < HW + 7 && d.y + 4 > top && d.y - 4 < p.y) { d.hit = true; p.vx *= .35; p.stun = .38; F.hit(d.bx, d.y, 4); }
+    if (!d.hit && Math.abs(d.bx - p.x) < HW + 7 && d.y + 4 > top && d.y - 4 < p.y) { d.hit = true; die(S); }
   }
 }
 
