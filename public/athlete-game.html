@@ -822,8 +822,8 @@ function render(dt, alpha, focus) {
   // Camera — runner sits ~32% from the left with look-ahead for the jump
   const fx = focus.x, fy = focus.y;
   camX = fx + VW * .18;
-  const ty = Math.min(fy, 240) - VH * .09;
-  camY += (ty - camY) * (1 - Math.exp(-dt * 4.5));
+  const ty = Math.min(fy, 240) + VH * .18;
+  camY += (ty - camY) * (1 - Math.exp(-dt * 3.5));
   let sx = 0, sy = 0;
   if (shake > 0) { sx = (rnd() - .5) * shake * DPR; sy = (rnd() - .5) * shake * DPR; shake *= Math.exp(-dt * 9); if (shake < .2) shake = 0; }
 
