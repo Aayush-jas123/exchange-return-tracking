@@ -18,7 +18,7 @@
 const STEP = 1 / 60, U = 10;                // fixed timestep; 10 units = 1 m
 const G = 1500, JV = 500, DJV = 445, MAXF = 950, HOLD_T = .2;
 const COYOTE = .09, JBUF = .13, SLIDE_T = .62, FLIP_T = .42, HW = 5;
-const STAND_H = 30, SLIDE_H = 14, DEATH_Y = 420;
+const STAND_H = 30, SLIDE_H = 14, DEATH_Y = 420, FALL_SAVE_MAX = 2, FALL_DEPTH = 240;
 const RUN = 0, AIR = 1, SLIDE = 2, WALL = 3, CLIMB = 4, TUN = 5, DEAD = 6, FLIP = 7;
 const IN_JUMP = 1, IN_RELEASE = 2, IN_SLIDE = 3;
 const ZONE_U = 15000, NZ = 5;               // 1.5 km per district, 5 districts cycling
@@ -119,7 +119,7 @@ function createWorld(seed) {
 /* ═══ Runner ═══ */
 function mkRunner(c) {
   return { x: 0, y: 60, vx: vTarget(0) * .6, vy: 0, st: RUN, gnd: true, jumps: 0, coy: 0, buf: 0, held: false, hold: 0, slideT: 0, slideQ: 0, ff: false,
-    wall: null, cl: null, cor: null, stun: 0, flip: -1, rot: 0, ph: 0, bonus: 0, c: c | 0, alive: true, fin: -1 };
+    wall: null, cl: null, cor: null, stun: 0, flip: -1, rot: 0, ph: 0, bonus: 0, c: c | 0, alive: true, fin: -1, falls: 0, lastB: null };
 }
 const score = p => p.fin >= 0 ? p.fin : Math.max(0, Math.floor(p.x / U) + p.bonus);
 const code = p => p.st === DEAD ? DEAD : (p.flip >= 0 ? FLIP : p.st);
@@ -203,6 +203,25 @@ function step(S, dt) {
     return;
   }
 
+  // Fall-save window — doomed free-fall with no roof/wall to catch you
+  if (!p.gnd && p.vy > 0 && p.lastB && p.y > p.lastB.ry + 20) {
+    let out = true;
+    for (const b of B) {
+      if (b.x > p.x + 560) break;
+      if (b.x + b.w < p.x - HW) continue;
+      if ((b.ry > p.y + 6) || (p.y > b.ry + .5 && b.x > p.x - HW)) { out = false; break; }
+    }
+    if (out) {
+      if (p.falls >= FALL_SAVE_MAX) { die(S); return; }
+      if (p.buf > 0) {
+        p.buf = 0; p.falls++;
+        p.x = clamp(p.x, p.lastB.x + HW, p.lastB.x + p.lastB.w - HW);
+        p.y = p.lastB.ry; p.vy = 0; p.gnd = true; p.jumps = 0; p.st = RUN; p.flip = -1;
+        F.burst(p.x, p.y, 10, 1); F.dust(p.x, p.y, 5);
+      } else if (p.y > p.lastB.ry + FALL_DEPTH) { p.falls++; die(S); return; }
+    }
+  }
+
   // Jump — buffered presses + coyote time; second press in the air is a flip
   if (p.buf > 0) {
     if (p.gnd || p.coy > 0) { p.buf = 0; p.vy = -JV; p.gnd = false; p.coy = 0; p.jumps = 1; p.hold = HOLD_T; p.st = AIR; p.ff = false; F.dust(p.x, p.y, 3); }
@@ -228,7 +247,7 @@ function step(S, dt) {
     if (p.vy >= 0) for (const b of B) { if (p.x + HW > b.x && p.x - HW < b.x + b.w && p.y <= b.ry + .5 && ny >= b.ry) { land = b; break; } }
     if (land) {
       const hard = p.vy > 760;
-      p.y = land.ry; p.vy = 0; p.gnd = true; p.jumps = 0; p.ff = false; p.flip = -1; p.st = RUN;
+      p.y = land.ry; p.vy = 0; p.gnd = true; p.jumps = 0; p.ff = false; p.flip = -1; p.st = RUN; p.lastB = land;
       F.dust(p.x, p.y, hard ? 9 : 4); F.land(hard);
       if (p.slideQ > 0) doSlide(S);
     } else { p.y = ny; if (p.st !== AIR) p.st = AIR; }
@@ -237,7 +256,7 @@ function step(S, dt) {
     for (const b of B) { if (p.x + HW > b.x && p.x - HW < b.x + b.w && b.ry >= p.y - .5 && b.ry <= p.y + 8) { sup = b; break; } }
     if (!sup) { p.gnd = false; p.coy = COYOTE; p.st = AIR; }
     else {
-      p.y = sup.ry;
+      p.y = sup.ry; p.lastB = sup;
       if (p.st === SLIDE) { p.slideT -= dt; if (p.slideT <= 0 && !overheadAbove(B, p)) p.st = RUN; }
     }
   }
