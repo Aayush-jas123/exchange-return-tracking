@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+<title>OFFCOMFRT &mdash; Ping Pong</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ══ Mode Select Screen ═══ -->
+<div id="menuScreen" class="screen active">
+  <div class="menu-inner">
+    <div class="brand"><span class="brand-eyebrow">OFFCOMFRT Arcade</span><h1>Ping Pong</h1></div>
+    <div class="mode-btns">
+      <button class="mode-btn" data-mode="single">
+        <span class="mode-icon">&#9881;</span>
+        <span class="mode-label">Single Player</span>
+        <span class="mode-desc">Challenge the AI bot</span>
+      </button>
+      <button class="mode-btn" data-mode="online">
+        <span class="mode-icon">&#127760;</span>
+        <span class="mode-label">Online Match</span>
+        <span class="mode-desc">Invite athletes live</span>
+      </button>
+    </div>
+    <div class="instructions-toggle" id="instrToggle">How to play <span class="arrow">&#9660;</span></div>
+    <div class="instructions" id="instrPanel" hidden>
+      <p><b>Objective:</b> First to 10 points wins. But watch out &mdash; miss 3 rallies in a row and you lose instantly!</p>
+      <p><b>Speed:</b> The ball gets faster with every hit. Longer games = faster rallies.</p>
+      <p><b>Controls &mdash; PC:</b> <b>W</b> / <b>S</b> keys to move your paddle</p>
+      <p><b>Controls &mdash; Mobile:</b> Touch and drag to move your paddle.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Online Lobby Screen ═══ -->
+<div id="lobbyScreen" class="screen">
+  <div class="lobby-inner">
+    <div class="lobby-header">
+      <div><div class="brand-eyebrow">OFFCOMFRT Arcade</div><h1>Ping Pong</h1></div>
+      <span class="net-status" id="netStatus"><i></i><span>Offline</span></span>
+    </div>
+    <div class="room-card" id="roomCard"></div>
+    <div class="lobby-grid">
+      <section>
+        <div class="lobby-section-header"><span>Live athletes</span><span id="liveCount"></span></div>
+        <div class="lobby-list" id="liveList"></div>
+      </section>
+      <section>
+        <div class="lobby-section-header"><span>Open lobbies</span></div>
+        <div class="lobby-list" id="roomList"></div>
+      </section>
+    </div>
+    <button class="back-btn" id="lobbyBackBtn">&larr; Back to menu</button>
+  </div>
+</div>
+
+<!-- ═══ Game Screen ═══ -->
+<div id="gameScreen" class="screen">
+  <div class="game-wrap">
+    <canvas id="gameCanvas"></canvas>
+    <div class="hud" id="hud">
+      <div class="hud-score">
+        <div class="hud-player" id="hudP1"><span class="hud-name" id="hudP1Name">You</span><span class="hud-pts" id="hudP1Pts">0</span><span class="hud-misses" id="hudP1Misses"></span></div>
+        <div class="hud-vs">VS</div>
+        <div class="hud-player" id="hudP2"><span class="hud-name" id="hudP2Name">Opponent</span><span class="hud-pts" id="hudP2Pts">0</span><span class="hud-misses" id="hudP2Misses"></span></div>
+      </div>
+      <div class="hud-speed" id="hudSpeed"></div>
+    </div>
+    <div class="controls-hint" id="controlsHint"></div>
+    <div class="pause-btn" id="pauseBtn" hidden>&#10074;&#10074;</div>
+  </div>
+</div>
+
+<!-- ═══ Countdown Overlay ═══ -->
+<div id="countdownOverlay" class="overlay hidden">
+  <div class="countdown-num" id="countdownNum">3</div>
+</div>
+
+<!-- ══ Game Over Overlay ═══ -->
+<div id="gameOverOverlay" class="overlay hidden">
+  <div class="go-card">
+    <div class="go-result" id="goResult"></div>
+    <div class="go-score" id="goScore"></div>
+    <div class="go-xp" id="goXp"></div>
+    <div class="go-btns">
+      <button class="go-btn primary" id="goPlayAgain">Play Again</button>
+      <button class="go-btn alt" id="goChangeMode">Change Mode</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Invite Toast ═══ -->
+<div id="inviteToast" class="invite-toast hidden"></div>
+
+<script src="../athlete-xp.js?v=2"></script>
+<script src="ping-pong-net.js?v=2"></script>
+<script src="script.js?v=2"></script>
+</body>
+</html>

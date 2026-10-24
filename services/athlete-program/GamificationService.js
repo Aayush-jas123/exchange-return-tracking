@@ -15,7 +15,8 @@ const LedgerService = require('./LedgerService');
 const GAME_RULES = {
   // `verified` games are only paid from a server-side replay (RaceHub), never from a client-reported score.
   'rooftop-racing': { label: 'Rooftop Racing', unitsPerXp: 150, unitsPerCoin: 250, verified: true }, // metres
-  'fruit-ninja': { label: 'Fruit Ninja', unitsPerXp: 8, unitsPerCoin: 12 }            // fruits sliced
+  'fruit-ninja': { label: 'Fruit Ninja', unitsPerXp: 8, unitsPerCoin: 12 },            // fruits sliced
+  'ping-pong': { label: 'Ping Pong', unitsPerXp: 2, unitsPerCoin: 3 }                  // points scored
 };
 
 // Which ledger reason codes feed which coin source in the shop.

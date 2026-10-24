@@ -1051,7 +1051,7 @@
 
     <section class="screen" id="games">
       <div class="screen-top">
-        <div class="top rise" style="animation-delay:.02s"><span>The arcade</span><span class="mono" style="color:var(--dim)">2 games</span></div>
+        <div class="top rise" style="animation-delay:.02s"><span>The arcade</span><span class="mono" style="color:var(--dim)">3 games</span></div>
         <div class="hero"><span><i>Games</i></span></div>
       </div>
       <div class="screen-scroll">
@@ -1069,6 +1069,12 @@
               <div class="gt-top"><span class="gi">02 &middot; Arcade</span></div>
               <b>Fruit Ninja</b>
               <em>Swipe to slice. Chain combos, dodge the bombs &mdash; three misses ends the run.</em>
+              <span class="go">Tap to play <i>&rarr;</i></span></a>
+            <a class="gt" href="https://exchange-return-tracking.onrender.com/games/ping-pong/index.html" target="_blank" rel="noopener">
+              <img class="gt-bg" src="https://exchange-return-tracking.onrender.com/images/games/ping-pong-thumb.jpg" alt="" loading="lazy" width="1280" height="714">
+              <div class="gt-top"><span class="gi">03 &middot; Arcade</span></div>
+              <b>Ping Pong</b>
+              <em>Rally against the AI, a friend, or challenge athletes live. Speed ramps up, 3 misses and you're out.</em>
               <span class="go">Tap to play <i>&rarr;</i></span></a>
           </div>
           {% # theme-check-enable RemoteAsset %}
@@ -1809,7 +1815,7 @@ function renderLobby(){
       :isLive?`<button class="invt" type="button" data-invite="${esc(String(a.id))}" data-name="${esc(a.name||'')}"${sent?' disabled':''}>${sent?'Sent &check;':'Invite'}</button>`:'';
     return `<div class="arow${isLive?' on':a.seen>=3600000?' off':''}"><span class="aface">${esc(ini)}</span><span class="am"><b>${esc(a.name||'Athlete')}</b><em>${esc(a.level_name||'—')} &middot; ${Number(a.xp_total||0).toLocaleString('en-IN')} XP</em></span><span class="aright"><span class="astat"><i></i>${st}</span>${btn}</span></div>`;
   }).join(''):'<div class="empty">No athletes on the ladder yet</div>';
-  const rooms=RACE.rooms;
+  const rooms=(RACE.rooms||[]).filter(r=>!r.game||r.game==='rooftop-racing');
   $('lobbyWrap').hidden=!rooms.length;
   $('lobbyCount').textContent=rooms.length?`${rooms.length} open`:'';
   $('raceLobbies').innerHTML=rooms.map(r=>{

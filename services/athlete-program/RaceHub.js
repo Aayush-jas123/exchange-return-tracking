@@ -140,7 +140,7 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
     const list = [];
     for (const rm of rooms.values()) {
       const host = rm.members.get(rm.hostId);
-      list.push({ r: rm.code, h: host ? host.name : '', n: rm.members.size, max: MAX_ROOM, s: rm.status });
+      list.push({ r: rm.code, h: host ? host.name : '', n: rm.members.size, max: rm.max || MAX_ROOM, s: rm.status, game: rm.game || 'rooftop-racing' });
     }
     return JSON.stringify({ t: 'pr', a, rooms: list });
   }
@@ -169,7 +169,7 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
   }
   function roomState(rm) {
     return {
-      t: 'room', r: rm.code, host: rm.hostId, s: rm.status, dur: RACE_MS,
+      t: 'room', r: rm.code, host: rm.hostId, s: rm.status, dur: rm.game === 'ping-pong' ? 0 : RACE_MS,
       m: [...rm.members.values()].map(m => ({ id: m.id, n: m.name, lv: m.level, c: m.c, wait: !!m.waiting, on: !!m.ws }))
     };
   }
@@ -188,7 +188,7 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
       if (m.ws && m.ws !== ws) { send(m.ws, { t: 'kick', m: 'Opened in another tab' }); m.ws.room = null; }
       m.ws = ws; m.droppedAt = 0;
     } else {
-      if (rm.members.size >= MAX_ROOM) return send(ws, { t: 'err', m: 'Room is full' });
+      if (rm.members.size >= (rm.max || MAX_ROOM)) return send(ws, { t: 'err', m: 'Room is full' });
       m = {
         id: me.id, name: me.name, level: me.level, c: freeColor(rm), ws,
         waiting: rm.status !== 'lobby', inRace: false, alive: false, dnf: false,
@@ -249,6 +249,20 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
     rm.seed = crypto.randomBytes(4).readUInt32LE(0);
     rm.startAt = now() + COUNTDOWN_MS;
     rm.status = 'countdown';
+
+    if (rm.game === 'ping-pong') {
+      // Lightweight start — no simulation replay needed
+      for (const m of rm.members.values()) {
+        Object.assign(m, { inRace: !!m.ws, waiting: !m.ws, alive: !!m.ws, dnf: false, sc: 0 });
+      }
+      broadcastRoom(rm, { t: 'go', race: rm.raceId, seed: rm.seed, in: COUNTDOWN_MS, dur: 0,
+        roster: [...rm.members.values()].filter(m => m.inRace).map(m => ({ id: m.id, n: m.name, c: m.c })) });
+      pushRoom(rm);
+      clearTimeout(rm.timer);
+      rm.timer = setTimeout(() => { rm.status = 'playing'; pushRoom(rm); }, COUNTDOWN_MS);
+      return;
+    }
+
     for (const m of rm.members.values()) {
       Object.assign(m, { inRace: !!m.ws, waiting: !m.ws, alive: !!m.ws, dnf: false, x: 0, y: 60, a: 0, v: 0, sc: 0, dirty: true });
       m.run = m.inRace ? newRun(rm.seed, m.c, rm.startAt, RACE_TICKS) : null;
@@ -374,6 +388,61 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
     afterMemberGone(rm);
   }
 
+  // ── Ping Pong state relay (lightweight, no simulation) ──
+  const ppRateLimit = new Map(); // ws -> lastSendMs
+  function onPPState(ws, msg) {
+    const rm = ws.room && rooms.get(ws.room);
+    if (!rm || rm.game !== 'ping-pong' || rm.status !== 'playing') return;
+    const nowMs = now();
+    const last = ppRateLimit.get(ws) || 0;
+    if (nowMs - last < 40) return; // 25Hz cap
+    ppRateLimit.set(ws, nowMs);
+    const m = rm.members.get(ws.athlete.id);
+    if (!m || !m.inRace) return;
+    // Relay normalized Y and rally count to the other player
+    const payload = JSON.stringify({ t: 'ps', p: [[m.id, 0, Math.round((msg.y || 0) * 100), 0, 0, msg.r || 0, 1]] });
+    for (const other of rm.members.values()) {
+      if (other.id !== m.id && other.ws) send(other.ws, payload);
+    }
+  }
+  async function onPPEnd(ws, msg) {
+    const rm = ws.room && rooms.get(ws.room);
+    if (!rm || rm.game !== 'ping-pong') return;
+    const winner = Number(msg.w) || 0;
+    const s1 = Math.max(0, Math.floor(Number(msg.s1) || 0));
+    const s2 = Math.max(0, Math.floor(Number(msg.s2) || 0));
+    // Award XP to the winner (player 1 = the reporter in single-player; in online both report)
+    const members = [...rm.members.values()];
+    const winnerMember = members[winner - 1];
+    if (winnerMember && winnerMember.id) {
+      try {
+        const runId = 'pp_' + rm.raceId + '_' + winnerMember.id;
+        await awardRun(winnerMember.id, Math.max(s1, s2), runId);
+      } catch (e) { console.error('[RaceHub] ping-pong XP award failed:', e.message); }
+    }
+    // Broadcast results
+    const rows = members.map((m, i) => ({
+      id: m.id, n: m.name, c: m.c,
+      sc: i === 0 ? s1 : s2,
+      rank: (i === 0 ? 1 : 2) === winner ? 1 : 2,
+      xp: 0, why: null
+    }));
+    rows.sort((a, b) => a.rank - b.rank);
+    broadcastRoom(rm, { t: 'res', race: rm.raceId, rows });
+    // Cleanup room
+    rm.status = 'results';
+    for (const m of members) { m.inRace = false; m.alive = false; }
+    clearTimeout(rm.timer);
+    setTimeout(() => {
+      if (rooms.has(rm.code)) {
+        rm.status = 'lobby';
+        for (const m of [...rm.members.values()]) { if (!m.ws) rm.members.delete(m.id); }
+        if (!rm.members.size) { rooms.delete(rm.code); schedulePresence(); return; }
+        afterMemberGone(rm);
+      }
+    }, 2000);
+  }
+
   function invite(ws, to) {
     const me = ws.athlete;
     const target = athletes.get(to) || athletes.get(Number(to));
@@ -392,9 +461,10 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
     send(ws, { t: 'ok', m: `Invite sent to ${target.name}`, to: target.id });
   }
 
-  function createRoom(ws) {
+  function createRoom(ws, gameType) {
     if (ws.room) leaveRoom(ws);
-    const rm = { code: newCode(), hostId: ws.athlete.id, status: 'lobby', members: new Map(), seed: 0, raceId: null, startAt: 0, timer: null };
+    const isPP = gameType === 'ping-pong';
+    const rm = { code: newCode(), hostId: ws.athlete.id, status: 'lobby', members: new Map(), seed: 0, raceId: null, startAt: 0, timer: null, game: isPP ? 'ping-pong' : 'rooftop-racing', max: isPP ? 2 : MAX_ROOM };
     rooms.set(rm.code, rm);
     joinRoom(ws, rm);
     return rm;
@@ -432,7 +502,9 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
       if (msg.t === 'ss') return onSoloMsg(ws, msg, false);
       if (msg.t === 'se') return onSoloMsg(ws, msg, true);
       if (msg.t === 'solo') return onSolo(ws);
-      if (msg.t === 'create') return createRoom(ws);
+      if (msg.t === 'create') return createRoom(ws, msg.game);
+      if (msg.t === 'pp_state') return onPPState(ws, msg);
+      if (msg.t === 'pp_end') return onPPEnd(ws, msg);
       if (msg.t === 'join') {
         const rm = rooms.get(String(msg.r || '').toUpperCase());
         if (!rm) return send(ws, { t: 'err', m: 'That lobby has closed' });
