@@ -73,7 +73,7 @@ async function generateTokens() {
         results.push({
           ...athlete,
           status: 'NEW',
-          portal_url: `https://exchange-return-tracking.onrender.com/pages/athlete-portal`,
+          portal_url: process.env.ATHLETE_PORTAL_URL || 'https://offcomfrt.in/pages/athelete-portal',
           access_token: rawToken
         });
       }

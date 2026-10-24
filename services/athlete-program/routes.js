@@ -281,7 +281,9 @@ module.exports = function mountAthleteRoutes(app) {
           message: rotate ? 'Token rotated' : 'Token generated',
           has_token: true,
           token_id: newToken.id,
-          portal_url: 'https://exchange-return-tracking.onrender.com/pages/athlete-portal',
+          // Athlete portal is Shopify-hosted (the Render app has no /pages route).
+          // Live page handle is "athelete-portal" — single-t spelling, verified live.
+          portal_url: process.env.ATHLETE_PORTAL_URL || 'https://offcomfrt.in/pages/athelete-portal',
           access_token: rawToken // Only returned once!
         } 
       });

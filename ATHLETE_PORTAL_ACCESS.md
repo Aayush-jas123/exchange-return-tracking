@@ -23,7 +23,7 @@ Migrated influencers can now access the athlete portal through token-based authe
 
 5. **Copy the Token**
    - The system will display:
-     - **Portal URL**: `https://exchange-return-tracking.onrender.com/pages/athlete-portal`
+     - **Portal URL**: `https://offcomfrt.in/pages/athelete-portal` (live Shopify page — handle is spelled `athelete-portal`; override via `ATHLETE_PORTAL_URL` env var)
      - **Access Token**: A long alphanumeric string (e.g., `a3f5b8c9d2e4f6...`)
    - Click **"Copy Token"** to copy it to your clipboard
    - **⚠️ IMPORTANT**: Save this token now — it won't be shown again!
@@ -58,7 +58,7 @@ The portal pages are Shopify-hosted. Both pieces are required — a theme templa
    - "Athlete Portal" → handle `athlete-portal` (set via Search engine listing) → Theme template: `athlete-portal` → Visible
    - Repeat for "Athlete Admin" (`athlete-admin`) and "Athlete Apply" (`athlete-apply`)
 
-3. **Verify**: `https://offcomfrt.in/pages/athlete-portal` must show the OFFCOMFRT token login card. If login still fails, the in-page Diagnostics panel now shows per-endpoint status (401 = bad/revoked token, 404 = API routes missing, network error = server/CORS) with a Copy button.
+3. **Verify**: `https://offcomfrt.in/pages/athelete-portal` must show the OFFCOMFRT token login card. If login still fails, the in-page Diagnostics panel now shows per-endpoint status (401 = bad/revoked token, 404 = API routes missing, network error = server/CORS) with a Copy button.
 
 ## For Migrated Influencers
 
