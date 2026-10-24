@@ -876,15 +876,6 @@ function render(dt, alpha, focus) {
   // Screen-space overlays
   X.setTransform(1, 0, 0, 1, 0, 0);
   if (mode === 'race' || mode === 'spectate') drawTags();
-  const spd = focus.vx || focus.iv || 0;
-  if (spd > 250 && simLive()) {
-    X.fillStyle = '#fff';
-    for (let i = 0; i < 7; i++) {
-      const ly = ((i * 0.618 + Math.floor(clock * 3 + i) * .37) % 1) * H, lw = W * (.08 + (i % 3) * .05), lx = W - ((clock * W * 2.2 + i * W * .31) % (W * 1.4));
-      X.globalAlpha = .035 * Math.min(1, (spd - 250) / 100); X.fillRect(lx, ly, lw, 1);
-    }
-    X.globalAlpha = 1;
-  }
   X.drawImage(VIGN, 0, 0, W, H);
   if (flash > 0) { X.globalAlpha = Math.min(.5, flash); X.fillStyle = '#fff'; X.fillRect(0, 0, W, H); X.globalAlpha = 1; flash -= dt; }
 }
