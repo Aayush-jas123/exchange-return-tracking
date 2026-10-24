@@ -211,7 +211,7 @@ const MANIFEST_PATH_RE = /^\/pages\/[a-z0-9-]+$/;
 app.get('/manifest.json', (req, res) => {
     const manifest = JSON.parse(require('fs').readFileSync(path.join(__dirname, 'public', 'manifest.json'), 'utf8'));
     const host = String(req.query.host || '').toLowerCase();
-    const pagePath = MANIFEST_PATH_RE.test(String(req.query.path || '')) ? String(req.query.path) : '/pages/atheatlete-portal';
+    const pagePath = MANIFEST_PATH_RE.test(String(req.query.path || '')) ? String(req.query.path) : '/pages/athlete-portal';
     manifest.start_url = `${MANIFEST_HOST_RE.test(host) ? `https://${host}` : 'https://offcomfrt.in'}${pagePath}`;
     res.set('Content-Type', 'application/manifest+json');
     res.set('Cross-Origin-Resource-Policy', 'cross-origin');

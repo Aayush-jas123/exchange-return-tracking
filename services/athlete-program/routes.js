@@ -282,8 +282,9 @@ module.exports = function mountAthleteRoutes(app) {
           has_token: true,
           token_id: newToken.id,
           // Athlete portal is Shopify-hosted (the Render app has no /pages route).
-          // Live page handle is "athelete-portal" — single-t spelling, verified live.
-          portal_url: process.env.ATHLETE_PORTAL_URL || 'https://offcomfrt.in/pages/athelete-portal',
+          // Live page handle: "athlete-portal" (renamed from "athelete-portal" 24 Oct 2026;
+          // the old spelling 301-redirects here).
+          portal_url: process.env.ATHLETE_PORTAL_URL || 'https://offcomfrt.in/pages/athlete-portal',
           access_token: rawToken // Only returned once!
         } 
       });

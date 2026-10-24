@@ -73,7 +73,7 @@ async function generateTokens() {
         results.push({
           ...athlete,
           status: 'NEW',
-          portal_url: process.env.ATHLETE_PORTAL_URL || 'https://offcomfrt.in/pages/athelete-portal',
+          portal_url: process.env.ATHLETE_PORTAL_URL || 'https://offcomfrt.in/pages/athlete-portal',
           access_token: rawToken
         });
       }
