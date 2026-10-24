@@ -841,7 +841,9 @@ function render(dt, alpha, focus) {
   // World
   genUntil(camX + VW * .5 + 1400);
   const L = camX - VW / 2 - 30, Rr = camX + VW / 2 + 30, bottom = camY + VH / 2 + 10;
-  while (B.length > 2 && B[0].x + B[0].w < L - 400) B.shift();
+  // Spectating a rival far behind me: my sim already pruned that stretch — rebuild it from the race seed
+  if (mode === 'spectate' && RACE && B.length && B[0].x > L) { resetWorld(RACE.seed); genUntil(camX + VW * .5 + 1400); }
+  WORLD.prune(L - 400);
   X.setTransform(Z, 0, 0, Z, W / 2 - camX * Z + sx, H / 2 - camY * Z + sy);
   let lastCor = null;
   for (const b of B) { if (b.x + b.w < L || b.x > Rr) continue; drawBuilding(b, bottom); }
@@ -891,22 +893,24 @@ function drawTags() {
   X.font = `700 ${10 * DPR}px "JetBrains Mono",monospace`; X.textBaseline = 'middle';
   for (const r of REM.values()) {
     if (!r.buf.length) continue;
-    const sx = sxOf(r.ix), sy = syOf(r.iy - 40), col = PAL[r.c % 6];
+    const sx = sxOf(r.ix), sy = syOf(r.iy - 40);
     if (sx > -10 && sx < W + 10) {
-      const t = tag(r.n, col, false); X.globalAlpha = r.alive ? 1 : .45; X.drawImage(t, sx - t.width / 2, sy - t.height); X.globalAlpha = 1;
+      const t = tag(r.n, r.c, false); X.globalAlpha = r.alive ? 1 : .45; X.drawImage(t, sx - t.width / 2, sy - t.height); X.globalAlpha = 1;
     } else {
       const right = sx >= W, ex = right ? W - 14 * DPR : 14 * DPR, ey = clamp(sy, 70 * DPR, H - 40 * DPR);
       const gap = Math.round((r.ix - ME.x) / U);
-      X.fillStyle = col; X.beginPath();
+      X.fillStyle = '#fff'; X.globalAlpha = r.alive ? 1 : .45; X.beginPath();
       if (right) { X.moveTo(ex + 8 * DPR, ey); X.lineTo(ex, ey - 6 * DPR); X.lineTo(ex, ey + 6 * DPR); }
       else { X.moveTo(ex - 8 * DPR, ey); X.lineTo(ex, ey - 6 * DPR); X.lineTo(ex, ey + 6 * DPR); }
       X.fill();
+      kitDot(X, right ? ex - 9 * DPR : ex + 9 * DPR, ey, 3.6 * DPR, r.c);
       X.textAlign = right ? 'right' : 'left'; X.fillStyle = 'rgba(255,255,255,.85)';
-      X.fillText(`${String(r.n).split(' ')[0].slice(0, 10)} ${gap > 0 ? '+' : ''}${gap}m`, right ? ex - 4 * DPR : ex + 4 * DPR, ey);
+      X.fillText(`${String(r.n).split(' ')[0].slice(0, 10)} ${gap > 0 ? '+' : ''}${gap}m`, right ? ex - 16 * DPR : ex + 16 * DPR, ey);
+      X.globalAlpha = 1;
     }
   }
   if (mode === 'race' && ME.st !== DEAD) {
-    const t = tag('YOU', PAL[ME.c % 6], true);
+    const t = tag('YOU', ME.c, true);
     const ix = ME.x, sx = sxOf(ix), sy = syOf(ME.y - 40);
     X.globalAlpha = .9; X.drawImage(t, sx - t.width / 2, sy - t.height); X.globalAlpha = 1;
   }
@@ -914,11 +918,17 @@ function drawTags() {
 }
 
 /* ═══ Game state ═══ */
-let mode = 'lobby', RACE = null, lastRes = null, demoX = 0, soloStart = 0, sendAt = 0;
+let mode = 'lobby', RACE = null, lastRes = null, demoX = 0, sendAt = 0, runBase = 0, lastPace = 0;
+// Input log streamed to the hub (tick*4+code); sentI = entries already sent
+const LOG = [];
+let sentI = 0, soloReqAt = 0;
+// Verified solo session: id from the hub's "sgo", open until "se" is sent, res = hub's "sres"
+const SOLO = { id: null, open: false, wait: false, res: null, late: false, lost: false, timer: 0, vt: 0 };
 const BEST_KEY = 'off_rr_best2';
 let best = 0; try { best = +localStorage.getItem(BEST_KEY) || 0; } catch (e) {}
 const DEMO = { x: 0, y: 60, vx: 0 }, SPECF = { x: 0, y: 60, iv: 0 };
-const WHY = { solo: 'No XP · solo', dnf: 'DNF', score_too_low: 'Under 400m', daily_cap: 'Daily cap', duplicate: 'Counted', error: 'Pending' };
+const WHY = { solo: 'No XP · solo', dnf: 'DNF', score_too_low: 'Under 400m', daily_cap: 'Daily cap', duplicate: 'Counted', error: 'Pending', verified_only: 'Unverified', cooldown: 'Cooldown' };
+const SWHY = { score_too_low: 'under 150m — no XP', daily_cap: 'daily XP cap reached', cooldown: 'cooldown — no XP', duplicate: 'already counted', verified_only: 'not verified', error: 'XP pending' };
 const STATUS = { lobby: 'In lobby', countdown: 'Starting', racing: 'Racing', results: 'Scoring' };
 const firstName = n => String(n || 'Athlete').trim().split(/\s+/)[0].slice(0, 14);
 const initials = n => String(n || '?').trim().split(/\s+/).slice(0, 2).map(s => s[0] || '').join('').toUpperCase();
@@ -929,21 +939,45 @@ function simLive() {
   if (mode === 'solo') return true;
   return mode === 'race' && !!RACE && !RACE.done && performance.now() >= RACE.startAt;
 }
-function spawnMe(c) { ME = mkRunner(c); ME.vx = vTarget(0) * .6; ME.lastS = 0; }
-function myColor() { const m = NET.room && NET.room.m.find(x => String(x.id) === myId); return m ? m.c : 0; }
+function spawn(seed, c) { RS = SIM.createSim(seed >>> 0, c, FX); useWorld(RS.w); ME = visual(RS.p); LOG.length = 0; sentI = 0; }
+// Race seat colour picks the kit; solo uses a stable per-athlete kit so you always look like you
+function myColor() {
+  const m = NET.room && NET.room.m.find(x => String(x.id) === myId);
+  if (m) return m.c;
+  let h = 0; for (const ch of String(myId || '')) h = h * 31 + ch.charCodeAt(0) | 0;
+  return Math.abs(h) % KITS.length;
+}
+const rndSeed = () => (Math.random() * 4294967296) >>> 0;
+
+/* Input log → hub. Non-final chunks carry k = their last input's tick so the replay never
+   steps past an input it hasn't received yet. Nothing is marked sent while offline. */
+const wsOpen = () => !!NET.ws && NET.ws.readyState === 1;
+function sendLog(t, x) {
+  if (!wsOpen()) return;
+  const i = LOG.slice(sentI, sentI + 200), all = sentI + i.length >= LOG.length;
+  net(Object.assign({ t, k: all ? RS.k : Math.floor(i[i.length - 1] / 4), o: sentI, i }, x));
+  sentI += i.length;
+}
+function flushLog(mid, last, x) {
+  if (!wsOpen()) return;
+  while (LOG.length - sentI > 200) sendLog(mid, x);
+  sendLog(last, x);
+}
+function closeSolo() { if (SOLO.open) { SOLO.open = false; flushLog('ss', 'se', { id: SOLO.id }); } }
+function cancelSolo() { if (SOLO.wait) { SOLO.wait = false; clearTimeout(SOLO.timer); } closeSolo(); }
 
 function onMyDeath() {
   const sc = score(ME);
   if (mode === 'solo') {
     const nb = sc > best;
     if (nb) { best = sc; try { localStorage.setItem(BEST_KEY, String(best)); } catch (e) {} }
-    setTimeout(() => showSolo(sc, nb), 900);
-    XP.report('rooftop-racing', sc);
+    closeSolo();
+    const run = RS; setTimeout(() => { if (RS === run) showSolo(sc, nb); }, 900);
   } else if (mode === 'race' && RACE && !RACE.done) finishMine(sc, false);
 }
 function finishMine(sc, timeUp) {
   RACE.done = true;
-  net({ t: 'end', x: Math.round(ME.x), sc });
+  flushLog('st', 'end');
   setTimeout(() => {
     if (mode !== 'race') return;
     mode = 'spectate'; SPECF.x = ME.x; SPECF.y = Math.min(ME.y, 120);
@@ -956,17 +990,31 @@ function hideOverlays() { $('lobby').classList.add('hidden'); $('res').classList
 function showHud(on) { $('hud').classList.toggle('hidden', !on); if (!on) { $('spec').classList.add('hidden'); $('hint').classList.add('hidden'); $('zoneTag').classList.remove('on'); } }
 let hintT = 0;
 function showHint() { const h = $('hint'); h.classList.remove('hidden'); clearTimeout(hintT); hintT = setTimeout(() => h.classList.add('hidden'), 4500); }
-function freshRun() { acc = 0; camY = 20; zoneCur = zonePrev = 0; zoneFade = 1; shake = flash = 0; lastDistrict = -1; hudT = 0; }
+function freshRun() { camY = 20; zoneCur = zonePrev = 0; zoneFade = 1; shake = flash = 0; lastDistrict = -1; lastPace = 0; hudT = 0; sendAt = 0; }
 
+// Solo: ask the hub for a verified session (seed + id); offline / no reply → practice run, no XP
 function startSolo() {
+  if (SOLO.wait) return;
+  closeSolo();
+  if (!NET.ready) return beginSolo(null, rndSeed());
+  SOLO.wait = true;
+  document.querySelectorAll('[data-act=solo]').forEach(b => { b.disabled = true; b.textContent = 'Starting…'; });
+  const d = Math.max(0, soloReqAt + 1600 - Date.now()); // hub allows one session per 1.5 s
+  soloReqAt = Date.now() + d;
+  setTimeout(() => { if (SOLO.wait) net({ t: 'solo' }); }, d);
+  SOLO.timer = setTimeout(() => { if (SOLO.wait) beginSolo(null, rndSeed()); }, d + 2500);
+}
+function beginSolo(id, seed) {
+  clearTimeout(SOLO.timer); clearTimeout(SOLO.vt);
+  Object.assign(SOLO, { wait: false, id, open: !!id, res: null, late: false, lost: false });
   RACE = null; REM.clear();
-  resetWorld((Math.random() * 4294967296) >>> 0);
-  spawnMe(myColor());
-  mode = 'solo'; soloStart = performance.now(); freshRun();
+  spawn(seed, myColor()); runBase = performance.now();
+  mode = 'solo'; freshRun();
   hideOverlays(); showHud(true); showHint();
 }
 function toLobby() {
-  if (mode === 'race' && RACE && !RACE.done && ME.alive) net({ t: 'end', x: Math.round(ME.x), sc: score(ME) });
+  if (mode === 'race' && RACE && !RACE.done && ME.alive) { RACE.done = true; flushLog('st', 'end'); }
+  cancelSolo();
   RACE = null; REM.clear(); lastRes = null;
   demoX = camX - VW * .18; mode = 'lobby';
   showHud(false); $('res').classList.add('hidden'); $('lobby').classList.remove('hidden');
@@ -980,10 +1028,20 @@ function showSolo(sc, nb) {
   showHud(false);
   $('resEy').textContent = 'Solo run';
   $('resTitle').textContent = nb && sc > 0 ? 'New best' : 'Run over';
-  $('resBody').innerHTML = `<div class="big">${sc}<small>m</small></div><div class="note">Best ${best}m · ${XP.token() ? '150m = 1 XP · race live for rank XP' : 'Open from your portal to earn XP'}</div>`;
+  $('resBody').innerHTML = `<div class="big">${sc}<small>m</small></div><div class="note" id="soloNote"></div><div class="note">Best ${best}m · ${XP.token() ? '150m = 1 XP · race live for rank XP' : 'Open from your portal to earn XP'}</div>`;
+  refreshSoloNote();
+  if (SOLO.id && !SOLO.res) { clearTimeout(SOLO.vt); SOLO.vt = setTimeout(() => { SOLO.late = true; refreshSoloNote(); }, 5000); }
   renderResBtns();
   $('lobby').classList.add('hidden'); $('res').classList.remove('hidden');
 }
+function soloNote() {
+  if (!SOLO.id) return XP.token() ? 'Practice run · not verified — no XP' : '';
+  const r = SOLO.res;
+  if (!r) return SOLO.lost ? 'Connection lost — run not verified' : SOLO.late ? 'Verification pending…' : 'Verifying run…';
+  if (r.xp > 0 || r.coins > 0) return `Verified ${r.sc}m · +${r.xp} XP${r.coins ? ` · +${r.coins} coins` : ''}${r.today != null ? ` · ${r.today}/${r.cap} today` : ''}`;
+  return `Verified ${r.sc}m · ${SWHY[r.why] || 'no XP'}`;
+}
+function refreshSoloNote() { const el = $('soloNote'); if (el) el.textContent = soloNote(); }
 function onResults(m) {
   const rows = m.rows || [], mine = rows.find(r => String(r.id) === myId);
   if (!mine) { if (mode === 'lobby') toast('Race finished — you\'re in the next one'); return; }
@@ -993,7 +1051,7 @@ function onResults(m) {
   $('resTitle').textContent = mine.why === 'dnf' ? 'DNF' : `P${mine.rank} of ${rows.length}`;
   $('resBody').innerHTML = rows.map(r => {
     const me = String(r.id) === myId;
-    return `<div class="rr${me ? ' me' : ''}"><span class="rk">${r.why === 'dnf' ? '—' : 'P' + r.rank}</span><i style="background:${PAL[r.c % 6]}"></i><span>${esc(firstName(r.n))}${me ? ' · you' : ''}</span><span class="sc">${r.sc}m</span><span class="xp${r.xp > 0 ? ' got' : ''}">${r.xp > 0 ? `+${r.xp} XP` : esc(WHY[r.why] || '—')}</span></div>`;
+    return `<div class="rr${me ? ' me' : ''}"><span class="rk">${r.why === 'dnf' ? '—' : 'P' + r.rank}</span><i style="${kitCss(r.c)}"></i><span>${esc(firstName(r.n))}${me ? ' · you' : ''}</span><span class="sc">${r.sc}m</span><span class="xp${r.xp > 0 ? ' got' : ''}">${r.xp > 0 ? `+${r.xp} XP` : esc(WHY[r.why] || '—')}</span></div>`;
   }).join('') + `<div class="note">Rank XP · P1 +20 · P2 +14 · P3 +10 · P4 +7 · P5–6 +5 · min 2 racers &amp; 400m</div>`;
   renderResBtns();
   $('lobby').classList.add('hidden'); $('res').classList.remove('hidden');
@@ -1021,7 +1079,12 @@ function connect() {
   catch (e) { return retry(); }
   NET.ws = ws;
   ws.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch (_) { return; } onMsg(m); };
-  ws.onclose = () => { if (NET.ws !== ws) return; NET.ws = null; NET.ready = false; renderLobby(); retry(); };
+  ws.onclose = () => {
+    if (NET.ws !== ws) return;
+    NET.ws = null; NET.ready = false;
+    if (SOLO.open || (SOLO.id && !SOLO.res)) { SOLO.open = false; SOLO.lost = true; refreshSoloNote(); } // hub drops the session with the socket
+    renderLobby(); retry();
+  };
 }
 function retry() {
   if (NET.stop) return;
@@ -1046,6 +1109,16 @@ function onMsg(m) {
     case 'go': onGo(m); break;
     case 'ps': onPositions(m.p || []); break;
     case 'res': onResults(m); break;
+    case 'sgo': if (SOLO.wait) beginSolo(String(m.id), m.seed); break;
+    case 'sres':
+      if (String(m.id) !== String(SOLO.id)) break;
+      SOLO.res = m; clearTimeout(SOLO.vt);
+      // The hub ended the run (it died in the replay, or hit the time bound) — the replay is the truth
+      if (SOLO.open) { SOLO.open = false; if (mode === 'solo' && ME.alive) RS.kill(); }
+      if (m.xp > 0) toast(`+${m.xp} XP${m.coins ? ` · +${m.coins} coins` : ''} · ${m.sc}m verified`);
+      refreshSoloNote();
+      break;
+    case 'rs': sentI = Math.max(0, Math.min(Math.floor(+m.n) || 0, LOG.length)); break; // hub missed inputs → resend from n
     case 'inv': if (!(NET.room && NET.room.r === m.r)) showInvite(m); break;
     case 'ok':
       if (m.to != null) { NET.invited.set(String(m.to), Date.now()); setTimeout(renderLobby, 8100); }
@@ -1067,9 +1140,10 @@ function onGo(m) {
   if (RACE && RACE.id === m.race) return; // reconnect into the same race
   const roster = m.roster || [], mine = roster.find(r => String(r.id) === myId);
   if (!mine) return;
-  RACE = { id: m.race, startAt: performance.now() + (+m.in || 0), dur: +m.dur || 180000, done: false, cd: -1 };
-  resetWorld(m.seed);
-  spawnMe(mine.c);
+  cancelSolo();
+  RACE = { id: m.race, seed: m.seed >>> 0, startAt: performance.now() + (+m.in || 0), dur: +m.dur || 180000, done: false, cd: -1 };
+  RACE.ticks = Math.round(RACE.dur * TPMS);
+  spawn(m.seed, mine.c); runBase = RACE.startAt;
   REM.clear();
   const t = performance.now();
   for (const r of roster) {
@@ -1111,7 +1185,7 @@ function renderLobby() {
   else if (!rm) h = `<div class="lab">Live race</div><p>Create a room, invite athletes or join an open lobby. Everyone runs the same city — XP is paid by finishing position.</p>${xpRow()}<div class="btns">${btn('create', 'Create room')}${btn('solo', 'Solo run', 1)}</div>`;
   else {
     const host = String(rm.host) === myId, live = rm.m.filter(x => x.on).length, me = rm.m.find(x => String(x.id) === myId);
-    const mem = rm.m.map(x => `<span><i style="background:${PAL[x.c % 6]}"></i>${esc(firstName(x.n))}${String(x.id) === myId ? ' <em>you</em>' : ''}${String(x.id) === String(rm.host) ? ' <em>host</em>' : ''}${x.wait ? ' <em>next race</em>' : ''}${!x.on ? ' <em>away</em>' : ''}</span>`).join('');
+    const mem = rm.m.map(x => `<span><i style="${kitCss(x.c)}"></i>${esc(firstName(x.n))}${String(x.id) === myId ? ' <em>you</em>' : ''}${String(x.id) === String(rm.host) ? ' <em>host</em>' : ''}${x.wait ? ' <em>next race</em>' : ''}${!x.on ? ' <em>away</em>' : ''}</span>`).join('');
     let main;
     if (rm.s !== 'lobby') main = `<button class="pb" disabled>${me && me.wait ? 'Race on — you\'re in the next one' : 'Race in progress'}</button>`;
     else if (host) main = btn('start', live > 1 ? `Start race · ${live}` : 'Start race');
@@ -1160,12 +1234,17 @@ document.addEventListener('click', e => {
 });
 
 /* ═══ Input ═══ */
-function press() { if (!simLive()) return; ME.buf = JBUF; ME.held = true; }
-function release() { ME.held = false; }
+// Every input is applied to my sim at the current tick and logged with that tick for the hub's replay
+function inp(c) {
+  if (!simLive()) return;
+  if (c === IN_RELEASE && !ME.held) return;
+  LOG.push(RS.k * 4 + c); RS.input(c);
+}
+const press = () => inp(IN_JUMP), release = () => inp(IN_RELEASE), slide = () => inp(IN_SLIDE);
 addEventListener('keydown', e => {
   const play = mode === 'solo' || mode === 'race';
   if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') { if (play) e.preventDefault(); if (!e.repeat) press(); }
-  else if (e.code === 'ArrowDown' || e.code === 'KeyS') { if (play) e.preventDefault(); if (!e.repeat) doSlide(ME); }
+  else if (e.code === 'ArrowDown' || e.code === 'KeyS') { if (play) e.preventDefault(); if (!e.repeat) slide(); }
   else if (e.code === 'Enter' && mode === 'results' && lastRes && lastRes.kind === 'solo') startSolo();
 });
 addEventListener('keyup', e => { if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') release(); });
@@ -1173,11 +1252,11 @@ let ptr = null;
 C.addEventListener('pointerdown', e => {
   if (!simLive()) return;
   e.preventDefault();
-  if (e.clientX < innerWidth * .3) { doSlide(ME); ptr = null; }
+  if (e.clientX < innerWidth * .3) { slide(); ptr = null; }
   else { press(); ptr = { id: e.pointerId, y: e.clientY, sl: false }; }
 });
 C.addEventListener('pointermove', e => {
-  if (ptr && e.pointerId === ptr.id && !ptr.sl && e.clientY - ptr.y > 32) { ptr.sl = true; release(); doSlide(ME); }
+  if (ptr && e.pointerId === ptr.id && !ptr.sl && e.clientY - ptr.y > 32) { ptr.sl = true; release(); slide(); }
 });
 const ptrUp = e => { if (ptr && e.pointerId === ptr.id) ptr = null; release(); };
 C.addEventListener('pointerup', ptrUp); C.addEventListener('pointercancel', ptrUp);
@@ -1197,12 +1276,22 @@ function hud(dt, now, fx) {
     lastDistrict = d;
     const z = $('zoneTag'); z.textContent = `District ${String(d + 1).padStart(2, '0')} — ${ZONES[d % ZONES.length].n}`; z.classList.add('on'); zoneT = 2.6;
   }
+  // Pace 1–10 — the city speeds up and gets meaner with distance (same curve the hub replays)
+  const pc = SIM.pace(Math.max(0, fx));
+  if (pc !== lastPace) {
+    const up = lastPace > 0 && pc > lastPace; lastPace = pc;
+    setH('hPace', `PACE <b>${pc}</b><i>${'<u class="on"></u>'.repeat(pc)}${'<u></u>'.repeat(10 - pc)}</i>`);
+    if (up) {
+      const e = $('hPace'); e.classList.remove('up'); void e.offsetWidth; e.classList.add('up');
+      const z = $('zoneTag'); z.textContent = `Pace ${pc}/10 — faster`; z.classList.add('on'); zoneT = 2.2;
+    }
+  }
   const sc = score(ME);
   setH('hDist', `${sc}<small>m</small>`);
   $('hDist').style.color = orbPulse > .15 ? '#ffd23f' : '';
   if (mode === 'solo') {
     setH('hPos', `<small>SOLO · BEST ${Math.max(best, sc)}m</small>`);
-    setH('hTime', mmss(now - soloStart));
+    setH('hTime', mmss(now - runBase));
     setH('hBoard', '');
     return;
   }
@@ -1213,12 +1302,12 @@ function hud(dt, now, fx) {
   const rank = field.findIndex(f => f.me) + 1;
   setH('hPos', `P${rank}<small>/${field.length}</small>`);
   setH('hTime', now < RACE.startAt ? 'GET READY' : mmss(RACE.startAt + RACE.dur - now));
-  setH('hBoard', field.map((f, i) => `<div class="br${f.me ? ' me' : ''}${f.out ? ' out' : ''}"><b>${i + 1}</b><i style="background:${PAL[f.c % 6]}"></i><span>${esc(f.n)}</span><b>${f.sc}</b></div>`).join(''));
+  setH('hBoard', field.map((f, i) => `<div class="br${f.me ? ' me' : ''}${f.out ? ' out' : ''}"><b>${i + 1}</b><i style="${kitCss(f.c)}"></i><span>${esc(f.n)}</span><b>${f.sc}</b></div>`).join(''));
   if (mode === 'spectate' && specName) $('spec').textContent = `Spectating · ${firstName(specName)}`;
 }
 
-/* ═══ Main loop — fixed 60 Hz sim, interpolated render, 30 fps when idle ═══ */
-let acc = 0, lastT = 0, skip = false;
+/* ═══ Main loop — 60 Hz sim locked to the wall clock (the tick the hub expects), interpolated render, 30 fps when idle ═══ */
+let lastT = 0, skip = false;
 function frame(now) {
   requestAnimationFrame(frame);
   const idle = mode === 'lobby' || mode === 'results';
@@ -1238,10 +1327,14 @@ function frame(now) {
   if (mode === 'race' && RACE) countdown(now);
   const live = simLive();
   const sim = live || (ME.st === DEAD && ME.y < DEATH_Y + 400);
+  let alpha = 1;
   if (sim) {
-    acc += dt;
-    while (acc >= STEP) { ME.px = ME.x; ME.py = ME.y; step(ME, STEP); acc -= STEP; }
-  } else { acc = 0; ME.px = ME.x; ME.py = ME.y; }
+    const f = (now - runBase) * TPMS;
+    let target = Math.floor(f), n = 0;
+    if (live && RACE) target = Math.min(target, RACE.ticks);
+    while (RS.k < target && n++ < 30) { ME.px = ME.x; ME.py = ME.y; RS.step(); } // ≤30 steps/frame catch-up
+    alpha = clamp(f - RS.k, 0, 1);
+  } else { ME.px = ME.x; ME.py = ME.y; }
   if (live && ME.st === RUN && ME.gnd) { // footfall dust on each stride
     const s = Math.sin(ME.ph);
     if ((ME.lastS < 0) !== (s < 0)) dust(ME.x, ME.y, 1);
@@ -1270,21 +1363,18 @@ function frame(now) {
   }
 
   if (mode === 'race' && RACE) {
-    if (live && now - sendAt >= 100) {
-      sendAt = now;
-      net({ t: 'st', x: Math.round(ME.x), y: Math.round(ME.y * 10) / 10, a: code(ME), v: Math.round(ME.vx) / 10, sc: score(ME) });
-    }
-    if (!RACE.done && ME.alive && now >= RACE.startAt + RACE.dur) finishMine(score(ME), true);
-  }
+    if (live && now - sendAt >= 100) { sendAt = now; sendLog('st'); }
+    if (!RACE.done && ME.alive && RS.k >= RACE.ticks) finishMine(score(ME), true);
+  } else if (mode === 'solo' && SOLO.open && now - sendAt >= 250) { sendAt = now; sendLog('ss', { id: SOLO.id }); }
 
-  render(dt, sim ? acc / STEP : 1, focus);
+  render(dt, alpha, focus);
   hud(dt, now, focus.x);
 }
 
 /* ═══ Boot ═══ */
 resize();
 addEventListener('resize', resize, { passive: true });
-resetWorld(7);
+RS = SIM.createSim(7, 0, FX); useWorld(RS.w); ME = visual(RS.p); // idle demo city
 renderLobby();
 connect();
 requestAnimationFrame(t => { lastT = t; frame(t); });
