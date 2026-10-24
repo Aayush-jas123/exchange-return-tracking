@@ -102,11 +102,15 @@ function verifyGokwikWebhook(payload, signature, secret) {
 // "PRODUCT ( COLOR ) - SIZE" — the " - SIZE" suffix is required so the
 // Zoho item resolver can match the line against the catalog and deduct
 // stock for the correct size variant.
+// If the title already carries a DIFFERENT size suffix (e.g. the original
+// size baked into replacementProductTitle), strip it first so the correct
+// replacement size is always appended.
 function buildExchangeProductName(title, variant) {
-    const base = title || 'Item';
+    let base = title || 'Item';
     if (!variant || variant === 'Same') return base;
-    // Avoid duplicating the size if the title already ends with " - SIZE"
-    if (/\s-\s\S+\s*$/.test(base)) return base;
+    // Strip any existing trailing " - SIZE" suffix from the title so we
+    // never end up with the wrong size baked in (e.g. "HENLEY - M" → "HENLEY")
+    base = base.replace(/\s-\s\S+\s*$/, '');
     return base + ' - ' + variant;
 }
 
