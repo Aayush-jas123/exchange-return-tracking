@@ -700,7 +700,9 @@ function drawBuilding(b, bottom) {
   for (const p of b.props) drawProp(p, y, zn);
   // Roof slab, rim light, under-ledge shadow, corner beacons
   X.fillStyle = zn.lite; X.fillRect(x - 2, y - 1.5, w + 4, 4.5);
+  X.fillStyle = 'rgba(255,255,255,.3)'; X.fillRect(x - 2, y - 1.5, w + 4, .7);
   X.fillStyle = 'rgba(0,0,0,.5)'; X.fillRect(x, y + 3, w, 2.5);
+  X.fillStyle = 'rgba(255,255,255,.07)'; for (let k = x + 6; k < x + w - 6; k += 16) X.fillRect(k, y - 1, 6, .8);
   if (b.gap > 0 || b.i === 0) { X.fillStyle = '#ff3b3b'; X.fillRect(x - 1, y - 3.4, 1.8, 1.8); }
 }
 function drawProp(p, y, zn) {
@@ -874,6 +876,15 @@ function render(dt, alpha, focus) {
   // Screen-space overlays
   X.setTransform(1, 0, 0, 1, 0, 0);
   if (mode === 'race' || mode === 'spectate') drawTags();
+  const spd = focus.vx || focus.iv || 0;
+  if (spd > 250 && simLive()) {
+    X.fillStyle = '#fff';
+    for (let i = 0; i < 7; i++) {
+      const ly = ((i * 0.618 + Math.floor(clock * 3 + i) * .37) % 1) * H, lw = W * (.08 + (i % 3) * .05), lx = W - ((clock * W * 2.2 + i * W * .31) % (W * 1.4));
+      X.globalAlpha = .018 * Math.min(1, (spd - 250) / 100); X.fillRect(lx, ly, lw, 1);
+    }
+    X.globalAlpha = 1;
+  }
   X.drawImage(VIGN, 0, 0, W, H);
   if (flash > 0) { X.globalAlpha = Math.min(.5, flash); X.fillStyle = '#fff'; X.fillRect(0, 0, W, H); X.globalAlpha = 1; flash -= dt; }
 }
