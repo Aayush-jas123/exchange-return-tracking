@@ -9,6 +9,19 @@
 const supabase = require('../../config/supabase');
 const LedgerService = require('./LedgerService');
 
+// Shopify financial statuses that mean the order no longer earns anything.
+const VOID_FINANCIAL_STATUSES = ['refunded', 'voided', 'expired'];
+
+async function getSetting(key, defaultValue) {
+  const { data } = await supabase
+    .from('program_settings')
+    .select('value')
+    .eq('key', key)
+    .maybeSingle();
+  const value = data?.value ?? defaultValue;
+  return typeof value === 'string' && value.trim() !== '' && !isNaN(value) ? Number(value) : value;
+}
+
 const AttributionService = {
 
   /**
@@ -16,14 +29,16 @@ const AttributionService = {
    * Idempotent on shopify_order_id (unique constraint).
    *
    * @param {object} payload — { shopify_order_id, code_used, attribution_method, net_value,
-   *   placed_at, customer_name, financial_status, fulfillment_status, currency }
+   *   placed_at, customer_name, financial_status, fulfillment_status, currency,
+   *   influencer_id (optional — skips the code lookup when the caller already matched it) }
    * @returns {Promise<{order: object|null, attributed: boolean, xpAwarded: boolean}>}
    */
   async ingestOrder(payload) {
     const {
       shopify_order_id, code_used, attribution_method = 'CODE',
       net_value, placed_at, customer_name, financial_status,
-      fulfillment_status, currency = 'INR', is_self_purchase = false
+      fulfillment_status, currency = 'INR', is_self_purchase = false,
+      influencer_id: knownInfluencerId = null
     } = payload;
 
     if (!shopify_order_id) throw new Error('shopify_order_id is required');
@@ -38,10 +53,10 @@ const AttributionService = {
     if (existing) return { order: existing, attributed: false, xpAwarded: false };
 
     // Find the athlete by discount code
-    let influencerId = null;
-    let commissionRate = 0;
+    let influencerId = knownInfluencerId;
+    let commissionRate = 7; // Flat fallback, matches the portal commissions view
 
-    if (code_used) {
+    if (!influencerId && code_used) {
       const { data: discount } = await supabase
         .from('discount_codes')
         .select('influencer_id, percent')
@@ -126,15 +141,17 @@ const AttributionService = {
     let xpAwarded = false;
     if (!is_self_purchase) {
       try {
-        const xpPerOrder = 10; // Default, should read from program_settings
-        const { isNew } = await LedgerService.award(
-          influencerId, 'XP', xpPerOrder, 'ORDER', order.id,
-          `order:${shopify_order_id}:xp`, 'ORDER_XP'
-        );
-        xpAwarded = isNew;
+        const xpPerOrder = parseInt(await getSetting('xp.per_order', 20), 10) || 0;
+        if (xpPerOrder > 0) {
+          const { isNew } = await LedgerService.award(
+            influencerId, 'XP', xpPerOrder, 'ORDER', order.id,
+            `order:${shopify_order_id}:xp`, 'ORDER_XP'
+          );
+          xpAwarded = isNew;
+        }
 
         // Also award XP based on revenue (per Rs1000)
-        const xpPer1000 = 20; // Default from settings
+        const xpPer1000 = parseFloat(await getSetting('xp.per_1000_revenue', 10)) || 0;
         const revenueXp = Math.floor(netValue / 1000 * xpPer1000);
         if (revenueXp > 0) {
           await LedgerService.award(
@@ -167,39 +184,112 @@ const AttributionService = {
       .maybeSingle();
 
     if (error) throw error;
-    if (!order) return;
+    if (!order || order.is_cancelled) return;
 
     // Update order record
     const updateData = { is_cancelled: true };
     if (refundedAmount > 0) {
       updateData.refunded_amount = parseFloat(order.refunded_amount || 0) + refundedAmount;
     }
+    // Reverse commission unless it was already paid out
+    if (order.commission_status !== 'PAID') updateData.commission_status = 'REVERSED';
 
     await supabase
       .from('attributed_orders')
       .update(updateData)
       .eq('shopify_order_id', shopifyOrderId);
 
-    // Reverse commission if it was earned
-    if (order.commission_status === 'EARNED') {
-      await supabase
-        .from('attributed_orders')
-        .update({ commission_status: 'REVERSED' })
-        .eq('shopify_order_id', shopifyOrderId);
+    // Reverse every XP entry this order produced (order XP + revenue XP)
+    try {
+      const { data: xpEntries, error: xpErr } = await supabase
+        .from('ledger_entries')
+        .select('id')
+        .eq('source_type', 'ORDER')
+        .eq('source_id', order.id)
+        .eq('currency', 'XP')
+        .gt('amount', 0);
+      if (xpErr) throw xpErr;
 
-      // Reverse XP via ledger
-      try {
-        await LedgerService.reverse(
-          // Find the original XP entry
-          order.id,
-          'ORDER_REFUND'
-        );
-      } catch (err) {
-        console.error(`[Attribution] Failed to reverse XP for order ${shopifyOrderId}:`, err);
+      for (const entry of (xpEntries || [])) {
+        await LedgerService.reverse(entry.id, 'ORDER_REFUND');
       }
+    } catch (err) {
+      console.error(`[Attribution] Failed to reverse XP for order ${shopifyOrderId}:`, err);
     }
 
     console.log(`[Attribution] Reversed order ${shopifyOrderId} — refunded Rs${refundedAmount}`);
+  },
+
+  /**
+   * Reconcile influencer_orders (filled by the Shopify coupon sync) into
+   * attributed_orders, which is what the athlete portal and XP read from.
+   * New coupon orders are ingested (and earn XP); orders that were later
+   * cancelled/refunded are reversed. Safe to run repeatedly.
+   *
+   * @returns {Promise<{ingested: number, reversed: number, errors: number, affectedInfluencerIds: number[]}>}
+   */
+  async syncFromInfluencerOrders() {
+    const sourceRows = await this._fetchAll('influencer_orders',
+      'shopify_order_id, influencer_id, referral_code, total_price, currency, financial_status, fulfillment_status, customer_name, cancelled_at, order_created_at');
+    const attributedRows = await this._fetchAll('attributed_orders', 'shopify_order_id, is_cancelled');
+    const attributed = new Map(attributedRows.map(r => [String(r.shopify_order_id), r]));
+
+    const affected = new Set();
+    let ingested = 0, reversed = 0, errors = 0;
+
+    for (const row of sourceRows) {
+      if (!row.influencer_id) continue;
+      const isVoid = !!row.cancelled_at || VOID_FINANCIAL_STATUSES.includes(row.financial_status);
+      const existing = attributed.get(String(row.shopify_order_id));
+
+      try {
+        if (!existing) {
+          if (isVoid) continue; // never counted, nothing to undo
+          const result = await this.ingestOrder({
+            shopify_order_id: row.shopify_order_id,
+            influencer_id: row.influencer_id,
+            code_used: row.referral_code,
+            net_value: row.total_price,
+            placed_at: row.order_created_at,
+            customer_name: row.customer_name,
+            financial_status: row.financial_status,
+            fulfillment_status: row.fulfillment_status,
+            currency: row.currency || 'INR'
+          });
+          if (result.attributed) {
+            ingested++;
+            affected.add(row.influencer_id);
+          }
+        } else if (isVoid && !existing.is_cancelled) {
+          await this.reverseOrder(row.shopify_order_id);
+          reversed++;
+          affected.add(row.influencer_id);
+        }
+      } catch (err) {
+        errors++;
+        console.error(`[Attribution] Sync failed for order ${row.shopify_order_id}:`, err.message || err);
+      }
+    }
+
+    console.log(`[Attribution] Coupon order sync: ${ingested} ingested, ${reversed} reversed, ${errors} errors`);
+    return { ingested, reversed, errors, affectedInfluencerIds: [...affected] };
+  },
+
+  /** @private — page through a whole table (PostgREST caps responses at 1000 rows) */
+  async _fetchAll(table, columns) {
+    const pageSize = 1000;
+    const rows = [];
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await supabase
+        .from(table)
+        .select(columns)
+        .order('shopify_order_id', { ascending: true })
+        .range(from, from + pageSize - 1);
+      if (error) throw error;
+      rows.push(...(data || []));
+      if (!data || data.length < pageSize) break;
+    }
+    return rows;
   },
 
   /**

@@ -159,6 +159,7 @@ function gameOver()
 	ui_gamelifeTexture=assetsManager["gamelife-"+gameLife];
 	ui_gameLife.texture=ui_gamelifeTexture;
 	if(score>parseInt(storage["highScore"]))storage.highScore=score;
+	if(window.AthleteXP)window.AthleteXP.report('fruit-ninja',score);
 	showGameoverUI();
 };
 function gameOverComplete()

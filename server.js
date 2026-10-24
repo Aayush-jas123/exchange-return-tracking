@@ -229,7 +229,7 @@ app.use(helmet({
             styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
             scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdn.jsdelivr.net", "https://cdn.tailwindcss.com", "https://cdnjs.cloudflare.com"],
             scriptSrcAttr: ["'unsafe-inline'"],
-            connectSrc: ["'self'", "https://exchange-return-tracking.onrender.com", "https://cdn.jsdelivr.net"],
+            connectSrc: ["'self'", "https://exchange-return-tracking.onrender.com", "wss://exchange-return-tracking.onrender.com", "https://cdn.jsdelivr.net"],
             fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com"],
             imgSrc: ["'self'", "data:", "https:"],
         },
@@ -1342,6 +1342,22 @@ async function performShopifyUsageSync() {
                 console.error(`[Shopify Usage Sync] ❌ ${influencer.name} - Error: ${err.message}`);
                 failedCount++;
             }
+        }
+
+        // Feed coupon orders into the athlete program (attributed_orders + order XP)
+        // and re-check comfort levels for anyone whose XP moved.
+        try {
+            const { AttributionService, LevelEngine } = require('./services/athlete-program');
+            const attribution = await AttributionService.syncFromInfluencerOrders();
+            for (const influencerId of attribution.affectedInfluencerIds) {
+                try {
+                    await LevelEngine.evaluate(influencerId);
+                } catch (e) {
+                    console.error(`[Shopify Usage Sync] Level evaluation failed for ${influencerId}:`, e.message);
+                }
+            }
+        } catch (e) {
+            console.error('[Shopify Usage Sync] Athlete attribution sync failed:', e.message);
         }
 
         // Persist the sync watermark (use start time so we don't miss orders updated mid-sync)
@@ -17018,6 +17034,22 @@ cron.schedule('5 0 * * *', () => {
 });
 console.log('🏋️ Athlete mission rotation scheduled daily at 00:05 IST');
 
+// Comfort levels: time gates open overnight even without new XP, so re-evaluate
+// every athlete nightly (and once shortly after boot).
+cron.schedule('15 0 * * *', () => {
+    AthleteJobs.evaluateAllLevels()
+        .then(r => console.log(`[AthleteJobs] Level evaluation: ${r.promoted} promoted, ${r.errors} errors`))
+        .catch(e => console.error('[AthleteJobs] Level evaluation failed:', e.message));
+}, {
+    timezone: 'Asia/Kolkata'
+});
+setTimeout(() => {
+    AthleteJobs.evaluateAllLevels()
+        .then(r => console.log(`[AthleteJobs] Startup level evaluation: ${r.promoted} promoted, ${r.errors} errors`))
+        .catch(e => console.error('[AthleteJobs] Startup level evaluation failed:', e.message));
+}, 120000);
+console.log('🧗 Athlete comfort-level evaluation scheduled daily at 00:15 IST');
+
 // 404 handler
 app.use((req, res) => {
     res.status(404).json({ error: 'Endpoint not found' });
@@ -17062,7 +17094,7 @@ app.use((err, req, res, next) => {
 
 // ==================== START SERVER ====================
 
-app.listen(PORT, () => {
+const httpServer = app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`📦 Store: ${process.env.SHOPIFY_STORE}`);
     console.log(`🔐 Shopify Authorized: ${!!(process.env.SHOPIFY_ACCESS_TOKEN || storage.accessToken)}`);
@@ -17074,3 +17106,6 @@ app.listen(PORT, () => {
         console.log(`⚠️  Not authorized yet. Visit /auth/install to complete OAuth`);
     }
 });
+
+// Live presence, lobbies and multiplayer Rooftop Race (WebSocket on /ws/race)
+require('./services/athlete-program/RaceHub').attachDefault(httpServer);

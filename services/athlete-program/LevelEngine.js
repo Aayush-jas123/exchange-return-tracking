@@ -11,6 +11,8 @@
 // ============================================================================
 
 const supabase = require('../../config/supabase');
+const LedgerService = require('./LedgerService');
+const GamificationService = require('./GamificationService');
 
 const LevelEngine = {
 
@@ -25,7 +27,7 @@ const LevelEngine = {
     // Fetch athlete with current level
     const { data: athlete, error: athErr } = await supabase
       .from('influencers')
-      .select('id, xp_total, standing_score, level_id, athlete_status')
+      .select('id, xp_total, standing_score, level_id, level_since, joined_at, athlete_status')
       .eq('id', influencerId)
       .single();
 
@@ -77,10 +79,12 @@ const LevelEngine = {
     const meetsXp = athlete.xp_total >= nextLevel.min_xp;
     const meetsStanding = !nextLevel.min_standing || athlete.standing_score >= nextLevel.min_standing;
 
-    // Check min_days_in_previous
+    // Check min_days_in_previous — this is what paces the climb (CL5 -> Zero
+    // takes ~3.5 months minimum no matter how fast XP comes in).
     let meetsTimeReq = true;
-    if (nextLevel.min_days_in_previous && athlete.level_since) {
-      const daysInLevel = Math.floor((Date.now() - new Date(athlete.level_since).getTime()) / (1000 * 60 * 60 * 24));
+    const levelSince = athlete.level_since || athlete.joined_at;
+    if (nextLevel.min_days_in_previous && levelSince) {
+      const daysInLevel = Math.floor((Date.now() - new Date(levelSince).getTime()) / (1000 * 60 * 60 * 24));
       meetsTimeReq = daysInLevel >= nextLevel.min_days_in_previous;
     }
 
@@ -180,6 +184,27 @@ const LevelEngine = {
     if (histErr) throw histErr;
 
     console.log(`[LevelEngine] ${direction}: Athlete ${influencerId} from level ${fromLevelId} -> ${toLevelId} (${reasonCode})`);
+
+    // Level-up coin bonus — paid once per level ever (idempotent key), so a
+    // demotion followed by a re-promotion can't farm it. Coins never feed XP.
+    if (direction === 'PROMOTE' && reasonCode !== 'INITIAL_PLACEMENT') {
+      try {
+        const { data: lvl } = await supabase
+          .from('comfort_levels')
+          .select('code')
+          .eq('id', toLevelId)
+          .single();
+        const bonus = await GamificationService.levelUpCoinBonus(lvl?.code);
+        if (bonus > 0) {
+          await LedgerService.award(
+            influencerId, 'COIN', bonus, 'MANUAL', toLevelId,
+            `level_bonus:${influencerId}:${toLevelId}`, 'LEVEL_UP_BONUS', actorId
+          );
+        }
+      } catch (err) {
+        console.error(`[LevelEngine] Level-up coin bonus failed for athlete ${influencerId}:`, err.message);
+      }
+    }
   },
 
   /**

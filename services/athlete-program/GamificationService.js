@@ -11,6 +11,39 @@
 const supabase = require('../../config/supabase');
 const LedgerService = require('./LedgerService');
 
+// Arcade scoring: how many score units equal 1 XP / 1 coin for each mini-game.
+const GAME_RULES = {
+  // `verified` games are only paid from a server-side replay (RaceHub), never from a client-reported score.
+  'rooftop-racing': { label: 'Rooftop Racing', unitsPerXp: 150, unitsPerCoin: 250, verified: true }, // metres
+  'fruit-ninja': { label: 'Fruit Ninja', unitsPerXp: 8, unitsPerCoin: 12 }            // fruits sliced
+};
+
+// Which ledger reason codes feed which coin source in the shop.
+const COIN_SOURCE_BY_REASON = {
+  GAME_COINS: 'games',
+  LEVEL_UP_BONUS: 'levels',
+  TASK_COINS: 'tasks',
+  WEEKLY_CHALLENGE_WIN: 'challenges'
+};
+
+// Coins paid once per level reached — overridable via program_settings coin.level_up_bonus.<CODE>.
+const LEVEL_UP_COIN_BONUS = { CL4: 100, CL3: 200, CL2: 300, CL1: 500, ZERO: 1000 };
+
+// Which ledger reason codes feed which XP source on the portal.
+const XP_SOURCE_BY_REASON = {
+  TASK_APPROVED: 'tasks',
+  ORDER_XP: 'orders', ORDER_REVENUE_XP: 'orders', MIGRATION_SEED: 'orders', ORDER_REFUND: 'orders',
+  GAME_XP: 'games'
+};
+
+// Midnight IST as an ISO timestamp — the arcade daily cap resets here.
+function istDayStartIso() {
+  const offsetMs = 5.5 * 3600 * 1000;
+  const ist = new Date(Date.now() + offsetMs);
+  ist.setUTCHours(0, 0, 0, 0);
+  return new Date(ist.getTime() - offsetMs).toISOString();
+}
+
 const GamificationService = {
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -784,7 +817,276 @@ const GamificationService = {
       manual_approval: next.requires_manual_approval
     } : null;
     const levelsById = Object.fromEntries(ladder.map(level => [level.id, level]));
-    return { current_level: current, next_level: next, ladder, days_in_current_level: daysInCurrentLevel, requirements, history: (history || []).map(item => ({ ...item, from_level: levelsById[item.from_level_id] || null, to_level: levelsById[item.to_level_id] || null })) };
+    const xp = await this.getXpSummary(influencerId);
+    return { current_level: current, next_level: next, ladder, days_in_current_level: daysInCurrentLevel, requirements, xp_sources: xp.sources, xp_rules: xp.rules, game_xp_today: xp.game_xp_today, history: (history || []).map(item => ({ ...item, from_level: levelsById[item.from_level_id] || null, to_level: levelsById[item.to_level_id] || null })) };
+  },
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // XP SOURCES & ARCADE
+  // ══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * XP split by source (tasks / orders / games / bonus) plus today's arcade XP
+   * and the earning rules, so the portal can show how the climb is fuelled.
+   */
+  async getXpSummary(influencerId) {
+    const sources = { tasks: 0, orders: 0, games: 0, bonus: 0 };
+    const pageSize = 1000;
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await supabase
+        .from('ledger_entries')
+        .select('amount, reason_code, source_type')
+        .eq('influencer_id', influencerId)
+        .eq('currency', 'XP')
+        .order('id', { ascending: true })
+        .range(from, from + pageSize - 1);
+      if (error) throw error;
+      for (const entry of (data || [])) {
+        const bucket = XP_SOURCE_BY_REASON[entry.reason_code]
+          || (entry.source_type === 'ASSIGNMENT' ? 'tasks' : entry.source_type === 'ORDER' ? 'orders' : 'bonus');
+        sources[bucket] += entry.amount;
+      }
+      if (!data || data.length < pageSize) break;
+    }
+
+    const [gameToday, perOrder, per1000, dailyCap, perRunMax, raceTable] = await Promise.all([
+      this._gameXpToday(influencerId),
+      this._getSetting('xp.per_order', 20),
+      this._getSetting('xp.per_1000_revenue', 10),
+      this._getSetting('game.daily_xp_cap', 40),
+      this._getSetting('game.xp_per_run_max', 15),
+      this._raceXpTable()
+    ]);
+
+    return {
+      sources,
+      game_xp_today: gameToday.total,
+      rules: {
+        xp_per_order: Number(perOrder),
+        xp_per_1000_revenue: Number(per1000),
+        game_daily_xp_cap: Number(dailyCap),
+        game_xp_per_run_max: Number(perRunMax),
+        race_xp_by_rank: raceTable
+      }
+    };
+  },
+
+  /**
+   * Award XP and coins for a finished mini-game run. Score is converted with
+   * GAME_RULES, capped per run and per IST day (separately for XP and coins),
+   * and rate-limited so the arcade tops up the climb without replacing missions
+   * and coupon orders. Coins are shop currency only — they never count toward levels.
+   * Games flagged `verified` need opts.verified (the server replayed the run).
+   */
+  async awardGameXp(influencerId, game, score, runId, opts = {}) {
+    const rule = GAME_RULES[game];
+    if (!rule) throw Object.assign(new Error('Unknown game'), { status: 400 });
+    if (rule.verified && !opts.verified) return { awarded: 0, coins_awarded: 0, game: rule.label, reason: 'verified_only' };
+    if (!runId || !/^[A-Za-z0-9_-]{6,64}$/.test(String(runId))) {
+      throw Object.assign(new Error('Invalid run id'), { status: 400 });
+    }
+
+    const points = Math.max(0, Math.floor(Number(score) || 0));
+    const [perRunMax, dailyCap, cooldownSec, coinRunMax, coinCap] = (await Promise.all([
+      this._getSetting('game.xp_per_run_max', 15),
+      this._getSetting('game.daily_xp_cap', 40),
+      this._getSetting('game.min_seconds_between_runs', 30),
+      this._getSetting('game.coins_per_run_max', 10),
+      this._getSetting('game.daily_coin_cap', 50)
+    ])).map(Number);
+
+    const [today, coinsToday] = await Promise.all([
+      this._gameXpToday(influencerId),
+      this._gameCoinsToday(influencerId)
+    ]);
+    const base = {
+      awarded: 0, earned_today: today.total, daily_cap: dailyCap,
+      coins_awarded: 0, coins_today: coinsToday.total, coin_daily_cap: coinCap,
+      game: rule.label
+    };
+
+    const lastAt = Math.max(
+      today.lastAt ? new Date(today.lastAt).getTime() : 0,
+      coinsToday.lastAt ? new Date(coinsToday.lastAt).getTime() : 0
+    );
+    if (lastAt && Date.now() - lastAt < cooldownSec * 1000) {
+      return { ...base, reason: 'cooldown' };
+    }
+
+    const runXp = Math.min(perRunMax, Math.floor(points / rule.unitsPerXp));
+    const runCoins = Math.min(coinRunMax, Math.floor(points / rule.unitsPerCoin));
+    if (runXp <= 0 && runCoins <= 0) return { ...base, reason: 'score_too_low' };
+
+    const xp = Math.max(0, Math.min(runXp, dailyCap - today.total));
+    const coins = Math.max(0, Math.min(runCoins, coinCap - coinsToday.total));
+    if (xp <= 0 && coins <= 0) return { ...base, reason: 'daily_cap' };
+
+    let xpNew = false;
+    let coinsNew = false;
+    if (xp > 0) {
+      ({ isNew: xpNew } = await LedgerService.award(
+        influencerId, 'XP', xp, 'MANUAL', null,
+        `game:${influencerId}:${game}:${runId}`, 'GAME_XP'
+      ));
+    }
+    if (coins > 0) {
+      ({ isNew: coinsNew } = await LedgerService.award(
+        influencerId, 'COIN', coins, 'MANUAL', null,
+        `game:${influencerId}:${game}:${runId}:coins`, 'GAME_COINS'
+      ));
+    }
+    if (!xpNew && !coinsNew) return { ...base, reason: 'duplicate' };
+
+    const awarded = xpNew ? xp : 0;
+    const coinsAwarded = coinsNew ? coins : 0;
+    return {
+      ...base,
+      awarded, earned_today: today.total + awarded,
+      coins_awarded: coinsAwarded, coins_today: coinsToday.total + coinsAwarded
+    };
+  },
+
+  /**
+   * Award XP for a finishing position in a live multiplayer race. Called by
+   * RaceHub only (server-ranked), shares the arcade daily cap with solo runs.
+   */
+  async awardRaceXp(influencerId, raceId, rank, field) {
+    const [table, dailyCap] = await Promise.all([
+      this._raceXpTable(),
+      this._getSetting('game.daily_xp_cap', 40).then(Number)
+    ]);
+    const today = await this._gameXpToday(influencerId);
+    const base = { awarded: 0, earned_today: today.total, daily_cap: dailyCap, game: 'Rooftop Race' };
+    if (field < 2) return { ...base, reason: 'solo' };
+
+    const rankXp = table[Math.min(rank, table.length) - 1] || 0;
+    const xp = Math.min(rankXp, dailyCap - today.total);
+    if (xp <= 0) return { ...base, reason: 'daily_cap' };
+
+    const { isNew } = await LedgerService.award(
+      influencerId, 'XP', xp, 'MANUAL', null,
+      `race:${raceId}:${influencerId}`, 'GAME_XP'
+    );
+    if (!isNew) return { ...base, reason: 'duplicate' };
+    return { ...base, awarded: xp, earned_today: today.total + xp };
+  },
+
+  /** @private — XP by finishing position; the last entry covers every rank below */
+  async _raceXpTable() {
+    const raw = await this._getSetting('game.race_xp_by_rank', '20,14,10,7,5');
+    const list = (Array.isArray(raw) ? raw : String(raw).split(','))
+      .map(v => Math.max(0, Math.floor(Number(v)))).filter(Number.isFinite);
+    return list.length ? list : [20, 14, 10, 7, 5];
+  },
+
+  /** @private — arcade XP earned since IST midnight + time of the last award */
+  async _gameXpToday(influencerId) {
+    const { data, error } = await supabase
+      .from('ledger_entries')
+      .select('amount, created_at')
+      .eq('influencer_id', influencerId)
+      .eq('currency', 'XP')
+      .eq('reason_code', 'GAME_XP')
+      .gte('created_at', istDayStartIso())
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return {
+      total: (data || []).reduce((sum, e) => sum + e.amount, 0),
+      lastAt: data?.[0]?.created_at || null
+    };
+  },
+
+  /** @private — arcade coins earned since IST midnight + time of the last award */
+  async _gameCoinsToday(influencerId) {
+    const { data, error } = await supabase
+      .from('ledger_entries')
+      .select('amount, created_at')
+      .eq('influencer_id', influencerId)
+      .eq('currency', 'COIN')
+      .eq('reason_code', 'GAME_COINS')
+      .gte('created_at', istDayStartIso())
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return {
+      total: (data || []).reduce((sum, e) => sum + e.amount, 0),
+      lastAt: data?.[0]?.created_at || null
+    };
+  },
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // COINS & SHOP
+  // ══════════════════════════════════════════════════════════════════════════
+
+  /** Coin bonus paid when an athlete first reaches a level (0 = none). */
+  async levelUpCoinBonus(levelCode) {
+    if (!levelCode) return 0;
+    const raw = await this._getSetting(`coin.level_up_bonus.${levelCode}`, LEVEL_UP_COIN_BONUS[levelCode] || 0);
+    return Math.max(0, Math.floor(Number(raw) || 0));
+  },
+
+  /**
+   * Everything the Shop screen needs: balance, where coins came from, today's
+   * arcade coins vs cap, the level-up bonus ladder and recent coin activity.
+   * Coins are spend-only currency and never affect level or rank.
+   */
+  async getCoinSummary(influencerId) {
+    const [{ data: athlete, error: athErr }, { data: levels, error: lvlErr }, { data: recent, error: recentErr }] = await Promise.all([
+      supabase.from('influencers').select('coin_balance, level_id').eq('id', influencerId).single(),
+      supabase.from('comfort_levels').select('id, ordinal, code, display_name, display_number').order('ordinal'),
+      supabase.from('ledger_entries').select('id, amount, reason_code, created_at').eq('influencer_id', influencerId).eq('currency', 'COIN').order('created_at', { ascending: false }).limit(20)
+    ]);
+    if (athErr) throw athErr;
+    if (lvlErr) throw lvlErr;
+    if (recentErr) throw recentErr;
+
+    const sources = { games: 0, levels: 0, tasks: 0, challenges: 0, other: 0 };
+    let spent = 0;
+    const pageSize = 1000;
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await supabase
+        .from('ledger_entries')
+        .select('amount, reason_code')
+        .eq('influencer_id', influencerId)
+        .eq('currency', 'COIN')
+        .order('id', { ascending: true })
+        .range(from, from + pageSize - 1);
+      if (error) throw error;
+      for (const entry of (data || [])) {
+        if (entry.amount < 0) { spent += -entry.amount; continue; }
+        sources[COIN_SOURCE_BY_REASON[entry.reason_code] || 'other'] += entry.amount;
+      }
+      if (!data || data.length < pageSize) break;
+    }
+
+    const ladder = levels || [];
+    const current = ladder.find(level => level.id === athlete.level_id) || null;
+    const [coinsToday, coinCap, coinRunMax, bonuses] = await Promise.all([
+      this._gameCoinsToday(influencerId),
+      this._getSetting('game.daily_coin_cap', 50),
+      this._getSetting('game.coins_per_run_max', 10),
+      Promise.all(ladder.map(level => this.levelUpCoinBonus(level.code)))
+    ]);
+
+    return {
+      balance: athlete.coin_balance || 0,
+      sources,
+      spent,
+      game_coins_today: coinsToday.total,
+      rules: { game_daily_coin_cap: Number(coinCap), game_coins_per_run_max: Number(coinRunMax) },
+      level_bonuses: ladder
+        .map((level, i) => ({
+          code: level.code,
+          display_name: level.display_name,
+          display_number: level.display_number,
+          ordinal: level.ordinal,
+          coins: bonuses[i],
+          reached: !!current && level.ordinal <= current.ordinal,
+          is_current: !!current && level.id === current.id
+        }))
+        .filter(level => level.coins > 0),
+      recent: recent || [],
+      products: []
+    };
   },
 
   async captureRankSnapshots() {
@@ -801,15 +1103,66 @@ const GamificationService = {
   async getRanks(influencerId) {
     const { data: athletes, error } = await supabase.from('influencers').select('id, name, athlete_no, xp_total, standing_score, level_id').eq('leaderboard_opt_out', false).in('athlete_status', ['ACTIVE', 'ON_TRIAL']).order('xp_total', { ascending: false });
     if (error) throw error;
+    const totalAthletes = (athletes || []).length;
     const rank = (athletes || []).findIndex(athlete => athlete.id === influencerId) + 1;
-    const nearby = (athletes || []).slice(Math.max(0, rank - 3), rank + 2).map((athlete, index) => ({ ...athlete, global_rank: Math.max(1, rank - 2) + index, is_self: athlete.id === influencerId }));
+    const self = (athletes || []).find(a => a.id === influencerId) || {};
+    // Nearby: ±5 positions for richer context
+    const nearby = (athletes || []).slice(Math.max(0, rank - 6), rank + 5).map((athlete, index) => ({ ...athlete, global_rank: Math.max(1, rank - 5) + index, is_self: athlete.id === influencerId }));
     const { data: snapshots, error: snapshotError } = await supabase.from('athlete_rank_snapshots').select('captured_on, global_rank, xp_total, standing_score').eq('influencer_id', influencerId).order('captured_on', { ascending: false }).limit(90);
     // The ranks endpoint remains usable before the additive snapshot migration runs.
     if (snapshotError && !['42P01', 'PGRST205'].includes(snapshotError.code)) throw snapshotError;
-    const { data: history, error: historyError } = await supabase.from('level_history').select('direction, reason_code, occurred_at, to_level_id').eq('influencer_id', influencerId).order('occurred_at', { ascending: false }).limit(12);
+    const { data: history, error: historyError } = await supabase.from('level_history').select('direction, reason_code, occurred_at, to_level_id, from_level_id').eq('influencer_id', influencerId).order('occurred_at', { ascending: false }).limit(20);
     if (historyError) throw historyError;
+    // Enrich level history with level names
+    const levelIds = [...new Set((history || []).flatMap(h => [h.from_level_id, h.to_level_id].filter(Boolean)))];
+    // Also collect level IDs from nearby athletes
+    const nearbyLevelIds = [...new Set(nearby.map(a => a.level_id).filter(Boolean))];
+    const allLevelIds = [...new Set([...levelIds, ...nearbyLevelIds])];
+    let levelsMap = {};
+    if (allLevelIds.length > 0) {
+      const { data: levels } = await supabase.from('comfort_levels').select('id, display_name, display_number').in('id', allLevelIds);
+      (levels || []).forEach(l => { levelsMap[l.id] = l; });
+    }
+    const enrichedHistory = (history || []).map(h => ({
+      ...h,
+      from_level: h.from_level_id ? levelsMap[h.from_level_id] || null : null,
+      to_level: h.to_level_id ? levelsMap[h.to_level_id] || null : null
+    }));
+    // Add level names to nearby athletes
+    const enrichedNearby = nearby.map(a => ({ ...a, level_name: a.level_id ? levelsMap[a.level_id]?.display_name || '—' : '—' }));
+    // Compute derived stats from snapshots
+    const reversedSnapshots = (snapshots || []).reverse();
     const previous = snapshots?.[1] || null;
-    return { current_rank: rank || null, rank_delta: previous && rank ? previous.global_rank - rank : 0, snapshots: (snapshots || []).reverse(), nearby, level_history: history || [] };
+    const bestRank = reversedSnapshots.length ? Math.min(...reversedSnapshots.map(s => s.global_rank)) : rank || null;
+    const worstRank = reversedSnapshots.length ? Math.max(...reversedSnapshots.map(s => s.global_rank)) : rank || null;
+    const avgRank = reversedSnapshots.length ? Math.round(reversedSnapshots.reduce((sum, s) => sum + (s.global_rank || 0), 0) / reversedSnapshots.length) : rank || null;
+    // XP gaps to adjacent ranks
+    const athleteAbove = rank > 1 ? (athletes || [])[rank - 2] : null;
+    const athleteBelow = rank < totalAthletes ? (athletes || [])[rank] : null;
+    const xpGapAbove = athleteAbove ? (athleteAbove.xp_total || 0) - (self.xp_total || 0) : 0;
+    const xpGapBelow = athleteBelow ? (self.xp_total || 0) - (athleteBelow.xp_total || 0) : 0;
+    // Current level name
+    const currentLevelName = self.level_id ? levelsMap[self.level_id]?.display_name || '—' : '—';
+    // Rank trend: compare first and last snapshot
+    const trend = reversedSnapshots.length >= 2 ? reversedSnapshots[0].global_rank - reversedSnapshots[reversedSnapshots.length - 1].global_rank : 0;
+    return {
+      current_rank: rank || null,
+      rank_delta: previous && rank ? previous.global_rank - rank : 0,
+      snapshots: reversedSnapshots,
+      nearby: enrichedNearby,
+      level_history: enrichedHistory,
+      total_athletes: totalAthletes,
+      percentile: totalAthletes && rank ? Math.round((1 - rank / totalAthletes) * 100) : 0,
+      best_rank: bestRank,
+      worst_rank: worstRank,
+      avg_rank: avgRank,
+      xp_gap_above: xpGapAbove,
+      xp_gap_below: xpGapBelow,
+      current_level_name: currentLevelName,
+      standing_score: self.standing_score || 0,
+      xp_total: self.xp_total || 0,
+      trend
+    };
   },
 
   async getActivityLog(influencerId) {
@@ -840,7 +1193,7 @@ const GamificationService = {
     const { data, error } = await supabase
       .from('program_settings')
       .select('*')
-      .or('key.like.daily_task.%,key.like.weekly_challenge.%,key.like.streak.%,key.like.gamification.%,key.like.leaderboard.%')
+      .or('key.like.daily_task.%,key.like.weekly_challenge.%,key.like.streak.%,key.like.gamification.%,key.like.leaderboard.%,key.like.game.%,key.like.coin.%')
       .order('key');
 
     if (error) throw error;
