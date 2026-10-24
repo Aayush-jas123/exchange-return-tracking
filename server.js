@@ -79,8 +79,8 @@ const crypto = require('crypto');
 const path = require('path');
 require('dotenv').config();
 const multer = require('multer');
-const cloudinary = require('cloudinary').v2;
-const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const cloudinary = require('cloudinary');
+const { CloudinaryStorage } = require('multer-storage-cloudinary-v2');
 const Razorpay = require('razorpay');
 
 // Gokwik webhook signature verification
@@ -2883,15 +2883,8 @@ async function createShiprocketForwardOrder(requestData) {
         for (const item of items) {
             const isDifferentProduct = item.replacementProductId && item.replacementProductId !== item.productId;
             const title = item.replacementProductTitle || item.name;
-            const finalName = buildExchangeProductName(title, item.replacementVariant);
+            let resolvedVariant = item.replacementVariant || '';
             let finalVariantId = (item.replacementVariantId && item.replacementVariantId !== 'Same') ? item.replacementVariantId : (item.variantId || item.id);
-
-            console.log(`[${requestData.requestId}] Item: ${title}`);
-            console.log(`  - Original: ${item.name} (Variant: ${item.variant})`);
-            console.log(`  - Replacement: ${finalName}`);
-            console.log(`  - Variant ID: ${finalVariantId}`);
-            console.log(`  - Price: ₹${item.replacementPrice || item.price}`);
-            console.log(`  - Quantity: ${item.quantity}`);
 
             // Validate variant exists in Shopify if we have a product ID
             if (item.replacementProductId && finalVariantId && finalVariantId !== 'Same') {
@@ -2904,16 +2897,21 @@ async function createShiprocketForwardOrder(requestData) {
                     if (variantExists) {
                         console.log(`[${requestData.requestId}] ✅ Variant confirmed: ${variantExists.title} (ID: ${variantExists.id})`);
                         console.log(`[${requestData.requestId}]    Inventory: ${variantExists.inventory_quantity} units`);
+                        // If replacementVariant was missing, recover it from Shopify
+                        if (!resolvedVariant || resolvedVariant === 'Same') {
+                            resolvedVariant = variantExists.title;
+                            console.log(`[${requestData.requestId}] ✅ Recovered missing replacementVariant from Shopify: "${resolvedVariant}"`);
+                        }
                     } else {
                         console.warn(`[${requestData.requestId}] ⚠️ Variant ${finalVariantId} NOT FOUND in product ${item.replacementProductId}!`);
                         console.warn(`[${requestData.requestId}]    Available variants:`, variants.map(v => ({ id: v.id, title: v.title })));
                         
                         // Try to find matching variant by title
-                        if (item.replacementVariant) {
+                        if (resolvedVariant) {
                             const matchingVariant = variants.find(v => 
-                                v.title === item.replacementVariant ||
-                                v.option1 === item.replacementVariant ||
-                                v.option2 === item.replacementVariant
+                                v.title === resolvedVariant ||
+                                v.option1 === resolvedVariant ||
+                                v.option2 === resolvedVariant
                             );
                             if (matchingVariant) {
                                 console.log(`[${requestData.requestId}] ✅ Found matching variant by title: ${matchingVariant.title} (ID: ${matchingVariant.id})`);
@@ -2925,6 +2923,16 @@ async function createShiprocketForwardOrder(requestData) {
                     console.error(`[${requestData.requestId}] ❌ Failed to validate variant:`, e.message);
                 }
             }
+
+            const finalName = buildExchangeProductName(title, resolvedVariant);
+
+            console.log(`[${requestData.requestId}] Item: ${title}`);
+            console.log(`  - Original: ${item.name} (Variant: ${item.variant})`);
+            console.log(`  - Replacement: ${finalName}`);
+            console.log(`  - replacementVariant (raw): "${item.replacementVariant || ''}" → resolved: "${resolvedVariant}"`);
+            console.log(`  - Variant ID: ${finalVariantId}`);
+            console.log(`  - Price: ₹${item.replacementPrice || item.price}`);
+            console.log(`  - Quantity: ${item.quantity}`);
 
             orderItems.push({
                 name: finalName,
@@ -3156,20 +3164,26 @@ async function createDelhiveryReturnOrder(requestData, shopifyOrder) {
         console.log(`📍 Using Delhivery pickup location: ${pickupLocationNickname}`);
 
         // Process items/products for Delhivery
+        // NOTE: This is the REVERSE PICKUP (collecting the original item from the customer).
+        // The label must show the ORIGINAL item details — not the replacement — since
+        // the pickup person is collecting what the customer is returning/ exchanging.
         const items = Array.isArray(requestData.items) ? requestData.items : [];
-        console.log(`📦 Processing ${items.length} item(s) for Delhivery order`);
+        console.log(`📦 Processing ${items.length} item(s) for Delhivery return/pickup order`);
         
         const products = [];
         let totalQuantity = 0;
         let totalAmount = 0;
         let productsDesc = [];
         for (const item of items) {
-            const title = item.replacementProductTitle || item.name;
-            const productName = buildExchangeProductName(title, item.replacementVariant);
+            // Use ORIGINAL item details for the pickup label (not replacement)
+            const title = item.name || 'Item';
+            const variant = item.variant || '';
+            const productName = buildExchangeProductName(title, variant);
             const quantity = parseInt(item.quantity) || 1;
-            const price = parseFloat(item.replacementPrice || item.price) || 0;
+            const price = parseFloat(item.price) || 0;
             
             console.log(`  - Product: ${productName}`);
+            console.log(`    Original variant: ${variant}`);
             console.log(`    Quantity: ${quantity}`);
             console.log(`    Price: ₹${price}`);
             
@@ -3182,7 +3196,7 @@ async function createDelhiveryReturnOrder(requestData, shopifyOrder) {
                 quantity: quantity,
                 price: price,
                 selling_price: price,
-                sku: String(item.replacementVariantId || item.variantId || item.id || '') + '-EXCH',
+                sku: String(item.variantId || item.id || '') + '-RET',
                 hsn_code: '9965'  // Default HSN for apparel/general goods
             });
         }
@@ -3543,11 +3557,40 @@ async function createDelhiveryForwardOrder(requestData, shopifyOrder) {
             const item = items[i];
             const isDifferentProduct = item.replacementProductId && item.replacementProductId !== item.productId;
             const title = item.replacementProductTitle || item.name;
-            const productName = buildExchangeProductName(title, item.replacementVariant);
+
+            // ── Resolve replacement variant (size) ──────────────────────────────
+            // If replacementVariant is missing from stored items, look it up from
+            // Shopify using replacementVariantId so the label always shows the
+            // correct replacement size.
+            let resolvedVariant = item.replacementVariant || '';
+            if (!resolvedVariant || resolvedVariant === 'Same') {
+                const variantId = item.replacementVariantId || item.variantId || item.id;
+                const productId = item.replacementProductId || item.productId;
+                if (variantId && variantId !== 'Same' && productId) {
+                    try {
+                        console.log(`[${requestData.requestId}] 🔍 replacementVariant missing, resolving from Shopify variant ${variantId}...`);
+                        const variantsData = await shopifyAPI(`products/${productId}/variants.json`);
+                        const match = (variantsData.variants || []).find(v => v.id.toString() === variantId.toString());
+                        if (match) {
+                            resolvedVariant = match.title;
+                            console.log(`[${requestData.requestId}] ✅ Resolved variant from Shopify: "${resolvedVariant}"`);
+                        } else {
+                            console.warn(`[${requestData.requestId}] ⚠️ Variant ${variantId} not found in product ${productId}`);
+                        }
+                    } catch (e) {
+                        console.error(`[${requestData.requestId}] ❌ Shopify variant lookup failed:`, e.message);
+                    }
+                }
+            }
+            // ─────────────────────────────────────────────────────────────────────
+
+            const productName = buildExchangeProductName(title, resolvedVariant);
             const quantity = parseInt(item.quantity) || 1;
             const price = parseFloat(item.replacementPrice || item.price) || 0;
             
             console.log(`  - Product: ${productName}`);
+            console.log(`    replacementVariant (raw): "${item.replacementVariant || ''}" → resolved: "${resolvedVariant}"`);
+            console.log(`    replacementProductTitle: "${item.replacementProductTitle || ''}" | fallback title: "${item.name || ''}"`);
             console.log(`    Quantity: ${quantity}`);
             console.log(`    Price: ₹${price}`);
             
@@ -4000,17 +4043,20 @@ async function createEkartReturnOrder(requestData, shopifyOrder) {
         ({ city: customerCity, state: customerState } = await ekartBackfillCityState(customerPincode, customerCity, customerState));
 
         // Items summary
+        // NOTE: This is the REVERSE PICKUP (collecting the original item from the customer).
+        // The label must show the ORIGINAL item details — not the replacement.
         const items = Array.isArray(requestData.items) ? requestData.items : [];
         let totalQuantity = 0;
         let totalAmount = 0;
         const productsDesc = [];
         for (const item of items) {
-            const title = item.replacementProductTitle || item.name || 'Item';
+            const title = item.name || 'Item';
+            const variant = item.variant || '';
             const quantity = parseInt(item.quantity) || 1;
-            const price = parseFloat(item.replacementPrice || item.price) || 0;
+            const price = parseFloat(item.price) || 0;
             totalQuantity += quantity;
             totalAmount += price * quantity;
-            productsDesc.push(buildExchangeProductName(title, item.replacementVariant));
+            productsDesc.push(buildExchangeProductName(title, variant));
         }
 
         const orderIdSuffix = requestData.delhiveryOrderIdSuffix || requestData.ekartOrderIdSuffix || '';
@@ -4124,9 +4170,29 @@ async function createEkartForwardOrder(requestData, shopifyOrder) {
             const title = item.replacementProductTitle || item.name || 'Item';
             const quantity = parseInt(item.quantity) || 1;
             const price = parseFloat(item.replacementPrice || item.price) || 0;
+
+            // Resolve replacement variant from Shopify if missing from stored items
+            let resolvedVariant = item.replacementVariant || '';
+            if (!resolvedVariant || resolvedVariant === 'Same') {
+                const variantId = item.replacementVariantId || item.variantId || item.id;
+                const productId = item.replacementProductId || item.productId;
+                if (variantId && variantId !== 'Same' && productId) {
+                    try {
+                        const vData = await shopifyAPI(`products/${productId}/variants.json`);
+                        const match = (vData.variants || []).find(v => v.id.toString() === variantId.toString());
+                        if (match) {
+                            resolvedVariant = match.title;
+                            console.log(`[${requestData.requestId}] ✅ Ekart forward: recovered missing replacementVariant from Shopify: "${resolvedVariant}"`);
+                        }
+                    } catch (e) {
+                        console.error(`[${requestData.requestId}] ❌ Ekart forward: Shopify variant lookup failed:`, e.message);
+                    }
+                }
+            }
+
             totalQuantity += quantity;
             totalAmount += price * quantity;
-            productsDesc.push(buildExchangeProductName(title, item.replacementVariant));
+            productsDesc.push(buildExchangeProductName(title, resolvedVariant));
         }
 
         // 'fws-' prefix keeps forward order ids distinct from return pickups of the same request;
@@ -5020,11 +5086,13 @@ async function notifyZohoExchange(requestDetails, items) {
         exchanged_items: (items || []).map(i => ({
             title: buildExchangeProductName(
                 i.replacementProductTitle || i.name || i.title || '',
-                i.replacementVariant || i.variant || ''
+                // Only use replacementVariant — never fall back to original variant,
+                // which would send the wrong size to Zoho.
+                i.replacementVariant || ''
             ),
             sku: i.replacementSku || i.sku || '',
             quantity: parseInt(i.quantity || 1),
-            variant: i.replacementVariant || i.variant || ''
+            variant: i.replacementVariant || ''
         }))
     };
     const res = await fetch(botUrl.replace(/\/$/, '') + '/webhooks/zoho/exchange', {
@@ -5652,6 +5720,18 @@ app.post('/api/submit-exchange', upload.any(), async (req, res) => {
         }
 
         console.log(`[${requestId}] Order: ${req.body.orderNumber}, Items: ${items.length}, PaymentId: ${req.body.paymentId || 'None'}, Amount: ${req.body.paymentAmount || 0}`);
+
+        // Diagnostic: log replacement data received from frontend
+        if (items.length > 0) {
+            console.log(`[${requestId}] 🔍 Frontend item data (first item):`, JSON.stringify({
+                name: items[0].name,
+                variant: items[0].variant,
+                replacementProductTitle: items[0].replacementProductTitle,
+                replacementVariant: items[0].replacementVariant,
+                replacementVariantId: items[0].replacementVariantId,
+                replacementProductId: items[0].replacementProductId
+            }));
+        }
 
         // ── One request per order guard ──────────────────────────────────────────
         const existingRequests = await getRequestsByOrderNumber(req.body.orderNumber);
@@ -8167,9 +8247,13 @@ app.post(['/api/admin/approve', '/api/admin/approve-return', '/api/admin/approve
             console.log(`[${requestId}] 📦 Items to be dispatched:`);
             items.forEach((item, idx) => {
                 console.log(`  ${idx + 1}. ${item.replacementProductTitle || item.name}`);
-                console.log(`     Variant: ${item.replacementVariant || item.variant}`);
-                console.log(`     Variant ID: ${item.replacementVariantId || item.variantId}`);
+                console.log(`     replacementProductTitle: "${item.replacementProductTitle || ''}" | name: "${item.name || ''}"`);
+                console.log(`     replacementVariant: "${item.replacementVariant || '(MISSING)'}" | original variant: "${item.variant || ''}"`);
+                console.log(`     replacementVariantId: "${item.replacementVariantId || '(MISSING)'}" | original variantId: "${item.variantId || ''}"`);
                 console.log(`     Qty: ${item.quantity}`);
+                if (!item.replacementVariant) {
+                    console.warn(`[${requestId}] ⚠️ Item ${idx + 1}: replacementVariant is MISSING — Shopify lookup will be attempted as fallback`);
+                }
             });
 
             // Create forward order based on carrier mode
