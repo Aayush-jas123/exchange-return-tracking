@@ -881,7 +881,7 @@ function render(dt, alpha, focus) {
     X.fillStyle = '#fff';
     for (let i = 0; i < 7; i++) {
       const ly = ((i * 0.618 + Math.floor(clock * 3 + i) * .37) % 1) * H, lw = W * (.08 + (i % 3) * .05), lx = W - ((clock * W * 2.2 + i * W * .31) % (W * 1.4));
-      X.globalAlpha = .018 * Math.min(1, (spd - 250) / 100); X.fillRect(lx, ly, lw, 1);
+      X.globalAlpha = .035 * Math.min(1, (spd - 250) / 100); X.fillRect(lx, ly, lw, Math.max(1, DPR));
     }
     X.globalAlpha = 1;
   }
