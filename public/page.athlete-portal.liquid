@@ -537,9 +537,10 @@
     .rk-top5-hdr span{font-family:var(--m);font-size:7.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
     .rk-top5-hdr b{font-size:10px;font-weight:700}
     .rk-podium{display:flex;flex-direction:column;gap:0}
-    .rk-top-row{display:grid;grid-template-columns:36px 1fr auto;gap:12px;align-items:center;padding:14px 0;border-bottom:1px solid var(--line)}
+    .rk-top-row{display:grid;grid-template-columns:36px 44px 1fr auto;gap:12px;align-items:center;padding:14px 0;border-bottom:1px solid var(--line)}
     .rk-top-row:last-child{border-bottom:none}
     .rk-top-row .rk-medal{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--m);font-size:11px;font-weight:800;letter-spacing:.04em;border:1px solid var(--line)}
+    .rk-top-row .rk-top-avatar{width:36px;height:36px;display:flex;align-items:center;justify-content:center}
     .rk-top-row .rk-medal.m1{background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#000;border-color:rgba(251,191,36,.4)}
     .rk-top-row .rk-medal.m2{background:linear-gradient(135deg,#d1d5db,#9ca3af);color:#000;border-color:rgba(156,163,175,.4)}
     .rk-top-row .rk-medal.m3{background:linear-gradient(135deg,#d97706,#b45309);color:#fff;border-color:rgba(217,119,6,.4)}
@@ -558,9 +559,10 @@
     .rk-chase-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
     .rk-chase-hdr span{font-family:var(--m);font-size:7.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
     .rk-chase-hdr b{font-size:10px;font-weight:700}
-    .rk-chase-row{display:grid;grid-template-columns:32px 1fr auto;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
+    .rk-chase-row{display:grid;grid-template-columns:32px 36px 1fr auto;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
     .rk-chase-row:last-child{border-bottom:none}
     .rk-chase-pos{font-family:var(--m);font-size:10px;font-weight:700;color:var(--dim);text-align:center}
+    .rk-chase-avatar{width:28px;height:28px;display:flex;align-items:center;justify-content:center}
     .rk-chase-info{display:flex;flex-direction:column;gap:2px;min-width:0}
     .rk-chase-info b{font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .rk-chase-info em{font-family:var(--m);font-size:8px;color:var(--dim);font-style:normal;letter-spacing:.06em}
@@ -571,9 +573,10 @@
     .rk-climbers-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
     .rk-climbers-hdr span{font-family:var(--m);font-size:7.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
     .rk-climbers-hdr b{font-size:10px;font-weight:700}
-    .rk-climber-row{display:grid;grid-template-columns:32px 1fr auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+    .rk-climber-row{display:grid;grid-template-columns:32px 36px 1fr auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
     .rk-climber-row:last-child{border-bottom:none}
     .rk-climber-rk{font-family:var(--m);font-size:10px;font-weight:700;color:var(--dim);text-align:center}
+    .rk-climber-avatar{width:28px;height:28px;display:flex;align-items:center;justify-content:center}
     .rk-climber-info{display:flex;flex-direction:column;gap:2px;min-width:0}
     .rk-climber-info b{font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .rk-climber-info em{font-family:var(--m);font-size:8px;color:var(--dim);font-style:normal;letter-spacing:.04em}
@@ -1452,6 +1455,16 @@ function avBuild(cfg,SZ){
   var inner=(AV_GROUND[cfg.ground]||AV_GROUND.none).d(ink)+(AV_MARK[cfg.mark]||AV_MARK.none).d(ink)+B.d(ink)+'<circle cx="'+hx+'" cy="'+hy+'" r="7.6" fill="'+ink+'"/>'+(AV_HEAD[cfg.head]||AV_HEAD.none).d(ink,bg,hx,hy);
   var out=F.bg()+'<defs><clipPath id="'+cid+'"><circle cx="50" cy="50" r="50"/></clipPath></defs><g clip-path="url(#'+cid+')">'+inner+'</g>'+F.over(ink);
   return '<svg width="'+SZ+'" height="'+SZ+'" viewBox="0 0 100 100" aria-hidden="true">'+out+'</svg>'
+}
+function renderAthleteAvatar(athlete,sz){
+  if(!athlete)return avBuild({base:'walk',head:'none',mark:'none',ground:'none',frame:'plain'},sz);
+  return avBuild({
+    base:athlete.avatar_base||'walk',
+    head:athlete.avatar_head||'none',
+    mark:athlete.avatar_mark||'none',
+    ground:athlete.avatar_ground||'none',
+    frame:athlete.avatar_frame||'plain'
+  },sz);
 }
 
 // ── Debug logger: console + on-page diagnostics panel ──
@@ -2371,7 +2384,8 @@ function renderLobby(){
     const sent=S.invited.has(String(a.id));
     const btn=p&&p.r&&p.s==='lobby'?`<button class="invt w" type="button" data-join="${esc(p.r)}">Join</button>`
       :isLive?`<button class="invt" type="button" data-invite="${esc(String(a.id))}" data-name="${esc(a.name||'')}"${sent?' disabled':''}>${sent?'Sent &check;':'Invite'}</button>`:'';
-    return `<div class="arow${isLive?' on':a.seen>=3600000?' off':''}"><span class="aface">${esc(ini)}</span><span class="am"><b>${esc(a.name||'Athlete')}</b><em>${esc(a.level_name||'—')} &middot; ${Number(a.xp_total||0).toLocaleString('en-IN')} XP</em></span><span class="aright"><span class="astat"><i></i>${st}</span>${btn}</span></div>`;
+    const avatar=renderAthleteAvatar(a,28);
+    return `<div class="arow${isLive?' on':a.seen>=3600000?' off':''}"><span class="aface">${avatar}</span><span class="am"><b>${esc(a.name||'Athlete')}</b><em>${esc(a.level_name||'—')} &middot; ${Number(a.xp_total||0).toLocaleString('en-IN')} XP</em></span><span class="aright"><span class="astat"><i></i>${st}</span>${btn}</span></div>`;
   }).join(''):'<div class="empty">No athletes on the ladder yet</div>';
   const rooms=(RACE.rooms||[]).filter(r=>!r.game||r.game==='rooftop-racing');
   $('lobbyWrap').hidden=!rooms.length;
@@ -2445,17 +2459,20 @@ function renderRanks(){
   const top5=(r.top5||[]).map((a,i)=>{
     const igHandle=a.instagram_handle?`@${a.instagram_handle}`:'@athlete';
     const postLink=a.latest_post&&a.latest_post.post_url?`<a class="rk-top-post" href="${esc(a.latest_post.post_url)}" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 3h7v7M13 3L5 11"/></svg>VIEW LATEST POST</a>`:'';
-    return `<div class="rk-top-row"><div class="rk-medal ${medalCls[i]||''}">${String(a.rank).padStart(2,'0')}</div><div class="rk-top-info"><b>${esc(a.name||'ATHLETE')}</b><span class="rk-ig">${esc(igHandle)}</span><span class="rk-lvl">${esc(a.level_name||'—')}</span>${postLink}</div><div class="rk-top-stats"><b>${Number(a.xp_total||0).toLocaleString('en-IN')}</b><em>${Number(a.standing_score||0).toFixed(1)} STANDING</em></div></div>`;
+    const avatar=renderAthleteAvatar(a,36);
+    return `<div class="rk-top-row"><div class="rk-medal ${medalCls[i]||''}">${String(a.rank).padStart(2,'0')}</div><div class="rk-top-avatar">${avatar}</div><div class="rk-top-info"><b>${esc(a.name||'ATHLETE')}</b><span class="rk-ig">${esc(igHandle)}</span><span class="rk-lvl">${esc(a.level_name||'—')}</span>${postLink}</div><div class="rk-top-stats"><b>${Number(a.xp_total||0).toLocaleString('en-IN')}</b><em>${Number(a.standing_score||0).toFixed(1)} STANDING</em></div></div>`;
   }).join('');
   // Chase targets
   const chase=(r.chase_targets||[]).map(a=>{
     const igHandle=a.instagram_handle?`@${a.instagram_handle}`:'@athlete';
-    return `<div class="rk-chase-row"><span class="rk-chase-pos">#${String(a.rank).padStart(2,'0')}</span><div class="rk-chase-info"><b>${esc(a.name||'ATHLETE')}</b><em>${esc(igHandle)} · ${esc(a.level_name||'—')}</em></div><div class="rk-chase-gap"><b>-${Number(a.xp_gap||0).toLocaleString('en-IN')} XP</b><em>${a.missions_away||'—'} missions away</em></div></div>`;
+    const avatar=renderAthleteAvatar(a,28);
+    return `<div class="rk-chase-row"><span class="rk-chase-pos">#${String(a.rank).padStart(2,'0')}</span><div class="rk-chase-avatar">${avatar}</div><div class="rk-chase-info"><b>${esc(a.name||'ATHLETE')}</b><em>${esc(igHandle)} · ${esc(a.level_name||'—')}</em></div><div class="rk-chase-gap"><b>-${Number(a.xp_gap||0).toLocaleString('en-IN')} XP</b><em>${a.missions_away||'—'} missions away</em></div></div>`;
   }).join('');
   // Biggest climbers
   const climbers=(r.biggest_climbers||[]).map((a,i)=>{
     const igHandle=a.instagram_handle?`@${a.instagram_handle}`:'@athlete';
-    return `<div class="rk-climber-row"><span class="rk-climber-rk">#${String(a.current_rank||'—').padStart(2,'0')}</span><div class="rk-climber-info"><b>${esc(a.name||'ATHLETE')}</b><em>${esc(igHandle)} · ${esc(a.level_name||'—')}</em></div><div class="rk-climber-delta"><svg viewBox="0 0 16 16" fill="none" stroke="#4ade80" stroke-width="2"><path d="M8 12V4M4 7l4-4 4 4"/></svg><b>+${a.improvement||0}</b></div></div>`;
+    const avatar=renderAthleteAvatar(a,28);
+    return `<div class="rk-climber-row"><span class="rk-climber-rk">#${String(a.current_rank||'—').padStart(2,'0')}</span><div class="rk-climber-avatar">${avatar}</div><div class="rk-climber-info"><b>${esc(a.name||'ATHLETE')}</b><em>${esc(igHandle)} · ${esc(a.level_name||'—')}</em></div><div class="rk-climber-delta"><svg viewBox="0 0 16 16" fill="none" stroke="#4ade80" stroke-width="2"><path d="M8 12V4M4 7l4-4 4 4"/></svg><b>+${a.improvement||0}</b></div></div>`;
   }).join('');
   // Personal best banner
   const pbBanner=r.is_personal_best?`<div class="rk-pb-banner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg><div><span>PERSONAL BEST</span><b>You're at your highest rank ever — #${r.current_rank}!</b></div></div>`:'';

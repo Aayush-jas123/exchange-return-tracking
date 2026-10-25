@@ -768,7 +768,7 @@ const GamificationService = {
   async getLeaderboard(period = 'all_time', limit = 20) {
     let q = supabase
       .from('influencers')
-      .select('id, name, athlete_no, xp_total, coin_balance, level_id, leaderboard_opt_out')
+      .select('id, name, athlete_no, xp_total, coin_balance, level_id, leaderboard_opt_out, avatar_base, avatar_head, avatar_mark, avatar_ground, avatar_frame')
       .eq('leaderboard_opt_out', false)
       .in('athlete_status', ['ACTIVE', 'ON_TRIAL']);
 
@@ -1185,7 +1185,7 @@ const GamificationService = {
   },
 
   async getRanks(influencerId) {
-    const { data: athletes, error } = await supabase.from('influencers').select('id, name, athlete_no, instagram_handle, xp_total, standing_score, level_id').eq('leaderboard_opt_out', false).in('athlete_status', ['ACTIVE', 'ON_TRIAL']).order('xp_total', { ascending: false });
+    const { data: athletes, error } = await supabase.from('influencers').select('id, name, athlete_no, instagram_handle, xp_total, standing_score, level_id, avatar_base, avatar_head, avatar_mark, avatar_ground, avatar_frame').eq('leaderboard_opt_out', false).in('athlete_status', ['ACTIVE', 'ON_TRIAL']).order('xp_total', { ascending: false });
     if (error) throw error;
     const totalAthletes = (athletes || []).length;
     const rank = (athletes || []).findIndex(athlete => athlete.id === influencerId) + 1;
