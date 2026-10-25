@@ -657,9 +657,9 @@
     .rule{height:1px;background:var(--line);flex:none}
 
     /* avatar button in top bar */
-    .avbtn{width:30px;height:30px;border-radius:50%;background:linear-gradient(140deg,#6A6A6A,#161616);border:1.5px solid var(--line);flex:none;cursor:pointer;position:relative;display:block}
-    .avbtn::after{content:"";position:absolute;top:-1px;right:-1px;width:7px;height:7px;border-radius:50%;background:#22c55e;border:2px solid var(--bg)}
+    .avbtn{width:30px;height:30px;border-radius:50%;background:transparent;border:none;flex:none;cursor:pointer;position:relative;display:block;padding:0;overflow:hidden}
     .avbtn:active{opacity:.7}
+    .avbtn svg{display:block;width:100%;height:100%}
     /* hide desktop-only sidebar sub-panel on mobile */
     .sidebar-acct-sub{display:none!important}
     .avbackrow{padding:0 0 10px}
@@ -717,7 +717,8 @@
 
     /* avatar sheet — identity card */
     .idcard{display:grid;grid-template-columns:auto 1fr;gap:11px;align-items:center;padding:0 0 13px;border-bottom:1px solid var(--line);flex:none}
-    .idcard .big{width:42px;height:42px;border-radius:50%;flex:none;background:linear-gradient(140deg,#6A6A6A,#161616);border:1px solid var(--line)}
+    .idcard .big{width:42px;height:42px;border-radius:50%;flex:none;background:transparent;border:none;overflow:hidden}
+    .idcard .big svg{display:block;width:100%;height:100%}
     .idcard b{display:block;font-size:14px;font-weight:800}
     .idcard em{font-style:normal;font-family:var(--m);font-size:9px;letter-spacing:.09em;text-transform:uppercase;color:var(--dim)}
 
@@ -947,8 +948,8 @@
       .sidebar-acct{border-top:1px solid var(--line);flex:none;overflow:hidden}
       .sidebar-acct-head{display:flex;align-items:center;gap:12px;padding:16px 20px;cursor:pointer;user-select:none;transition:background .18s ease}
       .sidebar-acct-head:hover{background:rgba(255,255,255,.04)}
-      .sidebar-acct-avatar{width:36px;height:36px;border-radius:50%;background:linear-gradient(140deg,#6A6A6A,#161616);border:1.5px solid var(--line);flex:none;position:relative}
-      .sidebar-acct-avatar::after{content:"";position:absolute;top:-1px;right:-1px;width:8px;height:8px;border-radius:50%;background:#22c55e;border:2px solid #0A0A0A}
+      .sidebar-acct-avatar{width:36px;height:36px;border-radius:50%;background:transparent;border:none;flex:none;position:relative;overflow:hidden;padding:0}
+      .sidebar-acct-avatar svg{display:block;width:100%;height:100%}
       .sidebar-acct-info{flex:1;min-width:0}
       .sidebar-acct-info b{display:block;font-size:13px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .sidebar-acct-info em{font-style:normal;font-family:var(--m);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);display:block;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -976,7 +977,8 @@
 
       /* Sidebar sub-screen content styles */
       .sb-idcard{display:flex;align-items:center;gap:12px;padding-bottom:14px;border-bottom:1px solid var(--line);margin-bottom:14px}
-      .sb-idcard .big{width:40px;height:40px;border-radius:50%;background:linear-gradient(140deg,#6A6A6A,#161616);border:1px solid var(--line);flex:none}
+      .sb-idcard .big{width:40px;height:40px;border-radius:50%;background:transparent;border:none;flex:none;overflow:hidden}
+            .sb-idcard .big svg{display:block;width:100%;height:100%}
       .sb-idcard b{display:block;font-size:13px;font-weight:700;color:#fff}
       .sb-idcard em{font-style:normal;font-family:var(--m);font-size:8.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);display:block;margin-top:2px}
       .sb-kick{font-family:var(--m);font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin-bottom:8px}
