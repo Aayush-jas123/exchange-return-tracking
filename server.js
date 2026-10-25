@@ -757,9 +757,8 @@ function mapCarrierStatus(carrierStatus, carrier = 'shiprocket', statusType = nu
     }
 
     // 2b. Delhivery DTO (return pickup) flow in progress — note-only here.
-    //     The flow terminates with status "DTO" + StatusType "DL", meaning the
-    //     return parcel was DELIVERED back to the warehouse — that's terminal
-    //     success, so let rule 4 map it.
+    //     DTO is NOT a success case — it's still RTO/failed. Only catch
+    //     in-progress DTO (not delivered yet) for admin review.
     if (isDelhivery && s.includes('DTO') && !s.includes('DELIVERED') && st !== 'DL') {
         return { status: 'exception', shouldUpdate: false, needsNote: true };
     }
