@@ -1467,6 +1467,28 @@ function renderAthleteAvatar(athlete,sz){
   },sz);
 }
 
+// Refresh all avatar displays across the portal
+function refreshAllAvatars(){
+  const a=S.athlete||{};
+  // Update mobile account sheet header if open
+  const avBody=$('avBody');
+  if(avBody && $('avSheet').classList.contains('on')){
+    const idcard=avBody.querySelector('.idcard .big');
+    if(idcard) idcard.innerHTML=renderAthleteAvatar(a,42);
+  }
+  // Update desktop sidebar header
+  const sidebarAvatar=$('.sidebar-acct-avatar');
+  if(sidebarAvatar) sidebarAvatar.innerHTML=renderAthleteAvatar(a,36);
+  // Update top bar avatar buttons (mobile)
+  document.querySelectorAll('.avbtn').forEach(btn=>{
+    btn.innerHTML=renderAthleteAvatar(a,26);
+  });
+  // Update athlete list in Games tab if visible
+  if($('athleteList')) renderAthleteList();
+  // Update ranks if visible
+  if($('ranksBody')) renderRanks();
+}
+
 // ── Debug logger: console + on-page diagnostics panel ──
 const DBG=[];
 function dbg(msg,level='info'){
@@ -1545,7 +1567,7 @@ function renderAvMenu(){
   AV_MENU[1].s=S.commissions?fmt((S.commissions.summary||{}).earned||0):'—';
   AV_MENU[2].note=(S.orders||[]).filter(o=>o.fulfillment_status&&!['DELIVERED','delivered'].includes(o.fulfillment_status)).length?`${(S.orders||[]).filter(o=>o.fulfillment_status&&!['DELIVERED','delivered'].includes(o.fulfillment_status)).length} on the way`:'';
   AV_MENU.find(m=>m.k==='shop').s=`${coinBalance().toLocaleString('en-IN')} coins`;
-  $('avBody').innerHTML=`<div class="idcard"><span class="big"></span><div><b>${esc(a.name||'Athlete')}</b><em>${esc(handle)} · ${esc(lvl)}</em></div></div><div class="menu">${AV_MENU.map(m=>`<button class="mrow" type="button" data-k="${m.k}"><svg viewBox="0 0 15 15" aria-hidden="true">${AV_ICONS[m.ic]}</svg><span><b>${m.t}</b><em>${m.s}</em></span><s${m.note?' class="hot"':''}>${m.note||''}</s><i>&rsaquo;</i></button>`).join('')}</div><p style="font-size:10.5px;color:var(--dim);margin:4px 0 0;line-height:1.45;flex:none">Six screens, none of them worth a tab. An athlete opens any of these a handful of times a month — usually because something sent them here.</p>`;
+  $('avBody').innerHTML=`<div class="idcard"><span class="big">${renderAthleteAvatar(a,42)}</span><div><b>${esc(a.name||'Athlete')}</b><em>${esc(handle)} · ${esc(lvl)}</em></div></div><div class="menu">${AV_MENU.map(m=>`<button class="mrow" type="button" data-k="${m.k}"><svg viewBox="0 0 15 15" aria-hidden="true">${AV_ICONS[m.ic]}</svg><span><b>${m.t}</b><em>${m.s}</em></span><s${m.note?' class="hot"':''}>${m.note||''}</s><i>&rsaquo;</i></button>`).join('')}</div><p style="font-size:10.5px;color:var(--dim);margin:4px 0 0;line-height:1.45;flex:none">Six screens, none of them worth a tab. An athlete opens any of these a handful of times a month — usually because something sent them here.</p>`;
   $('avBody').querySelectorAll('.mrow').forEach(b=>{b.onclick=()=>avGo(b.dataset.k)});
 }
 
@@ -1646,6 +1668,8 @@ function renderAvAvatar(){
         S.athlete.avatar_ground=cfg.ground;
         S.athlete.avatar_frame=cfg.frame;
       }
+      // Refresh all avatar displays
+      refreshAllAvatars();
       setTimeout(()=>avBack(),1200);
     }catch(e){
       console.error('[Avatar] Save error:', e);
@@ -1782,6 +1806,9 @@ function updateSidebarAcct(){
   const lvl=a.level?a.level.display_name:'—';
   $('sbAcctName').textContent=a.name||'Athlete';
   $('sbAcctMeta').textContent=`${esc(handle)} · ${esc(lvl)}`;
+  // Render avatar in sidebar header
+  const avatarEl=$('.sidebar-acct-avatar');
+  if(avatarEl) avatarEl.innerHTML=renderAthleteAvatar(a,36);
   const dc=a.discount_code||null;
   $('sbValCode').textContent=dc?`${dc.code} · ${dc.percent}%`:'No code';
   const fmt=v=>'\u20B9'+Number(v||0).toLocaleString('en-IN');
@@ -1880,6 +1907,8 @@ function sbRenderAvatar(){
         S.athlete.avatar_ground=cfg.ground;
         S.athlete.avatar_frame=cfg.frame;
       }
+      // Refresh all avatar displays
+      refreshAllAvatars();
       setTimeout(()=>closeSidebarAcctSub(),1200);
     }catch(e){
       console.error('[Avatar] Save error:', e);
@@ -1929,7 +1958,7 @@ function sbRenderCard(){
     dialSvg+=`<path d="M${(cx+r*Math.cos(a0)).toFixed(2)} ${(cy+r*Math.sin(a0)).toFixed(2)} A${r} ${r} 0 0 1 ${(cx+r*Math.cos(a1)).toFixed(2)} ${(cy+r*Math.sin(a1)).toFixed(2)}" fill="none" stroke="#fff" stroke-width="${i<lit?'2.8':'1.3'}" opacity="${i<lit?1:.26}"/>`;
   }
   dialSvg+=`<text x="24" y="31" text-anchor="middle" fill="#fff" font-family="var(--f)" font-weight="900" font-size="18">${lit}</text></svg>`;
-  $('sbSubBody').innerHTML=`<div class="sb-idcard"><div class="big"></div><div><b>${esc(a.name||'Athlete')}</b><em>${esc(a.instagram_handle||'@athlete')}</em></div></div><div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">${dialSvg}<div><div style="font-size:13px;font-weight:700">${esc(lvl.display_name||'Comfort Level')}</div><div style="font-family:var(--m);font-size:8.5px;color:var(--dim);margin-top:3px">${fmt(a.xp_total)} XP · Rank #${rank} · Since ${since}</div></div></div><button class="sb-danger" type="button" onclick="toast('Card export','Coming soon')">Save as image</button><p class="sb-note">The only screen built to leave the app. It carries the level and the handle — no rupees, no address.</p>`;
+  $('sbSubBody').innerHTML=`<div class="sb-idcard"><div class="big">${renderAthleteAvatar(a,40)}</div><div><b>${esc(a.name||'Athlete')}</b><em>${esc(a.instagram_handle||'@athlete')}</em></div></div><div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">${dialSvg}<div><div style="font-size:13px;font-weight:700">${esc(lvl.display_name||'Comfort Level')}</div><div style="font-family:var(--m);font-size:8.5px;color:var(--dim);margin-top:3px">${fmt(a.xp_total)} XP · Rank #${rank} · Since ${since}</div></div></div><button class="sb-danger" type="button" onclick="toast('Card export','Coming soon')">Save as image</button><p class="sb-note">The only screen built to leave the app. It carries the level and the handle — no rupees, no address.</p>`;
 }
 function sbRenderSettings(){
   const a=S.athlete||{};
@@ -2849,6 +2878,8 @@ async function loadPortal(){
     Object.assign(S,{athlete:progress,streak:streak?.current_streak||0,leaderboard:board||[],climb,ranks,log:log||[],weekly,orders:orders||[],commissions:commissions||null,productRequests:productRequests||[]});
     dbg('all endpoints OK — entering portal','ok');
     renderProfile();updateSidebarAcct();$('taskStreak').innerHTML=S.streak+'<s> days</s>';renderClimb();renderBoard();renderRanks();renderLog();renderShop();await loadTasks();enterPortal();
+    // Render avatars in top bar buttons
+    refreshAllAvatars();
     // Shop loads outside ENDPOINTS so a missing /shop route never blocks login.
     loadShop();
   }catch(e){
