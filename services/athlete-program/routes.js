@@ -871,11 +871,14 @@ module.exports = function mountAthleteRoutes(app) {
       // If avatar columns don't exist yet (migration not run), retry without them
       // Supabase returns error code 42703 (undefined_column) or message containing column name
       if (error && (error.code === '42703' || (error.message && error.message.includes('avatar_base')))) {
+        console.log('[Avatar] GET /progress: Columns not found, falling back to base fields. Error:', error.code, error.message);
         ({ data: athlete, error } = await supabase
           .from('influencers')
           .select(baseFields)
           .eq('id', influencerId)
           .single());
+      } else if (!error) {
+        console.log('[Avatar] GET /progress: Avatar columns exist, returning:', athlete?.avatar_base, athlete?.avatar_head, athlete?.avatar_mark, athlete?.avatar_ground, athlete?.avatar_frame);
       }
 
       if (error) throw error;
@@ -1544,7 +1547,8 @@ module.exports = function mountAthleteRoutes(app) {
           return res.status(403).json({ error: 'Halo frame requires Zero Comfort level' });
         }
       }
-
+      
+      console.log('[Avatar] PATCH /profile: Saving avatar fields:', { base: patch.avatar_base, head: patch.avatar_head, mark: patch.avatar_mark, ground: patch.avatar_ground, frame: patch.avatar_frame });
       const baseReturnFields = 'id,name,instagram_handle,phone,shipping_address,shipping_city,shipping_state,shipping_pin,shipping_landmark,address_type';
       const avatarReturnFields = ',avatar_base,avatar_head,avatar_mark,avatar_ground,avatar_frame';
       
@@ -1583,7 +1587,7 @@ module.exports = function mountAthleteRoutes(app) {
         console.error('[Avatar] Save failed:', error.code, error.message);
         throw error;
       }
-      console.log('[Avatar] Saved successfully for athlete', influencerId);
+      console.log('[Avatar] Saved successfully for athlete', influencerId, 'Returning:', data?.avatar_base, data?.avatar_head, data?.avatar_mark, data?.avatar_ground, data?.avatar_frame);
       res.json({ success: true, data });
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
