@@ -801,7 +801,7 @@ const GamificationService = {
     const [{ data: athlete, error: athleteError }, { data: levels, error: levelsError }, { data: history, error: historyError }] = await Promise.all([
       supabase.from('influencers').select('id, xp_total, standing_score, level_id, level_since, joined_at').eq('id', influencerId).single(),
       supabase.from('comfort_levels').select('id, ordinal, code, display_name, display_number, min_xp, min_standing, min_days_in_previous, requires_manual_approval, dial_segments_lit, perks').order('ordinal'),
-      supabase.from('level_history').select('id, direction, reason_code, occurred_at, from_level_id, to_level_id').eq('influencer_id', influencerId).order('occurred_at', { ascending: false }).limit(12)
+      supabase.from('level_history').select('id, direction, reason_code, occurred_at, from_level_id, to_level_id').eq('influencer_id', influencerId).order('occurred_at', { ascending: false }).limit(20)
     ]);
     if (athleteError) throw athleteError;
     if (levelsError) throw levelsError;
@@ -810,6 +810,7 @@ const GamificationService = {
     const ladder = levels || [];
     const current = ladder.find(level => level.id === athlete.level_id) || ladder[0] || null;
     const next = current ? ladder.find(level => level.ordinal === current.ordinal + 1) || null : null;
+    const prev = current ? ladder.find(level => level.ordinal === current.ordinal - 1) || null : null;
     const levelSince = athlete.level_since || athlete.joined_at;
     const daysInCurrentLevel = levelSince ? Math.max(0, Math.floor((Date.now() - new Date(levelSince).getTime()) / 86400000)) : 0;
     const requirements = next ? {
@@ -820,7 +821,88 @@ const GamificationService = {
     } : null;
     const levelsById = Object.fromEntries(ladder.map(level => [level.id, level]));
     const xp = await this.getXpSummary(influencerId);
-    return { current_level: current, next_level: next, ladder, days_in_current_level: daysInCurrentLevel, requirements, xp_sources: xp.sources, xp_rules: xp.rules, game_xp_today: xp.game_xp_today, history: (history || []).map(item => ({ ...item, from_level: levelsById[item.from_level_id] || null, to_level: levelsById[item.to_level_id] || null })) };
+
+    // ── XP velocity: 7-day and 30-day earning rates ──
+    const now = new Date();
+    const d7ago = new Date(now.getTime() - 7 * 86400000).toISOString();
+    const d30ago = new Date(now.getTime() - 30 * 86400000).toISOString();
+    const [{ data: xp7 }, { data: xp30 }, { data: xp14daily }] = await Promise.all([
+      supabase.from('ledger_entries').select('amount, created_at').eq('influencer_id', influencerId).eq('currency', 'XP').gte('created_at', d7ago),
+      supabase.from('ledger_entries').select('amount, created_at').eq('influencer_id', influencerId).eq('currency', 'XP').gte('created_at', d30ago),
+      supabase.from('ledger_entries').select('amount, created_at').eq('influencer_id', influencerId).eq('currency', 'XP').gte('created_at', new Date(now.getTime() - 14 * 86400000).toISOString())
+    ]);
+    const sumXp = rows => (rows || []).reduce((s, r) => s + (r.amount || 0), 0);
+    const xpLast7 = sumXp(xp7);
+    const xpLast30 = sumXp(xp30);
+    const dailyRate7 = Math.round(xpLast7 / 7);
+    const dailyRate30 = Math.round(xpLast30 / 30);
+
+    // ── Projected days to next level ──
+    let projectedDays = null;
+    if (next && dailyRate7 > 0) {
+      const xpNeeded = Math.max(0, (next.min_xp || 0) - (athlete.xp_total || 0));
+      const daysForXp = Math.ceil(xpNeeded / dailyRate7);
+      const daysNeeded = Math.max(0, (next.min_days_in_previous || 0) - daysInCurrentLevel);
+      projectedDays = Math.max(daysForXp, daysNeeded);
+    }
+
+    // ── Overall progress to max level ──
+    const maxLevel = ladder[ladder.length - 1];
+    const maxXp = maxLevel ? (maxLevel.min_xp || 20000) : 20000;
+    const overallPct = maxXp > 0 ? Math.min(100, Math.round(((athlete.xp_total || 0) / maxXp) * 100)) : 0;
+
+    // ── 14-day daily XP breakdown for spark chart ──
+    const dailyBuckets = {};
+    for (let i = 13; i >= 0; i--) {
+      const d = new Date(now.getTime() - i * 86400000);
+      dailyBuckets[d.toISOString().slice(0, 10)] = 0;
+    }
+    for (const entry of (xp14daily || [])) {
+      const day = (entry.created_at || '').slice(0, 10);
+      if (day in dailyBuckets) dailyBuckets[day] += (entry.amount || 0);
+    }
+    const dailyXpSeries = Object.entries(dailyBuckets).map(([date, amount]) => ({ date, amount }));
+
+    // ── Streak data ──
+    const streak = await this.getStreak(influencerId);
+
+    // ── Missions completed count ──
+    const { count: missionsCompleted } = await supabase
+      .from('assignments')
+      .select('id', { count: 'exact', head: true })
+      .eq('influencer_id', influencerId)
+      .in('status', ['APPROVED', 'COMPLETED']);
+
+    // ── XP to next level gap ──
+    const xpToNext = next ? Math.max(0, (next.min_xp || 0) - (athlete.xp_total || 0)) : 0;
+    const daysToNext = next ? Math.max(0, (next.min_days_in_previous || 0) - daysInCurrentLevel) : 0;
+
+    return {
+      current_level: current,
+      next_level: next,
+      prev_level: prev,
+      ladder,
+      days_in_current_level: daysInCurrentLevel,
+      requirements,
+      xp_sources: xp.sources,
+      xp_rules: xp.rules,
+      game_xp_today: xp.game_xp_today,
+      history: (history || []).map(item => ({ ...item, from_level: levelsById[item.from_level_id] || null, to_level: levelsById[item.to_level_id] || null })),
+      // New enriched fields
+      standing_score: athlete.standing_score || 0,
+      xp_to_next: xpToNext,
+      days_to_next: daysToNext,
+      xp_last_7: xpLast7,
+      xp_last_30: xpLast30,
+      daily_rate_7: dailyRate7,
+      daily_rate_30: dailyRate30,
+      projected_days: projectedDays,
+      overall_pct: overallPct,
+      daily_xp_series: dailyXpSeries,
+      streak: streak || { current_streak: 0, longest_streak: 0, total_active_days: 0 },
+      missions_completed: missionsCompleted || 0,
+      current_perks: current?.perks || null
+    };
   },
 
   // ══════════════════════════════════════════════════════════════════════════

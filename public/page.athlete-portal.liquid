@@ -280,6 +280,74 @@
     .history-row b{color:#fff;font:700 11px var(--f)}
     .history-row span{color:var(--dim);font-family:var(--m);font-size:8px;letter-spacing:.04em}
 
+    /* ── Climb: overall progress bar ── */
+    .climb-overall{border-top:1px solid var(--line);padding:16px 18px}
+    .climb-overall .co-label{font-family:var(--m);font-size:7.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);margin-bottom:8px}
+    .climb-overall .co-bar{height:6px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden;position:relative}
+    .climb-overall .co-bar i{display:block;height:100%;background:linear-gradient(90deg,rgba(255,255,255,.25),rgba(255,255,255,.6));border-radius:3px;transition:width .8s cubic-bezier(.16,1,.3,1)}
+    .climb-overall .co-marks{display:flex;justify-content:space-between;margin-top:6px;font-family:var(--m);font-size:7px;letter-spacing:.06em;color:rgba(255,255,255,.25);text-transform:uppercase}
+    .climb-overall .co-pct{font-size:22px;font-weight:900;letter-spacing:-.02em;margin-bottom:4px}
+
+    /* ── Climb: next-level requirements ── */
+    .climb-req{border-top:1px solid var(--line);padding:16px 18px}
+    .climb-req .cr-label{font-family:var(--m);font-size:7.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);margin-bottom:10px}
+    .climb-req .cr-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
+    .climb-req .cr-head h3{font-size:16px;font-weight:800;text-transform:uppercase;margin:0;letter-spacing:.02em}
+    .climb-req .cr-head span{font-family:var(--m);font-size:8px;color:var(--dim);letter-spacing:.04em}
+    .req-row{display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+    .req-row:last-child{border-bottom:none}
+    .req-icon{width:28px;height:28px;border:1px solid var(--line);display:grid;place-items:center;font-size:12px;color:var(--dim)}
+    .req-icon.done{border-color:rgba(255,255,255,.3);color:#fff;background:rgba(255,255,255,.06)}
+    .req-body .req-title{font-size:11px;font-weight:700;line-height:1.2}
+    .req-body .req-sub{font-family:var(--m);font-size:8px;color:var(--dim);margin-top:2px;letter-spacing:.04em}
+    .req-body .req-bar{height:2px;background:rgba(255,255,255,.06);margin-top:5px;border-radius:1px;overflow:hidden}
+    .req-body .req-bar i{display:block;height:100%;background:rgba(255,255,255,.35);border-radius:1px;transition:width .6s cubic-bezier(.16,1,.3,1)}
+    .req-row.done .req-icon{border-color:rgba(255,255,255,.3);color:#fff;background:rgba(255,255,255,.08)}
+    .req-row.done .req-title{color:rgba(255,255,255,.6)}
+    .req-val{font-family:var(--m);font-size:10px;font-weight:700;color:rgba(255,255,255,.5);text-align:right;white-space:nowrap}
+    .req-row.done .req-val{color:rgba(255,255,255,.35)}
+
+    /* ── Climb: XP velocity / projection ── */
+    .climb-velocity{border-top:1px solid var(--line);padding:16px 18px}
+    .climb-velocity .cv-label{font-family:var(--m);font-size:7.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);margin-bottom:10px}
+    .cv-stats{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--line);border:1px solid var(--line)}
+    .cv-stats div{background:var(--bg);padding:12px 14px}
+    .cv-stats dt{font-family:var(--m);font-size:7px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+    .cv-stats dd{margin:3px 0 0;font-size:18px;font-weight:900;line-height:1}
+    .cv-projection{margin-top:12px;padding:12px 14px;border:1px solid var(--line);background:rgba(255,255,255,.02)}
+    .cv-projection .cvp-label{font-family:var(--m);font-size:7.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin-bottom:4px}
+    .cv-projection .cvp-value{font-size:20px;font-weight:900;letter-spacing:-.02em}
+    .cv-projection .cvp-sub{font-family:var(--m);font-size:8px;color:var(--dim);margin-top:3px;letter-spacing:.04em}
+
+    /* ── Climb: 14-day XP spark chart ── */
+    .climb-spark{border-top:1px solid var(--line);padding:16px 18px}
+    .climb-spark .cs-label{font-family:var(--m);font-size:7.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);margin-bottom:10px}
+    .spark-chart{display:flex;align-items:flex-end;gap:3px;height:60px;padding-bottom:1px}
+    .spark-bar{flex:1;min-width:0;background:rgba(255,255,255,.12);border-radius:2px 2px 0 0;transition:background .2s;position:relative}
+    .spark-bar:hover{background:rgba(255,255,255,.25)}
+    .spark-bar.today{background:rgba(255,255,255,.35)}
+    .spark-labels{display:flex;gap:3px;margin-top:4px}
+    .spark-labels span{flex:1;font-family:var(--m);font-size:6px;color:rgba(255,255,255,.2);text-align:center;letter-spacing:.04em}
+
+    /* ── Climb: level perks ── */
+    .climb-perks{border-top:1px solid var(--line);padding:16px 18px}
+    .climb-perks .cp-label{font-family:var(--m);font-size:7.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);margin-bottom:10px}
+    .perk-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+    .perk-row:last-child{border-bottom:none}
+    .perk-dot{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.3);flex-shrink:0}
+    .perk-row span{font-size:11px;color:rgba(255,255,255,.7);line-height:1.35}
+
+    /* ── Climb: enhanced history with level names ── */
+    .history-row .hr-dir{display:inline-flex;align-items:center;gap:5px}
+    .history-row .hr-dir i{width:8px;height:8px;display:inline-block}
+    .history-row .hr-levels{font-size:9px;color:rgba(255,255,255,.35);margin-top:2px;font-family:var(--m);letter-spacing:.03em}
+
+    /* ── Climb: streak + missions strip ── */
+    .climb-activity{border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:rgba(255,255,255,.1);border-top:1px solid var(--line);border-left:none;border-right:none}
+    .climb-activity div{background:var(--bg);padding:12px 14px}
+    .climb-activity dt{font-family:var(--m);font-size:7px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+    .climb-activity dd{margin:3px 0 0;font-size:18px;font-weight:900;line-height:1}
+
     /* ── Shop: coin drops (products land later) ── */
     .shop-drops{border-top:1px solid var(--line)}
     .shop-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line);margin:12px 18px 0}
@@ -1720,16 +1788,30 @@ function renderClimb(){
   const xpHave=S.athlete?.xp_total||0;
   const xpPct=nxt?Math.min(100,Math.round((xpHave-(xpReq||0))/Math.max(1,(nxt.min_xp||xpReq)-(xpReq||0))*100)):100;
   const req=c.requirements||null;
+  const n=v=>Number(v||0).toLocaleString('en-IN');
+  const standing=c.standing_score||0;
+  const streak=c.streak||{current_streak:0,longest_streak:0,total_active_days:0};
+  const missionsDone=c.missions_completed||0;
+  const overallPct=c.overall_pct||0;
+  const xpToNext=c.xp_to_next||0;
+  const daysToNext=c.days_to_next||0;
+  const dailyRate7=c.daily_rate_7||0;
+  const dailyRate30=c.daily_rate_30||0;
+  const projDays=c.projected_days;
+  const perks=c.current_perks;
+  const series=c.daily_xp_series||[];
+
   let gate=' Final level reached.';
   if(nxt&&req){
     const xpLeft=Math.max(0,(nxt.min_xp||0)-xpHave);
     const daysLeft=Math.max(0,(req.days?.required||0)-days);
     const parts=[];
-    if(xpLeft)parts.push(`${xpLeft.toLocaleString('en-IN')} XP`);
+    if(xpLeft)parts.push(`${n(xpLeft)} XP`);
     if(daysLeft)parts.push(`${daysLeft} more day${daysLeft!==1?'s':''}`);
     gate=parts.length?` ${parts.join(' + ')} to ${esc(nxt.display_name)}.`:` ${esc(nxt.display_name)} unlocks at tonight's check.`;
   }
 
+  // ── 1. Hero card ──
   let html=`<div class="climb-hero">
     <div class="ch-top"><span class="ch-label">Current position</span><span class="ch-live"><i></i>Live</span></div>
     <div class="ch-level">${esc(cur.display_name||'Unranked')}</div>
@@ -1737,12 +1819,103 @@ function renderClimb(){
     <div class="ch-sub">${days} day${days!==1?'s':''} at this level.${gate}</div>
     <div class="ch-bar"><i style="width:${xpPct}%"></i></div>
     <dl class="ch-stats">
-      <div><dt>XP</dt><dd>${Number(xpHave||0).toLocaleString('en-IN')}</dd></div>
+      <div><dt>XP</dt><dd>${n(xpHave)}</dd></div>
       <div><dt>Level</dt><dd>${cur.display_number??'0'}</dd></div>
-      <div><dt>Days</dt><dd>${days}</dd></div>
+      <div><dt>Standing</dt><dd>${Number(standing).toFixed(1)}</dd></div>
     </dl>
   </div>`;
 
+  // ── 2. Activity strip: streak / missions / active days ──
+  html+=`<div class="climb-activity">
+    <div><dt>Streak</dt><dd>${streak.current_streak||0}<s style="font:500 8px var(--m);color:var(--dim);text-decoration:none;margin-left:3px">d</s></dd></div>
+    <div><dt>Missions</dt><dd>${n(missionsDone)}</dd></div>
+    <div><dt>Active days</dt><dd>${streak.total_active_days||0}</dd></div>
+  </div>`;
+
+  // ── 3. Overall progress to max level ──
+  const maxLvl=(c.ladder||[])[(c.ladder||[]).length-1];
+  html+=`<div class="climb-overall">
+    <div class="co-label">Journey to ${esc(maxLvl?.display_name||'Zero Comfort')}</div>
+    <div class="co-pct">${overallPct}%</div>
+    <div class="co-bar"><i style="width:${overallPct}%"></i></div>
+    <div class="co-marks"><span>${n(xpHave)} XP</span><span>${n(maxLvl?.min_xp||20000)} XP</span></div>
+  </div>`;
+
+  // ── 4. Next-level requirements checklist ──
+  if(nxt&&req){
+    const xpDone=req.xp.complete,daysDone=req.days.complete,standDone=req.standing.complete;
+    const xpPctReq=Math.min(100,Math.round((req.xp.current/Math.max(1,req.xp.required))*100));
+    const daysPctReq=req.days.required?Math.min(100,Math.round((req.days.current/Math.max(1,req.days.required))*100)):100;
+    const standPctReq=req.standing.required?Math.min(100,Math.round((req.standing.current/Math.max(1,req.standing.required))*100)):100;
+    const allDone=xpDone&&daysDone&&standDone;
+    html+=`<div class="climb-req">
+      <div class="cr-label">Next level requirements</div>
+      <div class="cr-head"><h3>${esc(nxt.display_name)}</h3><span>${allDone?'All complete':'In progress'}</span></div>
+      <div class="req-row ${xpDone?'done':''}">
+        <div class="req-icon ${xpDone?'done':''}">${xpDone?'\u2713':'XP'}</div>
+        <div class="req-body">
+          <div class="req-title">${n(req.xp.required).toLocaleString('en-IN')} XP required</div>
+          <div class="req-sub">${n(req.xp.current).toLocaleString('en-IN')} / ${n(req.xp.required).toLocaleString('en-IN')} &middot; ${n(Math.max(0,req.xp.required-req.xp.current)).toLocaleString('en-IN')} to go</div>
+          <div class="req-bar"><i style="width:${xpPctReq}%"></i></div>
+        </div>
+        <div class="req-val">${xpPctReq}%</div>
+      </div>
+      <div class="req-row ${daysDone?'done':''}">
+        <div class="req-icon ${daysDone?'done':''}">${daysDone?'\u2713':'D'}</div>
+        <div class="req-body">
+          <div class="req-title">${req.days.required} days at current level</div>
+          <div class="req-sub">${days} / ${req.days.required} days &middot; ${Math.max(0,req.days.required-days)} day${Math.max(0,req.days.required-days)!==1?'s':''} remaining</div>
+          <div class="req-bar"><i style="width:${daysPctReq}%"></i></div>
+        </div>
+        <div class="req-val">${daysPctReq}%</div>
+      </div>
+      ${req.standing.required?`<div class="req-row ${standDone?'done':''}">
+        <div class="req-icon ${standDone?'done':''}">${standDone?'\u2713':'S'}</div>
+        <div class="req-body">
+          <div class="req-title">Standing score ${req.standing.required}</div>
+          <div class="req-sub">${Number(req.standing.current).toFixed(1)} / ${req.standing.required}</div>
+          <div class="req-bar"><i style="width:${standPctReq}%"></i></div>
+        </div>
+        <div class="req-val">${standPctReq}%</div>
+      </div>`:''}
+    </div>`;
+  }
+
+  // ── 5. XP velocity & projection ──
+  html+=`<div class="climb-velocity">
+    <div class="cv-label">XP velocity</div>
+    <div class="cv-stats">
+      <div><dt>Last 7 days</dt><dd>${n(c.xp_last_7)}</dd></div>
+      <div><dt>Last 30 days</dt><dd>${n(c.xp_last_30)}</dd></div>
+    </div>
+    <div class="cv-projection">
+      <div class="cvp-label">Daily average (7d)</div>
+      <div class="cvp-value">${n(dailyRate7)} <s style="font:500 9px var(--m);color:var(--dim);text-decoration:none">XP/day</s></div>
+      <div class="cvp-sub">30d avg: ${n(dailyRate30)} XP/day${projDays!=null&&nxt?` &middot; ~${projDays} day${projDays!==1?'s':''} to ${esc(nxt.display_name)}`:''}</div>
+    </div>
+  </div>`;
+
+  // ── 6. 14-day XP spark chart ──
+  if(series.length){
+    const maxDay=Math.max(1,...series.map(d=>d.amount));
+    const bars=series.map((d,i)=>{
+      const h=Math.max(2,Math.round((d.amount/maxDay)*100));
+      const isToday=i===series.length-1;
+      const label=new Date(d.date).toLocaleDateString('en-IN',{day:'numeric',month:'short'});
+      return `<div class="spark-bar${isToday?' today':''}" style="height:${h}%" title="${label}: ${d.amount} XP"></div>`;
+    }).join('');
+    const labels=series.map((d,i)=>{
+      if(i%3!==0&&i!==series.length-1)return '<span></span>';
+      return `<span>${new Date(d.date).toLocaleDateString('en-IN',{day:'numeric',month:'short'})}</span>`;
+    }).join('');
+    html+=`<div class="climb-spark">
+      <div class="cs-label">Last 14 days</div>
+      <div class="spark-chart">${bars}</div>
+      <div class="spark-labels">${labels}</div>
+    </div>`;
+  }
+
+  // ── 7. Comfort ladder (enhanced with XP gaps) ──
   const ladder=(c.ladder||[]).map(l=>{
     const isCur=l.id===cur.id;
     const isCleared=l.ordinal<(cur.ordinal||0);
@@ -1751,11 +1924,12 @@ function renderClimb(){
     const tag=isCur?'YOU':isCleared?'CLEARED':'LOCKED';
     const tagCls=isCur?'you':isCleared?'cleared':'locked';
     const progPct=isCleared?100:isCur?xpPct:0;
+    const gap=isLocked?Math.max(0,(l.min_xp||0)-xpHave):0;
     return `<div class="ladder-row ${cls}">
       <b class="ladder-num">${l.display_number??'0'}</b>
       <div>
         <div class="ladder-title">${esc(l.display_name)}</div>
-        <div class="ladder-meta">${Number(l.min_xp||0).toLocaleString('en-IN')} XP${l.min_days_in_previous?` &middot; ${l.min_days_in_previous} days at previous level`:' &middot; start'}</div>
+        <div class="ladder-meta">${n(l.min_xp).toLocaleString('en-IN')} XP${l.min_days_in_previous?` &middot; ${l.min_days_in_previous}d at prev`:' &middot; start'}${isLocked&&gap?` &middot; ${n(gap).toLocaleString('en-IN')} to go`:''}</div>
         <div class="ladder-prog"><i style="width:${progPct}%"></i></div>
       </div>
       <span class="state ${tagCls}">${tag}</span>
@@ -1763,16 +1937,23 @@ function renderClimb(){
   }).join('');
   html+=`<div class="ladder"><div class="ladder-head"><span class="lh-title">Comfort ladder</span><span class="lh-count">${(c.ladder||[]).length} levels</span></div>${ladder}</div>`;
 
+  // ── 8. XP fuel breakdown (enhanced with proportional bars) ──
   const src=c.xp_sources||{},rules=c.xp_rules||{};
-  const n=v=>Number(v||0).toLocaleString('en-IN');
+  const totalXp=Math.max(1,(src.tasks||0)+(src.orders||0)+(src.games||0)+(src.bonus||0));
+  const srcPct=k=>Math.round(((src[k]||0)/totalXp)*100);
   html+=`<div class="climb-fuel">
     <div class="cw-label" style="font-family:var(--m);font-size:7.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)">What fuels your climb</div>
     <dl class="cf-grid">
       <div><dt>Missions</dt><dd>${n(src.tasks)}</dd></div>
-      <div><dt>Coupon orders</dt><dd>${n(src.orders)}</dd></div>
+      <div><dt>Orders</dt><dd>${n(src.orders)}</dd></div>
       <div><dt>Arcade</dt><dd>${n(src.games)}</dd></div>
       <div><dt>Bonus</dt><dd>${n(src.bonus)}</dd></div>
     </dl>
+    <ul style="margin-top:10px">
+      <li><span>Missions</span><b>${srcPct('tasks')}%</b></li>
+      <li><span>Coupon orders</span><b>${srcPct('orders')}%</b></li>
+      <li><span>Arcade</span><b>${srcPct('games')}%</b></li>
+    </ul>
     <ul>
       <li><span>Approved mission</span><b>XP on the mission</b></li>
       <li><span>Order with your code</span><b>+${n(rules.xp_per_order)} XP + ${n(rules.xp_per_1000_revenue)}/&#8377;1,000</b></li>
@@ -1780,6 +1961,13 @@ function renderClimb(){
     </ul>
   </div>`;
 
+  // ── 9. Level perks ──
+  if(perks&&Array.isArray(perks)&&perks.length){
+    const perkItems=perks.map(p=>`<div class="perk-row"><div class="perk-dot"></div><span>${esc(typeof p==='string'?p:p.text||p.name||'Perk')}</span></div>`).join('');
+    html+=`<div class="climb-perks"><div class="cp-label">${esc(cur.display_name||'Your level')} perks</div>${perkItems}</div>`;
+  }
+
+  // ── 10. Weekly challenge ──
   if(S.weekly?.challenge){
     const w=S.weekly.challenge;
     const entryStatus=S.weekly.entry?esc(S.weekly.entry.status):null;
@@ -1791,7 +1979,20 @@ function renderClimb(){
     </div>`;
   }
 
-  const hist=(c.history||[]).map(x=>`<div class="history-row"><span>${new Date(x.occurred_at).toLocaleDateString()}</span><b>${esc(x.direction)}</b><span>${esc(x.reason_code)}</span></div>`).join('');
+  // ── 11. Level movement history (enhanced with from/to names) ──
+  const hist=(c.history||[]).map(x=>{
+    const fromName=x.from_level?.display_name||'';
+    const toName=x.to_level?.display_name||'';
+    const arrow=x.direction==='UP'?'\u2191':'\u2193';
+    return `<div class="history-row">
+      <span>${new Date(x.occurred_at).toLocaleDateString('en-IN',{day:'numeric',month:'short'})}</span>
+      <div>
+        <b><span class="hr-dir">${arrow} ${esc(x.direction)}</span></b>
+        ${fromName||toName?`<div class="hr-levels">${esc(fromName)} \u2192 ${esc(toName)}</div>`:''}
+      </div>
+      <span>${esc(x.reason_code||'')}</span>
+    </div>`;
+  }).join('');
   html+=`<div class="climb-history"><div class="chist-label">Level movement</div>${hist||'<div class="empty" style="padding:0">No level movements recorded yet.</div>'}</div>`;
 
   $('climbContent').innerHTML=html;
