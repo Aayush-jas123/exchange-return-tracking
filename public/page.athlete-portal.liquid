@@ -1814,14 +1814,26 @@ function updateSidebarAcct(){
   const lvl=a.level?a.level.display_name:'—';
   $('sbAcctName').textContent=a.name||'Athlete';
   $('sbAcctMeta').textContent=`${esc(handle)} · ${esc(lvl)}`;
-  // Render avatar in sidebar header — isolated so errors elsewhere don't block it
-  try{
-    const avatarEl=$('.sidebar-acct-avatar');
-    if(avatarEl){
-      const svg=renderAthleteAvatar(a,36);
-      avatarEl.innerHTML=svg||'';
-    }
-  }catch(e){console.error('[Avatar] sidebar render error:',e)}
+  // Render avatar in sidebar header — with retry to handle timing issues
+  function renderSidebarAvatar(){
+    try{
+      const avatarEl=$('.sidebar-acct-avatar');
+      if(avatarEl){
+        const svg=renderAthleteAvatar(a,36);
+        if(svg && svg.includes('<svg')){
+          avatarEl.innerHTML=svg;
+          console.log('[Avatar] Sidebar avatar rendered');
+        }else{
+          console.warn('[Avatar] renderAthleteAvatar returned invalid SVG:', svg);
+        }
+      }else{
+        console.warn('[Avatar] .sidebar-acct-avatar element not found');
+      }
+    }catch(e){console.error('[Avatar] sidebar render error:',e)}
+  }
+  renderSidebarAvatar();
+  // Retry after 500ms in case of timing issues
+  setTimeout(renderSidebarAvatar, 500);
   const dc=a.discount_code||null;
   $('sbValCode').textContent=dc?`${dc.code} · ${dc.percent}%`:'No code';
   const fmt=v=>'\u20B9'+Number(v||0).toLocaleString('en-IN');
