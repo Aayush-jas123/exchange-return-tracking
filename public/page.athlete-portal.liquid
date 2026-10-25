@@ -1631,28 +1631,25 @@ function renderAvAvatar(){
   
   async function saveAvatar(){
     try{
-      const res=await api('/profile',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      await api('/profile',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({
         avatar_base:cfg.base,
         avatar_head:cfg.head,
         avatar_mark:cfg.mark,
         avatar_ground:cfg.ground,
         avatar_frame:cfg.frame
       })});
-      if(res.success){
-        toast('Avatar saved');
-        if(S.athlete){
-          S.athlete.avatar_base=cfg.base;
-          S.athlete.avatar_head=cfg.head;
-          S.athlete.avatar_mark=cfg.mark;
-          S.athlete.avatar_ground=cfg.ground;
-          S.athlete.avatar_frame=cfg.frame;
-        }
-        setTimeout(()=>avBack(),1200);
-      }else{
-        toast(res.error||'Failed to save');
+      toast('Avatar saved');
+      if(S.athlete){
+        S.athlete.avatar_base=cfg.base;
+        S.athlete.avatar_head=cfg.head;
+        S.athlete.avatar_mark=cfg.mark;
+        S.athlete.avatar_ground=cfg.ground;
+        S.athlete.avatar_frame=cfg.frame;
       }
+      setTimeout(()=>avBack(),1200);
     }catch(e){
-      toast('Error saving avatar');
+      console.error('[Avatar] Save error:', e);
+      toast(e.message||'Error saving avatar');
     }
   }
   
@@ -1868,28 +1865,25 @@ function sbRenderAvatar(){
   }
   async function saveAvatar(){
     try{
-      const res=await api('/profile',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      await api('/profile',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({
         avatar_base:cfg.base,
         avatar_head:cfg.head,
         avatar_mark:cfg.mark,
         avatar_ground:cfg.ground,
         avatar_frame:cfg.frame
       })});
-      if(res.success){
-        toast('Avatar saved');
-        if(S.athlete){
-          S.athlete.avatar_base=cfg.base;
-          S.athlete.avatar_head=cfg.head;
-          S.athlete.avatar_mark=cfg.mark;
-          S.athlete.avatar_ground=cfg.ground;
-          S.athlete.avatar_frame=cfg.frame;
-        }
-        setTimeout(()=>closeSidebarAcctSub(),1200);
-      }else{
-        toast(res.error||'Failed to save');
+      toast('Avatar saved');
+      if(S.athlete){
+        S.athlete.avatar_base=cfg.base;
+        S.athlete.avatar_head=cfg.head;
+        S.athlete.avatar_mark=cfg.mark;
+        S.athlete.avatar_ground=cfg.ground;
+        S.athlete.avatar_frame=cfg.frame;
       }
+      setTimeout(()=>closeSidebarAcctSub(),1200);
     }catch(e){
-      toast('Error saving avatar');
+      console.error('[Avatar] Save error:', e);
+      toast(e.message||'Error saving avatar');
     }
   }
   paintAll();
