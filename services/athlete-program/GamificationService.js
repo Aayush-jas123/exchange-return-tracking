@@ -1185,7 +1185,7 @@ const GamificationService = {
   },
 
   async getRanks(influencerId) {
-    const { data: athletes, error } = await supabase.from('influencers').select('id, name, athlete_no, xp_total, standing_score, level_id').eq('leaderboard_opt_out', false).in('athlete_status', ['ACTIVE', 'ON_TRIAL']).order('xp_total', { ascending: false });
+    const { data: athletes, error } = await supabase.from('influencers').select('id, name, athlete_no, instagram_handle, xp_total, standing_score, level_id').eq('leaderboard_opt_out', false).in('athlete_status', ['ACTIVE', 'ON_TRIAL']).order('xp_total', { ascending: false });
     if (error) throw error;
     const totalAthletes = (athletes || []).length;
     const rank = (athletes || []).findIndex(athlete => athlete.id === influencerId) + 1;
@@ -1214,6 +1214,81 @@ const GamificationService = {
     }));
     // Add level names to nearby athletes
     const enrichedNearby = nearby.map(a => ({ ...a, level_name: a.level_id ? levelsMap[a.level_id]?.display_name || '—' : '—' }));
+    // ── Top 5 leaderboard with latest post snapshots ──
+    const top5Athletes = (athletes || []).slice(0, 5);
+    const top5Ids = top5Athletes.map(a => a.id);
+    let latestPostsMap = {};
+    if (top5Ids.length) {
+      // Get the most recent assignment per top-5 athlete
+      const { data: topAssignments } = await supabase.from('assignments').select('id, influencer_id, created_at').in('influencer_id', top5Ids).order('created_at', { ascending: false });
+      const latestAssignmentByInfluencer = {};
+      (topAssignments || []).forEach(a => { if (!latestAssignmentByInfluencer[a.influencer_id]) latestAssignmentByInfluencer[a.influencer_id] = a.id; });
+      const latestAssignmentIds = [...new Set(Object.values(latestAssignmentByInfluencer))];
+      if (latestAssignmentIds.length) {
+        const { data: topSubmissions } = await supabase.from('submissions').select('assignment_id, post_url, caption, posted_at').in('assignment_id', latestAssignmentIds).not('post_url', 'is', null).order('posted_at', { ascending: false });
+        const subByAssignment = {};
+        (topSubmissions || []).forEach(s => { if (!subByAssignment[s.assignment_id]) subByAssignment[s.assignment_id] = s; });
+        for (const [infId, assignmentId] of Object.entries(latestAssignmentByInfluencer)) {
+          if (subByAssignment[assignmentId]) latestPostsMap[infId] = subByAssignment[assignmentId];
+        }
+      }
+    }
+    const top5 = top5Athletes.map((a, i) => ({
+      rank: i + 1,
+      id: a.id,
+      name: a.name || 'ATHLETE',
+      instagram_handle: a.instagram_handle || null,
+      level_name: a.level_id ? levelsMap[a.level_id]?.display_name || '—' : '—',
+      xp_total: a.xp_total || 0,
+      standing_score: a.standing_score || 0,
+      latest_post: latestPostsMap[a.id] || null
+    }));
+    // ── Chase targets: 3 athletes directly above the current user ──
+    const chaseTargets = [];
+    if (rank > 1) {
+      for (let i = 1; i <= 3 && (rank - 1 - i) >= 0; i++) {
+        const target = (athletes || [])[rank - 1 - i];
+        if (target) {
+          chaseTargets.push({
+            rank: rank - i,
+            id: target.id,
+            name: target.name || 'ATHLETE',
+            instagram_handle: target.instagram_handle || null,
+            level_name: target.level_id ? levelsMap[target.level_id]?.display_name || '—' : '—',
+            xp_total: target.xp_total || 0,
+            xp_gap: (target.xp_total || 0) - (self.xp_total || 0),
+            missions_away: Math.ceil(((target.xp_total || 0) - (self.xp_total || 0)) / 50)
+          });
+        }
+      }
+    }
+    // ── Biggest climbers: top 5 athletes who improved most in last 7 days ──
+    let biggestClimbers = [];
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const { data: weekOldSnapshots } = await supabase.from('athlete_rank_snapshots').select('influencer_id, global_rank').eq('captured_on', sevenDaysAgo);
+    if (weekOldSnapshots && weekOldSnapshots.length) {
+      const oldRankMap = {};
+      weekOldSnapshots.forEach(s => { oldRankMap[s.influencer_id] = s.global_rank; });
+      const climbers = (athletes || []).slice(0, 20).map((a, idx) => {
+        const currentRank = idx + 1;
+        const oldRank = oldRankMap[a.id];
+        if (!oldRank) return null;
+        const improvement = oldRank - currentRank;
+        return { id: a.id, name: a.name || 'ATHLETE', instagram_handle: a.instagram_handle || null, level_name: a.level_id ? levelsMap[a.level_id]?.display_name || '—' : '—', current_rank: currentRank, previous_rank: oldRank, improvement };
+      }).filter(Boolean).filter(c => c.improvement > 0).sort((a, b) => b.improvement - a.improvement).slice(0, 5);
+      biggestClimbers = climbers;
+    }
+    // ── Personal best indicator ──
+    const isPersonalBest = bestRank && rank && rank <= bestRank;
+    // ── Motivational message based on position ──
+    let motivationMsg = '';
+    if (rank === 1) motivationMsg = 'You\'re leading the pack. Keep the crown.';
+    else if (rank <= 3) motivationMsg = `Just ${xpGapAbove.toLocaleString('en-IN')} XP from the top spot. Push harder.`;
+    else if (rank <= 5) motivationMsg = 'You\'re in the Top 5. One mission can change everything.';
+    else if (rank <= 10) motivationMsg = 'Top 10 locked in. The podium is within reach.';
+    else if (trend > 0) motivationMsg = `Climbing fast — ${trend} ranks gained. Keep the momentum.`;
+    else if (rank <= totalAthletes / 2) motivationMsg = 'Halfway to the top. Every mission counts.';
+    else motivationMsg = 'The comeback starts now. One mission at a time.';
     // Compute derived stats from snapshots
     const reversedSnapshots = (snapshots || []).reverse();
     const previous = snapshots?.[1] || null;
@@ -1235,6 +1310,11 @@ const GamificationService = {
       snapshots: reversedSnapshots,
       nearby: enrichedNearby,
       level_history: enrichedHistory,
+      top5,
+      chase_targets: chaseTargets,
+      biggest_climbers: biggestClimbers,
+      is_personal_best: isPersonalBest,
+      motivation_msg: motivationMsg,
       total_athletes: totalAthletes,
       percentile: totalAthletes && rank ? Math.round((1 - rank / totalAthletes) * 100) : 0,
       best_rank: bestRank,
