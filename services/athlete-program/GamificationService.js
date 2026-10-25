@@ -1278,17 +1278,6 @@ const GamificationService = {
       }).filter(Boolean).filter(c => c.improvement > 0).sort((a, b) => b.improvement - a.improvement).slice(0, 5);
       biggestClimbers = climbers;
     }
-    // ── Personal best indicator ──
-    const isPersonalBest = bestRank && rank && rank <= bestRank;
-    // ── Motivational message based on position ──
-    let motivationMsg = '';
-    if (rank === 1) motivationMsg = 'You\'re leading the pack. Keep the crown.';
-    else if (rank <= 3) motivationMsg = `Just ${xpGapAbove.toLocaleString('en-IN')} XP from the top spot. Push harder.`;
-    else if (rank <= 5) motivationMsg = 'You\'re in the Top 5. One mission can change everything.';
-    else if (rank <= 10) motivationMsg = 'Top 10 locked in. The podium is within reach.';
-    else if (trend > 0) motivationMsg = `Climbing fast — ${trend} ranks gained. Keep the momentum.`;
-    else if (rank <= totalAthletes / 2) motivationMsg = 'Halfway to the top. Every mission counts.';
-    else motivationMsg = 'The comeback starts now. One mission at a time.';
     // Compute derived stats from snapshots
     const reversedSnapshots = (snapshots || []).reverse();
     const previous = snapshots?.[1] || null;
@@ -1304,6 +1293,17 @@ const GamificationService = {
     const currentLevelName = self.level_id ? levelsMap[self.level_id]?.display_name || '—' : '—';
     // Rank trend: compare first and last snapshot
     const trend = reversedSnapshots.length >= 2 ? reversedSnapshots[0].global_rank - reversedSnapshots[reversedSnapshots.length - 1].global_rank : 0;
+    // ── Personal best indicator ──
+    const isPersonalBest = bestRank && rank && rank <= bestRank;
+    // ── Motivational message based on position ──
+    let motivationMsg = '';
+    if (rank === 1) motivationMsg = 'You\'re leading the pack. Keep the crown.';
+    else if (rank <= 3) motivationMsg = `Just ${xpGapAbove.toLocaleString('en-IN')} XP from the top spot. Push harder.`;
+    else if (rank <= 5) motivationMsg = 'You\'re in the Top 5. One mission can change everything.';
+    else if (rank <= 10) motivationMsg = 'Top 10 locked in. The podium is within reach.';
+    else if (trend > 0) motivationMsg = `Climbing fast — ${trend} ranks gained. Keep the momentum.`;
+    else if (rank <= totalAthletes / 2) motivationMsg = 'Halfway to the top. Every mission counts.';
+    else motivationMsg = 'The comeback starts now. One mission at a time.';
     return {
       current_rank: rank || null,
       rank_delta: previous && rank ? previous.global_rank - rank : 0,
