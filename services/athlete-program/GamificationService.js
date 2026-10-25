@@ -782,7 +782,8 @@ const GamificationService = {
     let { data, error } = await q;
     
     // If avatar columns don't exist yet (migration not run), retry without them
-    if (error && error.message && error.message.includes('avatar_base')) {
+    // Supabase returns error code 42703 (undefined_column) or message containing column name
+    if (error && (error.code === '42703' || (error.message && error.message.includes('avatar_base')))) {
       q = supabase
         .from('influencers')
         .select(baseFields)
@@ -1212,7 +1213,8 @@ const GamificationService = {
       .order('xp_total', { ascending: false });
     
     // If avatar columns don't exist yet (migration not run), retry without them
-    if (error && error.message && error.message.includes('avatar_base')) {
+    // Supabase returns error code 42703 (undefined_column) or message containing column name
+    if (error && (error.code === '42703' || (error.message && error.message.includes('avatar_base')))) {
       ({ data: athletes, error } = await supabase
         .from('influencers')
         .select(baseFields)

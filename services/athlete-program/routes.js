@@ -869,7 +869,8 @@ module.exports = function mountAthleteRoutes(app) {
         .single());
       
       // If avatar columns don't exist yet (migration not run), retry without them
-      if (error && error.message && error.message.includes('avatar_base')) {
+      // Supabase returns error code 42703 (undefined_column) or message containing column name
+      if (error && (error.code === '42703' || (error.message && error.message.includes('avatar_base')))) {
         ({ data: athlete, error } = await supabase
           .from('influencers')
           .select(baseFields)
@@ -1555,7 +1556,9 @@ module.exports = function mountAthleteRoutes(app) {
         .single();
       
       // If avatar columns don't exist yet (migration not run), retry without them
-      if (error && error.message && error.message.includes('avatar_base')) {
+      // Supabase returns error code 42703 (undefined_column) or message containing column name
+      if (error && (error.code === '42703' || (error.message && error.message.includes('avatar_base')))) {
+        console.log('[Avatar] Columns not found, retrying without avatar fields');
         // Remove avatar fields from patch if migration not run
         const basePatch = { ...patch };
         delete basePatch.avatar_base;
@@ -1576,7 +1579,11 @@ module.exports = function mountAthleteRoutes(app) {
           .single());
       }
       
-      if (error) throw error;
+      if (error) {
+        console.error('[Avatar] Save failed:', error.code, error.message);
+        throw error;
+      }
+      console.log('[Avatar] Saved successfully for athlete', influencerId);
       res.json({ success: true, data });
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
