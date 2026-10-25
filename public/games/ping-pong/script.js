@@ -1,0 +1,753 @@
+// ═══════════════════════════════════════════════════════════
+// OFFCOMFRT Ping Pong — Core Game Logic
+// ═══════════════════════════════════════════════════════════
+(() => {
+  'use strict';
+
+  // ── DOM refs (cached) ──
+  const $ = id => document.getElementById(id);
+  const canvas = $('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const screens = document.querySelectorAll('.screen');
+  let canvasRect = null;
+
+  // ── Constants ──
+  const GW = 600;   // game width (logical)
+  const GH = 400;   // game height (logical)
+  const PADDLE_W = 10;
+  const PADDLE_H = 70;
+  const BALL_R = 8;
+  const MAX_SCORE = 10;
+  const MAX_MISSES = 3;
+  const BASE_SPEED = 4.5;
+  const MAX_SPEED = 11;
+  const SPEED_INCREMENT = 0.04;   // per paddle hit
+  const POINT_SPEED_BONUS = 0.15; // per total point scored
+  const PADDLE_SPEED = 10;
+  const TRAIL_LENGTH = 8;
+  const PARTICLE_COUNT = 7;
+  const PARTICLE_LIFE = 15;
+  const SQUASH_FRAMES = 6;
+  const BORDER_FLASH_FRAMES = 20;
+
+  // ── Difficulty table ──
+  const DIFFICULTIES = {
+    low:    { label: 'Low',    aiReaction: 0.04, aiError: 30, aiImprove: 0.002, aiMax: 0.09, xpMult: 1 },
+    medium: { label: 'Medium', aiReaction: 0.06, aiError: 18, aiImprove: 0.003, aiMax: 0.14, xpMult: 2 },
+    high:   { label: 'High',   aiReaction: 0.11, aiError: 4,  aiImprove: 0.006, aiMax: 0.22, xpMult: 3 },
+  };
+
+  // ── State ──
+  let mode = 'menu';       // menu | lobby | countdown | playing | paused | gameover
+  let gameMode = 'single'; // single | online
+  let difficulty = 'medium'; // low | medium | high
+  let animId = null;
+  let lastTime = 0;
+  let hintTimer = 0;
+  let hintVisible = true;
+
+  // Game objects
+  let ball, p1, p2, trail, rallyCount, totalPoints, speedMult;
+  let countdownVal = 3, countdownTimer = null;
+
+  // Visual effects state
+  let particles = [];
+  let squashTimer = 0;
+  let borderFlash = 0;
+
+  // Input
+  const keys = {};
+  let touchP1 = null;  // Y position from touch (0-1 normalized)
+
+  // ── Helpers ──
+  function resetBall(direction) {
+    const angle = (Math.random() * 0.8 - 0.4); // -0.4 to 0.4 rad
+    const spd = BASE_SPEED + totalPoints * POINT_SPEED_BONUS;
+    ball = {
+      x: GW / 2,
+      y: GH / 2,
+      vx: Math.cos(angle) * spd * (direction || (Math.random() > 0.5 ? 1 : -1)),
+      vy: Math.sin(angle) * spd
+    };
+    trail = [];
+  }
+
+  function initGame() {
+    const d = DIFFICULTIES[difficulty];
+    p1 = { y: GH / 2 - PADDLE_H / 2, score: 0, misses: 0, hitFlash: 0 };
+    p2 = { y: GH / 2 - PADDLE_H / 2, score: 0, misses: 0, hitFlash: 0 };
+    rallyCount = 0;
+    totalPoints = 0;
+    speedMult = 1;
+    particles = [];
+    squashTimer = 0;
+    borderFlash = 0;
+    aiReaction = d.aiReaction;
+    resetBall();
+  }
+
+  // ─ Canvas sizing ──
+  function resizeCanvas() {
+    const wrap = canvas.parentElement;
+    const ww = wrap.clientWidth;
+    const wh = wrap.clientHeight;
+    const ratio = GW / GH;
+    let w, h;
+    if (ww / wh > ratio) { h = wh; w = h * ratio; }
+    else { w = ww; h = w / ratio; }
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    canvas.width = GW;
+    canvas.height = GH;
+    canvasRect = null; // invalidate cached rect
+  }
+
+  // ── Screen management ──
+  function showScreen(id) {
+    for (let i = 0; i < screens.length; i++) screens[i].classList.remove('active');
+    $(id).classList.add('active');
+  }
+
+  function showOverlay(id) { $(id).classList.remove('hidden'); }
+  function hideOverlay(id) { $(id).classList.add('hidden'); }
+
+  // ── Mode select ──
+  function selectMode(m) {
+    gameMode = m;
+    if (m === 'online') {
+      showScreen('lobbyScreen');
+      if (window.PingPongNet) window.PingPongNet.connect();
+    } else if (m === 'single') {
+      showScreen('diffScreen');
+    }
+  }
+
+  function selectDifficulty(d) {
+    difficulty = d;
+    // Update active button state
+    const btns = document.querySelectorAll('.diff-btn');
+    for (let i = 0; i < btns.length; i++) {
+      btns[i].classList.toggle('active', btns[i].dataset.diff === d);
+    }
+    startCountdown();
+  }
+
+  // ── Countdown ──
+  function startCountdown() {
+    showScreen('gameScreen');
+    resizeCanvas();
+    initGame();
+    mode = 'countdown';
+    countdownVal = 3;
+    $('countdownNum').textContent = countdownVal;
+    showOverlay('countdownOverlay');
+    hideOverlay('gameOverOverlay');
+    $('pauseBtn').hidden = true;
+
+    const tick = () => {
+      countdownVal--;
+      if (countdownVal <= 0) {
+        hideOverlay('countdownOverlay');
+        beginPlay();
+      } else {
+        $('countdownNum').textContent = countdownVal;
+        // Re-trigger animation
+        const el = $('countdownNum');
+        el.style.animation = 'none';
+        el.offsetHeight; // reflow
+        el.style.animation = '';
+        countdownTimer = setTimeout(tick, 800);
+      }
+    };
+    countdownTimer = setTimeout(tick, 800);
+  }
+
+  function beginPlay() {
+    mode = 'playing';
+    $('pauseBtn').hidden = false;
+    showHint();
+    updateHUD();
+    if (animId) cancelAnimationFrame(animId);
+    lastTime = performance.now();
+    animId = requestAnimationFrame(gameLoop);
+  }
+
+  // ── Hint ──
+  function showHint() {
+    const el = $('controlsHint');
+    hintVisible = true;
+    el.classList.remove('fade');
+    el.textContent = isMobile() ? 'Touch & drag to move paddle' : 'W / S keys to move';
+    clearTimeout(hintTimer);
+    hintTimer = setTimeout(() => { el.classList.add('fade'); hintVisible = false; }, 4000);
+  }
+
+  function isMobile() {
+    return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  }
+
+  // ── HUD (skip DOM writes when values unchanged) ──
+  let _hudP1 = -1, _hudP2 = -1, _hudSpeed = '';
+  function updateHUD() {
+    if (p1.score !== _hudP1) { $('hudP1Pts').textContent = _hudP1 = p1.score; }
+    if (p2.score !== _hudP2) { $('hudP2Pts').textContent = _hudP2 = p2.score; }
+    const spdText = rallyCount > 2 ? 'Rally \u00d7' + speedMult.toFixed(1) : '';
+    if (spdText !== _hudSpeed) { $('hudSpeed').textContent = _hudSpeed = spdText; }
+    renderMissDots('hudP1Misses', p1.misses);
+    renderMissDots('hudP2Misses', p2.misses);
+    $('hudP1Name').textContent = 'You';
+    $('hudP2Name').textContent = gameMode === 'single' ? 'AI' :
+      (window.PingPongNet && window.PingPongNet.opponentName ? window.PingPongNet.opponentName : 'Opponent');
+  }
+
+  function renderMissDots(containerId, count) {
+    const el = $(containerId);
+    if (!el.children.length) return;
+    for (let i = 0; i < MAX_MISSES; i++) {
+      if (i < count) el.children[i].classList.add('filled');
+      else el.children[i].classList.remove('filled');
+    }
+  }
+
+  // ─ Input handling ──
+  document.addEventListener('keydown', e => {
+    keys[e.key] = true;
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === ' ') e.preventDefault();
+  });
+  document.addEventListener('keyup', e => { keys[e.key] = false; });
+
+  // Touch
+  canvas.addEventListener('touchstart', handleTouch, { passive: false });
+  canvas.addEventListener('touchmove', handleTouch, { passive: false });
+  canvas.addEventListener('touchend', () => { touchP1 = null; });
+
+  function handleTouch(e) {
+    e.preventDefault();
+    if (!canvasRect) canvasRect = canvas.getBoundingClientRect();
+    for (const touch of e.touches) {
+      touchP1 = Math.max(0, Math.min(1, (touch.clientY - canvasRect.top) / canvasRect.height));
+    }
+  }
+
+  // Mouse (desktop single player)
+  let mouseActive = false;
+  canvas.addEventListener('mousedown', e => { mouseActive = true; handleMouse(e); });
+  canvas.addEventListener('mousemove', e => { if (mouseActive) handleMouse(e); });
+  document.addEventListener('mouseup', () => { mouseActive = false; });
+
+  function handleMouse(e) {
+    if (gameMode !== 'single') return;
+    if (!canvasRect) canvasRect = canvas.getBoundingClientRect();
+    touchP1 = Math.max(0, Math.min(1, (e.clientY - canvasRect.top) / canvasRect.height));
+  }
+
+  // ── Paddle movement ──
+  function movePaddles() {
+    // Player paddle (left)
+    if (keys['w'] || keys['W']) { p1.y -= PADDLE_SPEED; }
+    if (keys['s'] || keys['S']) { p1.y += PADDLE_SPEED; }
+    if (touchP1 !== null) {
+      p1.y = touchP1 * GH - PADDLE_H / 2;
+    }
+    p1.y = Math.max(0, Math.min(GH - PADDLE_H, p1.y));
+
+    // Opponent paddle (right) — AI or online opponent
+    if (gameMode === 'single') {
+      moveAI();
+    } else if (window.PingPongNet && window.PingPongNet.opponentY !== null) {
+      p2.y = window.PingPongNet.opponentY * GH - PADDLE_H / 2;
+    }
+  }
+
+  // ── AI Bot ──
+  let aiReaction = DIFFICULTIES.medium.aiReaction;
+  function moveAI() {
+    const d = DIFFICULTIES[difficulty];
+    aiReaction = Math.min(d.aiMax, d.aiReaction + rallyCount * d.aiImprove);
+    const target = ball.y - PADDLE_H / 2 + (Math.random() * 2 - 1) * d.aiError;
+    p2.y += (target - p2.y) * aiReaction;
+    p2.y = Math.max(0, Math.min(GH - PADDLE_H, p2.y));
+  }
+
+  // ── Ball physics ─
+  function updateBall() {
+    ball.x += ball.vx;
+    ball.y += ball.vy;
+
+    // Top/bottom bounce
+    if (ball.y - BALL_R < 0) { ball.y = BALL_R; ball.vy = Math.abs(ball.vy); }
+    if (ball.y + BALL_R > GH) { ball.y = GH - BALL_R; ball.vy = -Math.abs(ball.vy); }
+
+    // Trail
+    trail.push({ x: ball.x, y: ball.y });
+    if (trail.length > TRAIL_LENGTH) trail.shift();
+
+    // Left paddle collision
+    if (ball.vx < 0 && ball.x - BALL_R <= PADDLE_W &&
+        ball.y >= p1.y && ball.y <= p1.y + PADDLE_H) {
+      ball.vx = Math.abs(ball.vx);
+      onPaddleHit(1);
+    }
+
+    // Right paddle collision
+    if (ball.vx > 0 && ball.x + BALL_R >= GW - PADDLE_W &&
+        ball.y >= p2.y && ball.y <= p2.y + PADDLE_H) {
+      ball.vx = -Math.abs(ball.vx);
+      onPaddleHit(2);
+    }
+
+    // Score / miss
+    if (ball.x < -BALL_R * 2) {
+      // Ball passed left side — P2 scores, P1 misses
+      p2.score++;
+      p1.misses++;
+      p2.misses = 0; // P2 hit it last
+      totalPoints++;
+      onPointScored();
+    } else if (ball.x > GW + BALL_R * 2) {
+      // Ball passed right side — P1 scores, P2 misses
+      p1.score++;
+      p2.misses++;
+      p1.misses = 0;
+      totalPoints++;
+      onPointScored();
+    }
+  }
+
+  function onPaddleHit(player) {
+    rallyCount++;
+    speedMult = 1 + rallyCount * SPEED_INCREMENT;
+    const spd = (BASE_SPEED + totalPoints * POINT_SPEED_BONUS) * speedMult;
+    const clampedSpd = Math.min(spd, MAX_SPEED);
+
+    // Add slight angle variation based on where ball hit paddle
+    const paddle = player === 1 ? p1 : p2;
+    const hitPos = (ball.y - paddle.y) / PADDLE_H - 0.5; // -0.5 to 0.5
+    const angle = hitPos * 1.2; // max ~68 degrees
+
+    ball.vx = (player === 1 ? 1 : -1) * Math.cos(angle) * clampedSpd;
+    ball.vy = Math.sin(angle) * clampedSpd;
+
+    // Hit flash
+    paddle.hitFlash = 6;
+
+    // Squash effect
+    squashTimer = SQUASH_FRAMES;
+
+    // Spawn hit particles
+    spawnParticles(ball.x, ball.y, ball.vx);
+
+    // Send paddle state in online mode
+    if (gameMode === 'online' && window.PingPongNet) {
+      window.PingPongNet.sendState(p1.y / GH, rallyCount);
+    }
+
+    updateHUD();
+  }
+
+  function onPointScored() {
+    rallyCount = 0;
+    speedMult = 1;
+    aiReaction = DIFFICULTIES[difficulty].aiReaction;
+
+    // Border flash on score
+    borderFlash = BORDER_FLASH_FRAMES;
+
+    // Check 3-miss rule
+    if (p1.misses >= MAX_MISSES) {
+      endGame(2, 'misses');
+      return;
+    }
+    if (p2.misses >= MAX_MISSES) {
+      endGame(1, 'misses');
+      return;
+    }
+
+    // Check win by score
+    if (p1.score >= MAX_SCORE) { endGame(1, 'score'); return; }
+    if (p2.score >= MAX_SCORE) { endGame(2, 'score'); return; }
+
+    // Reset ball toward the scorer
+    const dir = p1.score > p2.score ? -1 : 1;
+    resetBall(dir);
+    updateHUD();
+  }
+
+  // ── End game ──
+  function endGame(winner, reason) {
+    mode = 'gameover';
+    if (animId) { cancelAnimationFrame(animId); animId = null; }
+
+    const resultEl = $('goResult');
+    resultEl.textContent = winner === 1 ? 'You Win!' : 'You Lose';
+    resultEl.className = 'go-result ' + (winner === 1 ? 'win' : 'lose');
+
+    if (reason === 'misses') {
+      resultEl.textContent += ' (3 Misses)';
+    }
+
+    $('goScore').textContent = p1.score + ' — ' + p2.score;
+
+    // Report XP for single player
+    const xpEl = $('goXp');
+    xpEl.textContent = '';
+    if (gameMode === 'single' && window.AthleteXP) {
+      const d = DIFFICULTIES[difficulty];
+      const xpScore = p1.score * d.xpMult;
+      const result = window.AthleteXP.report('ping-pong', xpScore);
+      if (result && result.then) {
+        result.then(r => {
+          if (r && r.awarded > 0) {
+            let txt = '+' + r.awarded + ' XP';
+            if (r.coins_awarded > 0) txt += ' \u00b7 +' + r.coins_awarded + ' coins';
+            xpEl.textContent = txt;
+          }
+        });
+      }
+    }
+    
+    // Show difficulty label
+    const diffEl = $('goDifficulty');
+    if (diffEl) diffEl.textContent = DIFFICULTIES[difficulty].label + ' difficulty';
+
+    showOverlay('gameOverOverlay');
+    $('pauseBtn').hidden = true;
+  }
+
+  // ── Particles ──
+  function spawnParticles(x, y, dirX) {
+    const dir = dirX > 0 ? 1 : -1;
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      const angle = (Math.random() - 0.5) * 1.2; // cone spread
+      const speed = 1.5 + Math.random() * 3;
+      particles.push({
+        x: x,
+        y: y,
+        vx: Math.cos(angle) * speed * dir,
+        vy: Math.sin(angle) * speed,
+        life: PARTICLE_LIFE,
+        maxLife: PARTICLE_LIFE,
+        size: 1.5 + Math.random() * 1.5
+      });
+    }
+  }
+
+  function updateParticles() {
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vx *= 0.94;
+      p.vy *= 0.94;
+      p.life--;
+      if (p.life <= 0) particles.splice(i, 1);
+    }
+  }
+
+  function drawParticles() {
+    for (const p of particles) {
+      const alpha = (p.life / p.maxLife) * 0.7;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,' + alpha + ')';
+      ctx.fill();
+    }
+  }
+
+  // ── Render ─
+  function render() {
+    ctx.clearRect(0, 0, GW, GH);
+
+    // 1. Court background — cached radial gradient
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, GW, GH);
+
+    // 2. Court border lines
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0.5, 0.5, GW - 1, GH - 1);
+
+    // 3. Center line — pre-rendered offscreen canvas
+    ctx.drawImage(centerLineCanvas, 0, 0);
+
+    // 4. Ball trail — smooth tapered path
+    drawTrail();
+
+    // 5. Particles
+    drawParticles();
+
+    // 6. Ball — 3D sphere with glow
+    drawBall();
+
+    // 7. Paddles — gradient with shadow
+    drawPaddle(0, p1.y, p1.hitFlash);
+    drawPaddle(GW - PADDLE_W, p2.y, p2.hitFlash);
+
+    // Decay hit flash
+    if (p1.hitFlash > 0) p1.hitFlash--;
+    if (p2.hitFlash > 0) p2.hitFlash--;
+
+    // Decay squash timer
+    if (squashTimer > 0) squashTimer--;
+
+    // Decay border flash
+    if (borderFlash > 0) borderFlash--;
+
+    // 8. Vignette overlay — cached gradient
+    ctx.fillStyle = vignetteGrad;
+    ctx.fillRect(0, 0, GW, GH);
+
+    // 9. Border flash
+    if (borderFlash > 0) {
+      const alpha = (borderFlash / BORDER_FLASH_FRAMES) * 0.3;
+      ctx.strokeStyle = 'rgba(255,255,255,' + alpha + ')';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(1, 1, GW - 2, GH - 2);
+    }
+  }
+
+  function drawTrail() {
+    if (trail.length < 2) return;
+    for (let i = 0; i < trail.length; i++) {
+      const t = i / trail.length;
+      const alpha = t * 0.25;
+      const r = BALL_R * t * 0.7;
+      ctx.beginPath();
+      ctx.arc(trail[i].x, trail[i].y, r, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,' + alpha + ')';
+      ctx.fill();
+    }
+  }
+
+  function drawBall() {
+    ctx.save();
+
+    // Squash/stretch transform
+    if (squashTimer > 0) {
+      const progress = 1 - squashTimer / SQUASH_FRAMES;
+      const ease = 1 - Math.pow(1 - progress, 3); // ease-out cubic
+      const scaleX = 1 + 0.3 * Math.sin(ease * Math.PI);
+      const scaleY = 1 - 0.4 * Math.sin(ease * Math.PI);
+      ctx.translate(ball.x, ball.y);
+      ctx.scale(scaleX, scaleY);
+      ctx.translate(-ball.x, -ball.y);
+    }
+
+    // Glow
+    ctx.shadowBlur = 14;
+    ctx.shadowColor = 'rgba(255,255,255,0.45)';
+
+    // 3D sphere — gradient must be at ball position (absolute coords)
+    const grad = ctx.createRadialGradient(
+      ball.x - BALL_R * 0.3, ball.y - BALL_R * 0.3, BALL_R * 0.1,
+      ball.x, ball.y, BALL_R
+    );
+    grad.addColorStop(0, '#fff');
+    grad.addColorStop(0.6, '#ddd');
+    grad.addColorStop(1, '#999');
+
+    ctx.beginPath();
+    ctx.arc(ball.x, ball.y, BALL_R, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  // ─ Cached static assets (position-independent, built once) ──
+  let bgGrad = null;
+  let vignetteGrad = null;
+  let centerLineCanvas = null;
+
+  function buildCachedAssets() {
+    // Background radial gradient
+    const bg = ctx.createRadialGradient(GW / 2, GH / 2, 0, GW / 2, GH / 2, GW * 0.7);
+    bg.addColorStop(0, '#111');
+    bg.addColorStop(1, '#000');
+    bgGrad = bg;
+
+    // Vignette overlay
+    const vg = ctx.createRadialGradient(GW / 2, GH / 2, GH * 0.3, GW / 2, GH / 2, GW * 0.75);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, 'rgba(0,0,0,0.45)');
+    vignetteGrad = vg;
+
+    // Pre-render center line to offscreen canvas (static, never changes)
+    const clc = document.createElement('canvas');
+    clc.width = GW;
+    clc.height = GH;
+    const clx = clc.getContext('2d');
+    const dashLen = 10;
+    const gapLen = 8;
+    const segments = Math.floor(GH / (dashLen + gapLen));
+    const startY = (GH - segments * (dashLen + gapLen)) / 2;
+    for (let i = 0; i < segments; i++) {
+      const y = startY + i * (dashLen + gapLen);
+      const midY = y + dashLen / 2;
+      const distFromCenter = Math.abs(midY - GH / 2) / (GH / 2);
+      const alpha = Math.max(0.04, 0.15 * (1 - distFromCenter * 0.7));
+      clx.strokeStyle = 'rgba(255,255,255,' + alpha + ')';
+      clx.lineWidth = 2;
+      clx.beginPath();
+      clx.moveTo(GW / 2, y);
+      clx.lineTo(GW / 2, y + dashLen);
+      clx.stroke();
+    }
+    centerLineCanvas = clc;
+  }
+  buildCachedAssets();
+
+  function drawPaddle(x, y, flash) {
+    ctx.save();
+
+    // Drop shadow
+    ctx.shadowBlur = 8;
+    ctx.shadowColor = 'rgba(255,255,255,0.12)';
+
+    // Gradient must match paddle position (canvas gradients are in absolute coords)
+    const grad = ctx.createLinearGradient(x, y, x, y + PADDLE_H);
+    if (flash > 0) {
+      grad.addColorStop(0, '#fff');
+      grad.addColorStop(0.5, '#fff');
+      grad.addColorStop(1, '#eee');
+    } else {
+      grad.addColorStop(0, '#fff');
+      grad.addColorStop(0.4, '#ccc');
+      grad.addColorStop(1, '#888');
+    }
+    ctx.fillStyle = grad;
+
+    // Capsule shape — arc radius must be <= PADDLE_W / 2
+    const r = PADDLE_W / 2;
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + PADDLE_W - r, y);
+    ctx.arc(x + PADDLE_W / 2, y, r, -Math.PI / 2, Math.PI / 2, true);
+    ctx.lineTo(x + r, y + PADDLE_H);
+    ctx.arc(x + PADDLE_W / 2, y + PADDLE_H, r, Math.PI / 2, -Math.PI / 2, true);
+    ctx.closePath();
+    ctx.fill();
+
+    // Hit glow ring
+    if (flash > 0) {
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = 'rgba(255,255,255,' + (flash / 6) * 0.5 + ')';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(x + PADDLE_W / 2, y + PADDLE_H / 2, PADDLE_H / 2 + 4, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+
+  // ── Game loop ──
+  function gameLoop(timestamp) {
+    if (mode !== 'playing') return;
+    lastTime = timestamp;
+    movePaddles();
+    updateBall();
+    updateParticles();
+    render();
+    animId = requestAnimationFrame(gameLoop);
+  }
+
+  // ── Pause ──
+  function togglePause() {
+    if (mode === 'playing') {
+      mode = 'paused';
+      if (animId) { cancelAnimationFrame(animId); animId = null; }
+      $('pauseBtn').innerHTML = '&#9654;'; // play icon
+    } else if (mode === 'paused') {
+      mode = 'playing';
+      lastTime = performance.now();
+      animId = requestAnimationFrame(gameLoop);
+      $('pauseBtn').innerHTML = '&#10074;&#10074;'; // pause icon
+    }
+  }
+
+  // ── UI Event wiring ──
+  document.addEventListener('click', e => {
+    const btn = e.target.closest('[data-mode]');
+    if (btn) { selectMode(btn.dataset.mode); return; }
+
+    const diffBtn = e.target.closest('.diff-btn');
+    if (diffBtn) { selectDifficulty(diffBtn.dataset.diff); return; }
+
+    if (e.target === $('diffBackBtn') || e.target.closest('#diffBackBtn')) {
+      showScreen('menuScreen');
+      mode = 'menu';
+      return;
+    }
+
+    if (e.target.closest('#instrToggle')) {
+      const panel = $('instrPanel');
+      const toggle = $('instrToggle');
+      panel.hidden = !panel.hidden;
+      toggle.classList.toggle('open', !panel.hidden);
+      return;
+    }
+
+    if (e.target === $('goPlayAgain') || e.target.closest('#goPlayAgain')) {
+      hideOverlay('gameOverOverlay');
+      if (gameMode === 'single') {
+        showScreen('diffScreen');
+        mode = 'menu';
+      } else {
+        startCountdown();
+      }
+      return;
+    }
+
+    if (e.target === $('goChangeMode') || e.target.closest('#goChangeMode')) {
+      hideOverlay('gameOverOverlay');
+      if (gameMode === 'online' && window.PingPongNet) window.PingPongNet.disconnect();
+      showScreen('menuScreen');
+      mode = 'menu';
+      return;
+    }
+
+    if (e.target === $('pauseBtn') || e.target.closest('#pauseBtn')) {
+      togglePause();
+      return;
+    }
+
+    if (e.target === $('lobbyBackBtn') || e.target.closest('#lobbyBackBtn')) {
+      if (window.PingPongNet) window.PingPongNet.disconnect();
+      showScreen('menuScreen');
+      mode = 'menu';
+      return;
+    }
+  });
+
+  // ── Online game start callback (called by ping-pong-net.js) ──
+  window.startOnlineGame = function(opponentName) {
+    showScreen('gameScreen');
+    resizeCanvas();
+    initGame();
+    if (opponentName) $('hudP2Name').textContent = opponentName;
+    startCountdown();
+  };
+
+  // ── Online paddle update callback ─
+  window.updateOpponentPaddle = function(normalizedY) {
+    if (mode === 'playing' || mode === 'countdown') {
+      p2.y = normalizedY * GH - PADDLE_H / 2;
+    }
+  };
+
+  // ── Online game end callback ──
+  window.endOnlineGame = function(winner, score1, score2) {
+    if (mode !== 'playing') return;
+    p1.score = score1;
+    p2.score = score2;
+    endGame(winner, 'score');
+  };
+
+  // ── Init ──
+  resizeCanvas();
+  window.addEventListener('resize', () => {
+    if (mode === 'playing' || mode === 'paused') resizeCanvas();
+  });
+
+})();

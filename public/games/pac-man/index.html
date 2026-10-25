@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Pac-Man — OFFCOMFRT Arcade</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ═══ Menu Screen ═══ -->
+<div class="screen active" id="menuScreen">
+  <div class="menu-inner">
+    <div class="brand">
+      <div class="brand-eyebrow">OFFCOMFRT Arcade</div>
+      <h1>Pac-Man</h1>
+    </div>
+    <div class="mode-btns">
+      <button class="mode-btn" data-mode="single">
+        <span class="mode-icon">&#9679;</span>
+        <span>
+          <span class="mode-label">Single Player</span>
+          <span class="mode-desc">Navigate the maze, eat pellets, dodge ghosts</span>
+        </span>
+      </button>
+      <button class="mode-btn" data-mode="online">
+        <span class="mode-icon">&#9673;</span>
+        <span>
+          <span class="mode-label">Online Match</span>
+          <span class="mode-desc">Compete live with up to 4 athletes</span>
+        </span>
+      </button>
+    </div>
+    <div class="instructions-toggle" id="instrToggle">How to play <span class="arrow">&#9660;</span></div>
+    <div class="instructions" id="instrPanel" hidden>
+      <p><b>Goal:</b> Eat all pellets in the maze before the ghosts catch you.</p>
+      <ul>
+        <li><b>Small dots</b> = 10 points</li>
+        <li><b>Large dots</b> = 50 points</li>
+        <li><b>3 lives</b> — lose one per ghost collision</li>
+        <li><b>Online:</b> Shared maze, highest score wins</li>
+      </ul>
+      <p><b>Controls:</b> Arrow keys / WASD on desktop. D-pad or swipe on mobile.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Lobby Screen ═══ -->
+<div class="screen" id="lobbyScreen">
+  <div class="lobby-inner">
+    <div class="lobby-header">
+      <div>
+        <div class="brand-eyebrow">OFFCOMFRT Arcade</div>
+        <h1 style="font:800 28px var(--f);margin-top:2px">Pac-Man Lobby</h1>
+      </div>
+      <div class="net-status" id="netStatus"><i></i><span id="netLabel">Connecting</span></div>
+    </div>
+
+    <div id="roomArea"></div>
+
+    <div class="lobby-grid">
+      <section>
+        <div class="lobby-section-header"><span>Live Athletes</span><span id="liveCount" class="mono" style="color:var(--dim)"></span></div>
+        <div class="lobby-list" id="athleteList"><div class="empty">No one online</div></div>
+      </section>
+      <section>
+        <div class="lobby-section-header"><span>Open Lobbies</span><span id="lobbyCount" class="mono" style="color:var(--dim)"></span></div>
+        <div class="lobby-list" id="lobbyList"><div class="empty">No open lobbies</div></div>
+      </section>
+    </div>
+
+    <button class="back-btn" id="lobbyBackBtn">Back to Menu</button>
+  </div>
+</div>
+
+<!-- ═══ Game Screen ══ -->
+<div class="screen" id="gameScreen">
+  <div class="game-wrap">
+    <canvas id="gameCanvas"></canvas>
+
+    <div class="hud" id="hud">
+      <div class="hud-row">
+        <div class="hud-item">
+          <span class="hud-label">Score</span>
+          <span class="hud-value" id="hudScore">0</span>
+        </div>
+        <div class="hud-item">
+          <span class="hud-label">Lives</span>
+          <span class="hud-value" id="hudLives">3</span>
+        </div>
+        <div class="hud-item">
+          <span class="hud-label">Pellets</span>
+          <span class="hud-value" id="hudPellets">0</span>
+        </div>
+        <div class="hud-item">
+          <span class="hud-label">Difficulty</span>
+          <span class="hud-value" id="hudDiff" style="font-size:clamp(12px,2.5vw,18px)">Lv.1</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="opp-scores" id="oppScores" hidden>
+      <div class="opp-score-row"><span id="oppName0">P2</span><b id="oppScore0">0</b></div>
+      <div class="opp-score-row"><span id="oppName1">P3</span><b id="oppScore1">0</b></div>
+      <div class="opp-score-row"><span id="oppName2">P4</span><b id="oppScore2">0</b></div>
+    </div>
+
+    <div class="controls-hint" id="controlsHint">Arrow keys / WASD to move</div>
+    <div class="pause-btn" id="pauseBtn" hidden>&#10074;&#10074;</div>
+
+    <!-- Virtual D-Pad -->
+    <div class="dpad" id="dpad">
+      <div class="dpad-btn" id="dpadUp">&#9650;</div>
+      <div class="dpad-btn" id="dpadLeft">&#9664;</div>
+      <div class="dpad-btn" id="dpadRight">&#9654;</div>
+      <div class="dpad-btn" id="dpadDown">&#9660;</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Countdown Overlay ═══ -->
+<div class="overlay hidden" id="countdownOverlay">
+  <div class="countdown-num" id="countdownNum">3</div>
+</div>
+
+<!-- ═══ Game Over Overlay ═══ -->
+<div class="overlay hidden" id="gameOverOverlay">
+  <div class="go-card">
+    <div class="go-result" id="goResult">Game Over</div>
+    <div class="go-score" id="goScore">Score: 0</div>
+    <div class="go-xp" id="goXp"></div>
+    <div class="go-btns">
+      <button class="go-btn primary" id="goPlayAgain">Play Again</button>
+      <button class="go-btn alt" id="goChangeMode">Change Mode</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Invite Toast ═══ -->
+<div id="inviteToast" class="invite-toast hidden"></div>
+
+<script src="../athlete-xp.js?v=3"></script>
+<script src="pac-man-net.js?v=3"></script>
+<script src="script.js?v=3"></script>
+</body>
+</html>
