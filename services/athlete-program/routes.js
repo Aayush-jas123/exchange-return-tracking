@@ -859,7 +859,7 @@ module.exports = function mountAthleteRoutes(app) {
 
       const { data: athlete, error } = await supabase
         .from('influencers')
-        .select('id, name, athlete_no, athlete_status, xp_total, coin_balance, standing_score, level_id, joined_at, instagram_handle, phone, leaderboard_opt_out, shipping_address, shipping_city, shipping_state, shipping_pin, shipping_landmark, address_type')
+        .select('id, name, athlete_no, athlete_status, xp_total, coin_balance, standing_score, level_id, joined_at, instagram_handle, phone, leaderboard_opt_out, shipping_address, shipping_city, shipping_state, shipping_pin, shipping_landmark, address_type, avatar_base, avatar_head, avatar_mark, avatar_ground, avatar_frame')
         .eq('id', influencerId)
         .single();
 
@@ -1177,6 +1177,24 @@ module.exports = function mountAthleteRoutes(app) {
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
 
+  // ── Game Unlocks (Admin) ──
+  app.get('/api/athlete-admin/game-unlocks', authAdmin, async (req, res) => {
+    try {
+      const unlocks = await GamificationService.getGameUnlocks();
+      res.json({ success: true, data: unlocks });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.patch('/api/athlete-admin/game-unlocks/:gameId', authAdmin, async (req, res) => {
+    try {
+      const { gameId } = req.params;
+      const { unlocked } = req.body;
+      if (typeof unlocked !== 'boolean') return res.status(400).json({ error: 'unlocked boolean required' });
+      const result = await GamificationService.updateGameUnlock(gameId, unlocked, req.adminToken);
+      res.json({ success: true, data: result });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
   // ── Streaks (Admin) ──
   app.get('/api/athlete-admin/streaks', authAdmin, async (req, res) => {
     try {
@@ -1328,6 +1346,16 @@ module.exports = function mountAthleteRoutes(app) {
     } catch (err) { res.status(err.status || 500).json({ error: err.message }); }
   });
 
+  // ── Game unlock status (which games are available to play) ──
+  app.get('/api/athlete/:token/games/unlocks', authAthlete, async (req, res) => {
+    try {
+      const { influencerId, scope } = req.athleteScope;
+      if (scope !== 'PROGRESS') return res.status(403).json({ error: 'Wrong scope' });
+      const unlocks = await GamificationService.getGameUnlocks();
+      res.json({ success: true, data: unlocks });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
   // ── Coin Shop (balance, coin sources, level-up bonuses; products land later) ──
   app.get('/api/athlete/:token/shop', authAthlete, async (req, res) => {
     try {
@@ -1439,14 +1467,70 @@ module.exports = function mountAthleteRoutes(app) {
       const { influencerId, scope } = req.athleteScope;
       if (scope !== 'PROGRESS') return res.status(403).json({ error: 'Wrong scope' });
 
-      const ALLOWED = ['name','instagram_handle','phone','shipping_address','shipping_city','shipping_state','shipping_pin','shipping_landmark','address_type'];
+      const ALLOWED = ['name','instagram_handle','phone','shipping_address','shipping_city','shipping_state','shipping_pin','shipping_landmark','address_type','avatar_base','avatar_head','avatar_mark','avatar_ground','avatar_frame'];
       const patch = {};
       for (const k of ALLOWED) {
         if (req.body[k] !== undefined) patch[k] = req.body[k];
       }
       if (Object.keys(patch).length === 0) return res.status(400).json({ error: 'No valid fields' });
 
-      const { data, error } = await supabase.from('influencers').update(patch).eq('id', influencerId).select('id,name,instagram_handle,phone,shipping_address,shipping_city,shipping_state,shipping_pin,shipping_landmark,address_type').single();
+      // Validate avatar slots against athlete's level ordinal
+      const AVATAR_SLOTS = {
+        avatar_base: 1,    // Unlocks at ordinal 1 (Comfort Level - 5)
+        avatar_head: 2,    // Unlocks at ordinal 2 (Comfort Level - 4)
+        avatar_mark: 3,    // Unlocks at ordinal 3 (Comfort Level - 3)
+        avatar_ground: 4,  // Unlocks at ordinal 4 (Comfort Level - 2)
+        avatar_frame: 5    // Unlocks at ordinal 5 (Comfort Level - 1)
+      };
+      const AVATAR_OPTIONS = {
+        avatar_base: ['stand', 'walk', 'reach', 'bow', 'sit'],
+        avatar_head: ['none', 'cap', 'hood', 'band', 'mask'],
+        avatar_mark: ['none', 'rain', 'breath', 'voice', 'eyes'],
+        avatar_ground: ['none', 'line', 'mat', 'blocks', 'water'],
+        avatar_frame: ['plain', 'ring', 'invert', 'cut', 'halo']
+      };
+      
+      // Get athlete's current level ordinal
+      const { data: athlete, error: athleteErr } = await supabase
+        .from('influencers')
+        .select('level_id')
+        .eq('id', influencerId)
+        .single();
+      if (athleteErr) throw athleteErr;
+      
+      let athleteOrdinal = 1; // Default to lowest level
+      if (athlete.level_id) {
+        const { data: level } = await supabase
+          .from('comfort_levels')
+          .select('ordinal')
+          .eq('id', athlete.level_id)
+          .single();
+        if (level) athleteOrdinal = level.ordinal;
+      }
+      
+      // Validate each avatar field being updated
+      for (const [field, value] of Object.entries(patch)) {
+        if (!field.startsWith('avatar_')) continue;
+        const requiredOrdinal = AVATAR_SLOTS[field];
+        if (!requiredOrdinal) continue;
+        
+        // Check if athlete has unlocked this slot
+        if (athleteOrdinal > requiredOrdinal) {
+          return res.status(403).json({ error: `Avatar slot ${field} requires level ordinal ${requiredOrdinal} or lower` });
+        }
+        
+        // Check if value is valid for this slot
+        if (!AVATAR_OPTIONS[field].includes(value)) {
+          return res.status(400).json({ error: `Invalid value '${value}' for ${field}` });
+        }
+        
+        // Special case: halo is only for Zero Comfort (ordinal 6)
+        if (field === 'avatar_frame' && value === 'halo' && athleteOrdinal !== 6) {
+          return res.status(403).json({ error: 'Halo frame requires Zero Comfort level' });
+        }
+      }
+
+      const { data, error } = await supabase.from('influencers').update(patch).eq('id', influencerId).select('id,name,instagram_handle,phone,shipping_address,shipping_city,shipping_state,shipping_pin,shipping_landmark,address_type,avatar_base,avatar_head,avatar_mark,avatar_ground,avatar_frame').single();
       if (error) throw error;
       res.json({ success: true, data });
     } catch (err) { res.status(500).json({ error: err.message }); }
