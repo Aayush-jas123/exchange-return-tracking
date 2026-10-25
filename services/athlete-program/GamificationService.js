@@ -766,9 +766,12 @@ const GamificationService = {
    * Get overall leaderboard with period support.
    */
   async getLeaderboard(period = 'all_time', limit = 20) {
+    const baseFields = 'id, name, athlete_no, xp_total, coin_balance, level_id, leaderboard_opt_out';
+    const avatarFields = ', avatar_base, avatar_head, avatar_mark, avatar_ground, avatar_frame';
+    
     let q = supabase
       .from('influencers')
-      .select('id, name, athlete_no, xp_total, coin_balance, level_id, leaderboard_opt_out, avatar_base, avatar_head, avatar_mark, avatar_ground, avatar_frame')
+      .select(baseFields + avatarFields)
       .eq('leaderboard_opt_out', false)
       .in('athlete_status', ['ACTIVE', 'ON_TRIAL']);
 
@@ -776,7 +779,20 @@ const GamificationService = {
     // For now, use total XP (all_time) — weekly/monthly can be enhanced later
     q = q.order('xp_total', { ascending: false }).limit(limit);
 
-    const { data, error } = await q;
+    let { data, error } = await q;
+    
+    // If avatar columns don't exist yet (migration not run), retry without them
+    if (error && error.message && error.message.includes('avatar_base')) {
+      q = supabase
+        .from('influencers')
+        .select(baseFields)
+        .eq('leaderboard_opt_out', false)
+        .in('athlete_status', ['ACTIVE', 'ON_TRIAL'])
+        .order('xp_total', { ascending: false })
+        .limit(limit);
+      ({ data, error } = await q);
+    }
+    
     if (error) throw error;
 
     // Enrich with level names
@@ -1185,7 +1201,26 @@ const GamificationService = {
   },
 
   async getRanks(influencerId) {
-    const { data: athletes, error } = await supabase.from('influencers').select('id, name, athlete_no, instagram_handle, xp_total, standing_score, level_id, avatar_base, avatar_head, avatar_mark, avatar_ground, avatar_frame').eq('leaderboard_opt_out', false).in('athlete_status', ['ACTIVE', 'ON_TRIAL']).order('xp_total', { ascending: false });
+    const baseFields = 'id, name, athlete_no, instagram_handle, xp_total, standing_score, level_id';
+    const avatarFields = ', avatar_base, avatar_head, avatar_mark, avatar_ground, avatar_frame';
+    
+    let { data: athletes, error } = await supabase
+      .from('influencers')
+      .select(baseFields + avatarFields)
+      .eq('leaderboard_opt_out', false)
+      .in('athlete_status', ['ACTIVE', 'ON_TRIAL'])
+      .order('xp_total', { ascending: false });
+    
+    // If avatar columns don't exist yet (migration not run), retry without them
+    if (error && error.message && error.message.includes('avatar_base')) {
+      ({ data: athletes, error } = await supabase
+        .from('influencers')
+        .select(baseFields)
+        .eq('leaderboard_opt_out', false)
+        .in('athlete_status', ['ACTIVE', 'ON_TRIAL'])
+        .order('xp_total', { ascending: false }));
+    }
+    
     if (error) throw error;
     const totalAthletes = (athletes || []).length;
     const rank = (athletes || []).findIndex(athlete => athlete.id === influencerId) + 1;

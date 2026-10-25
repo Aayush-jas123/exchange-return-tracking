@@ -857,11 +857,25 @@ module.exports = function mountAthleteRoutes(app) {
       const { influencerId, scope } = req.athleteScope;
       if (scope !== 'PROGRESS') return res.status(403).json({ error: 'Wrong scope' });
 
-      const { data: athlete, error } = await supabase
+      // Try with avatar columns first, fall back to without if columns don't exist yet
+      let athlete, error;
+      const baseFields = 'id, name, athlete_no, athlete_status, xp_total, coin_balance, standing_score, level_id, joined_at, instagram_handle, phone, leaderboard_opt_out, shipping_address, shipping_city, shipping_state, shipping_pin, shipping_landmark, address_type';
+      const avatarFields = ', avatar_base, avatar_head, avatar_mark, avatar_ground, avatar_frame';
+      
+      ({ data: athlete, error } = await supabase
         .from('influencers')
-        .select('id, name, athlete_no, athlete_status, xp_total, coin_balance, standing_score, level_id, joined_at, instagram_handle, phone, leaderboard_opt_out, shipping_address, shipping_city, shipping_state, shipping_pin, shipping_landmark, address_type, avatar_base, avatar_head, avatar_mark, avatar_ground, avatar_frame')
+        .select(baseFields + avatarFields)
         .eq('id', influencerId)
-        .single();
+        .single());
+      
+      // If avatar columns don't exist yet (migration not run), retry without them
+      if (error && error.message && error.message.includes('avatar_base')) {
+        ({ data: athlete, error } = await supabase
+          .from('influencers')
+          .select(baseFields)
+          .eq('id', influencerId)
+          .single());
+      }
 
       if (error) throw error;
 
@@ -1530,7 +1544,38 @@ module.exports = function mountAthleteRoutes(app) {
         }
       }
 
-      const { data, error } = await supabase.from('influencers').update(patch).eq('id', influencerId).select('id,name,instagram_handle,phone,shipping_address,shipping_city,shipping_state,shipping_pin,shipping_landmark,address_type,avatar_base,avatar_head,avatar_mark,avatar_ground,avatar_frame').single();
+      const baseReturnFields = 'id,name,instagram_handle,phone,shipping_address,shipping_city,shipping_state,shipping_pin,shipping_landmark,address_type';
+      const avatarReturnFields = ',avatar_base,avatar_head,avatar_mark,avatar_ground,avatar_frame';
+      
+      let { data, error } = await supabase
+        .from('influencers')
+        .update(patch)
+        .eq('id', influencerId)
+        .select(baseReturnFields + avatarReturnFields)
+        .single();
+      
+      // If avatar columns don't exist yet (migration not run), retry without them
+      if (error && error.message && error.message.includes('avatar_base')) {
+        // Remove avatar fields from patch if migration not run
+        const basePatch = { ...patch };
+        delete basePatch.avatar_base;
+        delete basePatch.avatar_head;
+        delete basePatch.avatar_mark;
+        delete basePatch.avatar_ground;
+        delete basePatch.avatar_frame;
+        
+        if (Object.keys(basePatch).length === 0) {
+          return res.status(400).json({ error: 'Avatar builder not yet available — database migration pending' });
+        }
+        
+        ({ data, error } = await supabase
+          .from('influencers')
+          .update(basePatch)
+          .eq('id', influencerId)
+          .select(baseReturnFields)
+          .single());
+      }
+      
       if (error) throw error;
       res.json({ success: true, data });
     } catch (err) { res.status(500).json({ error: err.message }); }
