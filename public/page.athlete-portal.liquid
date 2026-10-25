@@ -1482,7 +1482,7 @@ function refreshAllAvatars(){
   }catch(e){console.error('[Avatar] mobile sheet error:',e)}
   // Update desktop sidebar header
   try{
-    const sidebarAvatar=$('.sidebar-acct-avatar');
+    const sidebarAvatar=document.querySelector('.sidebar-acct-avatar');
     if(sidebarAvatar) sidebarAvatar.innerHTML=renderAthleteAvatar(a,36)||'';
   }catch(e){console.error('[Avatar] sidebar error:',e)}
   // Update top bar avatar buttons (mobile)
@@ -1817,7 +1817,7 @@ function updateSidebarAcct(){
   // Render avatar in sidebar header — with retry to handle timing issues
   function renderSidebarAvatar(){
     try{
-      const avatarEl=$('.sidebar-acct-avatar');
+      const avatarEl=document.querySelector('.sidebar-acct-avatar');
       if(avatarEl){
         const svg=renderAthleteAvatar(a,36);
         if(svg && svg.includes('<svg')){
