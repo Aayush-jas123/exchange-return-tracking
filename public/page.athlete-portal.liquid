@@ -1661,13 +1661,15 @@ function renderAvAvatar(){
   
   async function saveAvatar(){
     try{
-      await api('/profile',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      console.log('[Avatar] Saving:', cfg);
+      const result=await api('/profile',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({
         avatar_base:cfg.base,
         avatar_head:cfg.head,
         avatar_mark:cfg.mark,
         avatar_ground:cfg.ground,
         avatar_frame:cfg.frame
       })});
+      console.log('[Avatar] Save result:', result);
       toast('Avatar saved');
       if(S.athlete){
         S.athlete.avatar_base=cfg.base;
@@ -1919,13 +1921,15 @@ function sbRenderAvatar(){
   }
   async function saveAvatar(){
     try{
-      await api('/profile',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      console.log('[Avatar] Saving:', cfg);
+      const result=await api('/profile',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({
         avatar_base:cfg.base,
         avatar_head:cfg.head,
         avatar_mark:cfg.mark,
         avatar_ground:cfg.ground,
         avatar_frame:cfg.frame
       })});
+      console.log('[Avatar] Save result:', result);
       toast('Avatar saved');
       if(S.athlete){
         S.athlete.avatar_base=cfg.base;
@@ -2902,6 +2906,7 @@ async function loadPortal(){
       return;
     }
     const [progress,streak,board,climb,ranks,log,weekly,orders,commissions,productRequests]=results.map(r=>r.data);
+    console.log('[Avatar] Progress data loaded:', progress?.avatar_base, progress?.avatar_head, progress?.avatar_mark, progress?.avatar_ground, progress?.avatar_frame);
     Object.assign(S,{athlete:progress,streak:streak?.current_streak||0,leaderboard:board||[],climb,ranks,log:log||[],weekly,orders:orders||[],commissions:commissions||null,productRequests:productRequests||[]});
     dbg('all endpoints OK — entering portal','ok');
     renderProfile();updateSidebarAcct();$('taskStreak').innerHTML=S.streak+'<s> days</s>';renderClimb();renderBoard();renderRanks();renderLog();renderShop();await loadTasks();enterPortal();
