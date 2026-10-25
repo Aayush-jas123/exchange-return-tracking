@@ -34,6 +34,29 @@
   </div>
 </div>
 
+<!-- ══ Difficulty Select Screen ═══ -->
+<div id="diffScreen" class="screen">
+  <div class="menu-inner">
+    <div class="brand"><span class="brand-eyebrow">OFFCOMFRT Arcade</span><h1>Ping Pong</h1></div>
+    <div class="diff-label">Select Difficulty</div>
+    <div class="diff-btns">
+      <button class="diff-btn" data-diff="low">
+        <span class="diff-name">Low</span>
+        <span class="diff-desc">Easy AI &middot; 1x XP</span>
+      </button>
+      <button class="diff-btn active" data-diff="medium">
+        <span class="diff-name">Medium</span>
+        <span class="diff-desc">Balanced &middot; 2x XP</span>
+      </button>
+      <button class="diff-btn" data-diff="high">
+        <span class="diff-name">High</span>
+        <span class="diff-desc">Hard AI &middot; 3x XP</span>
+      </button>
+    </div>
+    <button class="diff-back" id="diffBackBtn">&larr; Back</button>
+  </div>
+</div>
+
 <!-- ═══ Online Lobby Screen ═══ -->
 <div id="lobbyScreen" class="screen">
   <div class="lobby-inner">
@@ -82,6 +105,7 @@
 <div id="gameOverOverlay" class="overlay hidden">
   <div class="go-card">
     <div class="go-result" id="goResult"></div>
+    <div class="go-difficulty" id="goDifficulty"></div>
     <div class="go-score" id="goScore"></div>
     <div class="go-xp" id="goXp"></div>
     <div class="go-btns">
@@ -94,8 +118,8 @@
 <!-- ═══ Invite Toast ═══ -->
 <div id="inviteToast" class="invite-toast hidden"></div>
 
-<script src="../athlete-xp.js?v=6"></script>
-<script src="ping-pong-net.js?v=6"></script>
-<script src="script.js?v=6"></script>
+<script src="../athlete-xp.js?v=7"></script>
+<script src="ping-pong-net.js?v=7"></script>
+<script src="script.js?v=8"></script>
 </body>
 </html>

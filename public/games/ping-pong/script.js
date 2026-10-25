@@ -24,19 +24,23 @@
   const SPEED_INCREMENT = 0.04;   // per paddle hit
   const POINT_SPEED_BONUS = 0.15; // per total point scored
   const PADDLE_SPEED = 10;
-  const AI_BASE_REACTION = 0.06;  // lerp factor
-  const AI_REACTION_IMPROVE = 0.003; // per rally hit
-  const AI_MAX_REACTION = 0.14;
-  const AI_ERROR = 18;            // px random offset
   const TRAIL_LENGTH = 8;
   const PARTICLE_COUNT = 7;
   const PARTICLE_LIFE = 15;
   const SQUASH_FRAMES = 6;
   const BORDER_FLASH_FRAMES = 20;
 
+  // ── Difficulty table ──
+  const DIFFICULTIES = {
+    low:    { label: 'Low',    aiReaction: 0.04, aiError: 30, aiImprove: 0.002, aiMax: 0.09, xpMult: 1 },
+    medium: { label: 'Medium', aiReaction: 0.06, aiError: 18, aiImprove: 0.003, aiMax: 0.14, xpMult: 2 },
+    high:   { label: 'High',   aiReaction: 0.11, aiError: 4,  aiImprove: 0.006, aiMax: 0.22, xpMult: 3 },
+  };
+
   // ── State ──
   let mode = 'menu';       // menu | lobby | countdown | playing | paused | gameover
   let gameMode = 'single'; // single | online
+  let difficulty = 'medium'; // low | medium | high
   let animId = null;
   let lastTime = 0;
   let hintTimer = 0;
@@ -69,6 +73,7 @@
   }
 
   function initGame() {
+    const d = DIFFICULTIES[difficulty];
     p1 = { y: GH / 2 - PADDLE_H / 2, score: 0, misses: 0, hitFlash: 0 };
     p2 = { y: GH / 2 - PADDLE_H / 2, score: 0, misses: 0, hitFlash: 0 };
     rallyCount = 0;
@@ -77,6 +82,7 @@
     particles = [];
     squashTimer = 0;
     borderFlash = 0;
+    aiReaction = d.aiReaction;
     resetBall();
   }
 
@@ -111,9 +117,19 @@
     if (m === 'online') {
       showScreen('lobbyScreen');
       if (window.PingPongNet) window.PingPongNet.connect();
-    } else {
-      startCountdown();
+    } else if (m === 'single') {
+      showScreen('diffScreen');
     }
+  }
+
+  function selectDifficulty(d) {
+    difficulty = d;
+    // Update active button state
+    const btns = document.querySelectorAll('.diff-btn');
+    for (let i = 0; i < btns.length; i++) {
+      btns[i].classList.toggle('active', btns[i].dataset.diff === d);
+    }
+    startCountdown();
   }
 
   // ── Countdown ──
@@ -244,11 +260,11 @@
   }
 
   // ── AI Bot ──
-  let aiReaction = AI_BASE_REACTION;
+  let aiReaction = DIFFICULTIES.medium.aiReaction;
   function moveAI() {
-    // Scale reaction with rally count
-    aiReaction = Math.min(AI_MAX_REACTION, AI_BASE_REACTION + rallyCount * AI_REACTION_IMPROVE);
-    const target = ball.y - PADDLE_H / 2 + (Math.random() * 2 - 1) * AI_ERROR;
+    const d = DIFFICULTIES[difficulty];
+    aiReaction = Math.min(d.aiMax, d.aiReaction + rallyCount * d.aiImprove);
+    const target = ball.y - PADDLE_H / 2 + (Math.random() * 2 - 1) * d.aiError;
     p2.y += (target - p2.y) * aiReaction;
     p2.y = Math.max(0, Math.min(GH - PADDLE_H, p2.y));
   }
@@ -332,7 +348,7 @@
   function onPointScored() {
     rallyCount = 0;
     speedMult = 1;
-    aiReaction = AI_BASE_REACTION;
+    aiReaction = DIFFICULTIES[difficulty].aiReaction;
 
     // Border flash on score
     borderFlash = BORDER_FLASH_FRAMES;
@@ -376,17 +392,23 @@
     const xpEl = $('goXp');
     xpEl.textContent = '';
     if (gameMode === 'single' && window.AthleteXP) {
-      const result = window.AthleteXP.report('ping-pong', p1.score);
+      const d = DIFFICULTIES[difficulty];
+      const xpScore = p1.score * d.xpMult;
+      const result = window.AthleteXP.report('ping-pong', xpScore);
       if (result && result.then) {
         result.then(r => {
           if (r && r.awarded > 0) {
             let txt = '+' + r.awarded + ' XP';
-            if (r.coins_awarded > 0) txt += ' · +' + r.coins_awarded + ' coins';
+            if (r.coins_awarded > 0) txt += ' \u00b7 +' + r.coins_awarded + ' coins';
             xpEl.textContent = txt;
           }
         });
       }
     }
+    
+    // Show difficulty label
+    const diffEl = $('goDifficulty');
+    if (diffEl) diffEl.textContent = DIFFICULTIES[difficulty].label + ' difficulty';
 
     showOverlay('gameOverOverlay');
     $('pauseBtn').hidden = true;
@@ -649,6 +671,15 @@
     const btn = e.target.closest('[data-mode]');
     if (btn) { selectMode(btn.dataset.mode); return; }
 
+    const diffBtn = e.target.closest('.diff-btn');
+    if (diffBtn) { selectDifficulty(diffBtn.dataset.diff); return; }
+
+    if (e.target === $('diffBackBtn') || e.target.closest('#diffBackBtn')) {
+      showScreen('menuScreen');
+      mode = 'menu';
+      return;
+    }
+
     if (e.target.closest('#instrToggle')) {
       const panel = $('instrPanel');
       const toggle = $('instrToggle');
@@ -659,7 +690,12 @@
 
     if (e.target === $('goPlayAgain') || e.target.closest('#goPlayAgain')) {
       hideOverlay('gameOverOverlay');
-      startCountdown();
+      if (gameMode === 'single') {
+        showScreen('diffScreen');
+        mode = 'menu';
+      } else {
+        startCountdown();
+      }
       return;
     }
 

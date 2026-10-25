@@ -169,7 +169,7 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
   }
   function roomState(rm) {
     return {
-      t: 'room', r: rm.code, host: rm.hostId, s: rm.status, dur: rm.game === 'ping-pong' ? 0 : RACE_MS,
+      t: 'room', r: rm.code, host: rm.hostId, s: rm.status, dur: (rm.game === 'ping-pong' || rm.game === 'pac-man') ? 0 : RACE_MS,
       m: [...rm.members.values()].map(m => ({ id: m.id, n: m.name, lv: m.level, c: m.c, wait: !!m.waiting, on: !!m.ws }))
     };
   }
@@ -250,7 +250,7 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
     rm.startAt = now() + COUNTDOWN_MS;
     rm.status = 'countdown';
 
-    if (rm.game === 'ping-pong') {
+    if (rm.game === 'ping-pong' || rm.game === 'pac-man') {
       // Lightweight start — no simulation replay needed
       for (const m of rm.members.values()) {
         Object.assign(m, { inRace: !!m.ws, waiting: !m.ws, alive: !!m.ws, dnf: false, sc: 0 });
@@ -443,6 +443,62 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
     }, 2000);
   }
 
+  // ── Pac-Man state relay (lightweight, no simulation) ──
+  const pmRateLimit = new Map(); // ws -> lastSendMs
+  function onPMState(ws, msg) {
+    const rm = ws.room && rooms.get(ws.room);
+    if (!rm || rm.game !== 'pac-man' || rm.status !== 'playing') return;
+    const nowMs = now();
+    const last = pmRateLimit.get(ws) || 0;
+    if (nowMs - last < 100) return; // 10Hz cap
+    pmRateLimit.set(ws, nowMs);
+    const m = rm.members.get(ws.athlete.id);
+    if (!m || !m.inRace) return;
+    // Relay position + score to all other players
+    const payload = JSON.stringify({ t: 'ps', p: [[m.id, Math.round((msg.x || 0) * 100), Math.round((msg.y || 0) * 100), msg.s || 0]] });
+    for (const other of rm.members.values()) {
+      if (other.id !== m.id && other.ws) send(other.ws, payload);
+    }
+  }
+  async function onPMEnd(ws, msg) {
+    const rm = ws.room && rooms.get(ws.room);
+    if (!rm || rm.game !== 'pac-man') return;
+    const scores = msg.scores || [];
+    // Find highest scorer for XP award
+    let bestScore = 0;
+    let bestId = null;
+    for (const s of scores) {
+      if (s.score > bestScore) { bestScore = s.score; bestId = s.id; }
+    }
+    if (bestId) {
+      try {
+        const runId = 'pm_' + rm.raceId + '_' + bestId;
+        await awardRun(bestId, bestScore, runId);
+      } catch (e) { console.error('[RaceHub] pac-man XP award failed:', e.message); }
+    }
+    // Build results
+    const members = [...rm.members.values()];
+    const rows = members.map(m => {
+      const entry = scores.find(s => String(s.id) === String(m.id));
+      return { id: m.id, n: m.name, c: m.c, sc: entry ? entry.score : 0, rank: 0, xp: 0, why: null };
+    });
+    rows.sort((a, b) => b.sc - a.sc);
+    rows.forEach((r, i) => { r.rank = i + 1; });
+    broadcastRoom(rm, { t: 'res', race: rm.raceId, rows });
+    // Cleanup room
+    rm.status = 'results';
+    for (const m of members) { m.inRace = false; m.alive = false; }
+    clearTimeout(rm.timer);
+    setTimeout(() => {
+      if (rooms.has(rm.code)) {
+        rm.status = 'lobby';
+        for (const m of [...rm.members.values()]) { if (!m.ws) rm.members.delete(m.id); }
+        if (!rm.members.size) { rooms.delete(rm.code); schedulePresence(); return; }
+        afterMemberGone(rm);
+      }
+    }, 2000);
+  }
+
   function invite(ws, to) {
     const me = ws.athlete;
     const target = athletes.get(to) || athletes.get(Number(to));
@@ -464,7 +520,8 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
   function createRoom(ws, gameType) {
     if (ws.room) leaveRoom(ws);
     const isPP = gameType === 'ping-pong';
-    const rm = { code: newCode(), hostId: ws.athlete.id, status: 'lobby', members: new Map(), seed: 0, raceId: null, startAt: 0, timer: null, game: isPP ? 'ping-pong' : 'rooftop-racing', max: isPP ? 2 : MAX_ROOM };
+    const isPM = gameType === 'pac-man';
+    const rm = { code: newCode(), hostId: ws.athlete.id, status: 'lobby', members: new Map(), seed: 0, raceId: null, startAt: 0, timer: null, game: isPP ? 'ping-pong' : isPM ? 'pac-man' : 'rooftop-racing', max: isPP ? 2 : isPM ? 4 : MAX_ROOM };
     rooms.set(rm.code, rm);
     joinRoom(ws, rm);
     return rm;
@@ -505,6 +562,8 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
       if (msg.t === 'create') return createRoom(ws, msg.game);
       if (msg.t === 'pp_state') return onPPState(ws, msg);
       if (msg.t === 'pp_end') return onPPEnd(ws, msg);
+      if (msg.t === 'pm_state') return onPMState(ws, msg);
+      if (msg.t === 'pm_end') return onPMEnd(ws, msg);
       if (msg.t === 'join') {
         const rm = rooms.get(String(msg.r || '').toUpperCase());
         if (!rm) return send(ws, { t: 'err', m: 'That lobby has closed' });
