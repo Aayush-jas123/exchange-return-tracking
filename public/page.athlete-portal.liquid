@@ -1832,8 +1832,10 @@ function updateSidebarAcct(){
     }catch(e){console.error('[Avatar] sidebar render error:',e)}
   }
   renderSidebarAvatar();
-  // Retry after 500ms in case of timing issues
+  // Retry multiple times to handle DOM timing issues
   setTimeout(renderSidebarAvatar, 500);
+  setTimeout(renderSidebarAvatar, 1500);
+  setTimeout(renderSidebarAvatar, 3000);
   const dc=a.discount_code||null;
   $('sbValCode').textContent=dc?`${dc.code} · ${dc.percent}%`:'No code';
   const fmt=v=>'\u20B9'+Number(v||0).toLocaleString('en-IN');
