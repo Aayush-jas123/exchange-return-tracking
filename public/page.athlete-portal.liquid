@@ -1473,22 +1473,28 @@ function renderAthleteAvatar(athlete,sz){
 function refreshAllAvatars(){
   const a=S.athlete||{};
   // Update mobile account sheet header if open
-  const avBody=$('avBody');
-  if(avBody && $('avSheet').classList.contains('on')){
-    const idcard=avBody.querySelector('.idcard .big');
-    if(idcard) idcard.innerHTML=renderAthleteAvatar(a,42);
-  }
+  try{
+    const avBody=$('avBody');
+    if(avBody && $('avSheet').classList.contains('on')){
+      const idcard=avBody.querySelector('.idcard .big');
+      if(idcard) idcard.innerHTML=renderAthleteAvatar(a,42);
+    }
+  }catch(e){console.error('[Avatar] mobile sheet error:',e)}
   // Update desktop sidebar header
-  const sidebarAvatar=$('.sidebar-acct-avatar');
-  if(sidebarAvatar) sidebarAvatar.innerHTML=renderAthleteAvatar(a,36);
+  try{
+    const sidebarAvatar=$('.sidebar-acct-avatar');
+    if(sidebarAvatar) sidebarAvatar.innerHTML=renderAthleteAvatar(a,36)||'';
+  }catch(e){console.error('[Avatar] sidebar error:',e)}
   // Update top bar avatar buttons (mobile)
-  document.querySelectorAll('.avbtn').forEach(btn=>{
-    btn.innerHTML=renderAthleteAvatar(a,26);
-  });
+  try{
+    document.querySelectorAll('.avbtn').forEach(btn=>{
+      btn.innerHTML=renderAthleteAvatar(a,26)||'';
+    });
+  }catch(e){console.error('[Avatar] topbar error:',e)}
   // Update athlete list in Games tab if visible
-  if($('athleteList')) renderLobby();
+  try{ if($('athleteList')) renderLobby(); }catch(e){}
   // Update ranks if visible
-  if($('ranksBody')) renderRanks();
+  try{ if($('ranksBody')) renderRanks(); }catch(e){}
 }
 
 // ── Debug logger: console + on-page diagnostics panel ──
@@ -1808,9 +1814,14 @@ function updateSidebarAcct(){
   const lvl=a.level?a.level.display_name:'—';
   $('sbAcctName').textContent=a.name||'Athlete';
   $('sbAcctMeta').textContent=`${esc(handle)} · ${esc(lvl)}`;
-  // Render avatar in sidebar header
-  const avatarEl=$('.sidebar-acct-avatar');
-  if(avatarEl) avatarEl.innerHTML=renderAthleteAvatar(a,36);
+  // Render avatar in sidebar header — isolated so errors elsewhere don't block it
+  try{
+    const avatarEl=$('.sidebar-acct-avatar');
+    if(avatarEl){
+      const svg=renderAthleteAvatar(a,36);
+      avatarEl.innerHTML=svg||'';
+    }
+  }catch(e){console.error('[Avatar] sidebar render error:',e)}
   const dc=a.discount_code||null;
   $('sbValCode').textContent=dc?`${dc.code} · ${dc.percent}%`:'No code';
   const fmt=v=>'\u20B9'+Number(v||0).toLocaleString('en-IN');
