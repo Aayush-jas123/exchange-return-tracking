@@ -105,6 +105,14 @@ html, body {
   margin-top: 2px;
 }
 
+/* ── Menu high score ── */
+.menu-highscore {
+  font: 700 14px var(--m);
+  color: var(--dim);
+  margin-bottom: 16px;
+  letter-spacing: .05em;
+}
+
 /* ── Instructions ── */
 .instructions-toggle {
   font: 600 13px var(--f);
@@ -415,6 +423,20 @@ html, body {
   line-height: 1;
 }
 
+/* ── Frightened mode indicator ── */
+.hud-fear {
+  text-align: center;
+  font: 800 12px var(--m);
+  color: var(--text);
+  letter-spacing: .15em;
+  margin-top: 4px;
+  animation: fearPulse 0.6s ease-in-out infinite alternate;
+}
+@keyframes fearPulse {
+  from { opacity: 0.6; }
+  to { opacity: 1; }
+}
+
 /* ── Online scores panel ── */
 .opp-scores {
   position: absolute;
@@ -564,6 +586,22 @@ html, body {
   font: 600 16px var(--f);
   color: var(--dim);
   margin-bottom: 4px;
+}
+.go-highscore {
+  font: 700 13px var(--m);
+  color: var(--dim);
+  margin-bottom: 4px;
+}
+.go-newhigh {
+  font: 800 16px var(--m);
+  color: var(--text);
+  letter-spacing: .1em;
+  margin-bottom: 8px;
+  animation: newHighPulse 0.8s ease-in-out infinite alternate;
+}
+@keyframes newHighPulse {
+  from { opacity: 0.7; transform: scale(1); }
+  to { opacity: 1; transform: scale(1.05); }
 }
 .go-xp {
   font: 700 14px var(--m);
