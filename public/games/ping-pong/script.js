@@ -7,6 +7,8 @@
   // ── DOM refs (cached) ──
   const $ = id => document.getElementById(id);
   const canvas = $('gameCanvas');
+  const pointIndicator = $('pointIndicator');
+  const pointLabel = $('pointLabel');
   const ctx = canvas.getContext('2d');
   const screens = document.querySelectorAll('.screen');
   let canvasRect = null;
@@ -14,11 +16,10 @@
   // ── Constants ──
   const GW = 600;   // game width (logical)
   const GH = 400;   // game height (logical)
-  const PADDLE_W = 10;
+  const PADDLE_W = 12;
   const PADDLE_H = 70;
   const BALL_R = 8;
-  const MAX_SCORE = 10;
-  const MAX_MISSES = 3;
+  const MAX_SCORE = 5;
   const BASE_SPEED = 4.5;
   const MAX_SPEED = 11;
   const SPEED_INCREMENT = 0.04;   // per paddle hit
@@ -29,12 +30,14 @@
   const PARTICLE_LIFE = 15;
   const SQUASH_FRAMES = 6;
   const BORDER_FLASH_FRAMES = 20;
+  const BALL_GLOW_BLUR = 22;
+  const BALL_GLOW_COLOR = 'rgba(255,255,255,0.70)';
 
   // ── Difficulty table ──
   const DIFFICULTIES = {
-    low:    { label: 'Low',    aiReaction: 0.04, aiError: 30, aiImprove: 0.002, aiMax: 0.09, xpMult: 1 },
-    medium: { label: 'Medium', aiReaction: 0.06, aiError: 18, aiImprove: 0.003, aiMax: 0.14, xpMult: 2 },
-    high:   { label: 'High',   aiReaction: 0.11, aiError: 4,  aiImprove: 0.006, aiMax: 0.22, xpMult: 3 },
+    low:    { label: 'Low',    aiReaction: 0.02, aiError: 50, aiImprove: 0.001, aiMax: 0.05, xpMult: 1, baseSpeed: 3.5, maxSpeed: 8,  speedIncrement: 0.03, pointSpeedBonus: 0.10 },
+    medium: { label: 'Medium', aiReaction: 0.06, aiError: 18, aiImprove: 0.003, aiMax: 0.14, xpMult: 2, baseSpeed: 4.5, maxSpeed: 11, speedIncrement: 0.04, pointSpeedBonus: 0.15 },
+    high:   { label: 'High',   aiReaction: 0.11, aiError: 4,  aiImprove: 0.006, aiMax: 0.22, xpMult: 3, baseSpeed: 5.5, maxSpeed: 14, speedIncrement: 0.06, pointSpeedBonus: 0.20 },
   };
 
   // ── State ──
@@ -54,6 +57,86 @@
   let particles = [];
   let squashTimer = 0;
   let borderFlash = 0;
+  let pointPause = false;
+  let pointPauseFrames = 0;
+  let lastScorer = 0; // 1 = player, 2 = AI/bot
+  const POINT_PAUSE_FRAMES = 120; // 2 seconds at 60fps
+
+  // ── Quote panels ──
+  const QUOTE_POOL = [
+    { t: 'He who has a why to live\ncan bear almost any how.', a: 'Friedrich Nietzsche' },
+    { t: 'The impediment to action\nadvances action.', a: 'Marcus Aurelius' },
+    { t: 'It always seems impossible\nuntil it\'s done.', a: 'Nelson Mandela' },
+    { t: 'Fortune favors the bold.', a: 'Latin maxim' },
+    { t: 'No guts, no glory.', a: '' },
+    { t: 'Fall seven times,\nstand up eight.', a: 'Japanese proverb' },
+    { t: 'UNCOMFORTABLY BETTER.', a: '' },
+    { t: 'NOT MADE TO SETTLE.', a: '' },
+    { t: 'GROW AGAINST GRAVITY.', a: '' },
+    { t: 'NEVER FINISHED.', a: '' },
+    { t: 'PROGRESS OVER PEACE.', a: '' },
+    { t: 'REST. NEVER RETREAT.', a: '' },
+    { t: 'BECOMING IS BRUTAL.', a: '' },
+    { t: 'OUTWORK YOUR EXCUSES.', a: '' },
+    { t: 'BUILT IN SILENCE.', a: '' },
+    { t: 'NOT HERE TO COAST.', a: '' },
+    { t: 'CHOOSE THE HARDER WAY.', a: '' },
+    { t: 'MORE THAN POTENTIAL.', a: '' },
+  ];
+
+  let quoteTimers = [];
+
+  function pickQuote(excludeIdx) {
+    let idx;
+    do { idx = Math.floor(Math.random() * QUOTE_POOL.length); }
+    while (idx === excludeIdx && QUOTE_POOL.length > 1);
+    return { q: QUOTE_POOL[idx], idx: idx };
+  }
+
+  function showQuote(panelId, textId, excludeIdx) {
+    const panel = $(panelId);
+    const textEl = $(textId);
+    if (!panel || !textEl) return -1;
+    const { q, idx } = pickQuote(excludeIdx);
+    // Fade out, swap text while hidden, fade back in — no animation/transition conflict
+    panel.classList.remove('visible');
+    setTimeout(function() {
+      textEl.textContent = q.t;
+      textEl.className = 'qp-text' + (q.a ? ' small' : '');
+      const oldAttr = panel.querySelector('.qp-attr');
+      if (oldAttr) oldAttr.remove();
+      if (q.a) {
+        const attr = document.createElement('div');
+        attr.className = 'qp-attr';
+        attr.textContent = '\u2014 ' + q.a;
+        attr.style.cssText = 'font:600 10px/1 var(--m);color:#666;letter-spacing:.04em;margin-bottom:12px;';
+        panel.insertBefore(attr, panel.querySelector('.qp-brand'));
+      }
+      panel.classList.add('visible');
+    }, 400);
+    return idx;
+  }
+
+  function startQuoteRotation() {
+    stopQuoteRotation();
+    const leftEl = $('quoteLeft');
+    const rightEl = $('quoteRight');
+    if (!leftEl || !rightEl) return;
+    let leftIdx = -1, rightIdx = -1;
+    leftIdx = showQuote('quoteLeft', 'quoteLeftText', leftIdx);
+    rightIdx = showQuote('quoteRight', 'quoteRightText', leftIdx);
+    quoteTimers.push(setInterval(function() {
+      leftIdx = showQuote('quoteLeft', 'quoteLeftText', leftIdx);
+    }, 8000));
+    quoteTimers.push(setInterval(function() {
+      rightIdx = showQuote('quoteRight', 'quoteRightText', rightIdx);
+    }, 12000));
+  }
+
+  function stopQuoteRotation() {
+    quoteTimers.forEach(clearInterval);
+    quoteTimers = [];
+  }
 
   // Input
   const keys = {};
@@ -62,7 +145,7 @@
   // ── Helpers ──
   function resetBall(direction) {
     const angle = (Math.random() * 0.8 - 0.4); // -0.4 to 0.4 rad
-    const spd = BASE_SPEED + totalPoints * POINT_SPEED_BONUS;
+    const spd = curDiff.baseSpeed + totalPoints * curDiff.pointSpeedBonus;
     ball = {
       x: GW / 2,
       y: GH / 2,
@@ -82,7 +165,12 @@
     particles = [];
     squashTimer = 0;
     borderFlash = 0;
+    pointPause = false;
+    pointPauseFrames = 0;
+    pointIndicator.classList.remove('visible');
+    canvas.parentElement.classList.remove('paused');
     aiReaction = d.aiReaction;
+    curDiff = d;
     resetBall();
   }
 
@@ -95,8 +183,12 @@
     let w, h;
     if (ww / wh > ratio) { h = wh; w = h * ratio; }
     else { w = ww; h = w / ratio; }
+    // Constrain canvas to 70% of viewport width to create side margins for quote panels
+    const maxW = ww * 0.70;
+    if (w > maxW) { w = maxW; h = w / ratio; }
     canvas.style.width = w + 'px';
     canvas.style.height = h + 'px';
+    wrap.style.setProperty('--cw', w);
     canvas.width = GW;
     canvas.height = GH;
     canvasRect = null; // invalidate cached rect
@@ -156,10 +248,10 @@
         el.style.animation = 'none';
         el.offsetHeight; // reflow
         el.style.animation = '';
-        countdownTimer = setTimeout(tick, 800);
+        countdownTimer = setTimeout(tick, 1000);
       }
     };
-    countdownTimer = setTimeout(tick, 800);
+    countdownTimer = setTimeout(tick, 1000);
   }
 
   function beginPlay() {
@@ -167,6 +259,7 @@
     $('pauseBtn').hidden = false;
     showHint();
     updateHUD();
+    startQuoteRotation();
     if (animId) cancelAnimationFrame(animId);
     lastTime = performance.now();
     animId = requestAnimationFrame(gameLoop);
@@ -177,7 +270,7 @@
     const el = $('controlsHint');
     hintVisible = true;
     el.classList.remove('fade');
-    el.textContent = isMobile() ? 'Touch & drag to move paddle' : 'W / S keys to move';
+    el.textContent = isMobile() ? 'Touch & drag to move paddle' : 'Arrow keys to move';
     clearTimeout(hintTimer);
     hintTimer = setTimeout(() => { el.classList.add('fade'); hintVisible = false; }, 4000);
   }
@@ -193,20 +286,9 @@
     if (p2.score !== _hudP2) { $('hudP2Pts').textContent = _hudP2 = p2.score; }
     const spdText = rallyCount > 2 ? 'Rally \u00d7' + speedMult.toFixed(1) : '';
     if (spdText !== _hudSpeed) { $('hudSpeed').textContent = _hudSpeed = spdText; }
-    renderMissDots('hudP1Misses', p1.misses);
-    renderMissDots('hudP2Misses', p2.misses);
     $('hudP1Name').textContent = 'You';
     $('hudP2Name').textContent = gameMode === 'single' ? 'AI' :
       (window.PingPongNet && window.PingPongNet.opponentName ? window.PingPongNet.opponentName : 'Opponent');
-  }
-
-  function renderMissDots(containerId, count) {
-    const el = $(containerId);
-    if (!el.children.length) return;
-    for (let i = 0; i < MAX_MISSES; i++) {
-      if (i < count) el.children[i].classList.add('filled');
-      else el.children[i].classList.remove('filled');
-    }
   }
 
   // ─ Input handling ──
@@ -244,8 +326,8 @@
   // ── Paddle movement ──
   function movePaddles() {
     // Player paddle (left)
-    if (keys['w'] || keys['W']) { p1.y -= PADDLE_SPEED; }
-    if (keys['s'] || keys['S']) { p1.y += PADDLE_SPEED; }
+    if (keys['ArrowUp']) { p1.y -= PADDLE_SPEED; }
+    if (keys['ArrowDown']) { p1.y += PADDLE_SPEED; }
     if (touchP1 !== null) {
       p1.y = touchP1 * GH - PADDLE_H / 2;
     }
@@ -261,6 +343,7 @@
 
   // ── AI Bot ──
   let aiReaction = DIFFICULTIES.medium.aiReaction;
+  let curDiff = DIFFICULTIES.medium; // current difficulty row, set in initGame()
   function moveAI() {
     const d = DIFFICULTIES[difficulty];
     aiReaction = Math.min(d.aiMax, d.aiReaction + rallyCount * d.aiImprove);
@@ -296,29 +379,23 @@
       onPaddleHit(2);
     }
 
-    // Score / miss
+    // Score
     if (ball.x < -BALL_R * 2) {
-      // Ball passed left side — P2 scores, P1 misses
       p2.score++;
-      p1.misses++;
-      p2.misses = 0; // P2 hit it last
       totalPoints++;
-      onPointScored();
+      onPointScored(2);
     } else if (ball.x > GW + BALL_R * 2) {
-      // Ball passed right side — P1 scores, P2 misses
       p1.score++;
-      p2.misses++;
-      p1.misses = 0;
       totalPoints++;
-      onPointScored();
+      onPointScored(1);
     }
   }
 
   function onPaddleHit(player) {
     rallyCount++;
-    speedMult = 1 + rallyCount * SPEED_INCREMENT;
-    const spd = (BASE_SPEED + totalPoints * POINT_SPEED_BONUS) * speedMult;
-    const clampedSpd = Math.min(spd, MAX_SPEED);
+    speedMult = 1 + rallyCount * curDiff.speedIncrement;
+    const spd = (curDiff.baseSpeed + totalPoints * curDiff.pointSpeedBonus) * speedMult;
+    const clampedSpd = Math.min(spd, curDiff.maxSpeed);
 
     // Add slight angle variation based on where ball hit paddle
     const paddle = player === 1 ? p1 : p2;
@@ -345,7 +422,7 @@
     updateHUD();
   }
 
-  function onPointScored() {
+  function onPointScored(scorer) {
     rallyCount = 0;
     speedMult = 1;
     aiReaction = DIFFICULTIES[difficulty].aiReaction;
@@ -353,23 +430,17 @@
     // Border flash on score
     borderFlash = BORDER_FLASH_FRAMES;
 
-    // Check 3-miss rule
-    if (p1.misses >= MAX_MISSES) {
-      endGame(2, 'misses');
-      return;
-    }
-    if (p2.misses >= MAX_MISSES) {
-      endGame(1, 'misses');
-      return;
-    }
-
     // Check win by score
     if (p1.score >= MAX_SCORE) { endGame(1, 'score'); return; }
     if (p2.score >= MAX_SCORE) { endGame(2, 'score'); return; }
 
-    // Reset ball toward the scorer
-    const dir = p1.score > p2.score ? -1 : 1;
-    resetBall(dir);
+    // Pause 2 seconds, show scorer, then serve from scorer's side
+    lastScorer = scorer;
+    pointPause = true;
+    pointPauseFrames = POINT_PAUSE_FRAMES;
+    pointLabel.textContent = scorer === 1 ? 'YOUR POINT' : 'AI POINT';
+    pointIndicator.classList.add('visible');
+    canvas.parentElement.classList.add('paused');
     updateHUD();
   }
 
@@ -377,6 +448,10 @@
   function endGame(winner, reason) {
     mode = 'gameover';
     if (animId) { cancelAnimationFrame(animId); animId = null; }
+    stopQuoteRotation();
+    const ql = $('quoteLeft'), qr = $('quoteRight');
+    if (ql) ql.classList.remove('visible');
+    if (qr) qr.classList.remove('visible');
 
     const resultEl = $('goResult');
     resultEl.textContent = winner === 1 ? 'You Win!' : 'You Lose';
@@ -534,8 +609,8 @@
     }
 
     // Glow
-    ctx.shadowBlur = 14;
-    ctx.shadowColor = 'rgba(255,255,255,0.45)';
+    ctx.shadowBlur = BALL_GLOW_BLUR;
+    ctx.shadowColor = BALL_GLOW_COLOR;
 
     // 3D sphere — gradient must be at ball position (absolute coords)
     const grad = ctx.createRadialGradient(
@@ -601,8 +676,8 @@
     ctx.save();
 
     // Drop shadow
-    ctx.shadowBlur = 8;
-    ctx.shadowColor = 'rgba(255,255,255,0.12)';
+    ctx.shadowBlur = flash > 0 ? 16 : 12;
+    ctx.shadowColor = flash > 0 ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.20)';
 
     // Gradient must match paddle position (canvas gradients are in absolute coords)
     const grad = ctx.createLinearGradient(x, y, x, y + PADDLE_H);
@@ -612,8 +687,8 @@
       grad.addColorStop(1, '#eee');
     } else {
       grad.addColorStop(0, '#fff');
-      grad.addColorStop(0.4, '#ccc');
-      grad.addColorStop(1, '#888');
+      grad.addColorStop(0.4, '#ddd');
+      grad.addColorStop(1, '#777');
     }
     ctx.fillStyle = grad;
 
@@ -628,15 +703,21 @@
     ctx.closePath();
     ctx.fill();
 
-    // Hit glow ring
+    // Outline ring — always visible, expands + glows on hit
+    const ringBase = PADDLE_H / 2 + 3;
+    ctx.strokeStyle = flash > 0
+      ? 'rgba(255,255,255,' + (0.15 + (flash / 6) * 0.55) + ')'
+      : 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = flash > 0 ? 2.5 : 1;
     if (flash > 0) {
+      ctx.shadowBlur = 14;
+      ctx.shadowColor = 'rgba(255,255,255,0.45)';
+    } else {
       ctx.shadowBlur = 0;
-      ctx.strokeStyle = 'rgba(255,255,255,' + (flash / 6) * 0.5 + ')';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(x + PADDLE_W / 2, y + PADDLE_H / 2, PADDLE_H / 2 + 4, 0, Math.PI * 2);
-      ctx.stroke();
     }
+    ctx.beginPath();
+    ctx.arc(x + PADDLE_W / 2, y + PADDLE_H / 2, ringBase + (flash > 0 ? 5 : 0), 0, Math.PI * 2);
+    ctx.stroke();
 
     ctx.restore();
   }
@@ -646,7 +727,17 @@
     if (mode !== 'playing') return;
     lastTime = timestamp;
     movePaddles();
-    updateBall();
+    if (pointPause) {
+      pointPauseFrames--;
+      if (pointPauseFrames <= 0) {
+        pointPause = false;
+        pointIndicator.classList.remove('visible');
+        canvas.parentElement.classList.remove('paused');
+        resetBall(lastScorer === 1 ? -1 : 1);
+      }
+    } else {
+      updateBall();
+    }
     updateParticles();
     render();
     animId = requestAnimationFrame(gameLoop);
