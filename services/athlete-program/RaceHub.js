@@ -555,7 +555,7 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
     }, 2000);
   }
 
-  function invite(ws, to) {
+  function invite(ws, to, gameType) {
     const me = ws.athlete;
     const target = athletes.get(to) || athletes.get(Number(to));
     if (!target) return send(ws, { t: 'err', m: 'That athlete is offline' });
@@ -563,7 +563,7 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
     let rm = ws.room && rooms.get(ws.room);
     if (!rm) {
       if (ws.kind !== 'game') return send(ws, { t: 'err', m: 'Open the race to invite' });
-      rm = createRoom(ws);
+      rm = createRoom(ws, gameType);
     }
     const key = `${me.id}:${target.id}`;
     if (now() - (inviteLog.get(key) || 0) < 8000) return send(ws, { t: 'ok', m: 'Invite already sent' });
@@ -611,7 +611,7 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
       if (!msg || typeof msg.t !== 'string') return;
       if (msg.t === 'st') return onState(ws, msg);
       if (msg.t === 'end') return onEnd(ws, msg);
-      if (msg.t === 'invite') return invite(ws, msg.to);
+      if (msg.t === 'invite') return invite(ws, msg.to, msg.game);
       if (ws.kind !== 'game') return; // the portal only watches presence + sends invites
       if (msg.t === 'ss') return onSoloMsg(ws, msg, false);
       if (msg.t === 'se') return onSoloMsg(ws, msg, true);
