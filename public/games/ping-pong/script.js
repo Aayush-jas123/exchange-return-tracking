@@ -7,6 +7,8 @@
   // ── DOM refs (cached) ──
   const $ = id => document.getElementById(id);
   const canvas = $('gameCanvas');
+  const pointIndicator = $('pointIndicator');
+  const pointLabel = $('pointLabel');
   const ctx = canvas.getContext('2d');
   const screens = document.querySelectorAll('.screen');
   let canvasRect = null;
@@ -14,11 +16,10 @@
   // ── Constants ──
   const GW = 600;   // game width (logical)
   const GH = 400;   // game height (logical)
-  const PADDLE_W = 10;
+  const PADDLE_W = 12;
   const PADDLE_H = 70;
   const BALL_R = 8;
   const MAX_SCORE = 5;
-  const MAX_MISSES = 3;
   const BASE_SPEED = 4.5;
   const MAX_SPEED = 11;
   const SPEED_INCREMENT = 0.04;   // per paddle hit
@@ -34,7 +35,7 @@
 
   // ── Difficulty table ──
   const DIFFICULTIES = {
-    low:    { label: 'Low',    aiReaction: 0.04, aiError: 30, aiImprove: 0.002, aiMax: 0.09, xpMult: 1, baseSpeed: 3.5, maxSpeed: 8,  speedIncrement: 0.03, pointSpeedBonus: 0.10 },
+    low:    { label: 'Low',    aiReaction: 0.02, aiError: 50, aiImprove: 0.001, aiMax: 0.05, xpMult: 1, baseSpeed: 3.5, maxSpeed: 8,  speedIncrement: 0.03, pointSpeedBonus: 0.10 },
     medium: { label: 'Medium', aiReaction: 0.06, aiError: 18, aiImprove: 0.003, aiMax: 0.14, xpMult: 2, baseSpeed: 4.5, maxSpeed: 11, speedIncrement: 0.04, pointSpeedBonus: 0.15 },
     high:   { label: 'High',   aiReaction: 0.11, aiError: 4,  aiImprove: 0.006, aiMax: 0.22, xpMult: 3, baseSpeed: 5.5, maxSpeed: 14, speedIncrement: 0.06, pointSpeedBonus: 0.20 },
   };
@@ -56,6 +57,10 @@
   let particles = [];
   let squashTimer = 0;
   let borderFlash = 0;
+  let pointPause = false;
+  let pointPauseFrames = 0;
+  let lastScorer = 0; // 1 = player, 2 = AI/bot
+  const POINT_PAUSE_FRAMES = 120; // 2 seconds at 60fps
 
   // ── Quote panels ──
   const QUOTE_POOL = [
@@ -160,6 +165,10 @@
     particles = [];
     squashTimer = 0;
     borderFlash = 0;
+    pointPause = false;
+    pointPauseFrames = 0;
+    pointIndicator.classList.remove('visible');
+    canvas.parentElement.classList.remove('paused');
     aiReaction = d.aiReaction;
     curDiff = d;
     resetBall();
@@ -277,20 +286,9 @@
     if (p2.score !== _hudP2) { $('hudP2Pts').textContent = _hudP2 = p2.score; }
     const spdText = rallyCount > 2 ? 'Rally \u00d7' + speedMult.toFixed(1) : '';
     if (spdText !== _hudSpeed) { $('hudSpeed').textContent = _hudSpeed = spdText; }
-    renderMissDots('hudP1Misses', p1.misses);
-    renderMissDots('hudP2Misses', p2.misses);
     $('hudP1Name').textContent = 'You';
     $('hudP2Name').textContent = gameMode === 'single' ? 'AI' :
       (window.PingPongNet && window.PingPongNet.opponentName ? window.PingPongNet.opponentName : 'Opponent');
-  }
-
-  function renderMissDots(containerId, count) {
-    const el = $(containerId);
-    if (!el.children.length) return;
-    for (let i = 0; i < MAX_MISSES; i++) {
-      if (i < count) el.children[i].classList.add('filled');
-      else el.children[i].classList.remove('filled');
-    }
   }
 
   // ─ Input handling ──
@@ -381,21 +379,15 @@
       onPaddleHit(2);
     }
 
-    // Score / miss
+    // Score
     if (ball.x < -BALL_R * 2) {
-      // Ball passed left side — P2 scores, P1 misses
       p2.score++;
-      p1.misses++;
-      p2.misses = 0; // P2 hit it last
       totalPoints++;
-      onPointScored();
+      onPointScored(2);
     } else if (ball.x > GW + BALL_R * 2) {
-      // Ball passed right side — P1 scores, P2 misses
       p1.score++;
-      p2.misses++;
-      p1.misses = 0;
       totalPoints++;
-      onPointScored();
+      onPointScored(1);
     }
   }
 
@@ -430,7 +422,7 @@
     updateHUD();
   }
 
-  function onPointScored() {
+  function onPointScored(scorer) {
     rallyCount = 0;
     speedMult = 1;
     aiReaction = DIFFICULTIES[difficulty].aiReaction;
@@ -438,23 +430,17 @@
     // Border flash on score
     borderFlash = BORDER_FLASH_FRAMES;
 
-    // Check 3-miss rule
-    if (p1.misses >= MAX_MISSES) {
-      endGame(2, 'misses');
-      return;
-    }
-    if (p2.misses >= MAX_MISSES) {
-      endGame(1, 'misses');
-      return;
-    }
-
     // Check win by score
     if (p1.score >= MAX_SCORE) { endGame(1, 'score'); return; }
     if (p2.score >= MAX_SCORE) { endGame(2, 'score'); return; }
 
-    // Reset ball toward the scorer
-    const dir = p1.score > p2.score ? -1 : 1;
-    resetBall(dir);
+    // Pause 2 seconds, show scorer, then serve from scorer's side
+    lastScorer = scorer;
+    pointPause = true;
+    pointPauseFrames = POINT_PAUSE_FRAMES;
+    pointLabel.textContent = scorer === 1 ? 'YOUR POINT' : 'AI POINT';
+    pointIndicator.classList.add('visible');
+    canvas.parentElement.classList.add('paused');
     updateHUD();
   }
 
@@ -690,8 +676,8 @@
     ctx.save();
 
     // Drop shadow
-    ctx.shadowBlur = 8;
-    ctx.shadowColor = 'rgba(255,255,255,0.12)';
+    ctx.shadowBlur = flash > 0 ? 16 : 12;
+    ctx.shadowColor = flash > 0 ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.20)';
 
     // Gradient must match paddle position (canvas gradients are in absolute coords)
     const grad = ctx.createLinearGradient(x, y, x, y + PADDLE_H);
@@ -701,8 +687,8 @@
       grad.addColorStop(1, '#eee');
     } else {
       grad.addColorStop(0, '#fff');
-      grad.addColorStop(0.4, '#ccc');
-      grad.addColorStop(1, '#888');
+      grad.addColorStop(0.4, '#ddd');
+      grad.addColorStop(1, '#777');
     }
     ctx.fillStyle = grad;
 
@@ -717,15 +703,21 @@
     ctx.closePath();
     ctx.fill();
 
-    // Hit glow ring
+    // Outline ring — always visible, expands + glows on hit
+    const ringBase = PADDLE_H / 2 + 3;
+    ctx.strokeStyle = flash > 0
+      ? 'rgba(255,255,255,' + (0.15 + (flash / 6) * 0.55) + ')'
+      : 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = flash > 0 ? 2.5 : 1;
     if (flash > 0) {
+      ctx.shadowBlur = 14;
+      ctx.shadowColor = 'rgba(255,255,255,0.45)';
+    } else {
       ctx.shadowBlur = 0;
-      ctx.strokeStyle = 'rgba(255,255,255,' + (flash / 6) * 0.5 + ')';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(x + PADDLE_W / 2, y + PADDLE_H / 2, PADDLE_H / 2 + 4, 0, Math.PI * 2);
-      ctx.stroke();
     }
+    ctx.beginPath();
+    ctx.arc(x + PADDLE_W / 2, y + PADDLE_H / 2, ringBase + (flash > 0 ? 5 : 0), 0, Math.PI * 2);
+    ctx.stroke();
 
     ctx.restore();
   }
@@ -735,7 +727,17 @@
     if (mode !== 'playing') return;
     lastTime = timestamp;
     movePaddles();
-    updateBall();
+    if (pointPause) {
+      pointPauseFrames--;
+      if (pointPauseFrames <= 0) {
+        pointPause = false;
+        pointIndicator.classList.remove('visible');
+        canvas.parentElement.classList.remove('paused');
+        resetBall(lastScorer === 1 ? -1 : 1);
+      }
+    } else {
+      updateBall();
+    }
     updateParticles();
     render();
     animId = requestAnimationFrame(gameLoop);

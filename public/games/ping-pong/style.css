@@ -457,15 +457,13 @@ html, body {
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  background: rgba(10, 10, 14, 0.25);
+  background: rgba(10, 10, 14, 0.10);
   border: 1px solid rgba(255,255,255,0.06);
   border-radius: 12px;
   pointer-events: none;
   opacity: 0;
   transition: opacity .4s ease;
-  z-index: 5;
-  backdrop-filter: blur(1px);
-  -webkit-backdrop-filter: blur(1px);
+  z-index: 2;
 }
 .quote-panel.visible { opacity: 1; }
 .quote-left  { left: 22%; }
@@ -492,6 +490,45 @@ html, body {
 /* Hide panels when viewport is too narrow */
 @media (max-width: 900px) {
   .quote-panel { display: none; }
+}
+
+/* ── Point Indicator ── */
+.point-indicator {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%) scale(0.85);
+  padding: 20px 48px;
+  background: rgba(10, 10, 14, 0.75);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 10px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  z-index: 20;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.point-indicator.visible {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+.point-label {
+  font: 800 36px var(--f);
+  color: #fff;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  text-shadow: 0 0 20px rgba(255,255,255,0.3);
+}
+
+/* Court blur during point pause */
+.game-wrap.paused canvas {
+  filter: blur(6px);
+  transition: filter 0.3s ease;
+}
+.game-wrap.paused .quote-panel {
+  filter: blur(3px);
+  transition: filter 0.3s ease;
 }
 
 /* ── HUD ── */
@@ -530,17 +567,6 @@ html, body {
   color: var(--dim);
   letter-spacing: .1em;
 }
-.hud-misses {
-  display: flex;
-  gap: 4px;
-}
-.hud-misses .dot {
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  background: var(--line);
-  transition: background .3s;
-}
-.hud-misses .dot.filled { background: var(--text); }
 .hud-speed {
   text-align: center;
   font: 700 10px var(--m);
