@@ -82,7 +82,7 @@
       const key = myId + ':' + id;
       if (Date.now() - (invitedAt.get(key) || 0) < INVITE_COOLDOWN) return;
       invitedAt.set(key, Date.now());
-      send({ t: 'invite', to: id });
+      send({ t: 'invite', to: id, game: GAME_TYPE });
       renderLobby();
     },
 
@@ -167,7 +167,7 @@
         const r = hash.get('r');
         const inv = hash.get('inv');
         if (r) { Net.joinRoom(r); hash.delete('r'); }
-        if (inv) { send({ t: 'invite', to: inv }); hash.delete('inv'); }
+        if (inv) { send({ t: 'invite', to: inv, game: GAME_TYPE }); hash.delete('inv'); }
         if (hash.toString()) {
           history.replaceState(null, '', location.pathname + location.search + (hash.toString() ? '#' + hash.toString() : ''));
         }
