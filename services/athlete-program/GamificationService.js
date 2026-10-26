@@ -17,7 +17,8 @@ const GAME_RULES = {
   'rooftop-racing': { label: 'Rooftop Racing', unitsPerXp: 150, unitsPerCoin: 250, verified: true }, // metres
   'fruit-ninja': { label: 'Fruit Ninja', unitsPerXp: 8, unitsPerCoin: 12 },            // fruits sliced
   'ping-pong': { label: 'Ping Pong', unitsPerXp: 2, unitsPerCoin: 3 },                  // points scored
-  'pac-man': { label: 'Pac-Man', unitsPerXp: 50, unitsPerCoin: 80 }                      // score points
+  'pac-man': { label: 'Pac-Man', unitsPerXp: 50, unitsPerCoin: 80 },                      // score points
+  'crossy-road': { label: 'Crossy Road', unitsPerXp: 5, unitsPerCoin: 8 }                  // lanes crossed
 };
 
 // Which ledger reason codes feed which coin source in the shop.

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Pac-Man — OFFCOMFRT Arcade</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
 
@@ -31,13 +31,16 @@
         </span>
       </button>
     </div>
+    <div class="menu-highscore" id="menuHighScore"></div>
     <div class="instructions-toggle" id="instrToggle">How to play <span class="arrow">&#9660;</span></div>
     <div class="instructions" id="instrPanel" hidden>
       <p><b>Goal:</b> Eat all pellets in the maze before the ghosts catch you.</p>
       <ul>
         <li><b>Small dots</b> = 10 points</li>
-        <li><b>Large dots</b> = 50 points</li>
+        <li><b>Large dots</b> = 50 points + frighten ghosts</li>
+        <li><b>Eat frightened ghosts</b> = 200-1600 pts (combo)</li>
         <li><b>3 lives</b> — lose one per ghost collision</li>
+        <li><b>More ghosts appear</b> over time — stay sharp!</li>
         <li><b>Online:</b> Shared maze, highest score wins</li>
       </ul>
       <p><b>Controls:</b> Arrow keys / WASD on desktop. D-pad or swipe on mobile.</p>
@@ -96,7 +99,16 @@
           <span class="hud-label">Difficulty</span>
           <span class="hud-value" id="hudDiff" style="font-size:clamp(12px,2.5vw,18px)">Lv.1</span>
         </div>
+        <div class="hud-item">
+          <span class="hud-label">Ghosts</span>
+          <span class="hud-value" id="hudGhosts">4/7</span>
+        </div>
+        <div class="hud-item">
+          <span class="hud-label">Best</span>
+          <span class="hud-value" id="hudHighScore">0</span>
+        </div>
       </div>
+      <div class="hud-fear" id="hudFear" style="opacity:0">FEAR!</div>
     </div>
 
     <div class="opp-scores" id="oppScores" hidden>
@@ -126,8 +138,10 @@
 <!-- ═══ Game Over Overlay ═══ -->
 <div class="overlay hidden" id="gameOverOverlay">
   <div class="go-card">
+    <div class="go-newhigh" id="goNewHigh" style="display:none">NEW HIGH SCORE!</div>
     <div class="go-result" id="goResult">Game Over</div>
     <div class="go-score" id="goScore">Score: 0</div>
+    <div class="go-highscore" id="goHighScore">Best: 0</div>
     <div class="go-xp" id="goXp"></div>
     <div class="go-btns">
       <button class="go-btn primary" id="goPlayAgain">Play Again</button>
@@ -139,8 +153,8 @@
 <!-- ═══ Invite Toast ═══ -->
 <div id="inviteToast" class="invite-toast hidden"></div>
 
-<script src="../athlete-xp.js?v=3"></script>
-<script src="pac-man-net.js?v=3"></script>
-<script src="script.js?v=3"></script>
+<script src="../athlete-xp.js?v=5"></script>
+<script src="pac-man-net.js?v=5"></script>
+<script src="script.js?v=5"></script>
 </body>
 </html>
