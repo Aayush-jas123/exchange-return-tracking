@@ -1414,6 +1414,49 @@ const GamificationService = {
     return true;
   },
 
+  /**
+   * Get per-game unlock flags as { gameId: boolean }.
+   * Flags live in program_settings under keys like 'game.fruit-ninja.unlocked'.
+   * Games with no row default to unlocked (the admin UI treats missing as open).
+   */
+  async getGameUnlocks() {
+    const { data, error } = await supabase
+      .from('program_settings')
+      .select('key, value')
+      .like('key', 'game.%.unlocked');
+
+    if (error) throw error;
+    const unlocks = {};
+    (data || []).forEach(row => {
+      const gameId = row.key.replace(/^game\./, '').replace(/\.unlocked$/, '');
+      unlocks[gameId] = String(row.value).toLowerCase() === 'true';
+    });
+    return unlocks;
+  },
+
+  /**
+   * Upsert a single game's unlock flag. Never touches the shared namespace prefix,
+   * so a bogus gameId can't overwrite unrelated settings.
+   */
+  async updateGameUnlock(gameId, unlocked, actorId = null) {
+    if (!gameId || /[^a-z0-9-]/i.test(gameId)) {
+      const err = new Error('Invalid game id');
+      err.status = 400;
+      throw err;
+    }
+    const { error } = await supabase
+      .from('program_settings')
+      .upsert({
+        key: `game.${gameId}.unlocked`,
+        value: String(unlocked),
+        updated_at: new Date().toISOString(),
+        updated_by: actorId
+      }, { onConflict: 'key' });
+
+    if (error) throw error;
+    return { gameId, unlocked };
+  },
+
   // ══════════════════════════════════════════════════════════════════════════
   // HELPERS
   // ══════════════════════════════════════════════════════════════════════════

@@ -1215,7 +1215,7 @@ module.exports = function mountAthleteRoutes(app) {
       if (typeof unlocked !== 'boolean') return res.status(400).json({ error: 'unlocked boolean required' });
       const result = await GamificationService.updateGameUnlock(gameId, unlocked, req.adminToken);
       res.json({ success: true, data: result });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { res.status(err.status || 500).json({ error: err.message }); }
   });
 
   // ── Streaks (Admin) ──
