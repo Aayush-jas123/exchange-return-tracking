@@ -461,6 +461,50 @@ app.use(express.json({
         req.rawBody = buf.toString();
     }
 }));
+// ── Athlete game access gate ──
+// A game the admin has locked (unlock flag explicitly false in program_settings,
+// toggled from the athlete-admin "Game Management" panel) must not be reachable
+// by athletes at all — not just hidden in the portal, but also via a direct URL
+// to the game HTML. Registered before express.static so it can intercept the
+// static game entry points. FAIL-OPEN: any require/read error or a missing flag
+// leaves the game reachable; only an explicit `false` hides it.
+const GAME_ENTRY_PATHS = [
+    { match: '/athlete-game.html', exact: true, gameId: 'rooftop-racing' },
+    { match: '/games/fruit-ninja', gameId: 'fruit-ninja' },
+    { match: '/games/ping-pong', gameId: 'ping-pong' },
+    { match: '/games/pac-man', gameId: 'pac-man' },
+    { match: '/games/crossy-road', gameId: 'crossy-road' }
+];
+app.use((req, res, next) => {
+    try {
+        if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+        const clean = (req.path || '').split('#')[0].replace(/\/index\.html$/, '/').replace(/\/$/, '');
+        let gameId = null;
+        for (const g of GAME_ENTRY_PATHS) {
+            if (g.exact ? (clean === g.match) : (clean === g.match || clean.startsWith(g.match + '/'))) { gameId = g.gameId; break; }
+        }
+        if (!gameId) return next();
+        const { GamificationService } = require('./services/athlete-program');
+        GamificationService.getGameUnlocks()
+            .then(unlocks => {
+                if (unlocks && unlocks[gameId] === false) {
+                    return res.status(403).type('html').send(
+                        '<!doctype html><html lang="en"><head><meta charset="utf-8">' +
+                        '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+                        '<title>Game locked</title><style>html,body{margin:0;height:100%;background:#0a0a0a;color:#fff;' +
+                        'font-family:ui-monospace,SFMono-Regular,Menlo,monospace;display:flex;align-items:center;justify-content:center;text-align:center}' +
+                        '.box{padding:24px;max-width:340px}.lock{width:34px;height:34px;stroke:#fff;fill:none;stroke-width:1.4;margin:0 auto 14px;display:block}' +
+                        'h1{font-size:12px;letter-spacing:.2em;text-transform:uppercase;margin:0 0 8px}p{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.55);margin:0;line-height:1.7}</style></head>' +
+                        '<body><div class="box"><svg class="lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>' +
+                        '<h1>Game locked</h1><p>This game is not available right now. Ask your admin to unlock it.</p></div></body></html>'
+                    );
+                }
+                next();
+            })
+            .catch(() => next());
+    } catch (e) { next(); }
+});
+
 app.use(express.static('public'));
 
 // Serve favicon.ico to prevent 404

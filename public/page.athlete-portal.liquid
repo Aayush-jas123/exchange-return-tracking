@@ -885,6 +885,18 @@
     .gt .go i{font-style:normal;transition:transform .25s cubic-bezier(.16,1,.3,1)}
     .gt:hover .go i{transform:translateX(4px)}
 
+    /* games — admin-locked tile: dimmed art + lock overlay, tap blocked by linkGames() */
+    .gt.locked{cursor:not-allowed}
+    .gt.locked .gt-bg{filter:grayscale(1) brightness(.4) contrast(1.05)}
+    .gt.locked::before{background:rgba(6,6,6,.62)}
+    .gt.locked .gt-top,.gt.locked b,.gt.locked em{opacity:.4}
+    .gt.locked .go{display:none}
+    .gt .gt-lock{display:none;position:absolute;inset:0;z-index:3;flex-direction:column;align-items:center;justify-content:center;gap:9px;text-align:center;padding:0 16px}
+    .gt.locked .gt-lock{display:flex}
+    .gt .gt-lock .lk{width:30px;height:30px;stroke:#fff;fill:none;stroke-width:1.4}
+    .gt .gt-lock span{font-family:var(--m);font-size:8px;letter-spacing:.18em;text-transform:uppercase;color:#fff}
+    .gt .gt-lock small{font-family:var(--m);font-size:7.5px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.55);max-width:22ch;line-height:1.5}
+
     /* games — lobby: athletes on the portal */
     .alist{display:flex;flex-direction:column}
     .arow{display:grid;grid-template-columns:30px 1fr auto;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)}
@@ -1216,36 +1228,36 @@
         <div class="scroll-inner">
           {% # theme-check-disable RemoteAsset %}
           <div class="ggrid rise" style="animation-delay:.28s">
-            <a class="gt" href="https://exchange-return-tracking.onrender.com/athlete-game.html" target="_blank" rel="noopener">
+            <a class="gt" data-game-id="rooftop-racing" href="https://exchange-return-tracking.onrender.com/athlete-game.html" target="_blank" rel="noopener">
               <img class="gt-bg" src="https://exchange-return-tracking.onrender.com/images/games/rooftop-racing-thumb.jpg" alt="" loading="lazy" width="1280" height="714">
               <div class="gt-top"><span class="gi">01 &middot; Racing</span></div>
               <b>Rooftop Racing</b>
               <em>Race athletes live across the skyline. Invite, join open lobbies &mdash; XP paid by finishing position.</em>
-              <span class="go">Tap to play <i>&rarr;</i></span></a>
-            <a class="gt" href="https://exchange-return-tracking.onrender.com/games/fruit-ninja/index.html" target="_blank" rel="noopener">
+              <span class="go">Tap to play <i>&rarr;</i></span><span class="gt-lock"><svg class="lk" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>Locked</span><small>Ask your admin to unlock</small></span></a>
+            <a class="gt" data-game-id="fruit-ninja" href="https://exchange-return-tracking.onrender.com/games/fruit-ninja/index.html" target="_blank" rel="noopener">
               <img class="gt-bg" src="https://exchange-return-tracking.onrender.com/images/games/fruit-ninja-thumb.jpg" alt="" loading="lazy" width="1280" height="714">
               <div class="gt-top"><span class="gi">02 &middot; Arcade</span></div>
               <b>Fruit Ninja</b>
               <em>Swipe to slice. Chain combos, dodge the bombs &mdash; three misses ends the run.</em>
-              <span class="go">Tap to play <i>&rarr;</i></span></a>
-            <a class="gt" href="https://exchange-return-tracking.onrender.com/games/ping-pong/index.html" target="_blank" rel="noopener">
+              <span class="go">Tap to play <i>&rarr;</i></span><span class="gt-lock"><svg class="lk" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>Locked</span><small>Ask your admin to unlock</small></span></a>
+            <a class="gt" data-game-id="ping-pong" href="https://exchange-return-tracking.onrender.com/games/ping-pong/index.html" target="_blank" rel="noopener">
               <img class="gt-bg" src="https://exchange-return-tracking.onrender.com/images/games/ping-pong-thumb.jpg" alt="" loading="lazy" width="1280" height="714">
               <div class="gt-top"><span class="gi">03 &middot; Arcade</span></div>
               <b>Ping Pong</b>
               <em>Rally against the AI, a friend, or challenge athletes live. Speed ramps up, 3 misses and you're out.</em>
-              <span class="go">Tap to play <i>&rarr;</i></span></a>
-            <a class="gt" href="https://exchange-return-tracking.onrender.com/games/pac-man/index.html" target="_blank" rel="noopener">
+              <span class="go">Tap to play <i>&rarr;</i></span><span class="gt-lock"><svg class="lk" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>Locked</span><small>Ask your admin to unlock</small></span></a>
+            <a class="gt" data-game-id="pac-man" href="https://exchange-return-tracking.onrender.com/games/pac-man/index.html" target="_blank" rel="noopener">
               <img class="gt-bg" src="https://exchange-return-tracking.onrender.com/images/games/pac-man-thumb.jpg" alt="" loading="lazy" width="1280" height="714">
               <div class="gt-top"><span class="gi">04 &middot; Arcade</span></div>
               <b>Pac-Man</b>
               <em>Navigate the maze, eat pellets, dodge ghosts. Solo or compete live with up to 4 athletes.</em>
-              <span class="go">Tap to play <i>&rarr;</i></span></a>
-            <a class="gt" href="https://exchange-return-tracking.onrender.com/games/crossy-road/index.html" target="_blank" rel="noopener">
+              <span class="go">Tap to play <i>&rarr;</i></span><span class="gt-lock"><svg class="lk" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>Locked</span><small>Ask your admin to unlock</small></span></a>
+            <a class="gt" data-game-id="crossy-road" href="https://exchange-return-tracking.onrender.com/games/crossy-road/index.html" target="_blank" rel="noopener">
               <img class="gt-bg" src="https://exchange-return-tracking.onrender.com/images/games/crossy-road-thumb.jpg" alt="" loading="lazy" width="1280" height="714">
               <div class="gt-top"><span class="gi">05 &middot; Arcade</span></div>
               <b>Crossy Road</b>
               <em>Hop across lanes, dodge traffic, weave through trees. Solo or race up to 4 athletes &mdash; highest score wins.</em>
-              <span class="go">Tap to play <i>&rarr;</i></span></a>
+              <span class="go">Tap to play <i>&rarr;</i></span><span class="gt-lock"><svg class="lk" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>Locked</span><small>Ask your admin to unlock</small></span></a>
           </div>
           {% # theme-check-enable RemoteAsset %}
 
@@ -1405,7 +1417,7 @@
 <script>
 const API='https://exchange-return-tracking.onrender.com/api/athlete';
 const BASE='https://exchange-return-tracking.onrender.com';
-const S={token:null,athlete:null,tasks:[],picks:[],maxPicks:5,streak:0,leaderboard:[],climb:null,ranks:null,log:[],weekly:null,assignment:null,bricks:[],active:'tasks',orders:[],commissions:null,productRequests:[],shopifyProducts:[],shop:null,invited:new Set()};
+const S={token:null,athlete:null,tasks:[],picks:[],maxPicks:5,streak:0,leaderboard:[],climb:null,ranks:null,log:[],weekly:null,assignment:null,bricks:[],active:'tasks',orders:[],commissions:null,productRequests:[],shopifyProducts:[],shop:null,unlocks:null,invited:new Set()};
 const $=id=>document.getElementById(id);
 const esc=v=>{const e=document.createElement('div');e.textContent=v||'';return e.innerHTML};
 const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -2784,7 +2796,7 @@ async function submitProductRequest(){
 async function loadTasks(){const data=await api('/daily-tasks');S.tasks=data?.tasks||[];S.picks=data?.picks||[];S.maxPicks=data?.maxPicks||5;renderTasks()}
 async function refreshBoard(){try{const board=await api('/leaderboard');if(JSON.stringify(board)!==JSON.stringify(S.leaderboard)){S.leaderboard=board||[];renderBoard();flash(2)}else{renderLobby()}}catch(e){}}
 
-function enterPortal(){$('loading').hidden=true;$('portal').classList.add('ready');show('tasks');linkGames();raceConnect();if(!reduce)setInterval(refreshBoard,30000)}
+function enterPortal(){$('loading').hidden=true;$('portal').classList.add('ready');show('tasks');linkGames();loadUnlocks();raceConnect();if(!reduce)setInterval(refreshBoard,30000)}
 
 // ── Coin shop: spend-only currency earned from the arcade and level-ups. Coins
 // never feed XP, level or rank. Products land later — for now the screen shows
@@ -2853,10 +2865,30 @@ async function loadShop(){
 
 // Arcade runs earn XP: hand the game the session token via the URL hash (never
 // sent to the server), and refresh XP + climb when the athlete comes back.
+// Tiles the admin has locked (unlock flag explicitly false) render a lock
+// overlay and drop their href so they cannot be opened, even by middle-click.
 function linkGames(){
+  const hash='#t='+encodeURIComponent(S.token||'');
   document.querySelectorAll('#games a.gt').forEach(a=>{
-    a.href=a.href.split('#')[0]+'#t='+encodeURIComponent(S.token||'');
+    if(!a.dataset.gameUrl)a.dataset.gameUrl=a.href.split('#')[0];
+    const id=a.dataset.gameId;
+    const locked=!!(id&&S.unlocks&&S.unlocks[id]===false);
+    a.classList.toggle('locked',locked);
+    if(locked){a.removeAttribute('href');a.removeAttribute('target');}
+    else{a.href=a.dataset.gameUrl+hash;a.setAttribute('target','_blank');}
   });
+  if(!linkGames._guard){
+    linkGames._guard=true;
+    $('games').addEventListener('click',e=>{
+      const tile=e.target.closest('a.gt.locked');
+      if(tile){e.preventDefault();toast('Game locked','Ask your admin to unlock');}
+    },true);
+  }
+}
+// Unlock state is read once per portal load; a failed fetch keeps tiles open.
+async function loadUnlocks(){
+  try{S.unlocks=await api('/games/unlocks')||{};}catch(e){S.unlocks=S.unlocks||{};}
+  linkGames();
 }
 let lastXpRefresh=0;
 async function refreshXp(){
