@@ -1414,7 +1414,7 @@ module.exports = function mountAthleteRoutes(app) {
     try {
       const { influencerId, scope } = req.athleteScope;
       if (scope !== 'PROGRESS') return res.status(403).json({ error: 'Wrong scope' });
-      res.json({ success: true, data: await GamificationService.getActivityLog(influencerId) });
+      res.json({ success: true, data: await GamificationService.getActivityLog(influencerId, { limit: req.query.limit }) });
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
 

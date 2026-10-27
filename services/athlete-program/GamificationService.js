@@ -1557,20 +1557,24 @@ const GamificationService = {
     };
   },
 
-  async getActivityLog(influencerId) {
+  async getActivityLog(influencerId, opts = {}) {
+    // The portal pages this client side, so it asks for a wider window than the
+    // old fixed 50. Each source is capped at the same number and the merged
+    // stream is trimmed back to `limit` after sorting.
+    const limit = Math.min(Math.max(parseInt(opts.limit, 10) || 50, 1), 300);
     const [assignments, entries, movements] = await Promise.all([
-      supabase.from('assignments').select('id, status, submitted_at, reviewed_at, xp_awarded, coin_awarded, task_templates(title)').eq('influencer_id', influencerId).order('updated_at', { ascending: false }).limit(25),
-      supabase.from('ledger_entries').select('id, currency, amount, reason_code, created_at').eq('influencer_id', influencerId).order('created_at', { ascending: false }).limit(25),
-      supabase.from('level_history').select('id, direction, reason_code, occurred_at').eq('influencer_id', influencerId).order('occurred_at', { ascending: false }).limit(25)
+      supabase.from('assignments').select('id, status, submitted_at, reviewed_at, xp_awarded, coin_awarded, task_templates(title)').eq('influencer_id', influencerId).order('updated_at', { ascending: false }).limit(limit),
+      supabase.from('ledger_entries').select('id, currency, amount, reason_code, balance_after, created_at').eq('influencer_id', influencerId).order('created_at', { ascending: false }).limit(limit),
+      supabase.from('level_history').select('id, direction, reason_code, occurred_at').eq('influencer_id', influencerId).order('occurred_at', { ascending: false }).limit(limit)
     ]);
     if (assignments.error) throw assignments.error;
     if (entries.error) throw entries.error;
     if (movements.error) throw movements.error;
     const events = [
-      ...(assignments.data || []).map(item => ({ type: 'MISSION', title: item.task_templates?.title || 'Mission updated', detail: item.status, occurred_at: item.reviewed_at || item.submitted_at })),
-      ...(entries.data || []).map(item => ({ type: item.currency, title: `${item.amount > 0 ? '+' : ''}${item.amount} ${item.currency}`, detail: item.reason_code, occurred_at: item.created_at })),
-      ...(movements.data || []).map(item => ({ type: 'CLIMB', title: item.direction, detail: item.reason_code, occurred_at: item.occurred_at }))
-    ].filter(event => event.occurred_at).sort((a, b) => new Date(b.occurred_at) - new Date(a.occurred_at)).slice(0, 50);
+      ...(assignments.data || []).map(item => ({ id: `mission-${item.id}`, type: 'MISSION', title: item.task_templates?.title || 'Mission updated', detail: item.status, status: item.status, xp: item.xp_awarded || 0, coins: item.coin_awarded || 0, occurred_at: item.reviewed_at || item.submitted_at })),
+      ...(entries.data || []).map(item => ({ id: `ledger-${item.id}`, type: item.currency, title: `${item.amount > 0 ? '+' : ''}${item.amount} ${item.currency}`, detail: item.reason_code, amount: item.amount, currency: item.currency, balance_after: item.balance_after, occurred_at: item.created_at })),
+      ...(movements.data || []).map(item => ({ id: `level-${item.id}`, type: 'CLIMB', title: item.direction, detail: item.reason_code, direction: item.direction, occurred_at: item.occurred_at }))
+    ].filter(event => event.occurred_at).sort((a, b) => new Date(b.occurred_at) - new Date(a.occurred_at)).slice(0, limit);
     return events;
   },
 

@@ -366,11 +366,10 @@
     .comm-hero .cm-stats div{background:rgba(10,10,10,.6);padding:10px 12px}
     .comm-hero .cm-stats dt{font-family:var(--m);font-size:7px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.4)}
     .comm-hero .cm-stats dd{margin:3px 0 0;font-size:18px;font-weight:900;color:#fff;line-height:1}
+    .comm-hero .cm-stats.four{grid-template-columns:repeat(2,1fr)}
+    @media(min-width:600px){.comm-hero .cm-stats.four{grid-template-columns:repeat(4,1fr)}}
 
     /* ─ Log: monthly breakdown ── */
-    .monthly-head{display:flex;justify-content:space-between;align-items:center;padding:14px 18px 10px;border-bottom:1px solid var(--line)}
-    .monthly-head .mh-title{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
-    .monthly-head .mh-count{font-family:var(--m);font-size:8px;color:var(--dim);letter-spacing:.04em}
     .monthly-row{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:12px 18px;border-bottom:1px solid var(--line);transition:background .2s}
     .monthly-row:last-child{border-bottom:none}
     .monthly-row .mr-month{font-size:13px;font-weight:800}
@@ -378,28 +377,79 @@
     .monthly-row .mr-comm{font-size:15px;font-weight:900;text-align:right}
     .monthly-row .mr-ord{font-family:var(--m);font-size:10px;color:var(--dim);text-align:right;white-space:nowrap}
 
-    /* ── Log: orders ── */
-    .order-head{display:flex;justify-content:space-between;align-items:center;padding:14px 18px 10px;border-bottom:1px solid var(--line)}
-    .order-head .oh-title{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
-    .order-head .oh-count{font-family:var(--m);font-size:8px;color:var(--dim);letter-spacing:.04em}
-    .order-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:start;padding:12px 18px;border-bottom:1px solid var(--line);transition:background .2s}
-    .order-row:last-child{border-bottom:none}
-    .order-row .or-id{font-family:var(--m);font-size:8px;color:var(--dim);letter-spacing:.04em}
-    .order-row .or-value{font-size:14px;font-weight:800;margin-top:2px}
-    .order-row .or-meta{font-family:var(--m);font-size:8px;color:var(--dim);letter-spacing:.04em;margin-top:2px}
-    .order-row .or-comm{text-align:right}
-    .order-row .or-comm-amt{font-size:14px;font-weight:900}
-    .order-row .or-comm-rate{font-family:var(--m);font-size:8px;color:var(--dim);margin-top:2px}
-    .order-row .or-status{font-family:var(--m);font-size:7px;letter-spacing:.06em;text-transform:uppercase;padding:3px 6px;border:1px solid var(--line);margin-top:4px;display:inline-block}
-    .order-row .or-status.earned{border-color:rgba(255,255,255,.25);color:rgba(255,255,255,.7)}
-    .order-row .or-status.paid{border-color:rgba(255,255,255,.3);color:#fff}
-    .order-row .or-status.pending{border-color:rgba(255,255,255,.1);color:rgba(255,255,255,.35)}
-    .order-row .or-status.reversed{border-color:rgba(255,255,255,.06);color:rgba(255,255,255,.2);text-decoration:line-through}
+    /* ── Log: collapsible panels ── */
+    .log-panel{border-bottom:1px solid var(--line)}
+    .log-panel-head{display:flex;align-items:center;gap:10px;width:100%;padding:14px 18px;background:none;border:none;color:inherit;font:inherit;text-align:left;cursor:pointer;transition:background .16s}
+    .log-panel-head:hover{background:rgba(255,255,255,.03)}
+    @media(min-width:768px){.log-panel-head{padding:17px 28px}}
+    .log-panel-head .lp-title{flex:1 1 auto;min-width:0;font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase}
+    .log-panel-head .lp-meta{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;font-family:var(--m);font-size:8px;color:var(--dim);letter-spacing:.05em;white-space:nowrap}
+    .log-panel-head .lp-chev{flex:none;width:7px;height:7px;border-right:1.5px solid var(--dim);border-bottom:1.5px solid var(--dim);transform:rotate(45deg);transition:transform .25s ease,border-color .18s}
+    .log-panel-head:hover .lp-chev{border-color:#fff}
+    .log-panel.open .log-panel-head .lp-chev{transform:rotate(-135deg)}
+    .log-panel-body{display:none}
+    .log-panel.open .log-panel-body{display:block}
+
+    /* ── Log: filter chips + pager (shared by every panel) ── */
+    .log-toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:11px 18px;border-bottom:1px solid var(--line)}
+    @media(min-width:768px){.log-toolbar{padding:11px 28px}}
+    .log-chip{font-family:var(--m);font-size:7.5px;letter-spacing:.11em;text-transform:uppercase;background:none;border:1px solid var(--line);color:var(--dim);padding:5px 9px;border-radius:3px;cursor:pointer;white-space:nowrap;transition:color .16s,border-color .16s,background .16s}
+    .log-chip:hover{color:#fff;border-color:rgba(255,255,255,.4)}
+    .log-chip.on{background:#fff;border-color:#fff;color:#000;font-weight:700}
+    .log-chip s{text-decoration:none;opacity:.55;margin-left:4px}
+    .log-toolbar .tf-right{margin-left:auto;font-family:var(--m);font-size:8px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+    .log-pager{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:12px 18px}
+    @media(min-width:768px){.log-pager{padding:12px 28px}}
+    .log-pager .pg-info{font-family:var(--m);font-size:8px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+    .log-pager .pg-btns{display:flex;align-items:center;gap:6px}
+    .log-pager button{background:none;border:1px solid var(--line);color:var(--dim);font-family:var(--m);font-size:8px;letter-spacing:.09em;text-transform:uppercase;padding:6px 9px;border-radius:3px;cursor:pointer;transition:color .16s,border-color .16s,background .16s}
+    .log-pager button:hover:not(:disabled){color:#fff;border-color:rgba(255,255,255,.4)}
+    .log-pager button:disabled{opacity:.28;cursor:default}
+    .log-pager button.on{background:#fff;border-color:#fff;color:#000;font-weight:700}
+    .monly{display:inline}
+    .donly{display:none}
+    @media(min-width:768px){.monly{display:none}.donly{display:inline}}
+
+    /* ── Log: monthly detail split ── */
+    .monthly-row{cursor:pointer}
+    .monthly-row:hover{background:rgba(255,255,255,.03)}
+    .monthly-more{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--line);border-bottom:1px solid var(--line);animation:logIn .22s ease}
+    @media(min-width:768px){.monthly-more{grid-template-columns:repeat(4,1fr)}}
+    .monthly-more>div{background:#0C0C0C;padding:10px 18px}
+    @media(min-width:768px){.monthly-more>div{padding:10px 28px}}
+    .monthly-more span{display:block;font-family:var(--m);font-size:6.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+    .monthly-more b{display:block;margin-top:3px;font-size:12px;font-weight:800}
+    @keyframes logIn{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
+
+    /* ── Log: orders table ── */
+    .ord-head{display:none}
+    .ord-row{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"oid comm" "cust net" "when status";gap:3px 10px;padding:11px 18px;border-bottom:1px solid var(--line);transition:background .16s}
+    .ord-row:last-child{border-bottom:none}
+    .ord-row:hover{background:rgba(255,255,255,.025)}
+    .ord-row .od-oid{grid-area:oid;font-family:var(--m);font-size:9px;font-weight:700;letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .ord-row .od-cust{grid-area:cust;font-size:11px;color:rgba(255,255,255,.7);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .ord-row .od-when{grid-area:when;font-family:var(--m);font-size:7.5px;color:var(--dim);letter-spacing:.04em}
+    .ord-row .od-code{display:none}
+    .ord-row .od-net{grid-area:net;text-align:right;font-family:var(--m);font-size:9px;color:var(--dim);white-space:nowrap}
+    .ord-row .od-comm{grid-area:comm;text-align:right;font-size:13px;font-weight:900;white-space:nowrap}
+    .ord-row .od-status{grid-area:status;justify-self:end;align-self:center}
+    @media(min-width:768px){
+      .ord-head{display:grid;grid-template-columns:96px 90px minmax(0,1fr) 90px 96px 100px 88px;gap:12px;padding:9px 28px;border-bottom:1px solid var(--line);background:rgba(255,255,255,.02)}
+      .ord-head span{font-family:var(--m);font-size:7px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+      .ord-head span:nth-child(n+5){text-align:right}
+      .ord-row{grid-template-columns:96px 90px minmax(0,1fr) 90px 96px 100px 88px;grid-template-areas:"when oid cust code net comm status";gap:12px;align-items:center;padding:10px 28px}
+      .ord-row .od-when{font-size:8px}
+      .ord-row .od-code{display:block;grid-area:code;font-family:var(--m);font-size:8px;color:var(--dim);letter-spacing:.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .ord-row .od-net{font-size:10px;color:rgba(255,255,255,.7);text-align:right}
+      .ord-row .od-comm{font-size:12.5px}
+    }
+    .od-pill{font-family:var(--m);font-size:7px;letter-spacing:.06em;text-transform:uppercase;padding:3px 6px;border:1px solid var(--line);white-space:nowrap;display:inline-block}
+    .od-pill.earned{border-color:rgba(255,255,255,.25);color:rgba(255,255,255,.7)}
+    .od-pill.paid{border-color:rgba(255,255,255,.32);color:#fff}
+    .od-pill.pending{border-color:rgba(255,255,255,.1);color:rgba(255,255,255,.35)}
+    .od-pill.reversed{border-color:rgba(255,255,255,.06);color:rgba(255,255,255,.2);text-decoration:line-through}
 
     /* ── Log: product requests ── */
-    .pr-head{display:flex;justify-content:space-between;align-items:center;padding:14px 18px 10px;border-bottom:1px solid var(--line)}
-    .pr-head .ph-title{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
-    .pr-head .ph-count{font-family:var(--m);font-size:8px;color:var(--dim);letter-spacing:.04em}
     .pr-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:start;padding:12px 18px;border-bottom:1px solid var(--line)}
     .pr-row:last-child{border-bottom:none}
     .pr-row .pr-reason{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em}
@@ -410,14 +460,43 @@
     .pr-row .pr-status.approved{border-color:rgba(255,255,255,.25);color:rgba(255,255,255,.7)}
     .pr-row .pr-status.dispatched,.pr-row .pr-status.in_transit,.pr-row .pr-status.delivered{border-color:rgba(255,255,255,.3);color:#fff}
 
-    /* ── Log: request product button ── */
-    .req-product-btn{display:block;width:100%;padding:14px;margin:0;border:none;background:#fff;color:#000;font:800 11px var(--f);letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:transform .15s ease,opacity .2s}
-    .req-product-btn:active{transform:scale(.97)}
+    /* ── Log: request product CTA (lives in the shipments panel) ── */
+    .pr-cta{display:block;width:100%;margin:0;padding:13px;border:1px solid #fff;background:#fff;color:#000;font:800 10.5px var(--f);letter-spacing:.1em;text-transform:uppercase;cursor:pointer;border-radius:4px;transition:transform .15s ease,opacity .2s}
+    .pr-cta:hover{opacity:.88}
+    .pr-cta:active{transform:scale(.98)}
+    .pr-hint{font-family:var(--m);font-size:8px;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);line-height:1.7;padding:12px 18px;margin:0;border-top:1px solid var(--line)}
+    @media(min-width:768px){.pr-hint{padding:13px 28px}}
 
-    /* ─ Log: activity section ── */
-    .activity-head{display:flex;justify-content:space-between;align-items:center;padding:14px 18px 10px;border-bottom:1px solid var(--line)}
-    .activity-head .ah-title{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
-    .activity-head .ah-count{font-family:var(--m);font-size:8px;color:var(--dim);letter-spacing:.04em}
+    /* ── Log: activity journal ── */
+    .act-head{display:none}
+    .act-row{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"title val" "kind when" "detail detail";gap:3px 10px;padding:11px 18px;border-bottom:1px solid var(--line);cursor:pointer;transition:background .16s}
+    .act-row:hover,.act-row.open{background:rgba(255,255,255,.035)}
+    .act-row .ar-title{grid-area:title;font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .act-row .ar-val{grid-area:val;text-align:right;font-family:var(--m);font-size:11px;font-weight:700;white-space:nowrap;color:rgba(255,255,255,.85)}
+    .act-row .ar-val.pos{color:#8ee6a8}
+    .act-row .ar-val.neg{color:#ff8f8f}
+    .act-row .ar-kind{grid-area:kind;justify-self:start;font-family:var(--m);font-size:7px;letter-spacing:.1em;text-transform:uppercase;padding:3px 6px;border:1px solid var(--line);color:var(--dim)}
+    .act-row .ar-kind.mission{border-color:rgba(255,255,255,.3);color:#fff}
+    .act-row .ar-kind.xp{border-color:rgba(140,190,255,.35);color:rgba(170,205,255,.9)}
+    .act-row .ar-kind.coins{border-color:rgba(255,214,120,.35);color:rgba(255,224,150,.9)}
+    .act-row .ar-kind.climb{border-color:rgba(190,160,255,.35);color:rgba(205,185,255,.9)}
+    .act-row .ar-when{grid-area:when;justify-self:end;font-family:var(--m);font-size:7.5px;color:var(--dim);letter-spacing:.04em;white-space:nowrap}
+    .act-row .ar-detail{grid-area:detail;font-family:var(--m);font-size:8px;color:var(--dim);letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    @media(min-width:768px){
+      .act-head{display:grid;grid-template-columns:112px 74px minmax(0,1fr) minmax(0,1fr) 92px;gap:12px;padding:9px 28px;border-bottom:1px solid var(--line);background:rgba(255,255,255,.02)}
+      .act-head span{font-family:var(--m);font-size:7px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+      .act-head span:last-child{text-align:right}
+      .act-row{grid-template-columns:112px 74px minmax(0,1fr) minmax(0,1fr) 92px;grid-template-areas:"when kind title detail val";gap:12px;align-items:center;padding:10px 28px}
+      .act-row .ar-when{justify-self:start}
+      .act-row .ar-title{font-size:12.5px}
+      .act-more{padding:0 28px 14px}
+      .act-detail{grid-template-columns:repeat(4,minmax(0,1fr))}
+    }
+    .act-more{padding:0 18px 13px;background:rgba(255,255,255,.035);border-bottom:1px solid var(--line);animation:logIn .22s ease}
+    .act-detail{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;margin:0;background:var(--line);border:1px solid var(--line)}
+    .act-detail>div{background:#0C0C0C;padding:8px 10px;min-width:0}
+    .act-detail dt{font-family:var(--m);font-size:6.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+    .act-detail dd{margin:3px 0 0;font-family:var(--m);font-size:9px;color:rgba(255,255,255,.85);word-break:break-word}
 
     /* ── Product request sheet ── */
     .pr-sheet label{display:block;margin-top:12px;font-family:var(--m);font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
@@ -1698,13 +1777,16 @@ function renderAvMenu(){
   const dc=a.discount_code||null;
   const handle=a.instagram_handle||'@athlete';
   const lvl=a.level?a.level.display_name:'—';
-  // Update menu labels with live data
-  AV_MENU[0].s=dc?`${dc.code} · ${dc.percent}% off`:'No code yet';
-  AV_MENU[0].note=`${a.month_orders||0} orders this month`;
-  const fmt=v=>'\u20B9'+Number(v||0).toLocaleString('en-IN');
-  AV_MENU[1].s=S.commissions?fmt((S.commissions.summary||{}).earned||0):'—';
-  AV_MENU[2].note=(S.orders||[]).filter(o=>o.fulfillment_status&&!['DELIVERED','delivered'].includes(o.fulfillment_status)).length?`${(S.orders||[]).filter(o=>o.fulfillment_status&&!['DELIVERED','delivered'].includes(o.fulfillment_status)).length} on the way`:'';
-  AV_MENU.find(m=>m.k==='shop').s=`${coinBalance().toLocaleString('en-IN')} coins`;
+  // Update menu labels with live data. Rows are looked up by key because the
+  // avatar row was prepended later, so positional indexes drift.
+  const row=k=>AV_MENU.find(m=>m.k===k);
+  const onTheWay=(S.orders||[]).filter(o=>o.fulfillment_status&&!['DELIVERED','delivered','CANCELLED','cancelled'].includes(o.fulfillment_status)).length;
+  row('code').s=dc?`${dc.code} · ${dc.percent}% off`:'No code yet';
+  row('code').note=`${a.month_orders||0} orders this month`;
+  row('cash').s=S.commissions?logFmt((S.commissions.summary||{}).earned||0):'—';
+  row('ship').s=onTheWay?`${onTheWay} on the way`:'Nothing in transit';
+  row('shop').s=`${coinBalance().toLocaleString('en-IN')} coins`;
+  row('shop').note='';
   $('avBody').innerHTML=`<div class="idcard"><span class="big">${renderAthleteAvatar(a,42)}</span><div><b>${esc(a.name||'Athlete')}</b><em>${esc(handle)} · ${esc(lvl)}</em></div></div><div class="menu">${AV_MENU.map(m=>`<button class="mrow" type="button" data-k="${m.k}"><svg viewBox="0 0 15 15" aria-hidden="true">${AV_ICONS[m.ic]}</svg><span><b>${m.t}</b><em>${m.s}</em></span><s${m.note?' class="hot"':''}>${m.note||''}</s><i>&rsaquo;</i></button>`).join('')}</div><p style="font-size:10.5px;color:var(--dim);margin:4px 0 0;line-height:1.45;flex:none">Six screens, none of them worth a tab. An athlete opens any of these a handful of times a month — usually because something sent them here.</p>`;
   $('avBody').querySelectorAll('.mrow').forEach(b=>{b.onclick=()=>avGo(b.dataset.k)});
 }
@@ -1857,7 +1939,9 @@ function renderAvShipments(){
   }
   const latest=active[0]||null;
   const curStep=latest?stepFor(latest.fulfillment_status):0;
-  $('avBody').innerHTML=`${latest?`<div class="kick">On the way</div><div class="track"><b style="font-size:13px;font-weight:700;display:block">Order #${esc(String(latest.shopify_order_id||'').slice(-6))}</b><em style="font-style:normal;font-family:var(--m);font-size:9px;letter-spacing:.07em;color:var(--dim)">${esc(latest.fulfillment_status||'Processing')}</em><div class="tsteps">${steps.map((x,i)=>`<div class="ts${i<curStep?' done':i===curStep?' now':''}">${x}</div>`).join('')}</div></div><p style="font-size:10.5px;color:var(--dim);margin:0;line-height:1.45;flex:none">The delivery scan is what starts your first task on this level — nothing is due until the kit is in your hands.</p>`:'<div class="locked"><div class="ic">📦</div><b>No active shipments</b><span>When a kit ships, it appears here with a live tracker.</span></div>'}<div class="rule"></div><div class="kick">Delivered</div><div>${past.length?past.map(o=>`<div class="shiprow"><div><b>Order #${esc(String(o.shopify_order_id||'').slice(-6))}</b><em>${esc(o.customer_name||'')} · ${fmt(o.net_value)}</em></div><span class="chipk go">Delivered</span></div>`).join(''):'<div class="shiprow"><div><b>Nothing yet</b><em>Your first delivery will appear here</em></div></div>'}</div>`;
+  $('avBody').innerHTML=`${latest?`<div class="kick">On the way</div><div class="track"><b style="font-size:13px;font-weight:700;display:block">Order #${esc(String(latest.shopify_order_id||'').slice(-6))}</b><em style="font-style:normal;font-family:var(--m);font-size:9px;letter-spacing:.07em;color:var(--dim)">${esc(latest.fulfillment_status||'Processing')}</em><div class="tsteps">${steps.map((x,i)=>`<div class="ts${i<curStep?' done':i===curStep?' now':''}">${x}</div>`).join('')}</div></div><p style="font-size:10.5px;color:var(--dim);margin:0;line-height:1.45;flex:none">The delivery scan is what starts your first task on this level — nothing is due until the kit is in your hands.</p>`:'<div class="locked"><div class="ic">📦</div><b>No active shipments</b><span>When a kit ships, it appears here with a live tracker.</span></div>'}<div class="rule"></div><div class="kick">Delivered</div><div>${past.length?past.map(o=>`<div class="shiprow"><div><b>Order #${esc(String(o.shopify_order_id||'').slice(-6))}</b><em>${esc(o.customer_name||'')} · ${logFmt(o.net_value)}</em></div><span class="chipk go">Delivered</span></div>`).join(''):'<div class="shiprow"><div><b>Nothing yet</b><em>Your first delivery will appear here</em></div></div>'}</div><div class="rule"></div><div class="kick">Need product</div><p style="font-size:10.5px;color:var(--dim);margin:0 0 9px;line-height:1.45;flex:none">Seeding, promotion prizes and replacements are requested from here — pick from the live catalogue and the team approves it.</p><button class="pr-cta" type="button" id="avPrBtn">Request product</button>`;
+  const prBtn=$('avPrBtn');
+  if(prBtn)prBtn.onclick=()=>{closeAvSheet();openProductRequest()};
 }
 
 function renderAvCard(){
@@ -2103,7 +2187,9 @@ function sbRenderShipments(){
   const past=orders.filter(o=>['DELIVERED','delivered'].includes(o.fulfillment_status)).slice(0,5);
   const fmt=v=>'\u20B9'+Number(v||0).toLocaleString('en-IN');
   const latest=active[0]||null;
-  $('sbSubBody').innerHTML=`${latest?`<div class="sb-kick">On the way</div><div class="sb-shiprow" style="padding:10px 0;border-bottom:1px solid var(--line)"><div><b>Order #${esc(String(latest.shopify_order_id||'').slice(-6))}</b><em>${esc(latest.fulfillment_status||'Processing')}</em></div><span class="sb-chip go">Active</span></div>`:'<div class="sb-note">No active shipments. When a kit ships, it appears here.</div>'}<div class="sb-kick" style="margin-top:14px">Delivered</div>${past.length?past.map(o=>`<div class="sb-shiprow"><div><b>#${esc(String(o.shopify_order_id||'').slice(-6))}</b><em>${esc(o.customer_name||'')} · ${fmt(o.net_value)}</em></div><span class="sb-chip go">Delivered</span></div>`).join(''):'<div class="sb-note">Your first delivery will appear here.</div>'}`;
+  $('sbSubBody').innerHTML=`${latest?`<div class="sb-kick">On the way</div><div class="sb-shiprow" style="padding:10px 0;border-bottom:1px solid var(--line)"><div><b>Order #${esc(String(latest.shopify_order_id||'').slice(-6))}</b><em>${esc(latest.fulfillment_status||'Processing')}</em></div><span class="sb-chip go">Active</span></div>`:'<div class="sb-note">No active shipments. When a kit ships, it appears here.</div>'}<div class="sb-kick" style="margin-top:14px">Delivered</div>${past.length?past.map(o=>`<div class="sb-shiprow"><div><b>#${esc(String(o.shopify_order_id||'').slice(-6))}</b><em>${esc(o.customer_name||'')} · ${fmt(o.net_value)}</em></div><span class="sb-chip go">Delivered</span></div>`).join(''):'<div class="sb-note">Your first delivery will appear here.</div>'}<div class="sb-kick" style="margin-top:16px">Need product</div><p class="sb-note">Seeding, promotion prizes and replacements are requested from here — pick from the live catalogue and the team approves it.</p><button class="sb-savebtn" type="button" id="sbPrBtn">Request product</button>`;
+  const prBtn=$('sbPrBtn');
+  if(prBtn)prBtn.onclick=()=>{closeSidebarAcctSub();openProductRequest()};
 }
 function sbRenderCard(){
   const a=S.athlete||{};
@@ -2955,6 +3041,192 @@ ${(r.chase_targets||[]).length?`<div class="module"><div class="rk-chase-hdr"><s
 ${(r.biggest_climbers||[]).length?`<div class="module"><div class="rk-climbers-hdr"><span>This week</span><b>BIGGEST CLIMBERS</b></div>${climbers}</div>`:''}`;
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// Log tab — commission hero, monthly split, orders table, product requests and
+// the paginated activity journal. Panels, filters and paging live on LOGUI so a
+// re-render keeps the athlete where they were. All of it is client side: the
+// portal pulls up to 300 activity events and 100 orders in one call.
+// ══════════════════════════════════════════════════════════════════════════
+const LOGUI={monthlyOpen:true,monthlyMore:new Set(),ordersOpen:true,ordersPage:1,ordersPer:10,orderFilter:'ALL',prOpen:true,actOpen:true,actPage:1,actPer:12,actFilter:'ALL',actMore:new Set()};
+const LOG_KIND_LABEL={MISSION:'Mission',XP:'XP',COINS:'Coins',CLIMB:'Rank'};
+const LOG_REASONS={GAME_XP:'Arcade run',GAME_COINS:'Arcade run',RACE_XP:'Rooftop race',TASK_XP:'Mission approved',TASK_COINS:'Mission approved',WEEKLY_CHALLENGE_WIN:'Weekly challenge',LEVEL_UP_BONUS:'Level-up bonus',SIGNUP_BONUS:'Join bonus',REFERRAL_BONUS:'Referral bonus'};
+const LOG_PAGE_SIZES=[10,25,50];
+const logFmt=v=>'\u20B9'+Number(v||0).toLocaleString('en-IN');
+
+function logKind(e){const t=String(e&&e.type||'').toUpperCase();return LOG_KIND_LABEL[t]?t:'OTHER'}
+function logReason(code){
+  const raw=String(code||'').trim();
+  if(!raw)return '\u2014';
+  const hit=LOG_REASONS[raw.toUpperCase()];
+  if(hit)return hit;
+  const words=raw.replace(/_/g,' ').toLowerCase();
+  return words.charAt(0).toUpperCase()+words.slice(1);
+}
+function logWhen(iso){
+  const d=new Date(iso);
+  if(!iso||isNaN(d.getTime()))return '\u2014';
+  return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'2-digit'})+' \u00B7 '+d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
+}
+function logAgo(iso){
+  const d=new Date(iso);
+  if(!iso||isNaN(d.getTime()))return '';
+  const mins=Math.round((Date.now()-d.getTime())/60000);
+  if(mins<1)return 'just now';
+  if(mins<60)return mins+'m ago';
+  const hrs=Math.round(mins/60);if(hrs<24)return hrs+'h ago';
+  const days=Math.round(hrs/24);if(days<7)return days+'d ago';
+  return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short'});
+}
+// Right-hand value of an activity row: ledger events show their signed amount,
+// missions show whatever they awarded, rank moves show a direction.
+function logValue(e){
+  const kind=logKind(e);
+  if(kind==='XP'||kind==='COINS'){
+    const amt=Number(e.amount||0);
+    return {text:(amt>0?'+':'')+amt.toLocaleString('en-IN')+(kind==='COINS'?' coins':' XP'),dir:amt<0?'neg':'pos'};
+  }
+  if(kind==='MISSION'){
+    const bits=[];
+    if(Number(e.xp))bits.push('+'+Number(e.xp)+' XP');
+    if(Number(e.coins))bits.push('+'+Number(e.coins)+' coins');
+    return {text:bits.join(' \u00B7 ')||String(e.status||'').replace(/_/g,' '),dir:bits.length?'pos':''};
+  }
+  if(kind==='CLIMB'){
+    const down=String(e.direction||'').toUpperCase()==='DOWN';
+    return {text:down?'Down':'Up',dir:down?'neg':'pos'};
+  }
+  return {text:String(e.title||''),dir:''};
+}
+function logPanelHead(key,title,meta){
+  return `<button class="log-panel-head" type="button" data-log-toggle="${key}" aria-expanded="${LOGUI[key]?'true':'false'}"><span class="lp-title">${title}</span><span class="lp-meta">${meta}</span><span class="lp-chev"></span></button>`;
+}
+function logSlice(list,page,per){
+  const pages=Math.max(1,Math.ceil(list.length/per));
+  const safe=Math.min(Math.max(1,page),pages);
+  return {rows:list.slice((safe-1)*per,safe*per),page:safe,pages};
+}
+function logPager(ns,page,pages,total,per,noun){
+  return `<div class="log-pager">
+    <span class="pg-info">Page ${page} of ${pages} \u00B7 ${total} ${noun}${total===1?'':'s'}</span>
+    <div class="pg-btns">
+      ${LOG_PAGE_SIZES.map(n=>`<button type="button" data-pg="${ns}" data-pg-per="${n}" class="${n===per?'on':''}" title="Rows per page">${n}</button>`).join('')}
+      <button type="button" data-pg="${ns}" data-pg-go="${page-1}"${page<=1?' disabled':''} aria-label="Newer">&lsaquo;</button>
+      <button type="button" data-pg="${ns}" data-pg-go="${page+1}"${page>=pages?' disabled':''} aria-label="Older">&rsaquo;</button>
+    </div>
+  </div>`;
+}
+
+function monthlyPanel(monthly,rate){
+  if(!monthly.length)return '';
+  const rows=monthly.map(m=>{
+    const id='m-'+m.month,open=LOGUI.monthlyMore.has(id);
+    const d=new Date(m.month+'-02T00:00:00');
+    const label=isNaN(d.getTime())?m.month:d.toLocaleDateString('en-IN',{month:'long',year:'numeric'});
+    const codes=Object.entries(m.codes||{}).map(([code,count])=>`${esc(code)} \u00B7 ${count} order${count!==1?'s':''}`).join('  \u2022  ');
+    return `<div class="monthly-row" data-month="${id}" role="button" tabindex="0" aria-expanded="${open?'true':'false'}">
+        <div><div class="mr-month">${esc(label)}</div><div class="mr-meta">${m.orders} order${m.orders!==1?'s':''} \u00B7 ${logFmt(m.revenue)} revenue</div>${codes?`<div class="mr-meta" style="margin-top:2px">${codes}</div>`:''}</div>
+        <div class="mr-ord">${m.orders}</div>
+        <div class="mr-comm">${logFmt(m.commission)}</div>
+      </div>${open?`<div class="monthly-more"><div><span>Earned</span><b>${logFmt(m.earned)}</b></div><div><span>Pending</span><b>${logFmt(m.pending)}</b></div><div><span>Paid</span><b>${logFmt(m.paid)}</b></div><div><span>Reversed</span><b>${logFmt(m.reversed)}</b></div></div>`:''}`;
+  }).join('');
+  return `<section class="log-panel${LOGUI.monthlyOpen?' open':''}" id="logMonthly">${logPanelHead('monthlyOpen','Monthly breakdown',`${rate}% rate \u00B7 ${monthly.length} month${monthly.length===1?'':'s'}`)}<div class="log-panel-body">${rows}</div></section>`;
+}
+
+function ordersPanel(orders,rate){
+  const statusOf=o=>o.is_cancelled?'REVERSED':String(o.commission_status||'PENDING').toUpperCase();
+  const counts={ALL:orders.length,EARNED:0,PENDING:0,PAID:0,REVERSED:0};
+  orders.forEach(o=>{const st=statusOf(o);if(counts[st]!==undefined)counts[st]++});
+  const filtered=LOGUI.orderFilter==='ALL'?orders:orders.filter(o=>statusOf(o)===LOGUI.orderFilter);
+  const {rows:slice,page,pages}=logSlice(filtered,LOGUI.ordersPage,LOGUI.ordersPer);
+  LOGUI.ordersPage=page;
+  const chips=['ALL','EARNED','PENDING','PAID','REVERSED'].map(k=>`<button type="button" class="log-chip${LOGUI.orderFilter===k?' on':''}" data-ord-filter="${k}">${k==='ALL'?'All':k.charAt(0)+k.slice(1).toLowerCase()}<s>${counts[k]||0}</s></button>`).join('');
+  const head='<div class="ord-head" aria-hidden="true"><span>Date</span><span>Order</span><span>Customer</span><span>Code</span><span>Net</span><span>Commission</span><span>Status</span></div>';
+  const rows=slice.map(o=>{
+    const net=parseFloat(o.net_value)||0;
+    const comm=Math.round(net*rate/100*100)/100;
+    const st=statusOf(o).toLowerCase();
+    const d=new Date(o.placed_at);
+    const dateStr=isNaN(d.getTime())?'\u2014':d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'2-digit'});
+    const code=o.code_used||'DIRECT';
+    return `<div class="ord-row">
+        <span class="od-oid">#${esc(String(o.shopify_order_id||'\u2014'))}</span>
+        <span class="od-cust">${esc(o.customer_name||'Customer')}</span>
+        <span class="od-when">${dateStr}<span class="monly"> \u00B7 ${esc(code)}</span></span>
+        <span class="od-code">${esc(code)}</span>
+        <span class="od-net">${logFmt(net)}</span>
+        <span class="od-comm">${logFmt(comm)}</span>
+        <span class="od-status"><span class="od-pill ${st}">${st}</span></span>
+      </div>`;
+  }).join('');
+  const body=orders.length
+    ? `<div class="log-toolbar">${chips}<span class="tf-right">${filtered.length===orders.length?orders.length+' orders':filtered.length+' of '+orders.length}</span></div>${head}${rows||'<div class="empty" style="padding:16px 18px">No orders in this state.</div>'}${pages>1?logPager('orders',page,pages,filtered.length,LOGUI.ordersPer,'order'):''}`
+    : '<div class="empty" style="padding:16px 18px">No commissioned orders yet. They land here the moment an order is placed on your code.</div>';
+  return `<section class="log-panel${LOGUI.ordersOpen?' open':''}" id="logOrders">${logPanelHead('ordersOpen','Orders',`${orders.length} total \u00B7 ${rate}% on net`)}<div class="log-panel-body">${body}</div></section>`;
+}
+
+function requestsPanel(prs){
+  const rows=prs.map(p=>{
+    const items=(p.items||[]).map(it=>esc(it.title||it.variant_id||'Item')).join(' \u00B7 ');
+    const d=new Date(p.requested_at);
+    const when=isNaN(d.getTime())?'\u2014':d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+    const st=String(p.status||'requested').toLowerCase();
+    return `<div class="pr-row">
+      <div>
+        <div class="pr-reason">${esc(p.reason||'Request')}</div>
+        <div class="pr-date">${when}${p.notes?' \u00B7 '+esc(p.notes):''}</div>
+        ${items?`<div class="pr-items">${items}</div>`:''}
+      </div>
+      <span class="pr-status ${st}">${st.replace('_',' ')}</span>
+    </div>`;
+  }).join('');
+  return `<section class="log-panel${LOGUI.prOpen?' open':''}" id="logRequests">${logPanelHead('prOpen','Product requests',`${prs.length} total`)}<div class="log-panel-body">${rows||'<div class="empty" style="padding:16px 18px">Nothing requested yet.</div>'}<p class="pr-hint">Request a product from Account &rarr; Shipments. An approved request comes back as a seeding shipment.</p></div></section>`;
+}
+
+function actMore(n){
+  const e=n.e;
+  const fields=[
+    ['Exact time',logWhen(e.occurred_at)],
+    ['Kind',LOG_KIND_LABEL[n.kind]||n.kind],
+    ['Reason code',e.detail?String(e.detail):null],
+    ['Status',e.status?String(e.status).replace(/_/g,' '):null],
+    ['XP',e.xp?String(e.xp):null],
+    ['Coins',e.coins?String(e.coins):null],
+    ['Amount',e.amount!==undefined&&e.amount!==null?String(e.amount):null],
+    ['Balance after',e.balance_after!==undefined&&e.balance_after!==null?String(e.balance_after):null],
+    ['Reference',e.id||null]
+  ].filter(f=>f[1]!==null&&f[1]!=='');
+  return `<div class="act-more"><dl class="act-detail">${fields.map(([k,v])=>`<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl></div>`;
+}
+
+function activityPanel(events){
+  const norm=events.slice().sort((a,b)=>new Date(b.occurred_at)-new Date(a.occurred_at)).map((e,i)=>{
+    const kind=logKind(e),val=logValue(e);
+    return {e,kind,id:e.id||('e'+i),value:val.text,dir:val.dir};
+  });
+  const counts={ALL:norm.length,MISSION:0,XP:0,COINS:0,CLIMB:0};
+  norm.forEach(n=>{if(counts[n.kind]!==undefined)counts[n.kind]++});
+  const filtered=LOGUI.actFilter==='ALL'?norm:norm.filter(n=>n.kind===LOGUI.actFilter);
+  const {rows:slice,page,pages}=logSlice(filtered,LOGUI.actPage,LOGUI.actPer);
+  LOGUI.actPage=page;
+  const chips=['ALL','MISSION','XP','COINS','CLIMB'].map(k=>`<button type="button" class="log-chip${LOGUI.actFilter===k?' on':''}" data-act-filter="${k}">${k==='ALL'?'All':LOG_KIND_LABEL[k]}<s>${counts[k]||0}</s></button>`).join('');
+  const head='<div class="act-head" aria-hidden="true"><span>When</span><span>Kind</span><span>Activity</span><span>Detail</span><span>Impact</span></div>';
+  const rows=slice.map(n=>{
+    const open=LOGUI.actMore.has(n.id);
+    return `<div class="act-row${open?' open':''}" data-act-row="${esc(n.id)}" role="button" tabindex="0" aria-expanded="${open?'true':'false'}">
+        <span class="ar-title">${esc(n.e.title||'Event')}</span>
+        <span class="ar-val ${n.dir}">${esc(n.value)}</span>
+        <span class="ar-kind ${n.kind.toLowerCase()}">${LOG_KIND_LABEL[n.kind]||esc(n.kind)}</span>
+        <span class="ar-when">${logWhen(n.e.occurred_at)}</span>
+        <span class="ar-detail">${esc(logReason(n.e.detail))}</span>
+      </div>${open?actMore(n):''}`;
+  }).join('');
+  const meta=norm.length?`${norm.length} events \u00B7 ${logAgo(norm[0].e.occurred_at)}`:'0 events';
+  const body=norm.length
+    ? `<div class="log-toolbar">${chips}<span class="tf-right">${filtered.length===norm.length?norm.length+' events':filtered.length+' of '+norm.length}</span></div>${head}${rows||'<div class="empty" style="padding:16px 18px">No events of this kind.</div>'}${pages>1?logPager('act',page,pages,filtered.length,LOGUI.actPer,'event'):''}`
+    : '<div class="empty" style="padding:16px 18px">Approved work, XP, coins and rank moves appear here.</div>';
+  return `<section class="log-panel${LOGUI.actOpen?' open':''}" id="logActivity">${logPanelHead('actOpen','Activity log',meta)}<div class="log-panel-body">${body}</div></section>`;
+}
+
 function renderLog(){
   const c=S.commissions||{};
   const s=c.summary||{};
@@ -2962,82 +3234,62 @@ function renderLog(){
   const orders=S.orders||[];
   const prs=S.productRequests||[];
   const events=S.log||[];
-  const fmt=v=>'\u20B9'+Number(v||0).toLocaleString('en-IN');
-
-  let html='';
-
-  // Commission hero
   const rate=s.commission_rate||7;
-  html+=`<div class="comm-hero">
+
+  let html=`<div class="comm-hero">
     <div class="cm-top"><span class="cm-label">Total commission earned</span><span class="cm-live"><i></i>Live</span></div>
-    <div class="cm-earned">${fmt(s.total_commission)}</div>
-    <div class="cm-sub">${s.total_orders||0} orders &middot; ${fmt(s.total_revenue)} revenue &middot; ${rate}% per order</div>
-    <dl class="cm-stats">
-      <div><dt>Earned</dt><dd>${fmt(s.earned)}</dd></div>
-      <div><dt>Pending</dt><dd>${fmt(s.pending)}</dd></div>
-      <div><dt>Paid</dt><dd>${fmt(s.paid)}</dd></div>
+    <div class="cm-earned">${logFmt(s.total_commission)}</div>
+    <div class="cm-sub">${s.total_orders||0} orders &middot; ${logFmt(s.total_revenue)} attributed &middot; ${rate}% on net</div>
+    <dl class="cm-stats four">
+      <div><dt>Earned</dt><dd>${logFmt(s.earned)}</dd></div>
+      <div><dt>Pending</dt><dd>${logFmt(s.pending)}</dd></div>
+      <div><dt>Paid</dt><dd>${logFmt(s.paid)}</dd></div>
+      <div><dt>Reversed</dt><dd>${logFmt(s.reversed)}</dd></div>
     </dl>
   </div>`;
 
-  // Monthly breakdown
-  if(monthly.length){
-    const rows=monthly.map(m=>{
-      const codes=Object.entries(m.codes||{}).map(([code,count])=>`${esc(code)}: ${count} order${count!==1?'s':''}`).join(' | ');
-      return `<div class="monthly-row">
-        <div><div class="mr-month">${m.month}</div><div class="mr-meta">${m.orders} order${m.orders!==1?'s':''} &middot; ${fmt(m.revenue)} revenue</div>${codes?`<div class="mr-meta" style="margin-top:2px;font-size:7px">${codes}</div>`:''}</div>
-        <div class="mr-ord">${m.orders}</div>
-        <div class="mr-comm">${fmt(m.commission)}</div>
-      </div>`;
-    }).join('');
-    html+=`<div><div class="monthly-head"><span class="mh-title">Monthly breakdown</span><span class="mh-count">${rate}% rate &middot; ${monthly.length} months</span></div>${rows}</div>`;
-  }
-
-  // Orders
-  if(orders.length){
-    const rows=orders.slice(0,20).map(o=>{
-      const netVal=parseFloat(o.net_value)||0;
-      const comm7=Math.round(netVal*rate/100*100)/100;
-      const status=(o.commission_status||'pending').toLowerCase();
-      const d=new Date(o.placed_at);
-      const dateStr=d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
-      return `<div class="order-row">
-        <div>
-          <div class="or-id">#${o.shopify_order_id} &middot; ${dateStr}</div>
-          <div class="or-value">${fmt(netVal)}</div>
-          <div class="or-meta">${esc(o.customer_name||'Customer')} &middot; Code: ${esc(o.code_used||'DIRECT')}</div>
-          <span class="or-status ${status}">${status}</span>
-        </div>
-        <div class="or-comm">
-          <div class="or-comm-amt">${fmt(comm7)}</div>
-          <div class="or-comm-rate">${rate}% rate</div>
-        </div>
-      </div>`;
-    }).join('');
-    html+=`<div><div class="order-head"><span class="oh-title">Orders</span><span class="oh-count">${orders.length} total</span></div>${rows}</div>`;
-  }
-
-  // Product requests
-  const prRows=prs.map(p=>{
-    const items=(p.items||[]).map(it=>it.title||it.variant_id||'Item').join(', ');
-    const d=new Date(p.requested_at);
-    const status=(p.status||'requested').toLowerCase();
-    return `<div class="pr-row">
-      <div>
-        <div class="pr-reason">${esc(p.reason)}</div>
-        <div class="pr-date">${d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}</div>
-        ${items?`<div class="pr-items">${esc(items)}</div>`:''}
-      </div>
-      <span class="pr-status ${status}">${status.replace('_',' ')}</span>
-    </div>`;
-  }).join('');
-  html+=`<div><div class="pr-head"><span class="ph-title">Product requests</span><span class="ph-count">${prs.length} total</span></div>${prRows||'<div class="empty" style="padding:12px 18px">No product requests yet.</div>'}<button class="req-product-btn" id="openPrSheet">Request product</button></div>`;
-
-  // Activity log
-  const actRows=events.length?events.map(x=>`<div class="history-row"><span>${new Date(x.occurred_at).toLocaleDateString()}</span><b>${esc(x.title)}</b><span>${esc(x.detail||x.type)}</span></div>`).join(''):'<div class="empty" style="padding:12px 18px">Approved work, XP, and level changes appear here.</div>';
-  html+=`<div><div class="activity-head"><span class="ah-title">Activity log</span><span class="ah-count">${events.length} events</span></div>${actRows}</div>`;
+  html+=monthlyPanel(monthly,rate);
+  html+=ordersPanel(orders,rate);
+  html+=requestsPanel(prs);
+  html+=activityPanel(events);
 
   $('logContent').innerHTML=html;
-  $('openPrSheet')?.addEventListener('click',openProductRequest);
+  bindLog();
+}
+
+// One delegated pass per render: every panel control is a data-* button, so a
+// re-render never leaves a stale handler behind.
+function bindLog(){
+  const root=$('logContent');if(!root)return;
+  const keep=fn=>{const sc=root.parentElement;const top=sc?sc.scrollTop:0;fn();if(sc)sc.scrollTop=top};
+  root.querySelectorAll('[data-log-toggle]').forEach(b=>{b.onclick=()=>{
+    const key=b.dataset.logToggle;LOGUI[key]=!LOGUI[key];renderLog();
+    const again=$('logContent').querySelector(`[data-log-toggle="${key}"]`);if(again)again.scrollIntoView({block:'nearest'});
+  }});
+  root.querySelectorAll('[data-ord-filter]').forEach(b=>{b.onclick=()=>keep(()=>{LOGUI.orderFilter=b.dataset.ordFilter;LOGUI.ordersPage=1;renderLog()})});
+  root.querySelectorAll('[data-act-filter]').forEach(b=>{b.onclick=()=>keep(()=>{LOGUI.actFilter=b.dataset.actFilter;LOGUI.actPage=1;renderLog()})});
+  root.querySelectorAll('[data-pg]').forEach(b=>{b.onclick=()=>keep(()=>{
+    const ns=b.dataset.pg;
+    if(b.dataset.pgPer){
+      const n=Number(b.dataset.pgPer);
+      if(ns==='orders'){LOGUI.ordersPer=n;LOGUI.ordersPage=1}else{LOGUI.actPer=n;LOGUI.actPage=1}
+    }else if(b.dataset.pgGo){
+      const n=Math.max(1,Number(b.dataset.pgGo));
+      if(ns==='orders')LOGUI.ordersPage=n;else LOGUI.actPage=n;
+    }
+    renderLog();
+  })});
+  root.querySelectorAll('[data-act-row]').forEach(r=>{r.onclick=()=>keep(()=>{
+    const id=r.dataset.actRow;
+    if(LOGUI.actMore.has(id))LOGUI.actMore.delete(id);else LOGUI.actMore.add(id);
+    renderLog();
+  })});
+  root.querySelectorAll('[data-month]').forEach(r=>{r.onclick=()=>keep(()=>{
+    const id=r.dataset.month;
+    if(LOGUI.monthlyMore.has(id))LOGUI.monthlyMore.delete(id);else LOGUI.monthlyMore.add(id);
+    renderLog();
+  })});
+  root.querySelectorAll('[data-act-row],[data-month]').forEach(r=>{r.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();r.click()}}});
 }
 
 function togglePool(head){
@@ -3268,7 +3520,7 @@ async function refreshXp(){
 }
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshXp()});
 
-const ENDPOINTS=['/progress','/streak','/leaderboard','/climb','/ranks','/log','/weekly-challenge','/orders','/commissions','/product-requests'];
+const ENDPOINTS=['/progress','/streak','/leaderboard','/climb','/ranks','/log?limit=300','/weekly-challenge','/orders','/commissions','/product-requests'];
 
 async function attempt(path){
   try{
