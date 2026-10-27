@@ -1379,6 +1379,18 @@ module.exports = function mountAthleteRoutes(app) {
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
 
+  // ── Arcade leaderboard: athletes ranked by game XP, not overall comfort XP ──
+  app.get('/api/athlete/:token/arcade', authAthlete, async (req, res) => {
+    try {
+      const { influencerId, scope } = req.athleteScope;
+      if (scope !== 'PROGRESS') return res.status(403).json({ error: 'Wrong scope' });
+      res.json({ success: true, data: await GamificationService.getArcadeLeaderboard(influencerId, {
+        period: req.query.period,
+        limit: req.query.limit
+      }) });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
   // ── Coin Shop (balance, coin sources, level-up bonuses; products land later) ──
   app.get('/api/athlete/:token/shop', authAthlete, async (req, res) => {
     try {

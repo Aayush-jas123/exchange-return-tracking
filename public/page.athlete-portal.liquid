@@ -104,6 +104,8 @@
     .kick{font-family:var(--m);font-size:8.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--dim);margin-top:7px}
     .hero{font-weight:900;font-size:31px;line-height:.95;letter-spacing:-.028em;text-transform:uppercase}
     @media(min-width:768px){.hero{font-size:48px}}
+    .hero.tight{font-size:23px;line-height:1.04}
+    @media(min-width:768px){.hero.tight{font-size:34px;line-height:1.02}}
     .hero span{display:block;overflow:hidden}
     .hero i{display:block;font-style:normal;transform:translateY(105%)}
     .open .hero i{animation:lift .78s cubic-bezier(.16,1,.3,1) forwards}
@@ -116,18 +118,10 @@
     .clock .s{opacity:.48}
     .resets{font-family:var(--m);font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);text-align:right;line-height:1.4}
     .xpchip{font-family:var(--m);font-size:11px;border:1px solid var(--line);padding:4px 7px}
+    .chip{font-family:var(--m);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:#000;background:#fff;border:1px solid #fff;padding:4px 8px;border-radius:3px;font-weight:700;white-space:nowrap;flex:none}
 
-    .plate{position:relative;min-height:190px;margin:16px 12px 0;overflow:hidden;border-radius:8px;background:linear-gradient(150deg,#565656,#101010 62%,#2D2D2D)}
-    @media(min-width:768px){.plate{min-height:260px;margin:24px 0 0;border-radius:12px}}
-    .plate i{position:absolute;inset:-14%;background:inherit;animation:burns 22s ease-in-out infinite alternate}
-    @keyframes burns{0%{transform:scale(1)}100%{transform:scale(1.15) translate(-3%,-2%)}}
-    .plate::after{content:"";position:absolute;inset:0;opacity:.3;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/><feColorMatrix type='saturate' values='0'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='.55'/></svg>")}
-    .plate q{position:absolute;left:16px;right:16px;bottom:10px;z-index:2;quotes:none;font-size:11px;line-height:1.4;text-shadow:0 1px 4px #000}
-    @media(min-width:768px){.plate q{left:40px;right:40px;bottom:16px;font-size:13px}}
-    .plate q b{display:block;font-family:var(--m);font-size:7.5px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.72);font-weight:400;margin-top:3px}
-
-    .cta{position:relative;overflow:hidden;border:1px solid #fff;background:#fff;color:#000;font-weight:800;font-size:12px;letter-spacing:.11em;text-transform:uppercase;text-align:center;padding:13px;width:100%;cursor:pointer;user-select:none}
-    @media(min-width:768px){.cta{font-size:14px;padding:16px;max-width:420px;margin:12px auto 0}}
+    .cta{position:relative;display:block;overflow:hidden;border:1px solid #fff;background:#fff;color:#000;font-weight:800;font-size:12px;letter-spacing:.11em;text-transform:uppercase;text-align:center;padding:14px 13px;width:100%;margin:22px 0 6px;cursor:pointer;user-select:none}
+    @media(min-width:768px){.cta{font-size:14px;padding:17px;max-width:420px;margin:28px auto 10px}}
     .cta::after{content:"";position:absolute;top:0;bottom:0;width:36%;background:linear-gradient(90deg,transparent,rgba(0,0,0,.14),transparent);transform:translateX(-160%);animation:sweep 4.6s cubic-bezier(.4,0,.2,1) infinite}
     @keyframes sweep{0%,62%{transform:translateX(-160%)}100%{transform:translateX(330%)}}
     .cta:active{transform:scale(.978)}
@@ -639,16 +633,15 @@
     .sheet .cancel{background:transparent;color:#fff;border:1px solid var(--line)}
     .sheet .submit-btn{background:#fff;color:#000;border:1px solid #fff}
     .sheet .char-count{font-family:var(--m);font-size:8px;color:var(--dim);text-align:right;margin-top:3px;letter-spacing:.04em}
-    .footer{position:relative;overflow:hidden;min-height:170px}
-    .footer video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.35;filter:brightness(.3) contrast(1.15) saturate(.4)}
-    .footer::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,10,10,.3) 0%,rgba(10,10,10,.65) 35%,rgba(10,10,10,.92) 100%);z-index:1}
-    .footer-inner{position:relative;z-index:2;padding:30px 18px 24px;display:flex;flex-direction:column;justify-content:flex-end;min-height:170px}
-    @media(min-width:768px){.footer-inner{padding:36px 40px 28px}}
+    /* full-bleed footer: lives outside .scroll-inner so the video reaches both screen edges */
+    .footer{position:relative;width:100%;overflow:hidden;min-height:190px;background:var(--bg)}
+    .footer video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.4;filter:grayscale(1) brightness(.45) contrast(1.2)}
+    .footer::before{content:"";position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,rgba(10,10,10,.98) 0%,rgba(10,10,10,.62) 24%,rgba(10,10,10,.58) 60%,rgba(10,10,10,.92) 100%)}
+    .footer-inner{position:relative;z-index:2;padding:50px 16px 24px;display:flex;flex-direction:column;justify-content:flex-end;min-height:190px}
+    @media(min-width:768px){.footer{min-height:230px}.footer-inner{padding:58px 40px 30px;min-height:230px}}
     .footer-brand{font-weight:900;font-size:22px;letter-spacing:.18em;text-transform:uppercase;color:#fff;text-shadow:0 2px 12px rgba(0,0,0,.6)}
     .footer-tag{font-family:var(--m);font-size:7.5px;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.5);margin-top:4px}
-    .footer-rule{width:28px;height:1px;background:rgba(255,255,255,.35);margin:10px 0}
-    .footer-note{font-size:10px;line-height:1.5;color:rgba(255,255,255,.45);max-width:240px}
-    .footer-note b{color:rgba(255,255,255,.7);font-weight:700}
+    .footer-rule{width:28px;height:1px;background:rgba(255,255,255,.35);margin:10px 0 0}
 
     /* shared helpers from the Field Manual navigation spec */
     .rowx{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
@@ -825,20 +818,28 @@
     .dr s{text-decoration:none;font-family:var(--m);font-size:10px;color:var(--dim);font-variant-numeric:tabular-nums}
 
     /* task pool — collapsible mission rows */
-    .taskpool{display:flex;flex-direction:column;flex:none;gap:0}
-    .mpool{border:1px solid var(--line);border-radius:6px;overflow:hidden;margin-top:2px;transition:border-color .25s}
-    .mpool:hover{border-color:rgba(255,255,255,.35)}
-    .mpool.open{border-color:rgba(255,255,255,.55)}
-    .mpool-head{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:10px 12px;cursor:pointer;user-select:none}
-    .mpool-head b{font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .taskpool{display:flex;flex-direction:column;flex:none;gap:9px;margin-top:6px}
+    @media(min-width:768px){.taskpool{gap:11px;margin-top:8px}}
+    .mpool{border:1px solid rgba(255,255,255,.15);border-radius:8px;background:#131313;overflow:hidden;transition:border-color .25s,background .25s,box-shadow .25s}
+    .mpool:hover{border-color:rgba(255,255,255,.32);background:#171717}
+    .mpool.open{border-color:rgba(255,255,255,.6);background:#171717;box-shadow:0 10px 26px rgba(0,0,0,.45)}
+    .mpool.hl{border-color:#fff;box-shadow:0 0 0 1px rgba(255,255,255,.5)}
+    .mpool-head{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;padding:15px 14px;cursor:pointer;user-select:none}
+    @media(min-width:768px){.mpool-head{padding:19px 20px;gap:18px}}
+    .mpool-head b{font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    @media(min-width:768px){.mpool-head b{font-size:14.5px}}
     .mpool-head .mxp{font-family:var(--m);font-size:10px;font-weight:700;color:var(--dim);font-variant-numeric:tabular-nums;white-space:nowrap}
+    @media(min-width:768px){.mpool-head .mxp{font-size:11px}}
     .mpool-head .marr{font-style:normal;font-size:11px;color:var(--dim);transition:transform .3s cubic-bezier(.16,1,.3,1);flex:none}
-    .mpool.open .marr{transform:rotate(180deg);color:#fff}
-    .mpool-body{max-height:0;overflow:hidden;transition:max-height .35s cubic-bezier(.16,1,.3,1)}
-    .mpool.open .mpool-body{max-height:200px}
-    .mpool-body-inner{padding:0 12px 12px;border-top:1px solid rgba(255,255,255,.07)}
-    .mpool-body-inner p{font-size:11px;color:var(--dim);line-height:1.5;margin:10px 0 0}
-    .mpool-body-inner .mpick{display:inline-block;margin-top:10px;font-family:var(--m);font-size:9px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;color:#000;background:#fff;border:0;padding:7px 14px;border-radius:4px;cursor:pointer;transition:transform .15s}
+    @media(min-width:768px){.mpool-head .marr{font-size:13px}}
+    .mpool.open .marr{transform:rotate(90deg);color:#fff}
+    .mpool-body{max-height:0;overflow:hidden;transition:max-height .38s cubic-bezier(.16,1,.3,1)}
+    .mpool.open .mpool-body{max-height:360px}
+    .mpool-body-inner{padding:0 14px 15px;border-top:1px solid rgba(255,255,255,.09)}
+    @media(min-width:768px){.mpool-body-inner{padding:0 20px 20px}}
+    .mpool-body-inner p{font-size:11.5px;color:var(--dim);line-height:1.55;margin:12px 0 0}
+    @media(min-width:768px){.mpool-body-inner p{font-size:12.5px;max-width:78ch}}
+    .mpool-body-inner .mpick{display:inline-block;margin-top:14px;font-family:var(--m);font-size:9px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;color:#000;background:#fff;border:0;padding:9px 18px;border-radius:5px;cursor:pointer;transition:transform .15s}
     .mpool-body-inner .mpick:active{transform:scale(.96)}
     .mpool-body-inner .mpick:disabled{opacity:.4;cursor:default}
 
@@ -857,11 +858,59 @@
 
     /* proof row on task */
     .lab{font-family:var(--m);font-size:7.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);display:block;margin-bottom:3px}
-    .proof{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex:none}
+    .proof{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex:none;margin-top:15px}
     .proof>div:first-child{flex:1 1 auto}
     .proof b{font-size:11px;font-weight:600;line-height:1.4}
     .pf{display:flex;gap:5px;flex:none}
     .pf span{font-family:var(--m);font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);border:1px solid var(--line);padding:4px 7px;border-radius:3px}
+
+    /* ── Mission dossier: the selected mission's own briefing panel ── */
+    .doss{position:relative;margin-top:16px;padding:15px 14px 13px;border:1px solid rgba(255,255,255,.14);border-radius:8px;background:#0e0e0e;overflow:hidden}
+    @media(min-width:768px){.doss{margin-top:20px;padding:20px 22px 16px;border-radius:10px}}
+    .doss-top{display:flex;justify-content:space-between;align-items:flex-start;gap:14px}
+    .doss-name{min-width:0;flex:1 1 auto}
+    .doss-name>span{display:block;font-family:var(--m);font-size:7.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+    .doss-name b{display:block;margin-top:3px;font-size:13.5px;font-weight:700;line-height:1.3}
+    @media(min-width:768px){.doss-name b{font-size:16px}}
+    .doss-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:11px}
+    .doss-tags em{font-style:normal;font-family:var(--m);font-size:7.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);border:1px solid var(--line);border-radius:3px;padding:3px 6px;white-space:nowrap}
+    .doss-tags em.on{color:#000;background:#fff;border-color:#fff;font-weight:700}
+    .doss-brief{position:relative;margin:11px 0 0;font-size:11.5px;line-height:1.62;color:rgba(255,255,255,.74);max-height:4.9em;overflow:hidden;transition:max-height .4s cubic-bezier(.16,1,.3,1)}
+    @media(min-width:768px){.doss-brief{font-size:12.5px;max-height:5.1em;max-width:82ch}}
+    .doss-brief.open{max-height:34em}
+    .doss-brief::after{content:"";position:absolute;left:0;right:0;bottom:0;height:1.8em;background:linear-gradient(180deg,rgba(14,14,14,0),#0e0e0e);pointer-events:none;transition:opacity .3s}
+    .doss-brief.open::after{opacity:0}
+    .doss-brief.plain::after{display:none}
+    .doss-more{align-self:flex-start;margin-top:12px;background:none;border:0;padding:2px 0;color:rgba(255,255,255,.62);font-family:var(--m);font-size:8px;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.24)}
+    .doss-more:hover{color:#fff;border-color:#fff}
+    .doss-clock{display:flex;justify-content:space-between;align-items:flex-end;gap:18px;margin-top:13px;padding-top:11px;border-top:1px solid var(--line)}
+    .doss-due{text-align:right}
+    .doss-due b{display:block;margin-top:2px;font-family:var(--m);font-size:10px;font-weight:700;letter-spacing:.05em;white-space:nowrap}
+    .doss-bar{height:2px;margin-top:9px;background:var(--line);position:relative;overflow:hidden}
+    .doss-bar i{position:absolute;inset:0 auto 0 0;background:rgba(255,255,255,.7);transition:width .9s cubic-bezier(.16,1,.3,1)}
+
+    /* ── Proof checklist: persisted per assignment, purely self-reported ── */
+    .pcheck{display:flex;flex-direction:column;border-top:1px solid var(--line);margin-top:3px}
+    .pcheck button{display:grid;grid-template-columns:17px 1fr auto;gap:11px;align-items:center;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid rgba(255,255,255,.08);color:rgba(255,255,255,.7);font:500 11.5px/1.4 var(--f);padding:11px 2px;cursor:pointer;transition:color .18s}
+    .pcheck button:last-child{border-bottom:0}
+    .pcheck button:hover{color:#fff}
+    .pcheck .bx{width:15px;height:15px;border:1px solid rgba(255,255,255,.32);border-radius:3px;display:grid;place-items:center;transition:background .18s,border-color .18s}
+    .pcheck .bx svg{width:9px;height:9px;fill:none;stroke:#000;stroke-width:2.6;opacity:0;transition:opacity .18s}
+    .pcheck button[aria-checked="true"]{color:#fff}
+    .pcheck button[aria-checked="true"] .bx{background:#fff;border-color:#fff}
+    .pcheck button[aria-checked="true"] .bx svg{opacity:1}
+    .pcheck .ptag{font-family:var(--m);font-size:7.5px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.34)}
+    .pcheck button[aria-checked="true"] .ptag{color:rgba(255,255,255,.6)}
+    .pcheck .pempty{padding:12px 2px;font-family:var(--m);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+
+    /* ── Mission utility actions under the CTA ── */
+    .doss-acts{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:2px 0 4px}
+    @media(min-width:768px){.doss-acts{max-width:420px;margin:2px auto 4px;gap:9px}}
+    .doss-acts button{display:flex;align-items:center;justify-content:center;gap:5px;background:transparent;border:1px solid var(--line);color:var(--dim);font-family:var(--m);font-size:8px;letter-spacing:.1em;text-transform:uppercase;padding:10px 6px;border-radius:4px;cursor:pointer;transition:color .18s,border-color .18s,background .18s}
+    .doss-acts button:hover:not([disabled]){color:#fff;border-color:rgba(255,255,255,.5);background:rgba(255,255,255,.04)}
+    .doss-acts button:active:not([disabled]){transform:scale(.97)}
+    .doss-acts button[disabled]{opacity:.38;cursor:default}
+    .doss-acts svg{width:11px;height:11px;fill:none;stroke:currentColor;stroke-width:1.6;flex:none}
 
     /* simplified level strip for task tab */
     .bar2{height:2px;background:var(--line);position:relative;overflow:hidden;margin-top:6px}
@@ -922,12 +971,49 @@
     .rinv b{font-weight:800}
     .roomnote{font-family:var(--m);font-size:8px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);line-height:1.6;margin:10px 0 0}
 
+    /* games — arcade ladder: ranked on game XP alone, never on comfort XP */
+    .archead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:16px;flex-wrap:wrap}
+    .arcchips{display:flex;gap:6px}
+    .arcchip{font-family:var(--m);font-size:7.5px;letter-spacing:.12em;text-transform:uppercase;background:none;border:1px solid var(--line);color:var(--dim);padding:5px 9px;border-radius:3px;cursor:pointer;white-space:nowrap;transition:color .18s ease,border-color .18s ease,background .18s ease}
+    .arcchip:hover{color:#fff;border-color:rgba(255,255,255,.4)}
+    .arcchip:active{transform:scale(.97)}
+    .arcchip.on{background:#fff;border-color:#fff;color:#000;font-weight:700}
+    .arcnote{font-family:var(--m);font-size:8px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);line-height:1.6;margin:7px 0 0}
+    .arcme{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;margin:12px 0 0;border:1px solid var(--line);background:var(--line);border-radius:6px;overflow:hidden}
+    @media(min-width:768px){.arcme{grid-template-columns:repeat(5,1fr)}}
+    .arcme>div{background:#0E0E0E;padding:10px 11px;min-width:0}
+    .arcme dt{font-family:var(--m);font-size:6.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .arcme dd{margin:5px 0 0;font-size:14.5px;font-weight:800;letter-spacing:-.01em;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .arcme dd s{text-decoration:none;font-family:var(--m);font-size:7.5px;font-weight:400;color:var(--dim);letter-spacing:.06em}
+    .alist.arcade{margin-top:2px}
+    .arcrow{display:grid;grid-template-columns:20px 30px minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px 8px;border-bottom:1px solid var(--line);position:relative}
+    .alist.arcade .arcrow:last-child{border-bottom:0}
+    .arcrow .rk{font-family:var(--m);font-size:10.5px;color:var(--dim);text-align:right}
+    .arcrow.podium{background:linear-gradient(90deg,rgba(255,255,255,.07),rgba(255,255,255,0))}
+    .arcrow.podium .rk{color:#fff;font-weight:800;font-size:12px}
+    .arcrow.you{background:#161616;box-shadow:inset 0 0 0 1px rgba(255,255,255,.3)}
+    .arav{width:30px;height:30px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;background:var(--bg);border:1px solid var(--line);flex:none}
+    .arcrow.live .arav{border-color:#fff}
+    .arcrow.you .arav{border-color:rgba(255,255,255,.6)}
+    .arcm{min-width:0}
+    .arcm b{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .arcm b i{font-style:normal;font-family:var(--m);font-size:6px;letter-spacing:.1em;text-transform:uppercase;color:#000;background:#fff;padding:1px 4px;border-radius:2px;flex:none}
+    .arcm em{display:block;margin-top:2px;font-style:normal;font-family:var(--m);font-size:7.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .arcr{display:flex;align-items:center;gap:9px}
+    .arcscore{text-align:right;line-height:1.2}
+    .arcscore b{display:block;font-size:12.5px;font-weight:800;letter-spacing:-.01em;white-space:nowrap}
+    .arcscore span{display:block;font-family:var(--m);font-size:6.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--dim);white-space:nowrap}
+    .arclive{width:5px;height:5px;border-radius:50%;background:var(--line);flex:none}
+    .arcrow.live .arclive{background:#fff;animation:bp 2s ease-in-out infinite}
+    .arcfoot{display:flex;justify-content:space-between;gap:10px;margin-top:10px;font-family:var(--m);font-size:7px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+    @media(max-width:420px){.arcscore b{font-size:11.5px}.arcm em{font-size:7px}}
+
     .empty{padding:18px 0;color:var(--dim);font-family:var(--m);font-size:10px;letter-spacing:.08em;text-transform:uppercase}
 
     @media(prefers-reduced-motion:reduce){
       .rise,.hero span i{animation:none!important;opacity:1!important;transform:none!important}
       .row,.row .fillbar{transition:none!important}
-      .row.bump,.row.gain v,.plate i,.dotlive,.bk.hit{animation:none!important}
+      .row.bump,.row.gain v,.dotlive,.bk.hit{animation:none!important}
       .toast.show{animation:none!important;opacity:1;transform:none}
       .bar i{width:var(--pct)!important}
       .footer video{display:none}
@@ -1157,17 +1243,37 @@
 
           <!-- Today's timed task -->
           <div class="kick rise" style="animation-delay:.25s">One thing today</div>
-          <div class="hero rise" style="animation-delay:.27s"><span><i id="heroA">Choose your</i></span><span><i id="heroB">mission</i></span></div>
-          <div class="rowx rise" style="border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:7px 0;animation-delay:.29s">
-            <div><span class="clocklab">Closes in</span><span class="clock" id="taskClock">00:00<span class="s">:00</span></span></div>
-            <span class="chip" id="taskReward">+0 XP</span>
+          <div class="hero rise" id="taskHero" style="animation-delay:.27s"><span><i id="heroA">Choose your</i></span><span><i id="heroB">mission</i></span></div>
+          <!-- Mission dossier: what the selected mission actually asks for -->
+          <div class="doss rise" style="animation-delay:.29s">
+            <div class="doss-top">
+              <div class="doss-name"><span id="dossLabel">Nothing selected</span><b id="dossTitle">Pick a mission from the pool</b></div>
+              <span class="chip" id="taskReward">+0 XP</span>
+            </div>
+            <div class="doss-tags" id="dossTags"></div>
+            <p class="doss-brief plain" id="dossBrief">Every mission is a small act against comfort. Open the pool above, read a brief, pick one.</p>
+            <button class="doss-more" id="briefToggle" type="button" aria-expanded="false" hidden>Read full brief +</button>
+            <div class="doss-clock">
+              <div><span class="clocklab">Pool closes in</span><span class="clock" id="taskClock">00:00<span class="s">:00</span></span></div>
+              <div class="doss-due"><span class="lab" style="margin:0">Proof due</span><b id="dossDue">&mdash;</b></div>
+            </div>
+            <div class="doss-bar"><i id="taskTimeBar" style="width:0%"></i></div>
           </div>
-          <div class="plate rise" style="flex:none;min-height:190px;animation-delay:.31s"><i></i><q>"The work starts exactly where comfort ends."<b>Daily field note</b></q></div>
+
+          <!-- Proof checklist: self-reported, remembers what you already checked -->
+          <div class="kick rise" style="animation-delay:.31s" id="proofKick">Proof checklist</div>
+          <div class="pcheck rise" id="proofCheck" style="animation-delay:.32s"></div>
+
           <div class="proof rise" style="animation-delay:.33s">
             <div><span class="lab" style="margin:0">Accepted proof</span><b id="proofFormat">Logbook page &middot; one photo &middot; two lines</b></div>
-            <div class="pf"><span>Photo</span><span>Note</span><span>Witness</span></div>
+            <div class="pf" id="proofTags"><span>Photo</span><span>Note</span><span>Witness</span></div>
           </div>
-          <button class="cta rise" id="taskAction" style="animation-delay:.35s;margin-top:10px">Open the brief</button>
+          <button class="cta rise" id="taskAction" style="animation-delay:.35s">Open the brief</button>
+          <div class="doss-acts rise" id="dossActs" style="animation-delay:.37s">
+            <button type="button" id="briefCopy" disabled title="Copy this mission's brief"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1"/><path d="M10.5 3.5h-7v7"/></svg>Copy brief</button>
+            <button type="button" id="briefShare" disabled title="Send this mission to yourself"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 11V3M4.5 6.5L8 3l3.5 3.5"/><path d="M3 10v3h10v-3"/></svg>Share</button>
+            <button type="button" id="briefPool" disabled title="Back to the mission pool"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3M4.5 6.5L8 3l3.5 3.5"/></svg>Task pool</button>
+          </div>
 
           <div class="rule" style="margin-top:12px"></div>
 
@@ -1202,18 +1308,17 @@
             <div><dt>Rank</dt><dd id="taskRank">#—</dd></div>
           </dl>
           <div class="tick rise" style="animation-delay:.49s"><div class="tickrail" id="taskRail"></div></div>
+        </div>
 
-          <!-- Video footer -->
-          <div class="footer rise" style="animation-delay:.53s">
-            {% # theme-check-disable RemoteAsset %}
-            <video muted autoplay loop playsinline preload="metadata" poster="" loading="lazy"><source src="https://exchange-return-tracking.onrender.com/videos/athlete-running-loop.mp4" type="video/mp4"></video>
-            {% # theme-check-enable RemoteAsset %}
-            <div class="footer-inner">
-              <div class="footer-brand">OFFCOMFRT</div>
-              <div class="footer-tag">Outside comfort</div>
-              <div class="footer-rule"></div>
-              <div class="footer-note"><b>From INDIA to the WORLD.</b> Quiet and cozy. Quality over quantity. Minimal at its peak.</div>
-            </div>
+        <!-- Video footer — sibling of .scroll-inner so it bleeds edge to edge -->
+        <div class="footer rise" style="animation-delay:.53s">
+          {% # theme-check-disable RemoteAsset %}
+          <video muted autoplay loop playsinline preload="metadata" poster="" loading="lazy"><source src="https://exchange-return-tracking.onrender.com/videos/athlete-running-loop.mp4" type="video/mp4"></video>
+          {% # theme-check-enable RemoteAsset %}
+          <div class="footer-inner">
+            <div class="footer-brand">OFFCOMFRT</div>
+            <div class="footer-tag">Outside comfort</div>
+            <div class="footer-rule"></div>
           </div>
         </div>
       </div>
@@ -1252,23 +1357,30 @@
               <b>Pac-Man</b>
               <em>Navigate the maze, eat pellets, dodge ghosts. Solo or compete live with up to 4 athletes.</em>
               <span class="go">Tap to play <i>&rarr;</i></span><span class="gt-lock"><svg class="lk" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>Locked</span><small>Ask your admin to unlock</small></span></a>
-            <a class="gt" data-game-id="crossy-road" href="https://exchange-return-tracking.onrender.com/games/crossy-road/index.html" target="_blank" rel="noopener">
-              <img class="gt-bg" src="https://exchange-return-tracking.onrender.com/images/games/crossy-road-thumb.jpg" alt="" loading="lazy" width="1280" height="714">
-              <div class="gt-top"><span class="gi">05 &middot; Arcade</span></div>
-              <b>Crossy Road</b>
-              <em>Hop across lanes, dodge traffic, weave through trees. Solo or race up to 4 athletes &mdash; highest score wins.</em>
-              <span class="go">Tap to play <i>&rarr;</i></span><span class="gt-lock"><svg class="lk" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>Locked</span><small>Ask your admin to unlock</small></span></a>
-          </div>
+           </div>
           {% # theme-check-enable RemoteAsset %}
 
-          <div class="rule" style="margin-top:12px"></div>
+          <div class="rule" style="margin-top:14px"></div>
+
+          <!-- Arcade ladder: ranked on XP earned inside the games, never on comfort XP -->
+          <div class="archead rise" style="animation-delay:.34s">
+            <span class="kick" style="margin-top:0">Arcade ladder</span>
+            <div class="arcchips" id="arcPeriod" role="group" aria-label="Arcade period">
+              <button class="arcchip on" type="button" data-arc="today">Today</button>
+              <button class="arcchip" type="button" data-arc="week">7 days</button>
+              <button class="arcchip" type="button" data-arc="all">All time</button>
+            </div>
+          </div>
+          <p class="arcnote" id="arcNote">Ranked by arcade XP only &mdash; missions, orders and comfort level never move this board.</p>
+          <dl class="arcme" id="arcMe"></dl>
+          <div class="rowx" style="margin-top:14px"><span class="kick" style="margin-top:0" id="arcListLabel">Standings</span><span class="mono" id="athleteCount" style="color:var(--dim)"></span></div>
+          <div class="alist arcade rise" id="athleteList" style="animation-delay:.42s"></div>
+          <div class="arcfoot" id="arcFoot"></div>
           <div id="lobbyWrap" hidden>
-            <div class="rowx" style="margin-top:10px"><span class="kick" style="margin-top:0">Open race lobbies</span><span class="mono" id="lobbyCount" style="color:var(--dim)"></span></div>
+            <div class="rowx" style="margin-top:14px"><span class="kick" style="margin-top:0">Open race lobbies</span><span class="mono" id="lobbyCount" style="color:var(--dim)"></span></div>
             <div class="alist" id="raceLobbies"></div>
           </div>
-          <div class="rowx" style="margin-top:10px"><span class="kick" style="margin-top:0">Athletes</span><span class="mono" id="athleteCount" style="color:var(--dim)"></span></div>
-          <div class="alist rise" id="athleteList" style="animation-delay:.42s"></div>
-          <p class="roomnote">Invite a live athlete to open a Rooftop Race room &mdash; they get the invite instantly. Race XP by finish: P1 +20 &middot; P2 +14 &middot; P3 +10 &middot; P4 +7 &middot; P5&ndash;6 +5 (2+ racers, 400m+).</p>
+          <p class="roomnote">The ladder counts arcade XP only: every paid run, per game. Invite a live athlete to open a Rooftop Race room &mdash; they get the invite instantly. Race XP by finish: P1 +20 &middot; P2 +14 &middot; P3 +10 &middot; P4 +7 &middot; P5&ndash;6 +5 (2+ racers, 400m+).</p>
         </div>
       </div>
     </section>
@@ -1417,7 +1529,7 @@
 <script>
 const API='https://exchange-return-tracking.onrender.com/api/athlete';
 const BASE='https://exchange-return-tracking.onrender.com';
-const S={token:null,athlete:null,tasks:[],picks:[],maxPicks:5,streak:0,leaderboard:[],climb:null,ranks:null,log:[],weekly:null,assignment:null,bricks:[],active:'tasks',orders:[],commissions:null,productRequests:[],shopifyProducts:[],shop:null,unlocks:null,invited:new Set()};
+const S={token:null,athlete:null,tasks:[],picks:[],maxPicks:5,streak:0,leaderboard:[],climb:null,ranks:null,log:[],weekly:null,assignment:null,bricks:[],active:'tasks',orders:[],commissions:null,productRequests:[],shopifyProducts:[],shop:null,unlocks:null,invited:new Set(),arcade:null,arcPeriod:'today',arcadeError:false};
 const $=id=>document.getElementById(id);
 const esc=v=>{const e=document.createElement('div');e.textContent=v||'';return e.innerHTML};
 const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -2113,6 +2225,8 @@ function show(id){
     if(vid){vid.play().catch(()=>{})}
   });
   if(id==='shop'&&S.token)loadShop();
+  // The arcade ladder is only fetched when its tab is actually opened.
+  if(id==='games'&&S.token)loadArcade();
 }
 
 function renderProfile(){
@@ -2158,7 +2272,7 @@ function renderTasks(){
       const typeLabel=t.type?t.type.replace(/_/g,' '):'';
       const platLabel=t.platform||'';
       const tags=[typeLabel,platLabel].filter(Boolean).join(' · ');
-      return `<div class="mpool" data-idx="${i}">
+      return `<div class="mpool" data-id="${t.id}" data-idx="${i}">
         <div class="mpool-head" onclick="togglePool(this)">
           <b>${esc(t.title)}</b>
           <span class="mxp">+${t.xp_value||0} XP</span>
@@ -2180,6 +2294,10 @@ function renderTasks(){
   let focus=tasks.find(x=>x.picked&&['PICKED','ASSIGNED','IN_PROGRESS','CHANGES_REQUESTED'].includes(x.pick_status));
   if(!focus)focus=tasks.find(x=>!x.picked);
   if(!focus)focus=tasks[0];
+  S.focusId=focus?focus.id:null;
+  const pick=focus?S.picks.find(p=>p.task_template_id===focus.id):null;
+  // The proof window starts when the mission is picked, not when the pool opened.
+  S.focusDue=pick&&pick.picked_at?new Date(new Date(pick.picked_at).getTime()+((focus.due_days||7)*864e5)):null;
 
   // Scroll cue
   if(focus){
@@ -2192,21 +2310,39 @@ function renderTasks(){
   $('bannerSub').textContent=`${picked.length} of 1 picked · closes midnight`;
 
   $('taskPicked').innerHTML=`${picked.length}<s>/1</s>`;
-  if(!focus){$('heroA').textContent='No';$('heroB').textContent='missions';$('taskReward').textContent='+0 XP';$('taskAction').textContent='No missions today';$('taskAction').disabled=true;return}
-  $('heroA').textContent=focus.picked?'Finish your':'Choose your';
-  $('heroB').textContent='mission';
+  const heroEl=$('taskHero');
+  if(!focus){
+    if(heroEl)heroEl.classList.remove('tight');
+    $('heroA').textContent='No';$('heroB').textContent='missions';
+    $('taskReward').textContent='+0 XP';
+    $('taskAction').textContent='No missions today';$('taskAction').disabled=true;
+    renderDossier(null,null);
+    return;
+  }
+  // Once a mission is picked the card names it instead of asking again
+  if(focus.picked){
+    $('heroA').textContent='Your mission';
+    $('heroB').textContent=focus.title||'Mission';
+  }else{
+    $('heroA').textContent='Choose your';
+    $('heroB').textContent='mission';
+  }
+  if(heroEl)heroEl.classList.toggle('tight',!!focus.picked&&String(focus.title||'').length>14);
   $('taskReward').textContent=`+${focus.xp_value||0} XP`;
   $('cueClock').textContent=$('taskClock').textContent.replace(/:\d+$/,'')+' left';
   const canPick=!focus.picked&&picked.length<1;
-  const done=focus.picked&&!['PICKED','ASSIGNED','IN_PROGRESS','CHANGES_REQUESTED'].includes(focus.pick_status);
-  if(focus.picked){$('taskAction').textContent='Submit proof';$('taskAction').onclick=()=>openSubmission(focus.assignment_id)}
-  else{$('taskAction').textContent=canPick?'Pick this mission':'Already picked today';$('taskAction').onclick=()=>{if(canPick)pickTask(focus.id);else toast('You can only pick 1 mission per day')}}
+  $('taskAction').disabled=false;
+  if(focus.picked){$('taskAction').textContent=focus.pick_status==='CHANGES_REQUESTED'?'Resubmit proof':'Submit proof';$('taskAction').onclick=()=>openSubmission(focus.assignment_id)}
+  else{$('taskAction').textContent=canPick?'Pick this mission':'Already picked today';$('taskAction').onclick=()=>{canPick?scrollToPool(focus.id):toast('You can only pick 1 mission per day')}}
+  renderDossier(focus,pick);
 
-  // Running timers
-  const timerItems=[];
-  if(tasks.length)timerItems.push([`${picked.length} of 1 picked`,`Daily pick · ${picked.length} chosen`,'—','','']);
-  if(S.weekly&&S.weekly.challenge)timerItems.push(['Weekly challenge',S.weekly.challenge.title||'Active challenge','—','','']);
-  $('timerlist').innerHTML=timerItems.length?timerItems.map(t=>`<div class="tr2"><div><b>${t[0]}</b><em>${t[1]}</em></div><s class="${t[3]}">${t[2]}</s></div>`).join(''):'<div class="tr2"><div><b>Nothing running</b><em>Pick a mission to start</em></div></div>';
+  // Running timers — live countdowns, refreshed every 30s by refreshCounters()
+  const timerRows=[];
+  timerRows.push({t:'Daily pick',s:`${picked.length} of 1 chosen · pool closes at midnight`,right:'<s data-mid>&mdash;</s>'});
+  if(focus&&focus.picked&&S.focusDue)timerRows.push({t:focus.title,s:'Proof due '+new Date(S.focusDue).toLocaleDateString('en-IN',{day:'2-digit',month:'short'}),right:`<s data-due="${S.focusDue.toISOString()}">&mdash;</s>`});
+  if(S.weekly&&S.weekly.challenge)timerRows.push({t:'Weekly challenge',s:S.weekly.challenge.title||'Active challenge',right:'<s>&mdash;</s>'});
+  $('timerlist').innerHTML=timerRows.map(r=>`<div class="tr2"><div><b>${esc(r.t)}</b><em>${esc(r.s)}</em></div>${r.right}</div>`).join('');
+  refreshCounters();
 
   // Scroll cue click
   $('scrollcue').onclick=()=>{
@@ -2214,6 +2350,150 @@ function renderTasks(){
     if(target)target.scrollIntoView({behavior:reduce?'auto':'smooth',block:'center'});
   };
 }
+
+// ── Mission dossier: brief, requirements, deadline and utility actions ──
+const PROOF_FORMATS={CONTENT_POST:'Live post link · caption · note',UGC_RAW:'Raw files · one hero frame',EVENT:'Attendance photo · check-in',SURVEY:'All answers · no blanks',STREAK:'Streak screen · today visible',CHALLENGE:'Challenge post · tagged caption'};
+const PROOF_TAGS={CONTENT_POST:['Link','Caption','Note'],UGC_RAW:['Files','Frame','Note'],EVENT:['Photo','Check-in','Note'],SURVEY:['Answers','Note'],STREAK:['Screen','Date','Note'],CHALLENGE:['Link','Tag','Note']};
+const CHECK_TAGS={SURVEY:'Every question answered, no blanks',EVENT:'Attendance frame or check-in photo',UGC_RAW:'Raw files, not compressed screenshots',STREAK:"Streak screen with today's date visible",CHALLENGE:'Caption names the challenge'};
+const chkKey=id=>'offc.chk.'+id;
+
+// Short "6d 04h" / "3h 12m" label for countdowns.
+function fmtLeft(ms){
+  if(!isFinite(ms))return '—';
+  if(ms<=0)return 'closed';
+  const d=Math.floor(ms/864e5),h=Math.floor(ms%864e5/36e5),m=Math.floor(ms%36e5/6e4);
+  return d?`${d}d ${String(h).padStart(2,'0')}h`:`${h}h ${String(m).padStart(2,'0')}m`;
+}
+function fmtDate(d){return new Date(d).toLocaleDateString('en-IN',{day:'2-digit',month:'short'}).toUpperCase()}
+
+// Fill the dossier for the selected (or suggested) mission.
+function renderDossier(t,pick){
+  const briefEl=$('dossBrief'),toggle=$('briefToggle'),acts=$('dossActs');
+  const setActs=on=>{if(acts)acts.querySelectorAll('button').forEach(b=>b.disabled=!on)};
+  if(!t){
+    $('dossLabel').textContent='Nothing selected';
+    $('dossTitle').textContent='Pick a mission from the pool';
+    $('dossTags').innerHTML='';
+    briefEl.textContent='Every mission is a small act against comfort. Open the pool above, read a brief, pick one.';
+    briefEl.classList.add('plain');briefEl.classList.remove('open');
+    toggle.hidden=true;toggle.setAttribute('aria-expanded','false');
+    $('dossDue').textContent='—';$('taskTimeBar').style.width='0%';
+    $('proofCheck').innerHTML='<div class="pempty">No mission picked yet</div>';
+    $('proofKick').textContent='Proof checklist';
+    setActs(false);
+    return;
+  }
+  const type=String(t.type||'').toUpperCase();
+  $('dossLabel').textContent=t.picked?(t.pick_status==='CHANGES_REQUESTED'?'Your mission · changes requested':'Your mission · '+String(t.pick_status||'PICKED').replace(/_/g,' ').toLowerCase()):'Briefing · not picked yet';
+  $('dossTitle').textContent=t.title||'Mission';
+
+  const tags=[];
+  if(t.type)tags.push(`<em>${esc(type.replace(/_/g,' '))}</em>`);
+  if(t.platform)tags.push(`<em>${esc(t.platform)}</em>`);
+  if(t.coin_value)tags.push(`<em>+${t.coin_value} coins</em>`);
+  if(t.due_days)tags.push(`<em>${t.due_days}d window</em>`);
+  if(t.requires_disclosure)tags.push('<em class="on">Ad disclosure</em>');
+  if(pick&&pick.picked_at)tags.push(`<em>picked ${new Date(pick.picked_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}</em>`);
+  $('dossTags').innerHTML=tags.join('');
+
+  const brief=String(t.brief_md||'').trim()||'No brief attached — open the brief with your coach if anything is unclear.';
+  briefEl.textContent=brief;
+  briefEl.classList.remove('open');
+  toggle.setAttribute('aria-expanded','false');
+  toggle.innerHTML='Read full brief +';
+  // Only offer the expander when the copy actually clips at four lines.
+  const clipped=brief.length>175;
+  toggle.hidden=!clipped;
+  briefEl.classList.toggle('plain',!clipped);
+
+  if(S.focusDue){
+    $('dossDue').textContent=fmtDate(S.focusDue)+' · '+fmtLeft(new Date(S.focusDue)-Date.now());
+    const start=pick&&pick.picked_at?new Date(pick.picked_at).getTime():Date.now();
+    const span=Math.max(1,new Date(S.focusDue)-start);
+    $('taskTimeBar').style.width=Math.max(0,Math.min(100,Math.round((1-(Date.now()-start)/span)*100)))+'%';
+  }else{
+    $('dossDue').textContent='—';$('taskTimeBar').style.width='0%';
+  }
+
+  $('proofFormat').textContent=PROOF_FORMATS[type]||'Live post link · caption · note';
+  $('proofTags').innerHTML=(PROOF_TAGS[type]||['Link','Caption','Note']).map(x=>`<span>${x}</span>`).join('');
+
+  renderChecklist(t);
+  setActs(true);
+}
+
+// Four things that must be true before proof can be submitted. Self-reported
+// only — nothing here blocks the submission, it is a pre-flight list.
+function checklistFor(t){
+  const type=String(t.type||'').toUpperCase();
+  const items=[
+    {k:'live',t:`Post is live on ${t.platform||'your platform'}`,tag:'feed'},
+    {k:'link',t:'Public link copied, no login wall',tag:'link'}
+  ];
+  if(t.requires_disclosure)items.push({k:'disc',t:'Ad or collaboration disclosed in the caption',tag:'legal'});
+  else items.push({k:'tag',t:'@offcomfrt tagged or credited',tag:'credit'});
+  items.push({k:'ev',t:CHECK_TAGS[type]||'One clear frame, face and fit visible',tag:'evidence'});
+  return items;
+}
+function chkState(id){try{return JSON.parse(localStorage.getItem(chkKey(id))||'{}')||{}}catch(e){return {}}}
+function chkSave(id,state){try{localStorage.setItem(chkKey(id),JSON.stringify(state))}catch(e){}}
+function renderChecklist(t){
+  const key=t.assignment_id||t.id,state=chkState(key),items=checklistFor(t);
+  $('proofCheck').innerHTML=items.map(it=>`<button type="button" role="checkbox" aria-checked="${state[it.k]?'true':'false'}" data-k="${it.k}" data-key="${key}">
+    <span class="bx"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 6.4l2.3 2.3 4.7-5"/></svg></span>
+    <span>${esc(it.t)}</span><span class="ptag">${it.tag}</span></button>`).join('');
+  $('proofKick').textContent='Proof checklist · '+items.filter(it=>state[it.k]).length+'/'+items.length;
+}
+function toggleCheck(btn){
+  const key=btn.dataset.key,state=chkState(key),on=btn.getAttribute('aria-checked')==='true';
+  if(on)delete state[btn.dataset.k];else state[btn.dataset.k]=1;
+  chkSave(key,state);
+  btn.setAttribute('aria-checked',on?'false':'true');
+  const t=(S.tasks||[]).find(x=>String(x.assignment_id||x.id)===String(key));
+  const items=t?checklistFor(t):[];
+  const done=items.filter(it=>state[it.k]).length;
+  $('proofKick').textContent='Proof checklist · '+done+'/'+items.length;
+  if(!reduce&&!on)flash(1);
+}
+
+// Plain-text brief so the athlete can drop it into notes or send it to themselves.
+function briefTextFor(t){
+  if(!t)return '';
+  const lines=[t.title||'Mission'];
+  if(t.brief_md)lines.push('',t.brief_md);
+  const bits=[];
+  if(t.xp_value)bits.push(`+${t.xp_value} XP`);
+  if(t.coin_value)bits.push(`+${t.coin_value} coins`);
+  if(bits.length)lines.push('',bits.join(' · '));
+  if(S.focusDue)lines.push('Proof due '+new Date(S.focusDue).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}));
+  lines.push('','OFFCOMFRT athlete portal');
+  return lines.join('\n');
+}
+async function copyText(text){
+  try{await navigator.clipboard.writeText(text);return true}
+  catch(e){
+    try{
+      const ta=document.createElement('textarea');
+      ta.value=text;ta.style.position='fixed';ta.style.opacity='0';
+      document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();
+      return true;
+    }catch(_){return false}
+  }
+}
+function focusTask(){return (S.tasks||[]).find(x=>x.id===S.focusId)||null}
+
+// Live countdown labels in the Running list.
+function refreshCounters(){
+  const now=Date.now(),mid=new Date();
+  mid.setHours(24,0,0,0);
+  document.querySelectorAll('#timerlist [data-mid]').forEach(el=>{el.textContent=fmtLeft(mid-now)});
+  document.querySelectorAll('#timerlist [data-due]').forEach(el=>{
+    const left=new Date(el.dataset.due)-now;
+    el.textContent=fmtLeft(left);
+    el.classList.toggle('warn',left>0&&left<864e5);
+  });
+}
+setInterval(refreshCounters,30000);
 
 function renderClimb(){
   const c=S.climb;if(!c)return;
@@ -2443,22 +2723,7 @@ function renderBoard(){
 }
 
 function renderLobby(){
-  const LIVE_MS=90000; // fallback when the live socket is down: /leaderboard last_seen
-  const rows=S.leaderboard.filter(a=>a.id!==S.athlete?.id)
-    .map(a=>{const p=RACE.live.get(String(a.id));return{...a,p,seen:p?0:a.last_seen?Date.now()-a.last_seen:Infinity}})
-    .sort((x,y)=>x.seen-y.seen||(y.xp_total||0)-(x.xp_total||0));
-  const live=rows.filter(a=>a.seen<LIVE_MS).length;
-  $('athleteCount').textContent=live?`${live} live now`:`${rows.length} on the ladder`;
-  $('athleteList').innerHTML=rows.length?rows.map(a=>{
-    const ini=(a.name||'A').split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase();
-    const p=a.p,isLive=a.seen<LIVE_MS;
-    const st=p?(p.r&&p.s==='lobby'?`In lobby &middot; ${esc(p.r)}`:p.r?'Racing':p.w==='game'?'In arcade':'Live now'):isLive?'Live now':a.seen<3600000?`Seen ${Math.max(1,Math.floor(a.seen/60000))}m ago`:'Offline';
-    const sent=S.invited.has(String(a.id));
-    const btn=p&&p.r&&p.s==='lobby'?`<button class="invt w" type="button" data-join="${esc(p.r)}">Join</button>`
-      :isLive?`<button class="invt" type="button" data-invite="${esc(String(a.id))}" data-name="${esc(a.name||'')}"${sent?' disabled':''}>${sent?'Sent &check;':'Invite'}</button>`:'';
-    const avatar=renderAthleteAvatar(a,28);
-    return `<div class="arow${isLive?' on':a.seen>=3600000?' off':''}"><span class="aface">${avatar}</span><span class="am"><b>${esc(a.name||'Athlete')}</b><em>${esc(a.level_name||'—')} &middot; ${Number(a.xp_total||0).toLocaleString('en-IN')} XP</em></span><span class="aright"><span class="astat"><i></i>${st}</span>${btn}</span></div>`;
-  }).join(''):'<div class="empty">No athletes on the ladder yet</div>';
+  renderArcade();
   const rooms=(RACE.rooms||[]).filter(r=>!r.game||r.game==='rooftop-racing');
   $('lobbyWrap').hidden=!rooms.length;
   $('lobbyCount').textContent=rooms.length?`${rooms.length} open`:'';
@@ -2466,6 +2731,84 @@ function renderLobby(){
     const full=r.n>=r.max;
     return `<div class="arow on"><span class="aface">${r.n}</span><span class="am"><b>${esc((r.h||'Athlete').split(/\s+/)[0])}'s room</b><em>${esc(r.r)} &middot; ${r.n}/${r.max} racers</em></span><span class="aright"><span class="astat"><i></i>${r.s==='lobby'?'In lobby':'Racing'}</span><button class="invt${r.s==='lobby'&&!full?' w':''}" type="button" data-join="${esc(r.r)}"${full?' disabled':''}>${full?'Full':r.s==='lobby'?'Join':'Join next'}</button></span></div>`;
   }).join('');
+}
+
+// ── Arcade ladder ─────────────────────────────────────────────────────────
+// Ranked on game XP only. Every figure comes from GET /api/athlete/:token/arcade,
+// which rebuilds per-game totals from the arcade ledger rows, so comfort XP,
+// missions and orders can never move an athlete up this board.
+const ARC_LIVE_MS=90000;
+const ARC_PERIOD_LABEL={today:'Today · IST',week:'Last 7 days',all:'All time'};
+const arcN=v=>Number(v||0).toLocaleString('en-IN');
+function arcAgo(iso){
+  if(!iso)return 'never';
+  const ms=Date.now()-new Date(iso).getTime();
+  if(!isFinite(ms)||ms<0)return 'just now';
+  const m=Math.floor(ms/60000);
+  if(m<1)return 'just now';
+  if(m<60)return m+'m ago';
+  const h=Math.floor(m/60);
+  if(h<24)return h+'h ago';
+  const d=Math.floor(h/24);
+  return d===1?'yesterday':d+'d ago';
+}
+function arcPresence(id){
+  const p=RACE.live.get(String(id));
+  if(p)return{live:true,p};
+  const row=(S.leaderboard||[]).find(a=>String(a.id)===String(id));
+  return{live:!!(row&&row.last_seen&&Date.now()-row.last_seen<ARC_LIVE_MS),p:null};
+}
+function renderArcade(){
+  const listEl=$('athleteList');
+  if(!listEl)return;
+  const d=S.arcade,me=String(S.athlete?.id||'');
+  const period=S.arcPeriod||'today',m=d?.me||{};
+  const cap=Number(m.daily_cap||0),todayXp=Number(m.today_xp||0);
+
+  // ── Your own standing in the arcade ──
+  $('arcMe').innerHTML=[
+    ['Your rank',m.rank?`#${m.rank}<s> / ${arcN(m.total_athletes)}</s>`:'&mdash;'],
+    ['Arcade XP',d?`+${arcN(m.arcade_xp)}`:'&mdash;'],
+    ['Runs',d?arcN(m.runs):'&mdash;'],
+    ['Best run',m.best_run?`+${arcN(m.best_run)}`:'&mdash;'],
+    ['Today',cap?`${arcN(todayXp)}<s> / ${arcN(cap)}</s>`:'&mdash;']
+  ].map(([k,v])=>`<div><dt>${k}</dt><dd>${v}</dd></div>`).join('');
+
+  // ── Standings: one combined ladder, no per-game split ──
+  const rows=(d?.rows||[]);
+  $('arcListLabel').textContent='Standings';
+  const liveCount=rows.filter(r=>arcPresence(r.id).live).length;
+  $('athleteCount').textContent=d?(liveCount?`${liveCount} live now`:`${rows.length} ranked`):'';
+
+  listEl.innerHTML=!d?`<div class="empty">${S.arcadeError?'Arcade ladder unavailable &mdash; retry in a moment':'Loading the arcade ladder&hellip;'}</div>`
+    :rows.length?rows.map(r=>{
+      const isMe=String(r.id)===me;
+      const {live,p}=arcPresence(r.id);
+      const sent=S.invited.has(String(r.id));
+      const btn=p&&p.r&&p.s==='lobby'?`<button class="invt w" type="button" data-join="${esc(p.r)}">Join</button>`
+        :live?`<button class="invt" type="button" data-invite="${esc(String(r.id))}" data-name="${esc(r.name||'')}"${sent?' disabled':''}>${sent?'Sent &check;':'Invite'}</button>`:'';
+      const meta=[r.level_name,r.favourite_game_label||'—','played '+arcAgo(r.last_played)].filter(Boolean).join(' &middot; ');
+      return `<div class="arcrow${r.rank<=3?' podium':''}${isMe?' you':''}${live?' live':''}">
+        <span class="rk">${r.rank}</span>
+        <span class="arav">${renderAthleteAvatar(r,28)}</span>
+        <span class="arcm"><b>${esc(r.name||'Athlete')}${isMe?'<i>You</i>':''}</b><em>${meta}</em></span>
+        <span class="arcr"><span class="arclive"></span><span class="arcscore"><b>+${arcN(r.arcade_xp)}</b><span>${arcN(r.runs)} run${r.runs===1?'':'s'}</span></span>${btn}</span>
+      </div>`;
+    }).join('')
+    :'<div class="empty">No arcade runs yet this period</div>';
+
+  $('arcFoot').innerHTML=d?`<span>${ARC_PERIOD_LABEL[period]||period} &middot; ${arcN(d.totals.runs)} runs</span><span>${m.rank?`#${m.rank} of ${arcN(m.total_athletes)} &middot; ${m.gap_to_above?`${arcN(m.gap_to_above)} XP behind ${esc(m.above_name||'above')}`:'top of the arcade'}`:'No runs logged yet'}</span>`:'';
+}
+
+async function loadArcade(period){
+  if(!S.token)return;
+  if(period)S.arcPeriod=period;
+  try{
+    const data=await api('/arcade?period='+encodeURIComponent(S.arcPeriod||'today'));
+    S.arcade=data||null;
+    S.arcadeError=false;
+  }catch(e){S.arcadeError=true;dbg('arcade ladder failed: '+e.message,'err')}
+  renderLobby();
 }
 
 // ── Live race presence: one socket to the RaceHub for who's online, open lobbies and
@@ -2706,7 +3049,26 @@ function togglePool(head){
   if(!wasOpen)row.classList.add('open');
 }
 
-async function pickTask(id){try{await api('/daily-tasks/pick',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({task_template_id:id})});toast('Mission picked');flash(6);await loadTasks()}catch(e){toast(e.message)}}
+// Scroll the task screen's own scroll zone (never the page) to an element.
+function scrollTaskTo(el){
+  if(!el)return;
+  el.scrollIntoView({behavior:reduce?'auto':'smooth',block:'start'});
+}
+
+// "Pick this mission" points the athlete at the pool instead of silently
+// picking the first available mission — open that row and scroll back up to it.
+function scrollToPool(id){
+  const pool=$('taskpool');if(!pool)return;
+  const row=id?pool.querySelector(`.mpool[data-id="${id}"]`):pool.querySelector('.mpool');
+  document.querySelectorAll('.mpool.open').forEach(r=>r.classList.remove('open'));
+  if(row){row.classList.add('open','hl');setTimeout(()=>row.classList.remove('hl'),1600)}
+  scrollTaskTo($('poolKick')||pool);
+}
+
+// After a real pick the mission card names the chosen mission — bring it into view.
+function scrollToMission(){scrollTaskTo($('taskHero'))}
+
+async function pickTask(id){try{await api('/daily-tasks/pick',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({task_template_id:id})});toast('Mission picked');flash(6);await loadTasks();scrollToMission()}catch(e){toast(e.message)}}
 function openSubmission(id){
   S.assignment=id;
   const focus=S.tasks.find(x=>x.assignment_id===id)||S.tasks.find(x=>x.picked);
@@ -2900,6 +3262,8 @@ async function refreshXp(){
     if(climb){S.climb=climb;renderClimb()}
     if(shop)S.shop=shop;
     if(progress||shop){renderShop();updateSidebarAcct();updateTabCoinBadge()}
+    // Coming back from a game in another tab: refresh the arcade ladder too.
+    if(S.active==='games')loadArcade();
   }catch(e){}
 }
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshXp()});
@@ -2967,6 +3331,27 @@ document.addEventListener('DOMContentLoaded',()=>{
   $('taskRail').innerHTML=[...feed,...feed].map(x=>`<span><b>${x[0]}</b> ${x[1]}</span>`).join('');
   document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>show(b.dataset.view)));
   $('sidebarToggle')?.addEventListener('click',()=>{$('sidebar').classList.toggle('collapsed')});
+  // ── Mission dossier controls ──
+  $('proofCheck').addEventListener('click',e=>{const b=e.target.closest('button[role="checkbox"]');if(b)toggleCheck(b)});
+  $('briefToggle').addEventListener('click',()=>{
+    const open=$('dossBrief').classList.toggle('open');
+    $('briefToggle').setAttribute('aria-expanded',open?'true':'false');
+    $('briefToggle').innerHTML=open?'Show less -':'Read full brief +';
+  });
+  $('briefCopy').addEventListener('click',async()=>{
+    const t=focusTask();if(!t)return;
+    toast(await copyText(briefTextFor(t))?'Brief copied':'Copy blocked — open the brief instead');
+  });
+  $('briefShare').addEventListener('click',async()=>{
+    const t=focusTask();if(!t)return;
+    const text=briefTextFor(t);
+    if(navigator.share){
+      try{await navigator.share({title:'OFFCOMFRT · '+(t.title||'Mission'),text});return}
+      catch(e){if(e&&e.name==='AbortError')return}
+    }
+    toast(await copyText(text)?'Brief copied — paste it to yourself':'Sharing unavailable');
+  });
+  $('briefPool').addEventListener('click',()=>scrollToPool(S.focusId));
   const onLobbyClick=e=>{
     const j=e.target.closest('[data-join]');
     if(j&&!j.disabled){window.open(gameUrl('&r='+encodeURIComponent(j.dataset.join)),'_blank','noopener');return}
@@ -2980,6 +3365,13 @@ document.addEventListener('DOMContentLoaded',()=>{
   };
   $('athleteList').addEventListener('click',onLobbyClick);
   $('raceLobbies').addEventListener('click',onLobbyClick);
+  // ── Arcade ladder filters: a new window refetches the combined board ──
+  $('arcPeriod').addEventListener('click',e=>{
+    const b=e.target.closest('[data-arc]');
+    if(!b||b.classList.contains('on'))return;
+    document.querySelectorAll('#arcPeriod .arcchip').forEach(x=>x.classList.toggle('on',x===b));
+    loadArcade(b.dataset.arc);
+  });
   // ── Login tab switching ──
   let otpPhone=null,otpResendTimer=null,otpExpiryTimer=null;
   $('authForm').onsubmit=e=>e.preventDefault();

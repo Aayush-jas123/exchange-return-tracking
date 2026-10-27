@@ -21,6 +21,23 @@ const GAME_RULES = {
   'crossy-road': { label: 'Crossy Road', unitsPerXp: 5, unitsPerCoin: 8 }                  // lanes crossed
 };
 
+// Arcade ledger rows carry the game and the run inside their idempotency key:
+//   game:<athlete>:<game>:<runId>[:coins]   ·   race:<raceId>:<athlete>
+// so per-game totals can be rebuilt from the ledger without an extra table.
+function arcadeGameOf(key) {
+  const k = String(key || '');
+  if (k.startsWith('race:')) return 'rooftop-racing';
+  if (!k.startsWith('game:')) return null;
+  const slug = k.split(':')[2];
+  return GAME_RULES[slug] ? slug : null;
+}
+
+// One run = one XP row and one coins row, so the run reference strips the suffix.
+function arcadeRunOf(key) {
+  const k = String(key || '');
+  return k.startsWith('race:') ? k : k.replace(/:coins$/, '');
+}
+
 // Which ledger reason codes feed which coin source in the shop.
 const COIN_SOURCE_BY_REASON = {
   GAME_COINS: 'games',
@@ -809,6 +826,179 @@ const GamificationService = {
       ...a,
       level_name: levelsMap[a.level_id]?.display_name || '—'
     }));
+  },
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // ARCADE LEADERBOARD
+  // ══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Arcade-only ladder: athletes ranked by what they earn inside the mini-games,
+   * never by overall comfort XP. Built from the GAME_XP / GAME_COINS ledger rows
+   * (one XP row + one coins row per run), so no schema change is needed.
+   *
+   * @param {number} influencerId — viewer, used for the `me` block
+   * @param {{period?:'today'|'week'|'all', limit?:number}} opts
+   */
+  async getArcadeLeaderboard(influencerId, opts = {}) {
+    const period = ['today', 'week', 'all'].includes(opts.period) ? opts.period : 'today';
+    const limit = Math.min(100, Math.max(5, Math.floor(Number(opts.limit) || 50)));
+    const since = period === 'today' ? istDayStartIso()
+      : period === 'week' ? new Date(Date.now() - 7 * 864e5).toISOString()
+      : null;
+
+    const [rows, todayXp, dailyCap] = await Promise.all([
+      this._arcadeLedger(since),
+      this._gameXpToday(influencerId),
+      this._getSetting('game.daily_xp_cap', 40).then(Number)
+    ]);
+
+    // ── Aggregate per athlete, per game ──
+    const acc = new Map();
+    for (const r of rows) {
+      const key = String(r.idempotency_key || '');
+      const runRef = arcadeRunOf(key);
+      const game = arcadeGameOf(key);
+      let a = acc.get(r.influencer_id);
+      if (!a) {
+        a = { id: r.influencer_id, xp: 0, coins: 0, runs: new Set(), days: new Set(), last: 0, best: 0, games: new Map() };
+        acc.set(r.influencer_id, a);
+      }
+      a.runs.add(runRef);
+      const ts = new Date(r.created_at).getTime();
+      a.days.add(new Date(ts + 5.5 * 3600 * 1000).toISOString().slice(0, 10)); // IST day, same clock as the cap
+      if (ts > a.last) a.last = ts;
+      if (r.currency === 'XP') a.xp += r.amount;
+      else a.coins += r.amount;
+      if (!game) continue;
+      let g = a.games.get(game);
+      if (!g) { g = { xp: 0, coins: 0, runs: new Set(), best: 0 }; a.games.set(game, g); }
+      g.runs.add(runRef);
+      if (r.currency === 'XP') {
+        g.xp += r.amount;
+        if (r.amount > g.best) g.best = r.amount;
+        if (r.amount > a.best) a.best = r.amount;
+      } else {
+        g.coins += r.amount;
+      }
+    }
+
+    // ── Order, then keep only athletes who are still on the roster ──
+    const ordered = [...acc.values()]
+      .filter(a => a.runs.size > 0)
+      .sort((x, y) => y.xp - x.xp || y.runs.size - x.runs.size || y.last - x.last);
+    const profiles = await this._arcadeProfiles(ordered.map(a => a.id));
+    const roster = ordered.filter(a => {
+      const p = profiles.get(a.id);
+      if (!p || p.leaderboard_opt_out) return false;
+      return !p.athlete_status || ['ACTIVE', 'ON_TRIAL'].includes(p.athlete_status);
+    });
+
+    const levelIds = [...new Set(roster.map(a => profiles.get(a.id)?.level_id).filter(Boolean))];
+    let levelsMap = {};
+    if (levelIds.length) {
+      const { data: levels } = await supabase
+        .from('comfort_levels').select('id, display_name, display_number').in('id', levelIds);
+      (levels || []).forEach(l => { levelsMap[l.id] = l; });
+    }
+
+    const shape = (a, rank) => {
+      const p = profiles.get(a.id) || {};
+      // Favourite cabinet = most runs, XP breaks the tie.
+      let favourite = null, favouriteRuns = -1, favouriteXp = -1;
+      for (const [slug, g] of a.games) {
+        if (g.runs.size > favouriteRuns || (g.runs.size === favouriteRuns && g.xp > favouriteXp)) {
+          favourite = slug; favouriteRuns = g.runs.size; favouriteXp = g.xp;
+        }
+      }
+      const level = levelsMap[p.level_id];
+      return {
+        rank, id: a.id,
+        name: p.name || 'Athlete',
+        athlete_no: p.athlete_no || null,
+        level_name: level?.display_name || '—',
+        level_number: level?.display_number ?? null,
+        xp_total: p.xp_total || 0,
+        avatar_base: p.avatar_base, avatar_head: p.avatar_head, avatar_mark: p.avatar_mark,
+        avatar_ground: p.avatar_ground, avatar_frame: p.avatar_frame,
+        arcade_xp: a.xp, coins: a.coins, runs: a.runs.size, active_days: a.days.size,
+        best_run: a.best,
+        favourite_game: favourite,
+        favourite_game_label: favourite ? GAME_RULES[favourite].label : null,
+        last_played: a.last ? new Date(a.last).toISOString() : null
+      };
+    };
+
+    const all = roster.map((a, i) => shape(a, i + 1));
+    const mine = all.find(r => r.id === influencerId) || null;
+    const above = mine ? all[mine.rank - 2] || null : null;
+
+    return {
+      period,
+      since,
+      generated_at: new Date().toISOString(),
+      truncated: rows.length >= 20000,
+      totals: {
+        athletes: all.length,
+        runs: all.reduce((s, r) => s + r.runs, 0),
+        xp: all.reduce((s, r) => s + r.arcade_xp, 0),
+        coins: all.reduce((s, r) => s + r.coins, 0)
+      },
+      rows: all.slice(0, limit),
+      me: mine ? {
+        ...mine,
+        total_athletes: all.length,
+        percentile: all.length > 1 ? Math.max(1, Math.round(((all.length - mine.rank + 1) / all.length) * 100)) : 100,
+        gap_to_above: above ? Math.max(0, above.arcade_xp - mine.arcade_xp) : 0,
+        above_name: above ? above.name : null,
+        gap_to_top: Math.max(0, (all[0]?.arcade_xp || 0) - mine.arcade_xp),
+        today_xp: todayXp.total,
+        daily_cap: dailyCap
+      } : {
+        rank: null, id: influencerId, arcade_xp: 0, coins: 0, runs: 0, best_run: 0,
+        active_days: 0, total_athletes: all.length, percentile: 0,
+        gap_to_top: all[0]?.arcade_xp || 0, today_xp: todayXp.total, daily_cap: dailyCap
+      }
+    };
+  },
+
+  /** @private — every paid arcade ledger row in the window, paged past the 1000-row cap */
+  async _arcadeLedger(sinceIso, maxRows = 20000) {
+    const PAGE = 1000;
+    const out = [];
+    for (let from = 0; from < maxRows; from += PAGE) {
+      let q = supabase
+        .from('ledger_entries')
+        .select('influencer_id, currency, amount, idempotency_key, created_at')
+        .in('reason_code', ['GAME_XP', 'GAME_COINS'])
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .range(from, from + PAGE - 1);
+      if (sinceIso) q = q.gte('created_at', sinceIso);
+      const { data, error } = await q;
+      if (error) throw error;
+      out.push(...(data || []));
+      if (!data || data.length < PAGE) break;
+    }
+    return out;
+  },
+
+  /** @private — athlete rows for the arcade ladder (chunked; avatar columns optional) */
+  async _arcadeProfiles(ids) {
+    const map = new Map();
+    if (!ids.length) return map;
+    const core = 'id, name, athlete_no, xp_total, level_id, athlete_status, leaderboard_opt_out';
+    const avatar = ', avatar_base, avatar_head, avatar_mark, avatar_ground, avatar_frame';
+    for (let i = 0; i < ids.length; i += 100) {
+      const chunk = ids.slice(i, i + 100);
+      let { data, error } = await supabase.from('influencers').select(core + avatar).in('id', chunk);
+      if (error && error.code === '42703') {
+        ({ data, error } = await supabase.from('influencers').select(core).in('id', chunk));
+      }
+      if (error) throw error;
+      (data || []).forEach(p => map.set(p.id, p));
+    }
+    return map;
   },
 
   // ══════════════════════════════════════════════════════════════════════════
