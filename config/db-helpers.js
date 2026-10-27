@@ -453,6 +453,14 @@ async function updateRequestStatus(requestId, updates) {
     if (updates.agentPaymentInitiatedBy !== undefined) updateData.agent_payment_initiated_by = updates.agentPaymentInitiatedBy;
     if (updates.agentPaymentInitiatedAt !== undefined) updateData.agent_payment_initiated_at = updates.agentPaymentInitiatedAt;
 
+    // Manual Payment Override (admin-confirmed out-of-band payment for waiting_payment requests)
+    if (updates.paymentOverriddenAt !== undefined) updateData.payment_overridden_at = updates.paymentOverriddenAt;
+    if (updates.paymentOverrideMethod !== undefined) updateData.payment_override_method = updates.paymentOverrideMethod;
+    if (updates.paymentOverrideReference !== undefined) updateData.payment_override_reference = updates.paymentOverrideReference;
+    if (updates.paymentOverrideReason !== undefined) updateData.payment_override_reason = updates.paymentOverrideReason;
+    if (updates.paymentOverrideNotes !== undefined) updateData.payment_override_notes = updates.paymentOverrideNotes;
+    if (updates.paymentOverrideBy !== undefined) updateData.payment_override_by = updates.paymentOverrideBy;
+
     // Resolution & Conversion
     if (updates.resolution !== undefined) updateData.resolution = updates.resolution;
     if (updates.originalType !== undefined) updateData.original_type = updates.originalType;
@@ -559,6 +567,12 @@ function convertFromSnakeCase(data) {
         agentPaymentPaidAt: data.agent_payment_paid_at || null,
         agentPaymentInitiatedBy: data.agent_payment_initiated_by || null,
         agentPaymentInitiatedAt: data.agent_payment_initiated_at || null,
+        paymentOverriddenAt: data.payment_overridden_at || null,
+        paymentOverrideMethod: data.payment_override_method || null,
+        paymentOverrideReference: data.payment_override_reference || null,
+        paymentOverrideReason: data.payment_override_reason || null,
+        paymentOverrideNotes: data.payment_override_notes || null,
+        paymentOverrideBy: data.payment_override_by || null,
         resolution: data.resolution || null,
         originalType: data.original_type || null,
         requestHistory: data.request_history || [],

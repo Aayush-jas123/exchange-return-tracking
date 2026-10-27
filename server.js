@@ -7108,6 +7108,7 @@ const PERMISSION_RULES = [
     { method: 'POST', pattern: /^\/api\/admin\/create-duplicate-forward$/, perm: 'book_pickups', label: 'Create Duplicate Forward' },
     { method: 'POST', pattern: /^\/api\/admin\/mark-delivered$/, perm: 'book_pickups', label: 'Mark Delivered' },
     { method: 'POST', pattern: /^\/api\/admin\/generate-payment-link$/, perm: 'payment_links', label: 'Generate Payment Link' },
+    { method: 'POST', pattern: /^\/api\/admin\/override-payment$/, perm: 'payment_links', label: 'Override Payment' },
     { method: 'GET', pattern: /^\/api\/admin\/stats$/, perm: 'view_analytics', label: 'View Stats' },
     { method: 'GET', pattern: /^\/api\/admin\/analytics\/detailed$/, perm: 'view_analytics', label: 'View Detailed Analytics' },
     { method: 'GET', pattern: /^\/api\/admin\/settings$/, perm: 'manage_settings', label: 'View Settings' },
@@ -10440,6 +10441,250 @@ app.post('/api/admin/generate-payment-link', authenticateAdmin, async (req, res)
     } catch (error) {
         console.error(`[${requestId}] ❌ Payment link generation failed:`, error.message);
         res.status(500).json({ error: 'Failed to generate payment link: ' + error.message });
+    }
+});
+
+/**
+ * Admin: Override payment for a waiting_payment request.
+ * Records an out-of-band payment (UPI / bank / cash / manual gateway capture) with
+ * full attribution, marks it paid, and auto-books the return pickup via the
+ * configured carrier unless the admin defers or a pickup already exists.
+ */
+app.post('/api/admin/override-payment', authenticateAdmin, async (req, res) => {
+    const { requestId } = req.body || {};
+    const amount = parseFloat(req.body && req.body.amount);
+    const method = String((req.body && req.body.method) || '').trim().toLowerCase();
+    const reference = String((req.body && req.body.reference) || '').trim();
+    const reason = String((req.body && req.body.reason) || 'other').trim().toLowerCase();
+    const adminNotes = String((req.body && req.body.notes) || '').trim();
+    const deferPickup = req.body && req.body.deferPickup === true;
+    const sendWhatsapp = !req.body || req.body.sendWhatsapp !== false;
+
+    const VALID_METHODS = ['upi', 'bank_transfer', 'cash', 'razorpay_manual', 'other'];
+    const VALID_REASONS = ['gateway_down', 'paid_elsewhere', 'partial_payment', 'fee_waived_manual', 'other'];
+    const METHOD_LABELS = {
+        upi: 'UPI',
+        bank_transfer: 'Bank Transfer / NEFT',
+        cash: 'Cash',
+        razorpay_manual: 'Razorpay (manual capture)',
+        other: 'Other'
+    };
+
+    if (!requestId) return res.status(400).json({ error: 'requestId is required' });
+    if (!(amount > 0)) return res.status(400).json({ error: 'A positive payment amount is required' });
+    if (!VALID_METHODS.includes(method)) {
+        return res.status(400).json({ error: `Invalid payment method. Allowed: ${VALID_METHODS.join(', ')}` });
+    }
+    if (!VALID_REASONS.includes(reason)) {
+        return res.status(400).json({ error: `Invalid override reason. Allowed: ${VALID_REASONS.join(', ')}` });
+    }
+    if (method !== 'other' && !reference) {
+        return res.status(400).json({ error: 'A payment reference (UTR / RRID / transaction ID) is required for this method' });
+    }
+
+    try {
+        const request = await getRequestById(requestId);
+        if (!request) return res.status(404).json({ error: 'Request not found' });
+        if (request.status !== 'waiting_payment') {
+            return res.status(400).json({ error: `Only waiting-payment requests can be overridden (current status: ${request.status})` });
+        }
+        if (request.agentPaymentStatus === 'paid') {
+            return res.status(409).json({ error: 'Payment link for this request is already marked paid. Refresh the request — the webhook may have completed it.' });
+        }
+
+        // If a Razorpay payment link is still OPEN, block the override — the webhook
+        // may complete it any moment and a manual record would be a false payment.
+        if (razorpay && request.agentPaymentLinkId && request.agentPaymentStatus === 'pending') {
+            try {
+                const link = await razorpay.paymentLink.get(request.agentPaymentLinkId);
+                const linkStatus = (link && link.status) || 'UNKNOWN';
+                if (!['expired', 'cancelled', 'completed'].includes(String(linkStatus).toLowerCase())) {
+                    return res.status(409).json({
+                        error: `Payment link ${request.agentPaymentLinkId} is still ${linkStatus}. Wait for the webhook, cancel the link, or record the payment once it expires.`
+                    });
+                }
+            } catch (linkErr) {
+                console.warn(`[${requestId}] ⚠️ Could not verify payment link status (${linkErr.message}) — proceeding with manual override.`);
+            }
+        }
+
+        // Optionally verify a Razorpay payment ID against the gateway. A bad ID
+        // blocks the override; a gateway outage degrades to manual with a flag.
+        let gatewayVerified = false;
+        let gatewayWarn = null;
+        const submittedPaymentId = String((req.body && req.body.paymentId) || '').trim();
+        if (submittedPaymentId && submittedPaymentId.startsWith('pay_')) {
+            if (!razorpay) {
+                return res.status(503).json({ error: 'Razorpay is not configured; cannot verify the payment ID. Record it as a reference instead.' });
+            }
+            try {
+                const payment = await razorpay.payments.fetch(submittedPaymentId);
+                if (payment.status === 'captured' || payment.status === 'authorized') {
+                    gatewayVerified = true;
+                } else {
+                    return res.status(400).json({ error: `Payment ${submittedPaymentId} is '${payment.status}', not captured. Override rejected.` });
+                }
+            } catch (payErr) {
+                console.warn(`[${requestId}] ⚠️ Razorpay verification failed (${payErr.message}) — recording as manual override instead.`);
+                gatewayWarn = `Could not verify ${submittedPaymentId} with Razorpay (${payErr.message})`;
+            }
+        }
+
+        const actor = (req.operator && req.operator.username) || (req.user && req.user.username) || 'super-admin';
+        const nowIso = new Date().toISOString();
+        const refText = reference || (gatewayVerified ? submittedPaymentId : 'no reference provided');
+        const reasonText = reason.replace(/_/g, ' ');
+
+        let recordNotes = gatewayVerified
+            ? `💳 PAYMENT OVERRIDE — ₹${amount} via ${METHOD_LABELS[method]} — GATEWAY-VERIFIED payment ${submittedPaymentId}\n`
+            : `💳 PAYMENT OVERRIDE — ₹${amount} via ${METHOD_LABELS[method]} — Ref: ${refText} (${reasonText})\n`;
+        if (gatewayWarn) recordNotes += `⚠️ ${gatewayWarn}\n`;
+        recordNotes += `Recorded by ${actor} at ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`;
+        if (adminNotes) recordNotes += `\nAdmin note: ${adminNotes}`;
+
+        // Payment clears the fee gate → request leaves waiting_payment.
+        // Pickup is auto-booked below (→ pickup_booked) unless the admin defers or it fails (→ stays pending).
+        const newStatus = 'pending';
+
+        const historyEntry = {
+            action: 'payment_override',
+            amount,
+            method,
+            reference: refText,
+            reason,
+            gatewayVerified,
+            notes: adminNotes || null,
+            timestamp: nowIso,
+            by: actor
+        };
+        const existingHistory = Array.isArray(request.requestHistory) ? [...request.requestHistory] : [];
+        existingHistory.push(historyEntry);
+
+        await updateRequestStatus(requestId, {
+            status: newStatus,
+            paymentId: gatewayVerified ? submittedPaymentId : (request.paymentId || `OVERRIDE-${Date.now()}`),
+            paymentAmount: amount,
+            ...(request.agentPaymentLinkId ? { agentPaymentStatus: 'paid', agentPaymentPaidAt: nowIso } : {}),
+            paymentOverriddenAt: nowIso,
+            paymentOverrideMethod: method,
+            paymentOverrideReference: refText,
+            paymentOverrideReason: reason,
+            paymentOverrideNotes: adminNotes || null,
+            paymentOverrideBy: actor,
+            adminNotes: [request.adminNotes, recordNotes].filter(Boolean).join('\n'),
+            requestHistory: existingHistory
+        });
+        console.log(`[${requestId}] 💳 Payment override by ${actor}: ₹${amount} via ${method} (Ref: ${refText}${gatewayVerified ? ', gateway-verified' : ''})`);
+
+        // ── Auto-book the return pickup unless deferred / already booked (mirror of paid-submission flow) ──
+        let pickup = null;
+        const existingAwb = request.awbNumber || request.carrierAwb;
+        const existingShipment = request.shipmentId || request.carrierShipmentId;
+        if (deferPickup) {
+            pickup = { attempted: false, skippedReason: 'Admin chose to review before booking pickup.' };
+        } else if (existingAwb || existingShipment) {
+            pickup = { attempted: false, reused: true, awbNumber: existingAwb, shipmentId: existingShipment, carrier: request.carrier };
+            console.log(`[${requestId}] ♻️ Pickup already booked (AWB ${existingAwb || 'n/a'}) — reused, no duplicate order`);
+        } else {
+            try {
+                const carrierMode = await getCarrierMode('pickup');
+                const resolution = resolveCarrier(carrierMode, null, 'pickup');
+
+                // Shopify order fetch is best-effort; stored request data is the fallback
+                let shopifyOrder = null;
+                try {
+                    let shopifyData = await shopifyAPI(`orders.json?name=${encodeURIComponent(request.orderNumber)}&status=any&limit=1`);
+                    if (!shopifyData.orders || shopifyData.orders.length === 0) {
+                        const alt = request.orderNumber.startsWith('#') ? request.orderNumber.substring(1) : '#' + request.orderNumber;
+                        shopifyData = await shopifyAPI(`orders.json?name=${encodeURIComponent(alt)}&status=any&limit=1`);
+                    }
+                    shopifyOrder = shopifyData.orders && shopifyData.orders[0];
+                } catch (err) {
+                    console.warn(`[${requestId}] Shopify fetch failed for override pickup:`, err.message);
+                }
+
+                let items = request.items;
+                if (typeof items === 'string') { try { items = JSON.parse(items); } catch (e) { items = []; } }
+                const bookingData = { ...request, requestId, items, customerPhone: request.customerPhone };
+
+                let booking = null;
+                let fallbackReason = null;
+                try {
+                    booking = await returnBookingAttempt(resolution.primary, bookingData, shopifyOrder);
+                } catch (primaryError) {
+                    if (!resolution.useFallback) throw primaryError;
+                    const fallbackCarrier = resolution.fallback || getFallbackCarrier(resolution.primary);
+                    fallbackReason = `${resolution.primary} failed: ${primaryError.message}`;
+                    console.warn(`[${requestId}] ⚠️ ${resolution.primary} failed, falling back to ${fallbackCarrier}:`, primaryError.message);
+                    booking = await returnBookingAttempt(fallbackCarrier, bookingData, shopifyOrder);
+                }
+
+                const updates = {
+                    status: 'pickup_booked',
+                    carrier: booking.carrierUsed,
+                    carrierShipmentId: booking.shipmentId,
+                    carrierAwb: booking.awbNumber,
+                    shipmentId: booking.shipmentId,
+                    awbNumber: booking.awbNumber,
+                    pickupDate: booking.pickupDate,
+                    adminNotes: `\nPickup auto-booked after payment override via ${booking.carrierUsed}: AWB ${booking.awbNumber || 'Pending'}`
+                };
+                if (fallbackReason) updates.carrierFallbackReason = fallbackReason;
+                await updateRequestStatus(requestId, updates);
+                pickup = { attempted: true, success: true, carrier: booking.carrierUsed, awbNumber: booking.awbNumber, shipmentId: booking.shipmentId, pickupDate: booking.pickupDate };
+                console.log(`[${requestId}] ✅ Pickup booked after override: ${booking.carrierUsed} AWB ${booking.awbNumber || 'PENDING'}`);
+            } catch (bookingError) {
+                await updateRequestStatus(requestId, {
+                    adminNotes: `\n⚠️ Pickup auto-booking failed after payment override: ${bookingError.message}. Book pickup manually via Approve.`
+                }).catch(() => {});
+                pickup = { attempted: true, success: false, error: bookingError.message };
+                console.error(`[${requestId}] ❌ Pickup booking after payment override failed:`, bookingError.message);
+            }
+        }
+
+        // ── Confirm payment (and pickup, if booked) to the customer via WhatsApp ──
+        let whatsapp = { sent: false };
+        if (sendWhatsapp && request.customerPhone) {
+            try {
+                let msg = `Hi ${request.customerName || 'there'}! 👋\n\nWe've received your payment of *₹${amount}* for ${request.type === 'exchange' ? 'Exchange' : 'Return'} Request *${requestId}* (Order ${request.orderNumber}). Thank you! ✅`;
+                if (pickup && pickup.success && pickup.awbNumber) {
+                    msg += `\n\n📦 Return pickup has been scheduled via ${pickup.carrier}. AWB: *${pickup.awbNumber}*.`;
+                }
+                msg += `\n\n— Team Offcomfrt`;
+                await sendWhatsAppNotification(request.customerPhone, msg, request.type, requestId);
+                whatsapp = { sent: true };
+                updateRequestStatus(requestId, {
+                    whatsappSent: true,
+                    whatsappSentAt: new Date().toISOString()
+                }).catch(() => {});
+            } catch (waErr) {
+                console.warn(`[${requestId}] ⚠️ Payment confirmation WhatsApp failed:`, waErr.message);
+                whatsapp = { sent: false, error: waErr.message };
+            }
+        }
+
+        const refreshed = await getRequestById(requestId).catch(() => null);
+        res.json({
+            success: true,
+            requestId,
+            override: {
+                amount,
+                method,
+                reference: refText,
+                reason,
+                gatewayVerified,
+                recordedBy: actor,
+                recordedAt: nowIso
+            },
+            newStatus: (refreshed && refreshed.status) || (pickup && pickup.success ? 'pickup_booked' : newStatus),
+            pickup,
+            whatsapp,
+            request: refreshed,
+            message: `Payment of ₹${amount} recorded via ${METHOD_LABELS[method]}.${pickup && pickup.success ? ` Pickup booked via ${pickup.carrier} (AWB ${pickup.awbNumber || 'pending'}).` : ''}`
+        });
+    } catch (error) {
+        console.error(`[${requestId || 'override-payment'}] ❌ Payment override failed:`, error);
+        res.status(500).json({ error: 'Failed to record payment override: ' + error.message });
     }
 });
 

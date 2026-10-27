@@ -2957,13 +2957,16 @@
                     <button onclick="viewDetails('${req.requestId}')" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.85rem;">
                         View
                     </button>
+                    ${req.status === 'waiting_payment' && can('payment_links') ? `<button onclick="viewDetails('${req.requestId}', true)" class="btn" style="padding: 0.5rem 0.85rem; font-size: 0.8rem; background: #92400e; color: white; margin-left: 0.4rem;" title="Record an out-of-band payment and unblock this request">💳 Record Payment</button>` : ''}
                 </td>
             </tr>`;
         }).join('');
     }
 
     // View Request Details
-    async function viewDetails(requestId) {
+    async function viewDetails(requestId, openPaymentOverride = false) {
+        // Remember intent so the payment override form auto-opens once the modal renders
+        window._poAutoOpen = openPaymentOverride === true ? requestId : null;
         try {
             console.log('viewDetails called for requestId:', requestId);
             const response = await fetch(`${API_URL}/track-request/${requestId}`);
@@ -2975,6 +2978,11 @@
                 currentRequest = data;
                 displayRequestDetails(data);
                 document.getElementById('detailsModal').classList.add('active');
+                // Row-level "Record Payment" shortcut: expand the override form immediately
+                if (window._poAutoOpen === data.requestId && data.status === 'waiting_payment') {
+                    window._poAutoOpen = null;
+                    togglePaymentOverrideForm(true);
+                }
             }
         } catch (error) {
             console.error('Failed to load request details:', error);
@@ -3187,7 +3195,86 @@
                     `}
                 </div>
             </div>
-
+            
+            ${(data.status === 'waiting_payment' && can('payment_links')) ? `
+            <!-- ═══ Payment Override Panel (admin-confirmed out-of-band payment) ═══ -->
+            <div id="paymentOverridePanel" style="background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); border: 1px solid #fde68a; border-radius: 12px; margin-bottom: 1rem; overflow: hidden;">
+                <div style="padding: 1rem 1.25rem; border-bottom: 1px solid #fde68a; display: flex; align-items: center; gap: 0.75rem;">
+                    <div style="width: 32px; height: 32px; background: #92400e; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fef3c7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15v2"></path><rect x="2" y="5" width="20" height="14" rx="2"></rect><path d="M2 10h20"></path></svg>
+                    </div>
+                    <div style="flex: 1;">
+                        <h3 style="margin: 0; font-size: 0.9rem; font-weight: 600; color: #78350f;">Payment Override</h3>
+                        <p style="margin: 0; color: #92400e; font-size: 0.72rem;">Customer paid outside the gateway (UPI / cash / bank) — record it and unblock the request</p>
+                    </div>
+                    <button type="button" id="poToggleBtn" onclick="togglePaymentOverrideForm()" style="padding: 0.45rem 1rem; background: #92400e; color: white; border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">Record Payment</button>
+                </div>
+                <div id="poSummaryRow" style="padding: 0.7rem 1.25rem; font-size: 0.78rem; color: #92400e;">
+                    Awaiting
+                    <strong>₹${data.paymentAmount ? parseFloat(data.paymentAmount) : (data.agentPaymentAmount || 150)}</strong>
+                    · Created ${formatDateIST(data.createdAt)}
+                    ${data.agentPaymentLinkId ? `· Payment link <span title="${escapeHtml(data.agentPaymentLinkId)}" style="font-weight:600;cursor:help;text-decoration:underline dotted;">${data.agentPaymentStatus === 'pending' ? '⏳ open' : 'sent'}</span>` : ''}
+                </div>
+                <div id="poForm" style="display: none; padding: 1.25rem; border-top: 1px dashed #fde68a; background: #fffdf5;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0.9rem;">
+                        <div>
+                            <label style="display:block; font-size:0.72rem; color:#78350f; margin-bottom:0.3rem; text-transform:uppercase; letter-spacing:0.5px;">Amount Received (₹) *</label>
+                            <input type="number" id="poAmount" min="1" step="1" value="${data.paymentAmount ? parseFloat(data.paymentAmount) : (data.agentPaymentAmount || 150)}" style="width:100%; padding:0.55rem 0.7rem; border:1px solid #e5c07b; border-radius:6px; font-size:0.9rem; outline:none; background:white; box-sizing:border-box;">
+                        </div>
+                        <div>
+                            <label style="display:block; font-size:0.72rem; color:#78350f; margin-bottom:0.3rem; text-transform:uppercase; letter-spacing:0.5px;">Method *</label>
+                            <select id="poMethod" onchange="poMethodChanged()" style="width:100%; padding:0.55rem 0.7rem; border:1px solid #e5c07b; border-radius:6px; font-size:0.9rem; outline:none; background:white; box-sizing:border-box;">
+                                <option value="upi">UPI</option>
+                                <option value="bank_transfer">Bank Transfer / NEFT</option>
+                                <option value="cash">Cash</option>
+                                <option value="razorpay_manual">Razorpay (manual capture)</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="display:block; font-size:0.72rem; color:#78350f; margin-bottom:0.3rem; text-transform:uppercase; letter-spacing:0.5px;">Reference (UTR / RRID / Txn ID) <span id="poRefReq" style="color:#dc2626;">*</span></label>
+                            <input type="text" id="poReference" placeholder="e.g. 402312345678" style="width:100%; padding:0.55rem 0.7rem; border:1px solid #e5c07b; border-radius:6px; font-size:0.9rem; outline:none; background:white; box-sizing:border-box;">
+                        </div>
+                        <div id="poRzpWrap" style="display:none;">
+                            <label style="display:block; font-size:0.72rem; color:#78350f; margin-bottom:0.3rem; text-transform:uppercase; letter-spacing:0.5px;">Razorpay Payment ID (pay_…)</label>
+                            <input type="text" id="poPaymentId" placeholder="pay_abc123… (verified against gateway)" style="width:100%; padding:0.55rem 0.7rem; border:1px solid #e5c07b; border-radius:6px; font-size:0.9rem; outline:none; background:white; box-sizing:border-box;">
+                        </div>
+                        <div>
+                            <label style="display:block; font-size:0.72rem; color:#78350f; margin-bottom:0.3rem; text-transform:uppercase; letter-spacing:0.5px;">Why Override? *</label>
+                            <select id="poReason" style="width:100%; padding:0.55rem 0.7rem; border:1px solid #e5c07b; border-radius:6px; font-size:0.9rem; outline:none; background:white; box-sizing:border-box;">
+                                <option value="paid_elsewhere">Paid elsewhere / offline</option>
+                                <option value="gateway_down">Payment gateway down</option>
+                                <option value="partial_payment">Partial payment</option>
+                                <option value="fee_waived_manual">Fee manually waived</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="margin-top:0.9rem;">
+                        <label style="display:block; font-size:0.72rem; color:#78350f; margin-bottom:0.3rem; text-transform:uppercase; letter-spacing:0.5px;">Admin Notes (audit trail)</label>
+                        <textarea id="poNotes" rows="2" placeholder="e.g. UTR verified on bank statement 27/10" style="width:100%; padding:0.55rem 0.7rem; border:1px solid #e5c07b; border-radius:6px; font-size:0.88rem; outline:none; background:white; box-sizing:border-box; resize:vertical;"></textarea>
+                    </div>
+                    <div style="display:flex; gap:1.5rem; margin-top:1rem; flex-wrap:wrap; align-items:center;">
+                        <label style="display:flex; gap:0.4rem; align-items:center; font-size:0.8rem; color:#78350f; cursor:pointer;">
+                            <input type="checkbox" id="poAutoBook" checked ${((data.awbNumber || data.carrierAwb) && (data.shipmentId || data.carrierShipmentId)) ? 'disabled' : ''}>
+                            Auto-book return pickup${((data.awbNumber || data.carrierAwb) && (data.shipmentId || data.carrierShipmentId)) ? ' (already booked — will be reused)' : ' via configured carrier'}
+                        </label>
+                        <label style="display:flex; gap:0.4rem; align-items:center; font-size:0.8rem; color:#78350f; cursor:pointer;">
+                            <input type="checkbox" id="poSendWa" checked> Send confirmation on WhatsApp
+                        </label>
+                    </div>
+                    <div style="display:flex; justify-content:flex-end; gap:0.6rem; margin-top:1.1rem;">
+                        <button type="button" onclick="togglePaymentOverrideForm()" style="padding:0.55rem 1rem; background:transparent; color:#78350f; border:1px solid #d6b87a; border-radius:6px; font-size:0.82rem; cursor:pointer;">Cancel</button>
+                        <button type="button" id="poSubmitBtn" onclick="submitPaymentOverride('${data.requestId}')" style="padding:0.55rem 1.25rem; background:#92400e; color:white; border:none; border-radius:6px; font-size:0.82rem; font-weight:600; cursor:pointer;">
+                            <span id="poSubmitText">✓ Record Payment & Unblock Request</span>
+                            <span id="poSubmitSpin" class="spinner hidden" style="border-color:white; border-bottom-color:transparent; width:14px; height:14px; display:inline-block; vertical-align:middle;"></span>
+                        </button>
+                    </div>
+                    <p style="font-size:0.7rem; color:#a16207; margin:0.9rem 0 0 0;">⚠️ Recording marks this payment as received by admin confirmation (not gateway-verified unless a pay_ ID is supplied) and appends an override entry to the audit trail. This cannot be undone from the UI.</p>
+                </div>
+            </div>
+            ` : ''}
+            
             ${data.status === 'rejected' ? `
             <div style="background: #fee2e2; border-left: 4px solid #dc2626; padding: 1rem; border-radius: var(--radius-sm); margin-bottom: 1rem;">
                 <p style="font-weight: 600; color: #991b1b; margin-bottom: 0.5rem;">✗ Rejection Reason</p>
@@ -5200,6 +5287,102 @@
             }
         } catch (err) {
             alert('Failed to resend. Please try again.');
+        }
+    }
+
+    // ── Payment Override (record out-of-band payment for waiting_payment requests) ──
+    function togglePaymentOverrideForm(forceOpen) {
+        const form = document.getElementById('poForm');
+        if (!form) return;
+        const shouldShow = forceOpen === true ? true : form.style.display === 'none';
+        form.style.display = shouldShow ? 'block' : 'none';
+        const summary = document.getElementById('poSummaryRow');
+        if (summary) summary.style.display = shouldShow ? 'none' : 'block';
+        poMethodChanged();
+    }
+
+    function poMethodChanged() {
+        // Razorpay manual capture reveals an extra payment-ID field;
+        // 'other' relaxes the reference requirement (mirrors server validation)
+        const method = document.getElementById('poMethod');
+        const rzpWrap = document.getElementById('poRzpWrap');
+        const refReq = document.getElementById('poRefReq');
+        if (rzpWrap) rzpWrap.style.display = (method && method.value === 'razorpay_manual') ? 'block' : 'none';
+        if (refReq) refReq.style.display = (method && method.value === 'other') ? 'none' : 'inline';
+    }
+
+    async function submitPaymentOverride(requestId) {
+        if (!can('payment_links')) {
+            alert('You do not have permission to record payments.');
+            return;
+        }
+
+        const amount = parseFloat(document.getElementById('poAmount')?.value);
+        const method = document.getElementById('poMethod')?.value || '';
+        const reference = (document.getElementById('poReference')?.value || '').trim();
+        const reason = document.getElementById('poReason')?.value || 'other';
+        const notes = (document.getElementById('poNotes')?.value || '').trim();
+        const paymentId = (document.getElementById('poPaymentId')?.value || '').trim();
+        const autoBook = document.getElementById('poAutoBook') ? document.getElementById('poAutoBook').checked : true;
+        const sendWhatsapp = document.getElementById('poSendWa') ? document.getElementById('poSendWa').checked : false;
+
+        if (!(amount > 0)) { alert('Please enter a valid amount greater than 0.'); return; }
+        if (method !== 'other' && !reference) { alert('Please enter the payment reference (UTR / RRID / transaction ID).'); return; }
+
+        let confirmMsg = `Record ₹${amount} via ${method.replace(/_/g, ' ')} as a payment override?\n\nThis marks the payment as received (admin-confirmed, not gateway-verified) and records the audit entry.`;
+        if (autoBook) confirmMsg += '\nA return pickup will then be auto-booked via the configured carrier.';
+        if (!confirm(confirmMsg)) return;
+
+        const btn = document.getElementById('poSubmitBtn');
+        const btnText = document.getElementById('poSubmitText');
+        const spinner = document.getElementById('poSubmitSpin');
+        if (btn) btn.disabled = true;
+        if (btnText) btnText.textContent = 'Recording...';
+        if (spinner) spinner.classList.remove('hidden');
+
+        try {
+            const response = await fetch(`${API_URL}/admin/override-payment`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${authToken}`
+                },
+                body: JSON.stringify({
+                    requestId,
+                    amount,
+                    method,
+                    reference,
+                    reason,
+                    notes,
+                    paymentId: paymentId || null,
+                    deferPickup: !autoBook,
+                    sendWhatsapp
+                })
+            });
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+                let msg = `✅ Payment of ₹${amount} recorded via ${method.replace(/_/g, ' ')}.${data.gatewayVerified ? ' (gateway-verified)' : ''}\n\nNew status: ${getStatusLabel(data.newStatus)}`;
+                if (data.pickup) {
+                    if (data.pickup.success) msg += `\n📦 Pickup booked via ${data.pickup.carrier} — AWB ${data.pickup.awbNumber || 'pending'}`;
+                    else if (data.pickup.reused) msg += `\n♻️ Existing pickup reused (AWB ${data.pickup.awbNumber || 'n/a'}) — no duplicate booked`;
+                    else if (data.pickup.attempted) msg += `\n⚠️ Pickup booking failed: ${data.pickup.error}\nBook it manually via Approve.`;
+                    else msg += `\nℹ️ Pickup not booked (${data.pickup.skippedReason || 'already booked'}).`;
+                }
+                if (data.whatsapp && data.whatsapp.sent) msg += '\n💬 Confirmation sent on WhatsApp';
+                alert(msg);
+                viewDetails(requestId);
+                loadRequests();
+            } else {
+                alert('❌ ' + (data.error || 'Failed to record payment override.'));
+            }
+        } catch (err) {
+            console.error('Payment override error:', err);
+            alert('❌ Request failed. Please check the console and try again.');
+        } finally {
+            if (btn) btn.disabled = false;
+            if (btnText) btnText.textContent = '✓ Record Payment & Unblock Request';
+            if (spinner) spinner.classList.add('hidden');
         }
     }
 
