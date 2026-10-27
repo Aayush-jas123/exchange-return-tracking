@@ -2957,16 +2957,13 @@
                     <button onclick="viewDetails('${req.requestId}')" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.85rem;">
                         View
                     </button>
-                    ${req.status === 'waiting_payment' && can('payment_links') ? `<button onclick="viewDetails('${req.requestId}', true)" class="btn" style="padding: 0.5rem 0.85rem; font-size: 0.8rem; background: #92400e; color: white; margin-left: 0.4rem;" title="Record an out-of-band payment and unblock this request">💳 Record Payment</button>` : ''}
                 </td>
             </tr>`;
         }).join('');
     }
 
     // View Request Details
-    async function viewDetails(requestId, openPaymentOverride = false) {
-        // Remember intent so the payment override form auto-opens once the modal renders
-        window._poAutoOpen = openPaymentOverride === true ? requestId : null;
+    async function viewDetails(requestId) {
         try {
             console.log('viewDetails called for requestId:', requestId);
             const response = await fetch(`${API_URL}/track-request/${requestId}`);
@@ -2978,11 +2975,6 @@
                 currentRequest = data;
                 displayRequestDetails(data);
                 document.getElementById('detailsModal').classList.add('active');
-                // Row-level "Record Payment" shortcut: expand the override form immediately
-                if (window._poAutoOpen === data.requestId && data.status === 'waiting_payment') {
-                    window._poAutoOpen = null;
-                    togglePaymentOverrideForm(true);
-                }
             }
         } catch (error) {
             console.error('Failed to load request details:', error);
