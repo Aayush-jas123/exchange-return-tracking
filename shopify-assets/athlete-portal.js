@@ -1412,7 +1412,10 @@ function raceClose(){clearTimeout(RACE.timer);const ws=RACE.ws;RACE.ws=null;if(w
 // link must open the game the room belongs to — not always Rooftop Racing.
 const GAME_LABELS={'rooftop-racing':'Rooftop Race','fruit-ninja':'Fruit Ninja','ping-pong':'Ping Pong','pac-man':'Pac-Man','crossy-road':'Crossy Road'};
 const GAME_URLS={'rooftop-racing':BASE+'/athlete-game.html','fruit-ninja':BASE+'/games/fruit-ninja/index.html','ping-pong':BASE+'/games/ping-pong/index.html','pac-man':BASE+'/games/pac-man/index.html','crossy-road':BASE+'/games/crossy-road/index.html'};
-function gameUrl(extra,game){const g=GAME_URLS[game]?game:'rooftop-racing';return GAME_URLS[g]+'#t='+encodeURIComponent(S.token||'')+(extra||'')}
+// Every cabinet carries the portal's own URL (`p`) so a game's back control returns
+// the athlete to this exact page, whichever domain the store is served on.
+const PORTAL_SELF=(location.origin+location.pathname).replace(/\/$/,'');
+function gameUrl(extra,game){const g=GAME_URLS[game]?game:'rooftop-racing';return GAME_URLS[g]+'#t='+encodeURIComponent(S.token||'')+(extra||'')+'&p='+encodeURIComponent(PORTAL_SELF)}
 function raceInvite(m){
   let el=$('raceInv');
   const game=GAME_URLS[m.g]?m.g:'rooftop-racing';
@@ -1420,7 +1423,7 @@ function raceInvite(m){
     el=document.createElement('div');el.id='raceInv';el.className='rinv';document.body.appendChild(el);
     el.addEventListener('click',e=>{
       const b=e.target.closest('[data-rinv]');if(!b)return;
-      if(b.dataset.rinv==='join')window.open(gameUrl('&r='+encodeURIComponent(el.dataset.r),el.dataset.game),'_blank','noopener');
+      if(b.dataset.rinv==='join')location.href=gameUrl('&r='+encodeURIComponent(el.dataset.r),el.dataset.game);
       el.classList.remove('show');
     });
   }
@@ -1980,14 +1983,14 @@ async function loadShop(){
 // Tiles the admin has locked (unlock flag explicitly false) render a lock
 // overlay and drop their href so they cannot be opened, even by middle-click.
 function linkGames(){
-  const hash='#t='+encodeURIComponent(S.token||'');
+  const hash='#t='+encodeURIComponent(S.token||'')+'&p='+encodeURIComponent(PORTAL_SELF);
   document.querySelectorAll('#games a.gt').forEach(a=>{
     if(!a.dataset.gameUrl)a.dataset.gameUrl=a.href.split('#')[0];
     const id=a.dataset.gameId;
     const locked=!!(id&&S.unlocks&&S.unlocks[id]===false);
     a.classList.toggle('locked',locked);
-    if(locked){a.removeAttribute('href');a.removeAttribute('target');}
-    else{a.href=a.dataset.gameUrl+hash;a.setAttribute('target','_blank');}
+    if(locked){a.removeAttribute('href');}
+    else{a.href=a.dataset.gameUrl+hash;}
   });
   if(!linkGames._guard){
     linkGames._guard=true;
@@ -2012,7 +2015,7 @@ async function refreshXp(){
     if(climb){S.climb=climb;renderClimb()}
     if(shop)S.shop=shop;
     if(progress||shop){renderShop();updateSidebarAcct();updateTabCoinBadge()}
-    // Coming back from a game in another tab: refresh the arcade ladder too.
+    // Back from a cabinet (games run in this tab, so the portal reloads): keep the arcade ladder honest.
     if(S.active==='games')loadArcade();
   }catch(e){}
 }
@@ -2104,13 +2107,13 @@ document.addEventListener('DOMContentLoaded',()=>{
   $('briefPool').addEventListener('click',()=>scrollToPool(S.focusId));
   const onLobbyClick=e=>{
     const j=e.target.closest('[data-join]');
-    if(j&&!j.disabled){window.open(gameUrl('&r='+encodeURIComponent(j.dataset.join),j.dataset.game),'_blank','noopener');return}
+    if(j&&!j.disabled){location.href=gameUrl('&r='+encodeURIComponent(j.dataset.join),j.dataset.game);return}
     const b=e.target.closest('[data-invite]');
     if(!b||b.disabled)return;
     const id=b.dataset.invite;
     S.invited.add(id);setTimeout(()=>{S.invited.delete(id);renderLobby()},10000);
     b.disabled=true;b.textContent='Sent \u2713';
-    window.open(gameUrl('&inv='+encodeURIComponent(id)),'_blank','noopener');
+    location.href=gameUrl('&inv='+encodeURIComponent(id));
     toast(`Race room opened — invite sent to ${b.dataset.name||'athlete'}`,'LIVE');
   };
   $('athleteList').addEventListener('click',onLobbyClick);

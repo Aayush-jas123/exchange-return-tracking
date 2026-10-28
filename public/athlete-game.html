@@ -7,6 +7,11 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>OFFCOMFRT — Rooftop Race</title>
+  <!-- Return road to the portal. The touch pads own the bottom corners here, so
+       the chip rides above the HUD instead. Loaded first so the portal URL
+       survives the hash reset in athlete-xp.js. -->
+  <script>window.AP_BACK_POS = 'top-left';</script>
+  <script src="/games/portal-back.js?v=1"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
