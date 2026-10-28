@@ -1056,11 +1056,28 @@
   };
 
   // ── Online game end callback ──
-  window.endOnlineGame = function(winner, score1, score2) {
-    if (mode !== 'playing') return;
+  // The hub pays an online match server-side and answers a moment after the local
+  // game-over screen is already up, so its reward line fills the same #goXp slot
+  // that single player writes from AthleteXP.report.
+  window.endOnlineGame = function(winner, score1, score2, reward) {
+    if (mode !== 'playing') { window.showOnlineReward(reward); return; }
     p1.score = score1;
     p2.score = score2;
     endGame(winner, 'score');
+    window.showOnlineReward(reward);
+  };
+
+  window.showOnlineReward = function(reward) {
+    const el = $('goXp');
+    if (!el || !reward) return;
+    const parts = [];
+    if (reward.xp > 0) parts.push('+' + reward.xp + ' XP');
+    if (reward.coins > 0) parts.push('+' + reward.coins + ' coins');
+    el.textContent = parts.length ? parts.join(' \u00b7 ')
+      : reward.why === 'daily_cap' ? 'Daily XP cap reached'
+      : reward.why === 'cooldown' ? 'Reward cooldown \u2014 the next match pays'
+      : reward.why === 'score_too_low' ? 'Score more to earn XP'
+      : '';
   };
 
   // ── Init ──

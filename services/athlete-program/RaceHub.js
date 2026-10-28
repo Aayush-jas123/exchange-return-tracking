@@ -93,9 +93,14 @@ async function defaultAward(influencerId, raceId, rank, field) {
   if (r.awarded > 0) await evaluateLevel(influencerId);
   return r;
 }
-async function defaultAwardRun(influencerId, score, runId) {
+// `game` names the cabinet that paid the run, so a Pac-Man or Ping Pong score
+// converts with that game's own units-per-XP rate and lands on that game's
+// ladder instead of being counted as metres run on the rooftops.
+async function defaultAwardRun(influencerId, score, runId, game = 'rooftop-racing') {
   const GamificationService = require('./GamificationService');
-  const r = await GamificationService.awardGameXp(influencerId, 'rooftop-racing', score, runId, { verified: true });
+  // Only a Rooftop run is replayed from logged inputs, so it is the only one the
+  // arcade treats as verified; the other cabinets have no such gate.
+  const r = await GamificationService.awardGameXp(influencerId, game, score, runId, { verified: game === 'rooftop-racing' });
   if (r.awarded > 0) await evaluateLevel(influencerId);
   return r;
 }
@@ -384,7 +389,7 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
     ws.solo = null; solos.delete(ws);
     const sc = Sim.score(run.sim.p), id = run.id;
     Promise.resolve()
-      .then(() => awardRun(ws.athlete.id, sc, id))
+      .then(() => awardRun(ws.athlete.id, sc, id, 'rooftop-racing'))
       .then(r => send(ws, { t: 'sres', id, sc, xp: r.awarded || 0, coins: r.coins_awarded || 0, why: r.reason || null, today: r.earned_today, cap: r.daily_cap }))
       .catch(e => { console.error('[RaceHub] solo XP award failed:', e.message); send(ws, { t: 'sres', id, sc, xp: 0, why: 'error' }); });
   }
@@ -455,30 +460,38 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
   async function onPPEnd(ws, msg) {
     const rm = ws.room && rooms.get(ws.room);
     if (!rm || rm.game !== 'ping-pong') return;
-    const winner = Number(msg.w) || 0;
+    const reporter = rm.members.get(ws.athlete.id);
+    if (!reporter) return;
+    // Every online client draws itself as player 1, so s1 is the reporter's own
+    // score and s2 the opponent's — never the join order of the room.
+    const opponent = [...rm.members.values()].find(m => m.id !== reporter.id);
     const s1 = Math.max(0, Math.floor(Number(msg.s1) || 0));
     const s2 = Math.max(0, Math.floor(Number(msg.s2) || 0));
-    // Award XP to the winner (player 1 = the reporter in single-player; in online both report)
-    const members = [...rm.members.values()];
-    const winnerMember = members[winner - 1];
-    if (winnerMember && winnerMember.id) {
-      try {
-        const runId = 'pp_' + rm.raceId + '_' + winnerMember.id;
-        await awardRun(winnerMember.id, Math.max(s1, s2), runId);
-      } catch (e) { console.error('[RaceHub] ping-pong XP award failed:', e.message); }
+    const scoreOf = new Map([[String(reporter.id), s1]]);
+    if (opponent) scoreOf.set(String(opponent.id), s2);
+    const winnerId = Number(msg.w) === 2 && opponent ? opponent.id : reporter.id;
+
+    // Each rally point is paid on its own score and its own ladder — the loser of
+    // an 11-9 match still earned XP for the nine points they scored.
+    const rows = [];
+    for (const m of rm.members.values()) {
+      const row = { id: m.id, n: m.name, c: m.c, sc: scoreOf.get(String(m.id)) || 0, rank: m.id === winnerId ? 1 : 2, xp: 0, coins: 0, why: null };
+      if (m.inRace && row.sc > 0) {
+        try {
+          const r = await awardRun(m.id, row.sc, 'pp_' + rm.raceId + '_' + m.id, 'ping-pong');
+          row.xp = r.awarded || 0;
+          row.coins = r.coins_awarded || 0;
+          row.today = r.earned_today; row.cap = r.daily_cap;
+          row.why = r.reason || null;
+        } catch (e) { console.error('[RaceHub] ping-pong XP award failed:', e.message); row.why = 'error'; }
+      }
+      rows.push(row);
     }
-    // Broadcast results
-    const rows = members.map((m, i) => ({
-      id: m.id, n: m.name, c: m.c,
-      sc: i === 0 ? s1 : s2,
-      rank: (i === 0 ? 1 : 2) === winner ? 1 : 2,
-      xp: 0, why: null
-    }));
     rows.sort((a, b) => a.rank - b.rank);
     broadcastRoom(rm, { t: 'res', race: rm.raceId, rows });
     // Cleanup room
     rm.status = 'results';
-    for (const m of members) { m.inRace = false; m.alive = false; }
+    for (const m of rm.members.values()) { m.inRace = false; m.alive = false; }
     clearTimeout(rm.timer);
     clearTimeout(rm.guard);
     setTimeout(() => {
@@ -530,20 +543,25 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
       id: m.id,
       score: world && world.players[m.id] ? Math.floor(world.players[m.id].sc) : 0
     }));
-    // Arcade XP is paid on the hub's own score, never on a client report.
-    let best = null;
-    for (const s of scores) if (!best || s.score > best.score) best = s;
-    if (best && best.score > 0) {
-      try {
-        await awardRun(best.id, best.score, 'pm_' + rm.raceId + '_' + best.id);
-      } catch (e) { console.error('[RaceHub] pac-man XP award failed:', e.message); }
-    }
+    // Arcade XP is paid on the hub's own score, never on a client report, and on
+    // every athlete's own pellets — the last one standing is not the only earner.
     const rows = racers.map(m => {
       const s = scores.find(x => x.id === m.id);
-      return { id: m.id, n: m.name, c: m.c, sc: s ? s.score : 0, rank: 0, xp: 0, why: null };
+      return { id: m.id, n: m.name, c: m.c, sc: s ? s.score : 0, rank: 0, xp: 0, coins: 0, why: null };
     });
     rows.sort((a, b) => b.sc - a.sc);
     rows.forEach((r, i) => { r.rank = i + 1; });
+    // Sequential so the shared daily cap is read after the previous award lands.
+    for (const row of rows) {
+      if (row.sc <= 0) continue;
+      try {
+        const r = await awardRun(row.id, row.sc, 'pm_' + rm.raceId + '_' + row.id, 'pac-man');
+        row.xp = r.awarded || 0;
+        row.coins = r.coins_awarded || 0;
+        row.today = r.earned_today; row.cap = r.daily_cap;
+        row.why = r.reason || null;
+      } catch (e) { console.error('[RaceHub] pac-man XP award failed:', e.message); row.why = 'error'; }
+    }
     if (!rooms.has(rm.code)) return;
     broadcastRoom(rm, { t: 'res', race: rm.raceId, rows });
     for (const m of [...rm.members.values()]) {
@@ -586,27 +604,25 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
   async function onCREnd(ws, msg) {
     const rm = ws.room && rooms.get(ws.room);
     if (!rm || rm.game !== 'crossy-road') return;
-    const scores = msg.scores || [];
-    // Find highest scorer for XP award
-    let bestScore = 0;
-    let bestId = null;
-    for (const s of scores) {
-      if (s.score > bestScore) { bestScore = s.score; bestId = s.id; }
-    }
-    if (bestId) {
-      try {
-        const runId = 'cr_' + rm.raceId + '_' + bestId;
-        await awardRun(bestId, bestScore, runId);
-      } catch (e) { console.error('[RaceHub] crossy-road XP award failed:', e.message); }
-    }
-    // Build results
+    const scores = Array.isArray(msg.scores) ? msg.scores : [];
     const members = [...rm.members.values()];
-    const rows = members.map(m => {
-      const entry = scores.find(s => String(s.id) === String(m.id));
-      return { id: m.id, n: m.name, c: m.c, sc: entry ? entry.score : 0, rank: 0, xp: 0, why: null };
-    });
+    const scoreOf = new Map(scores.map(s => [String(s.id), Math.max(0, Math.floor(Number(s.score) || 0))]));
+    // Each runner is paid on their own lanes crossed, on the Crossy Road ladder.
+    const rows = members.map(m => ({
+      id: m.id, n: m.name, c: m.c, sc: scoreOf.get(String(m.id)) || 0, rank: 0, xp: 0, coins: 0, why: null
+    }));
     rows.sort((a, b) => b.sc - a.sc);
     rows.forEach((r, i) => { r.rank = i + 1; });
+    for (const row of rows) {
+      if (row.sc <= 0) continue;
+      try {
+        const r = await awardRun(row.id, row.sc, 'cr_' + rm.raceId + '_' + row.id, 'crossy-road');
+        row.xp = r.awarded || 0;
+        row.coins = r.coins_awarded || 0;
+        row.today = r.earned_today; row.cap = r.daily_cap;
+        row.why = r.reason || null;
+      } catch (e) { console.error('[RaceHub] crossy-road XP award failed:', e.message); row.why = 'error'; }
+    }
     broadcastRoom(rm, { t: 'res', race: rm.raceId, rows });
     // Cleanup room
     rm.status = 'results';
