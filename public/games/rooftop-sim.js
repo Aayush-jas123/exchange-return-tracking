@@ -22,6 +22,7 @@ const STAND_H = 30, SLIDE_H = 14, DEATH_Y = 420, FALL_SAVE_MAX = 2, FALL_DEPTH =
 const RUN = 0, AIR = 1, SLIDE = 2, WALL = 3, CLIMB = 4, TUN = 5, DEAD = 6, FLIP = 7;
 const IN_JUMP = 1, IN_RELEASE = 2, IN_SLIDE = 3;
 const ZONE_U = 15000, NZ = 5;               // 1.5 km per district, 5 districts cycling
+const PW_T = 8, PW_MUL = 1.42, PW_GAP_MIN = 6, PW_GAP_MAX = 10; // "GO OFFCOMFRT" boost: 8 s, 1.42x, one every 6–10 rooftops
 const PAT_W = 88, PAT_H = 78;               // facade window tile (visual offsets only)
 const AHEAD = 1600, BEHIND = 900;           // world kept generated / retained around the runner
 
@@ -41,7 +42,7 @@ function pace(x) { return Math.min(10, 1 + Math.floor(diff(x) * 7.5)); } // HUD 
 /* ═══ Seeded world ═══ */
 function createWorld(seed) {
   const rng = mulberry((seed >>> 0) || 1), B = [];
-  const gen = { x: -300, i: 0, prevRy: 60, cor: null, nextCor: 6 + Math.floor(rng() * 4) };
+  const gen = { x: -300, i: 0, prevRy: 60, cor: null, nextCor: 6 + Math.floor(rng() * 4), pwGap: 0, pwNext: PW_GAP_MIN + Math.floor(rng() * 5) };
 
   function genOne() {
     const r = rng, i = gen.i++, d = diff(gen.x);
@@ -95,10 +96,23 @@ function createWorld(seed) {
         const sx = x - gap, top = Math.min(gen.prevRy, ry) - 26;
         for (let j = 0; j < 3; j++) b.orbs.push({ x: sx + gap * (j + 1) / 4, y: top - arc((j + 1) / 4) * 22, got: false });
       }
-      // Birds — head height (slide) or jump height (stay grounded); faster later on
-      if (i > 2 && r() < Math.min(.72, .18 + d * .38)) {
-        const high = r() < .5;
-        b.birds.push({ x0: x + w * (.5 + r() * .4), y: high ? ry - 47 : ry - 23, sp: 100 + r() * 60 + d * 70, on: false, t: 0, bx: 0, hit: false, ph: r() * 6 });
+      // Birds — flocks, not singles: head height (slide) or jump height (stay grounded).
+      // A rooftop can now hold up to three, and the flock grows with the pace.
+      if (i > 2) {
+        const flock = 1 + Math.floor(r() * Math.min(3, 1 + d * 2.4));
+        for (let k = 0; k < flock; k++) {
+          if (r() >= Math.min(.94, .42 + d * .46)) continue;
+          const high = r() < .5, spread = r();
+          b.birds.push({ x0: x + w * (.34 + spread * .56), y: high ? ry - 47 : ry - 23, sp: 100 + r() * 60 + d * 70, on: false, t: 0, bx: 0, hit: false, ph: r() * 6 });
+        }
+      }
+      // "GO OFFCOMFRT" boost pickup — one every 6–10 rooftops (corridor roofs excluded,
+      // so the spacing a runner actually feels stays inside that window)
+      if (!member && !gen.cor && ++gen.pwGap >= gen.pwNext) {
+        let px = x + w * .5;
+        for (const o of b.obs) if (Math.abs(o.x - px) < 46) { px = x + w - 44; break; }
+        b.pw = { x: px, y: ry - 26, got: false, ph: r() * 6 };
+        gen.pwGap = 0; gen.pwNext = PW_GAP_MIN + Math.floor(r() * (PW_GAP_MAX - PW_GAP_MIN + 1));
       }
     }
     // Rooftop dressing (no collision)
@@ -119,13 +133,13 @@ function createWorld(seed) {
 /* ═══ Runner ═══ */
 function mkRunner(c) {
   return { x: 0, y: 60, vx: vTarget(0) * .6, vy: 0, st: RUN, gnd: true, jumps: 0, coy: 0, buf: 0, held: false, hold: 0, slideT: 0, slideQ: 0, ff: false,
-    wall: null, cl: null, cor: null, stun: 0, flip: -1, rot: 0, ph: 0, bonus: 0, c: c | 0, alive: true, fin: -1, falls: 0, lastB: null };
+    wall: null, cl: null, cor: null, stun: 0, flip: -1, rot: 0, ph: 0, bonus: 0, pw: 0, c: c | 0, alive: true, fin: -1, falls: 0, lastB: null };
 }
 const score = p => p.fin >= 0 ? p.fin : Math.max(0, Math.floor(p.x / U) + p.bonus);
 const code = p => p.st === DEAD ? DEAD : (p.flip >= 0 ? FLIP : p.st);
 
 const noop = () => {};
-const NOFX = { dust: noop, burst: noop, hit: noop, orb: noop, land: noop, die: noop };
+const NOFX = { dust: noop, burst: noop, hit: noop, orb: noop, land: noop, die: noop, power: noop, smash: noop, scatter: noop, bird: noop };
 
 function startClimb(p, b, d, top) { p.st = CLIMB; p.vy = 0; p.gnd = false; p.flip = -1; p.cl = { b, d, t: 0, from: p.y, to: top ? b.ry : p.y - 40, top }; }
 function wallAhead(B, x0, x1, y) {
@@ -152,12 +166,14 @@ function doSlide(S) {
   if (p.st !== SLIDE) F.dust(p.x, p.y, 6);
   p.st = SLIDE; p.slideT = SLIDE_T;
 }
-function die(S) {
+/* `cause` is presentation only (bird strike vs a fall) — it never feeds physics,
+   so replay output is unchanged. */
+function die(S, cause) {
   const p = S.p;
   if (p.st === DEAD) return;
   p.fin = score(p);
   p.st = DEAD; p.alive = false; p.vy = -160; p.flip = -1;
-  S.F.die(p);
+  S.F.die(p, cause || 'fall');
 }
 function input(S, c) {
   const p = S.p;
@@ -174,8 +190,10 @@ function step(S, dt) {
   if (w.gen.x < p.x + AHEAD) w.genUntil(p.x + AHEAD);
   w.prune(p.x - BEHIND);
   p.buf -= dt; p.coy -= dt; p.slideQ -= dt; if (p.stun > 0) p.stun -= dt;
+  if (p.pw > 0) p.pw = p.pw - dt < 0 ? 0 : p.pw - dt;
   if (p.flip >= 0) { p.flip += dt; if (p.flip >= FLIP_T) p.flip = -1; }
-  const vt = vTarget(p.x) * (p.st === TUN ? 1.28 : 1);
+  const boost = p.pw > 0;
+  const vt = vTarget(p.x) * (p.st === TUN ? 1.28 : 1) * (boost ? PW_MUL : 1);
   p.vx += (vt - p.vx) * Math.min(1, dt * (p.vx < vt ? .85 : 2.5)); // slowdowns recover over ~1.5s
   p.ph += dt * (p.vx * .05 + 2);
 
@@ -271,18 +289,25 @@ function step(S, dt) {
       if (o.hit) continue;
       if (p.x + HW > o.x - o.w / 2 && p.x - HW < o.x + o.w / 2 && p.y > o.y0 && top < o.y1) {
         o.hit = true; if (o.t === 'crate') o.gone = true;
-        p.vx *= o.mul; p.stun = .38;
-        F.hit(o.x, (o.y0 + o.y1) / 2, o.t === 'crate' ? 5 : o.t === 'wire' ? 1 : 2);
+        if (boost) F.smash(o.x, (o.y0 + o.y1) / 2);       // the boost ploughs straight through
+        else { p.vx *= o.mul; p.stun = .38; F.hit(o.x, (o.y0 + o.y1) / 2, o.t === 'crate' ? 5 : o.t === 'wire' ? 1 : 2); }
       }
     }
     for (const q of b.orbs) {
       if (!q.got && Math.abs(q.x - p.x) < 9 && q.y > top - 6 && q.y < p.y + 4) { q.got = true; p.bonus += 5; F.orb(q.x, q.y); }
     }
+    if (b.pw && !b.pw.got && Math.abs(b.pw.x - p.x) < 15 && b.pw.y > top - 14 && b.pw.y < p.y + 8) {
+      b.pw.got = true; p.pw = PW_T; p.vx = Math.max(p.vx, vt); F.power(b.pw.x, b.pw.y);
+    }
   }
   for (const b of B) for (const d of b.birds) {
     if (!d.on) { if (p.x >= d.x0 - 560) { d.on = true; d.t = 0; } else continue; }
     d.t += dt; d.bx = d.x0 - d.t * d.sp;
-    if (!d.hit && Math.abs(d.bx - p.x) < HW + 7 && d.y + 4 > top && d.y - 4 < p.y) { d.hit = true; die(S); }
+    if (!d.hit && Math.abs(d.bx - p.x) < HW + 7 && d.y + 4 > top && d.y - 4 < p.y) {
+      d.hit = true;
+      if (boost) F.scatter(d.bx, d.y);                    // boosted runners punch birds aside
+      else { F.bird(d.bx, d.y); die(S, 'bird'); }
+    }
   }
 }
 
@@ -312,7 +337,7 @@ function advance(S, K, q) {
 }
 
 return {
-  STEP, U, HW, DEATH_Y, FLIP_T, STAND_H, PAT_W, PAT_H, ZONE_U, NZ,
+  STEP, U, HW, DEATH_Y, FLIP_T, STAND_H, PAT_W, PAT_H, ZONE_U, NZ, PW_T, PW_MUL, PW_GAP_MIN, PW_GAP_MAX,
   RUN, AIR, SLIDE, WALL, CLIMB, TUN, DEAD, FLIP, IN_JUMP, IN_RELEASE, IN_SLIDE,
   mulberry, clamp, zoneAt, diff, vTarget, pace, createWorld, createSim, advance, score, code
 };

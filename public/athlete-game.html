@@ -116,6 +116,16 @@
     @keyframes drop{from{opacity:0;transform:translate(-50%,-14px)}}
     .inv b{font-weight:800}
 
+    /* ── "GO OFFCOMFRT" boost: the canvas drops to black & white (GPU-composited
+       on the element, so the grader stays free) and a pill counts the window down ── */
+    #gc{transition:filter .22s linear}
+    body.bw #gc{filter:grayscale(1) contrast(1.14) brightness(.92)}
+    .gohud{position:fixed;left:50%;top:calc(100px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:4;pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:7px;animation:godrop .38s cubic-bezier(.2,.8,.2,1)}
+    @keyframes godrop{from{opacity:0;transform:translate(-50%,-12px)}}
+    .gohud b{font:900 12px var(--f);letter-spacing:.22em;text-transform:uppercase;background:#fff;color:#000;padding:7px 15px;border-radius:999px;white-space:nowrap;box-shadow:0 0 34px rgba(255,255,255,.5)}
+    .gohud i{display:block;width:124px;height:3px;border-radius:999px;background:rgba(255,255,255,.2);overflow:hidden}
+    .gohud i u{display:block;height:100%;width:100%;background:#fff;transform-origin:0 50%;text-decoration:none}
+
     /* D-pad touch controls */
     .dpad{display:none;position:fixed;bottom:0;left:0;right:0;z-index:5;pointer-events:none;padding:0 12px calc(14px + env(safe-area-inset-bottom,0px));justify-content:space-between;align-items:flex-end}
     .dpad.show{display:flex}
@@ -235,8 +245,8 @@
         <section><div class="sh"><span>Live athletes</span><span id="liveN"></span></div><div class="list" id="liveList"></div></section>
         <section><div class="sh"><span>Open lobbies</span></div><div class="list" id="roomList"></div></section>
       </div>
-      <div class="keys keys-desktop">Space / ↑ — jump · hold for height · jump again in the air to flip<br>↓ — slide under pipes &amp; birds · slide on a glowing hatch for a shortcut<br>Hit a wall? Jump to climb it<br>Fell off? Jump to save yourself — 2 saves per run</div>
-      <div class="keys keys-mobile">&#9650; Jump · hold for height · tap again in air to flip<br>&#9660; Slide under pipes &amp; birds · slide on a glowing hatch for a shortcut<br>Hit a wall? Jump to climb it<br>Fell off? Jump to save yourself — 2 saves per run</div>
+      <div class="keys keys-desktop">Space / ↑ — jump · hold for height · jump again in the air to flip<br>↓ — slide under pipes &amp; birds · slide on a glowing hatch for a shortcut<br>Hit a wall? Jump to climb it<br>Fell off? Jump to save yourself — 2 saves per run<br>Grab <b>GO OFFCOMFRT</b> on a rooftop — 8s of boost, everything drops to black &amp; white</div>
+      <div class="keys keys-mobile">&#9650; Jump · hold for height · tap again in air to flip<br>&#9660; Slide under pipes &amp; birds · slide on a glowing hatch for a shortcut<br>Hit a wall? Jump to climb it<br>Fell off? Jump to save yourself — 2 saves per run<br>Grab <b>GO OFFCOMFRT</b> on a rooftop — 8s of boost, black &amp; white city</div>
     </div>
   </div>
 
@@ -250,9 +260,10 @@
   </div>
 
   <div class="inv hidden" id="inv"></div>
+  <div class="gohud hidden" id="goHud"><b>GO OFFCOMFRT</b><i><u id="goBar"></u></i></div>
 
 <script src="/games/athlete-xp.js?v=2"></script>
-<script src="/games/rooftop-sim.js?v=2"></script>
+<script src="/games/rooftop-sim.js?v=3"></script>
 <script>
 (() => {
 'use strict';
@@ -264,7 +275,7 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&a
 
 /* ═══ Constants — physics + world gen live in rooftop-sim.js, shared with the server's replay ═══ */
 const SIM = window.RooftopSim;
-const { U, DEATH_Y, FLIP_T, RUN, AIR, SLIDE, WALL, CLIMB, TUN, DEAD, FLIP, ZONE_U, IN_JUMP, IN_RELEASE, IN_SLIDE } = SIM;
+const { U, DEATH_Y, FLIP_T, RUN, AIR, SLIDE, WALL, CLIMB, TUN, DEAD, FLIP, ZONE_U, PW_T, IN_JUMP, IN_RELEASE, IN_SLIDE } = SIM;
 const VIEW_H = 250, VIEW_W_MIN = 400;       // world units always visible
 const TPMS = 60 / 1000;                     // sim ticks per millisecond (wall-clock locked)
 const XP_TABLE = [20, 14, 10, 7, 5];
@@ -352,7 +363,7 @@ const ORB = mk(40, 40, x => {
   const r = x.createRadialGradient(20, 20, 0, 20, 20, 20); r.addColorStop(0, 'rgba(255,236,170,.95)'); r.addColorStop(.22, 'rgba(255,210,90,.6)'); r.addColorStop(.5, 'rgba(255,190,60,.12)'); r.addColorStop(1, 'rgba(255,190,60,0)');
   x.fillStyle = r; x.fillRect(0, 0, 40, 40); x.fillStyle = '#fff8e0'; x.beginPath(); x.arc(20, 20, 3.4, 0, 7); x.fill();
 });
-let BILL = null, SIGN = null, HATCH = null;
+let BILL = null, SIGN = null, HATCH = null, PWR = null;
 function bakeText() {
   const F = '"Archivo",system-ui,sans-serif', M = '"JetBrains Mono",monospace';
   BILL = mk(240, 84, x => {
@@ -366,6 +377,16 @@ function bakeText() {
   SIGN = mk(120, 40, x => {
     x.fillStyle = '#0b0a10'; x.fillRect(2, 2, 116, 36); x.strokeStyle = 'rgba(255,79,139,.85)'; x.lineWidth = 2; x.strokeRect(5, 5, 110, 30);
     x.fillStyle = '#ffd0e0'; x.font = `900 17px ${F}`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('LOW CLEARANCE', 60, 21);
+  });
+  PWR = mk(208, 76, x => {
+    x.fillStyle = 'rgba(8,8,11,.95)'; x.beginPath();
+    if (x.roundRect) x.roundRect(3, 3, 202, 70, 15); else x.rect(3, 3, 202, 70);
+    x.fill();
+    x.strokeStyle = '#fff'; x.lineWidth = 3; x.stroke();
+    x.fillStyle = 'rgba(255,255,255,.1)'; x.fillRect(10, 10, 188, 26);
+    x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.fillStyle = '#fff'; x.font = `900 23px ${F}`; x.fillText('GO OFFCOMFRT', 104, 30);
+    x.fillStyle = 'rgba(255,255,255,.72)'; x.font = `700 10px ${M}`; x.fillText('B O O S T   ·   8 s', 104, 56);
   });
   HATCH = mk(132, 28, x => { x.fillStyle = '#38d6ff'; x.font = `800 15px ${M}`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('▼ SHORTCUT ▼', 66, 15); });
 }
@@ -538,13 +559,22 @@ function drawParticles() {
 }
 
 /* ═══ Local athlete — simulated by rooftop-sim.js, dressed up here ═══ */
-let shake = 0, flash = 0, clock = 0;
+let shake = 0, flash = 0, clock = 0, deathCause = null, goOn = false;
 const FX = {
   dust, burst,
   hit(x, y, c) { shake = Math.max(shake, 4.5); flash = Math.max(flash, .06); burst(x, y, 9, c); },
   orb(x, y) { burst(x, y, 7, 3); orbPulse = 1; },
   land(hard) { if (hard) shake = Math.max(shake, 3); },
-  die(p) { flash = .2; shake = 8; burst(p.x, p.y - 15, 18, 0); onMyDeath(); }
+  smash(x, y) { burst(x, y, 8, 4); shake = Math.max(shake, 2.4); },          // boost ploughs through
+  scatter(x, y) { burst(x, y, 7, 5); shake = Math.max(shake, 1.6); },       // boost swats birds aside
+  bird(x, y) { birdStrike(x, y); },
+  power(x, y) { flash = Math.max(flash, .26); shake = Math.max(shake, 3); orbPulse = 1; burst(x, y, 16, 0); },
+  die(p, cause) {
+    flash = .2; shake = 8; burst(p.x, p.y - 15, 18, 0);
+    deathCause = cause || null;
+    if (cause === 'bird') { const z = $('zoneTag'); z.textContent = 'Bird strike'; z.classList.add('on'); zoneT = 2.6; }
+    onMyDeath();
+  }
 };
 // Render-only state hung on a runner (sim runner or remote stub)
 function visual(p) { return Object.assign(p, { px: p.x, py: p.y, pose: new Float32Array(12), rib: new Float32Array(16), ribOn: false, last: -1, tr: 0, lastS: 0 }); }
@@ -921,6 +951,66 @@ function drawBird(d) {
   X.strokeStyle = 'rgba(255,255,255,.18)'; X.lineWidth = .5; X.beginPath(); X.moveTo(x - 4, y - 2.2); X.lineTo(x + 3, y - 2.2); X.stroke();
 }
 
+/* Bird-strike aftermath — render-only: a puff of feathers and the bird tumbling away,
+   so a death by bird reads differently from falling off a roof. */
+const BF = [];
+function birdStrike(x, y) {
+  for (let i = 0; i < 14; i++) emit(x, y, -40 - rnd() * 120, -70 - rnd() * 90, .55 + rnd() * .55, .9 + rnd() * 1.5, 5, 1);
+  shake = Math.max(shake, 7);
+  if (BF.length > 5) BF.shift();
+  BF.push({ x, y, t: 0, r: (rnd() - .5) * .8, vy: -110 - rnd() * 70, vx: -60 - rnd() * 70, ph: rnd() * 6 });
+}
+function updStruck(dt) {
+  for (let i = BF.length - 1; i >= 0; i--) {
+    const b = BF[i]; b.t += dt;
+    b.x += b.vx * dt; b.y += b.vy * dt; b.vy += 700 * dt; b.r += dt * 8;
+    if (b.t > 1.7) BF.splice(i, 1);
+  }
+}
+function drawStruck(b) {
+  const a = clamp(1 - (b.t - 1.1) / .6, 0, 1);
+  if (a <= 0) return;
+  const f = Math.sin(clock * 30 + b.ph);
+  X.save(); X.translate(b.x, b.y); X.rotate(b.r); X.globalAlpha = a;
+  X.fillStyle = '#121217'; X.beginPath(); X.ellipse(0, 0, 5.4, 2.3, 0, 0, 7); X.fill();
+  X.beginPath(); X.arc(-4.6, -.6, 2, 0, 7); X.fill();
+  X.beginPath(); X.moveTo(4, 0); X.lineTo(8.5, -1.6); X.lineTo(8, 1.4); X.fill();
+  X.strokeStyle = '#2c2c35'; X.lineWidth = 1.5; X.lineCap = 'round';
+  X.beginPath(); X.moveTo(1, -.5); X.quadraticCurveTo(4, -6 * f - 2, 8, -7 * f); X.stroke();
+  X.beginPath(); X.moveTo(1, -.5); X.quadraticCurveTo(3, 5 * f - 2, 6, 6 * f - 1); X.stroke();
+  X.fillStyle = '#ffffff'; X.globalAlpha = a * .5; X.strokeStyle = '#fff'; X.beginPath(); X.arc(0, 0, 3 + b.t * 9, 0, 7); X.stroke();
+  X.restore(); X.globalAlpha = 1;
+}
+
+/* "GO OFFCOMFRT" pickup — a hovering rooftop plate with a light column, so it is
+   spottable a screen away. */
+const PW_W = 46, PW_H = 16.8;
+function drawPowerPickup(q) {
+  const bob = Math.sin(clock * 3.4 + q.ph) * 1.9, pulse = .55 + .45 * Math.sin(clock * 5.5 + q.ph);
+  const x = q.x - PW_W / 2, y = q.y - PW_H / 2 + bob, ry = q.y + 26;
+  X.globalAlpha = .1 + .1 * pulse; X.fillStyle = '#fff'; X.fillRect(q.x - .8, y - 30, 1.6, 30);
+  X.globalCompositeOperation = 'lighter';
+  X.globalAlpha = .5 * pulse; X.drawImage(glow('#ffffff'), q.x - 32, y - 22, 64, 60);
+  X.globalCompositeOperation = 'source-over'; X.globalAlpha = 1;
+  if (PWR) X.drawImage(PWR, x, y, PW_W, PW_H);
+  X.globalAlpha = .3 + .3 * pulse; X.fillStyle = '#fff'; X.fillRect(q.x - 7, ry - 1.6, 14, 1.4); X.globalAlpha = 1;
+}
+
+/* Boost dressing — a white halo plus speed streaks (the canvas is already grey,
+   so pure white is the only thing that still pops). */
+function drawBoost(x, y) {
+  X.globalCompositeOperation = 'lighter';
+  X.globalAlpha = .4; X.drawImage(glow('#ffffff'), x - 30, y - 46, 60, 62);
+  X.fillStyle = '#fff';
+  for (let i = 0; i < 8; i++) {
+    const k = (clock * 520 + i * 97) % 280;
+    const ly = y - 3 - (i * 13) % 34 + Math.sin(i * 2.1 + clock * 3) * 3;
+    X.globalAlpha = .2 * (1 - k / 280);
+    X.fillRect(x - 12 - k, ly, 12 + k * .55, .9);
+  }
+  X.globalCompositeOperation = 'source-over'; X.globalAlpha = 1;
+}
+
 function render(dt, alpha, focus) {
   clock += dt;
   // Camera — runner sits ~32% from the left with look-ahead for the jump
@@ -962,6 +1052,8 @@ function render(dt, alpha, focus) {
   for (const b of B) { if (b.x + b.w < L - 60 || b.x > Rr + 60) continue; for (const q of b.orbs) if (!q.got) X.drawImage(ORB, q.x - 7, q.y - 7 + bob, 14, 14); }
   X.globalCompositeOperation = 'source-over';
   for (const b of B) for (const d of b.birds) { const bx = d.on ? d.bx : d.x0; if (bx > L && bx < Rr) drawBird(d); }
+  for (const b of B) { if (b.x + b.w < L - 60 || b.x > Rr + 60) continue; if (b.pw && !b.pw.got && b.pw.x > L - 40 && b.pw.x < Rr + 40) drawPowerPickup(b.pw); }
+  for (const b of BF) drawStruck(b);
 
   // Athletes — rivals first, you on top
   for (const r of REM.values()) {
@@ -973,6 +1065,7 @@ function render(dt, alpha, focus) {
   if (focus === ME && (mode === 'solo' || mode === 'race' || mode === 'spectate')) {
     const ix = ME.px + (ME.x - ME.px) * alpha, iy = ME.py + (ME.y - ME.py) * alpha;
     if (ME.st !== DEAD) drawShadow(ix, iy);
+    if (ME.pw > 0 && ME.st !== DEAD) drawBoost(ix, iy);
     if (iy < DEATH_Y + 200) drawAthlete(ix, iy, ME, 1);
   } else if (mode === 'spectate' && ME.y < DEATH_Y + 200) drawAthlete(ME.x, ME.y, ME, .5);
   drawParticles();
@@ -1083,10 +1176,18 @@ function finishMine(sc, timeUp) {
 }
 
 function hideOverlays() { $('lobby').classList.add('hidden'); $('res').classList.add('hidden'); }
-function showHud(on) { $('hud').classList.toggle('hidden', !on); if (!on) { $('spec').classList.add('hidden'); $('hint').classList.add('hidden'); $('zoneTag').classList.remove('on'); } }
+/* The boost owns two pieces of chrome: the greyscale filter on the canvas and the
+   countdown pill. Both are toggled only on change, never per frame. */
+function setGo(on) {
+  if (on === goOn) return;
+  goOn = on;
+  document.body.classList.toggle('bw', on);
+  $('goHud').classList.toggle('hidden', !on);
+}
+function showHud(on) { $('hud').classList.toggle('hidden', !on); if (!on) { $('spec').classList.add('hidden'); $('hint').classList.add('hidden'); $('zoneTag').classList.remove('on'); setGo(false); } }
 let hintT = 0;
 function showHint() { const h = $('hint'); h.classList.remove('hidden'); clearTimeout(hintT); hintT = setTimeout(() => h.classList.add('hidden'), 4500); }
-function freshRun() { camY = 20; zoneCur = zonePrev = 0; zoneFade = 1; shake = flash = 0; lastDistrict = -1; lastPace = 0; hudT = 0; sendAt = 0; }
+function freshRun() { camY = 20; zoneCur = zonePrev = 0; zoneFade = 1; shake = flash = 0; lastDistrict = -1; lastPace = 0; hudT = 0; sendAt = 0; deathCause = null; BF.length = 0; setGo(false); }
 
 // Solo: ask the hub for a verified session (seed + id); offline / no reply → practice run, no XP
 function startSolo() {
@@ -1124,7 +1225,7 @@ function showSolo(sc, nb) {
   showHud(false);
   $('resEy').textContent = 'Solo run';
   $('resTitle').textContent = nb && sc > 0 ? 'New best' : 'Run over';
-  $('resBody').innerHTML = `<div class="big">${sc}<small>m</small></div><div class="note" id="soloNote"></div><div class="note">Best ${best}m · ${XP.token() ? '150m = 1 XP · race live for rank XP' : 'Open from your portal to earn XP'}</div>`;
+  $('resBody').innerHTML = `<div class="big">${sc}<small>m</small></div>${deathCause === 'bird' ? '<div class="note">Bird strike — a bird took you out</div>' : ''}<div class="note" id="soloNote"></div><div class="note">Best ${best}m · ${XP.token() ? '150m = 1 XP · race live for rank XP' : 'Open from your portal to earn XP'}</div>`;
   refreshSoloNote();
   if (SOLO.id && !SOLO.res) { clearTimeout(SOLO.vt); SOLO.vt = setTimeout(() => { SOLO.late = true; refreshSoloNote(); }, 5000); }
   renderResBtns();
@@ -1148,7 +1249,7 @@ function onResults(m) {
   $('resBody').innerHTML = rows.map(r => {
     const me = String(r.id) === myId;
     return `<div class="rr${me ? ' me' : ''}"><span class="rk">${r.why === 'dnf' ? '—' : 'P' + r.rank}</span><i style="${kitCss(r.c)}"></i><span>${esc(firstName(r.n))}${me ? ' · you' : ''}</span><span class="sc">${r.sc}m</span><span class="xp${r.xp > 0 ? ' got' : ''}">${r.xp > 0 ? `+${r.xp} XP` : esc(WHY[r.why] || '—')}</span></div>`;
-  }).join('') + `<div class="note">Rank XP · P1 +20 · P2 +14 · P3 +10 · P4 +7 · P5–6 +5 · min 2 racers &amp; 400m</div>`;
+  }).join('') + `${deathCause === 'bird' ? '<div class="note">Bird strike — you were hit by a bird</div>' : ''}<div class="note">Rank XP · P1 +20 · P2 +14 · P3 +10 · P4 +7 · P5–6 +5 · min 2 racers &amp; 400m</div>`;
   renderResBtns();
   $('lobby').classList.add('hidden'); $('res').classList.remove('hidden');
   if (mine.xp > 0) toast(`+${mine.xp} XP for P${mine.rank}${mine.today != null ? ` · ${mine.today}/${mine.cap} XP today` : ''}`);
@@ -1391,6 +1492,9 @@ function hud(dt, now, fx) {
   if (zoneT > 0 && (zoneT -= dt) <= 0) $('zoneTag').classList.remove('on');
   if ((hudT -= dt) > 0) return;
   hudT = .125;
+  const boosting = ME.pw > 0 && ME.st !== DEAD && (mode === 'solo' || mode === 'race');
+  setGo(boosting);
+  if (boosting) $('goBar').style.transform = `scaleX(${clamp(ME.pw / PW_T, 0, 1).toFixed(3)})`;
   const d = Math.floor(Math.max(0, fx) / ZONE_U);
   if (d !== lastDistrict) {
     lastDistrict = d;
@@ -1435,6 +1539,7 @@ function frame(now) {
   const dt = Math.min(.1, Math.max(0, (now - lastT) / 1000));
   lastT = now;
   updParticles(dt);
+  updStruck(dt);
   if (orbPulse > 0) orbPulse = Math.max(0, orbPulse - dt * 2.5);
 
   if (idle) {
