@@ -116,9 +116,15 @@
   let highScore = 0;
   let highScoreFlash = 0;    // seconds remaining for "NEW BEST!" flash
 
-  // Online multiplayer state
-  let onlinePlayers = [];
-  let myPlayerIndex = 0;
+  // Online multiplayer state — the hub owns the board; these are its snapshots.
+  let onlinePlayers = [];      // [{id, name, x, y, dir, lives, score, alive}]
+  let onlineGhosts = [];       // [{x, y, state: 0 hunt / 1 frightened / 2 eyes}]
+  let onlineNames = {};        // id -> athlete name from the match roster
+  let onlineSpawn = { x: 1, y: 29 };
+  let onlineRound = 0;
+  let onlineResult = null;     // { rank, total, won } once the hub ends the match
+  let onlineEliminated = false;
+  let lastFacing = 0;          // 0 right, 1 left, 2 up, 3 down
 
   // Cached assets
   let wallCanvas = null;
@@ -131,40 +137,10 @@
   // ═══════════════════════════════════════════════════════
   // 3. Maze data and helpers
   // ═══════════════════════════════════════════════════════
-  // 0=empty, 1=wall, 2=pellet, 3=power pellet
-  const LEVEL = [
-    "1111111111111111111111111111",
-    "1222222222222222222222222221",
-    "1211112111111111111121111221",
-    "1311112111111111111121111231",
-    "1222222222222222222222222221",
-    "1211112111111111111121111221",
-    "1222222222222222222222222221",
-    "1111112111111111111121111111",
-    "0000012222222222222221100000",
-    "1111112111111111111121111111",
-    "1222222222222222222222222221",
-    "1211112111111111111121111221",
-    "1222222222222222222222222221",
-    "1211112111000000011211112121",
-    "1211112111000000011211112121",
-    "1211112111000000011211112121",
-    "1222222222222222222222222221",
-    "1211112111111111111121111221",
-    "1222222222222222222222222221",
-    "1111112111111111111121111111",
-    "0000012222222222222221100000",
-    "1111112111111111111121111111",
-    "1222222222222222222222222221",
-    "1211112111111111111121111221",
-    "1311112222222222222222112131",
-    "1222222111111111111122222221",
-    "1111112111111111111121111111",
-    "1222222222222222222222222221",
-    "1211111111111111111111112121",
-    "1222222222222222222222222221",
-    "1111111111111111111111111111",
-  ];
+  // 0=empty, 1=wall, 2=pellet, 3=power pellet — the grid itself lives in
+  // ../pacman-sim.js, shared with the hub, so an online room can never end up
+  // with two disagreeing boards.
+  const LEVEL = window.PacmanSim.LEVEL;
 
   function isWall(col, row) {
     if (row < 0 || row >= CONFIG.ROWS || col < 0 || col >= CONFIG.COLS) return true;
@@ -236,8 +212,9 @@
     }
     totalPellets = pelletsRemaining;
 
-    // Pac-Man
-    pacman = { x: 1, y: 29, dirX: 0, dirY: 0, nextDirX: 0, nextDirY: 0 };
+    // Pac-Man — online every athlete owns a corner of the shared board
+    const start = gameMode === 'online' ? onlineSpawn : { x: 1, y: 29 };
+    pacman = { x: start.x, y: start.y, dirX: 0, dirY: 0, nextDirX: 0, nextDirY: 0 };
 
     // Initial ghosts
     ghosts = [];
@@ -415,6 +392,11 @@
 
     pacman.x = newX;
     pacman.y = newY;
+
+    // Online the hub owns the pellet grid: it scores the dot under my tile and
+    // the removal comes back with the snapshot, so every screen loses the same
+    // dot. Local eating here would desync the boards.
+    if (gameMode === 'online') return;
 
     // Eat pellets
     const col = Math.round(pacman.x);
@@ -898,22 +880,30 @@
     // Bonus fruit
     if (bonusFruit) drawBonusFruit();
 
-    // Ghosts
-    for (const ghost of ghosts) drawGhost(ghost);
+    // Ghosts — online they are the room's four, simulated by the hub
+    if (gameMode === 'online') {
+      for (const g of onlineGhosts) drawSyncedGhost(g);
+    } else {
+      for (const ghost of ghosts) drawGhost(ghost);
+    }
 
     // Pac-Man
-    drawPacman();
+    if (!(gameMode === 'online' && onlineEliminated)) drawPacman();
 
-    // Online players
+    // The other athletes on the same board
     if (gameMode === 'online') {
-      for (const p of onlinePlayers) {
-        if (p.alive !== false) drawOtherPacman(p);
+      for (let i = 0; i < onlinePlayers.length; i++) {
+        const p = onlinePlayers[i];
+        if (p.alive) drawOtherPacman(p, i);
       }
     }
 
     // Score popups
     drawPopups();
   }
+
+  // Opponents get their own colour so a shared board stays readable.
+  const OTHER_COLORS = ['#ffd166', '#8be9fd', '#ff79c6', '#50fa7b'];
 
   function drawPacman() {
     const px = pacman.x * CONFIG.TILE + CONFIG.TILE / 2;
@@ -936,32 +926,62 @@
     ctx.fill();
   }
 
-  function drawOtherPacman(p) {
+  function drawOtherPacman(p, idx) {
     const px = p.x * CONFIG.TILE + CONFIG.TILE / 2;
     const py = p.y * CONFIG.TILE + CONFIG.TILE / 2;
-    ctx.fillStyle = '#aaa';
+    const tint = OTHER_COLORS[idx % OTHER_COLORS.length];
+    const angle =
+      p.dir === 0 ? 0 :
+      p.dir === 1 ? Math.PI :
+      p.dir === 2 ? -Math.PI / 2 :
+      p.dir === 3 ? Math.PI / 2 : 0;
+    const mouth = 0.1 + 0.25 * (0.5 + 0.5 * Math.sin(gameTime * 16 + idx));
+
+    ctx.fillStyle = tint;
     ctx.beginPath();
-    ctx.arc(px, py, CONFIG.TILE * 0.5, 0, Math.PI * 2);
+    ctx.moveTo(px, py);
+    ctx.arc(px, py, CONFIG.TILE * 0.55, angle + mouth, angle + Math.PI * 2 - mouth);
+    ctx.closePath();
     ctx.fill();
-    ctx.fillStyle = '#666';
-    ctx.font = '8px sans-serif';
+
+    // Name tag above the body so the room is readable at a glance
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.font = 'bold 9px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(p.name ? p.name[0] : '?', px, py + 3);
+    const tag = (p.name || '?').slice(0, 8);
+    ctx.fillText(tag, px, py - CONFIG.TILE * 0.8);
   }
 
   function drawGhost(ghost) {
-    const gx = Math.round(ghost.x) * CONFIG.TILE + CONFIG.TILE / 2;
-    const gy = Math.round(ghost.y) * CONFIG.TILE + CONFIG.TILE / 2;
+    drawGhostBody(
+      ghost.x, ghost.y,
+      Math.round(ghost.x) * CONFIG.TILE + CONFIG.TILE / 2,
+      Math.round(ghost.y) * CONFIG.TILE + CONFIG.TILE / 2,
+      ghost.state
+    );
+  }
+
+  // Hub ghosts arrive as tile floats already, so they draw smooth.
+  function drawSyncedGhost(g) {
+    drawGhostBody(
+      g.x, g.y,
+      g.x * CONFIG.TILE + CONFIG.TILE / 2,
+      g.y * CONFIG.TILE + CONFIG.TILE / 2,
+      g.state === 2 ? 'eyes' : g.state === 1 ? 'frightened' : 'active'
+    );
+  }
+
+  function drawGhostBody(tx, ty, gx, gy, state) {
     const r = CONFIG.TILE * 0.75;
 
     // Eyes-only state
-    if (ghost.state === 'eyes') {
-      drawGhostEyes(ghost, gx, gy, r);
+    if (state === 'eyes') {
+      drawGhostEyes(tx, ty, gx, gy, r);
       return;
     }
 
     // Frightened state
-    if (ghost.state === 'frightened') {
+    if (state === 'frightened') {
       drawFrightenedGhost(gx, gy, r);
       return;
     }
@@ -997,8 +1017,8 @@
     ctx.fill();
 
     // Pupils tracking Pac-Man
-    const lookX = pacman.x > ghost.x ? 1 : -1;
-    const lookY = pacman.y > ghost.y ? 1 : -1;
+    const lookX = pacman.x > tx ? 1 : -1;
+    const lookY = pacman.y > ty ? 1 : -1;
     ctx.fillStyle = '#222';
     ctx.beginPath();
     ctx.arc(gx - r / 3 + lookX * r / 6, gy - r / 5 + lookY * r / 6, r / 6, 0, Math.PI * 2);
@@ -1034,7 +1054,7 @@
     ctx.fill();
   }
 
-  function drawGhostEyes(ghost, gx, gy, r) {
+  function drawGhostEyes(fx, fy, gx, gy, r) {
     // Just eyes, no body
     ctx.fillStyle = '#fff';
     ctx.beginPath();
@@ -1045,8 +1065,8 @@
     // Pupils tracking ghost house
     const hx = CONFIG.ghostHouseX;
     const hy = CONFIG.ghostHouseY;
-    const lookX = hx > ghost.x ? 1 : hx < ghost.x ? -1 : 0;
-    const lookY = hy > ghost.y ? 1 : hy < ghost.y ? -1 : 0;
+    const lookX = hx > fx ? 1 : hx < fx ? -1 : 0;
+    const lookY = hy > fy ? 1 : hy < fy ? -1 : 0;
     ctx.fillStyle = '#222';
     ctx.beginPath();
     ctx.arc(gx - r / 3 + lookX * r / 6, gy - r / 5 + lookY * r / 6, r / 6, 0, Math.PI * 2);
@@ -1098,6 +1118,15 @@
     lastTime = timestamp;
     gameTime += dt;
 
+    // An online match never ends locally — the hub ends it for the whole room.
+    if (gameMode === 'online') {
+      onlineFrame(dt);
+      render();
+      updateHUD();
+      animId = requestAnimationFrame(gameLoop);
+      return;
+    }
+
     if (!gameOver) {
       // Update difficulty level
       const newDiff = getDifficultyLevel();
@@ -1141,12 +1170,6 @@
 
       // High score flash
       if (highScoreFlash > 0) highScoreFlash -= dt;
-
-      // Online state sync
-      if (gameMode === 'online' && window.PacManNet) {
-        window.PacManNet.sendState(pacman.x, pacman.y, score);
-        onlinePlayers = window.PacManNet.players || [];
-      }
     }
 
     render();
@@ -1158,6 +1181,22 @@
     }
 
     animId = requestAnimationFrame(gameLoop);
+  }
+
+  // ── Online frame: move locally, stream my own spot, paint the hub's board ──
+  function onlineFrame(dt) {
+    if (!onlineEliminated) {
+      movePacman(dt);
+      const f = facingIndex(pacman.dirX, pacman.dirY);
+      if (f >= 0) lastFacing = f;
+      if (window.PacManNet) window.PacManNet.sendState(pacman.x, pacman.y, lastFacing);
+    }
+    updatePopups(dt);
+    if (highScoreFlash > 0) highScoreFlash -= dt;
+  }
+
+  function facingIndex(dx, dy) {
+    return dx === 1 ? 0 : dx === -1 ? 1 : dy === -1 ? 2 : dy === 1 ? 3 : -1;
   }
 
   // ═══════════════════════════════════════════════════════
@@ -1176,8 +1215,8 @@
       if (el) el.textContent = 'Lv.' + diffLv;
     }
 
-    // Ghost count
-    const ghostCount = ghosts.length;
+    // Ghost count — online it is the room's four, not a local pack
+    const ghostCount = gameMode === 'online' ? onlineGhosts.length : ghosts.length;
     if (ghostCount !== _hudGhosts) {
       _hudGhosts = ghostCount;
       const el = $('hudGhosts');
@@ -1211,14 +1250,16 @@
       }
     }
 
-    // Online opponent scores
-    if (gameMode === 'online' && window.PacManNet) {
-      const players = window.PacManNet.players || [];
-      for (let i = 0; i < players.length; i++) {
-        const el = $('oppScore' + i);
-        if (el && players[i].score !== undefined) el.textContent = players[i].score;
+    // Online scoreboard — the same numbers the hub keeps for the room
+    if (gameMode === 'online') {
+      const board = $('oppScores');
+      if (board) board.hidden = onlinePlayers.length === 0;
+      for (let i = 0; i < 3; i++) {
+        const scoreEl = $('oppScore' + i);
         const nameEl = $('oppName' + i);
-        if (nameEl && players[i].name) nameEl.textContent = players[i].name;
+        const p = onlinePlayers[i];
+        if (scoreEl) scoreEl.textContent = p ? (p.alive ? p.score : 'OUT') : '';
+        if (nameEl) nameEl.textContent = p ? (p.name || 'Athlete') : '';
       }
     }
   }
@@ -1257,11 +1298,14 @@
     }
   }
 
-  function startCountdown() {
+  // `ms` lets an online match line up with the hub's own lead time (go.in), so
+  // every athlete starts moving on the same frame.
+  function startCountdown(ms) {
     showScreen('gameScreen');
     resizeCanvas();
     initGame();
     mode = 'countdown';
+    const step = Math.max(400, Math.min(1200, (ms || 2400) / 3));
     let val = 3;
     $('countdownNum').textContent = val;
     showOverlay('countdownOverlay');
@@ -1279,10 +1323,10 @@
         el.style.animation = 'none';
         el.offsetHeight;
         el.style.animation = '';
-        setTimeout(tick, 800);
+        setTimeout(tick, step);
       }
     };
-    setTimeout(tick, 800);
+    setTimeout(tick, step);
   }
 
   function beginPlay() {
@@ -1310,11 +1354,16 @@
     if (animId) { cancelAnimationFrame(animId); animId = null; }
 
     const resultEl = $('goResult');
-    const won = gameOver && pelletsRemaining <= 0;
-    resultEl.textContent = won ? 'Maze Cleared!' : 'Game Over';
+    const online = gameMode === 'online';
+    const won = online ? !!(onlineResult && onlineResult.won) : (gameOver && pelletsRemaining <= 0);
+    resultEl.textContent = online
+      ? (won ? 'Winner!' : onlineResult ? 'Rank #' + onlineResult.rank : 'Match Over')
+      : (won ? 'Maze Cleared!' : 'Game Over');
     resultEl.className = 'go-result ' + (won ? 'win' : 'lose');
 
-    $('goScore').textContent = 'Score: ' + score;
+    $('goScore').textContent = online && onlineResult
+      ? 'Score: ' + score + '  \u00b7  ' + onlineResult.rank + ' of ' + onlineResult.total
+      : 'Score: ' + score;
 
     // High score display
     const hsResult = checkHighScore(score);
@@ -1347,10 +1396,7 @@
       }
     }
 
-    // End online game
-    if (gameMode === 'online' && window.PacManNet) {
-      window.PacManNet.endGame(score);
-    }
+    // Online XP is paid by the hub on its own score — nothing to report here.
 
     showOverlay('gameOverOverlay');
     $('pauseBtn').hidden = true;
@@ -1386,6 +1432,13 @@
 
     if (e.target === $('goPlayAgain') || e.target.closest('#goPlayAgain')) {
       hideOverlay('gameOverOverlay');
+      if (gameMode === 'online') {
+        // The room is back in the lobby — rejoin it instead of starting a solo run.
+        showScreen('lobbyScreen');
+        mode = 'menu';
+        if (window.PacManNet) window.PacManNet.connect();
+        return;
+      }
       startCountdown();
       return;
     }
@@ -1420,23 +1473,129 @@
     mode = 'menu';
   };
 
-  window.startOnlineGame = function(players) {
+  window.startOnlineGame = function(roster, inMs) {
+    gameMode = 'online';
+    const myId = window.PacManNet ? String(window.PacManNet.myId) : '';
+    const list = roster || [];
+
+    onlineNames = {};
+    onlinePlayers = [];
+    onlineGhosts = [];
+    onlineRound = 0;
+    onlineResult = null;
+    onlineEliminated = false;
+    lastFacing = 0;
+
+    let spawn = 0;
+    for (const p of list) {
+      onlineNames[String(p.id)] = p.n || 'Athlete';
+      if (String(p.id) === myId) spawn = Number(p.c) || 0;
+    }
+    // Every athlete owns a corner, so nobody starts on top of anybody else.
+    const spawns = window.PacmanSim ? window.PacmanSim.SPAWNS : [{ x: 1, y: 29 }];
+    onlineSpawn = spawns[spawn % spawns.length] || spawns[0];
+
     showScreen('gameScreen');
     resizeCanvas();
-    initGame();
-    onlinePlayers = (players || []).filter(p => p.id !== (window.PacManNet ? window.PacManNet.myId : ''));
-    startCountdown();
+    startCountdown(inMs);
   };
 
-  window.updateOnlinePlayers = function(players) {
-    onlinePlayers = players || [];
+  // A cleared board comes back full — same rule the hub applies.
+  function refillPellets() {
+    pelletsRemaining = 0;
+    for (let r = 0; r < CONFIG.ROWS; r++) {
+      for (let c = 0; c < CONFIG.COLS; c++) {
+        const v = Number(LEVEL[r][c]);
+        map[r][c] = v;
+        if (v === 2 || v === 3) pelletsRemaining++;
+      }
+    }
+  }
+
+  // The hub's board: pellets eaten, ghosts, lives, scores and deaths in one
+  // message. Applying it is the only way the maze changes in an online match.
+  window.applyOnlineSync = function(m) {
+    // Countdown counts too: the hub's clock and mine can start a beat apart, and
+    // a dot eaten in that gap must still disappear here.
+    if (mode !== 'playing' && mode !== 'paused' && mode !== 'countdown') return;
+    const myId = window.PacManNet ? String(window.PacManNet.myId) : '';
+
+    if (typeof m.round === 'number' && m.round !== onlineRound) {
+      onlineRound = m.round;
+      refillPellets();
+    }
+
+    if (m.e && m.e.length) {
+      for (const idx of m.e) {
+        const r = Math.floor(idx / CONFIG.COLS);
+        const c = idx % CONFIG.COLS;
+        if (map[r] && map[r][c] !== 0 && map[r][c] !== 1) {
+          map[r][c] = 0;
+          pelletsRemaining = Math.max(0, pelletsRemaining - 1);
+        }
+      }
+    }
+    if (typeof m.left === 'number') pelletsRemaining = m.left;
+
+    // Deaths first — a victim has already been sent back to its corner in the
+    // same snapshot, so the popup uses the position we saw before it moved.
+    if (m.d && m.d.length) {
+      for (const d of m.d) {
+        const id = String(d.id);
+        if (id === myId) {
+          lives = Math.max(0, Number(d.lives) || 0);
+          if (lives <= 0) {
+            onlineEliminated = true;
+            addPopup(pacman.x, pacman.y, 'OUT');
+          } else {
+            pacman.x = onlineSpawn.x;
+            pacman.y = onlineSpawn.y;
+            pacman.dirX = 0; pacman.dirY = 0;
+            pacman.nextDirX = 0; pacman.nextDirY = 0;
+            addPopup(onlineSpawn.x, onlineSpawn.y, 'RESPAWN');
+          }
+        } else {
+          const victim = onlinePlayers.find(p => p.id === id);
+          if (victim && d.by && String(d.by) === myId) addPopup(victim.x, victim.y, 'HUNT +300');
+          else if (victim) addPopup(victim.x, victim.y, 'OUT');
+        }
+      }
+    }
+
+    const ps = [];
+    if (m.p) {
+      for (const row of m.p) {
+        const id = String(row[0]);
+        if (id === myId) {
+          lives = Math.max(0, Number(row[4]) || 0);
+          score = Number(row[5]) || 0;
+          continue;
+        }
+        ps.push({
+          id, name: onlineNames[id] || 'Athlete',
+          x: row[1] / 100, y: row[2] / 100, dir: row[3] | 0,
+          lives: Number(row[4]) || 0, score: Number(row[5]) || 0,
+          alive: row[6] === 1
+        });
+      }
+    }
+    onlinePlayers = ps;
+    if (window.PacManNet) window.PacManNet.players = ps;
+
+    onlineGhosts = (m.g || []).map(g => ({ x: g[0] / 100, y: g[1] / 100, state: g[2] | 0 }));
   };
 
-  window.endOnlineGame = function(winnerId, scores) {
-    if (mode !== 'playing') return;
-    const myId = window.PacManNet ? window.PacManNet.myId : '';
-    const myEntry = (scores || []).find(s => String(s.id) === String(myId));
-    if (myEntry) score = myEntry.score || 0;
+  window.endOnlineGame = function(winnerId, rows) {
+    if (mode !== 'playing' && mode !== 'paused' && mode !== 'countdown') return;
+    const myId = window.PacManNet ? String(window.PacManNet.myId) : '';
+    const list = rows || [];
+    const mine = list.find(r => String(r.id) === myId);
+    if (mine) score = mine.score || 0;
+    onlineResult = {
+      rank: mine ? (mine.rank || 1) : list.length,
+      total: list.length,
+      won: !!mine && String(winnerId) === myId
+    };
     endGame();
   };
 

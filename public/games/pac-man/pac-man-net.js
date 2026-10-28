@@ -91,18 +91,21 @@
       renderLobby();
     },
 
-    sendState(x, y, score) {
+    // One board for the whole lobby: the hub owns the pellets, the ghosts and
+    // every death, so all I stream is where I am and which way I face.
+    sendState(x, y, dir) {
       if (!inGame || !ready) return;
       const now = Date.now();
       if (now - lastStateSend < STATE_RATE) return;
       lastStateSend = now;
-      send({ t: 'pm_state', x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100, s: score });
+      send({ t: 'pm_state', x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100, d: dir | 0 });
     },
 
-    endGame(myScore) {
+    // Forfeit — steps off the shared board so the rest of the room can finish.
+    endGame() {
       if (!inGame) return;
       inGame = false;
-      send({ t: 'pm_end', scores: [{ id: myId, score: myScore }] });
+      send({ t: 'pm_end' });
     }
   };
 
@@ -229,40 +232,29 @@
         }));
         players = opps;
         Net.players = opps;
-        if (window.startOnlineGame) window.startOnlineGame(roster);
+        if (window.startOnlineGame) window.startOnlineGame(roster, m.in || 0);
         break;
       }
 
-      case 'ps':
+      case 'pm_sync':
+        // The whole shared board — pellets, ghosts, lives, deaths — arrives here.
         if (!inGame) break;
-        const positions = m.p || [];
-        for (const p of positions) {
-          const pid = String(p[0]);
-          const opp = players.find(pl => pl.id === pid);
-          if (opp) {
-            opp.x = typeof p[1] === 'number' ? p[1] / 100 : opp.x;
-            opp.y = typeof p[2] === 'number' ? p[2] / 100 : opp.y;
-            opp.score = typeof p[3] === 'number' ? p[3] : opp.score;
-          }
-        }
-        Net.players = players;
-        if (window.updateOnlinePlayers) window.updateOnlinePlayers(players);
+        if (window.applyOnlineSync) window.applyOnlineSync(m);
         break;
 
       case 'res': {
-        if (room && (m.room ? m.room === room.r : (!raceId || m.race === raceId))) {
-          const rows = m.rows || [];
-          const wasInGame = inGame;
-          inGame = false;
-          if (wasInGame && window.endOnlineGame) {
-            const winner = rows[0] ? String(rows[0].id) : '';
-            window.endOnlineGame(winner, rows.map(r => ({ id: String(r.id), score: r.sc || 0 })));
-          }
-        }
+        const mine = room && (m.room ? m.room === room.r : (!raceId || m.race === raceId));
+        const wasInGame = inGame;
         inGame = false;
         raceId = null;
         players = [];
         Net.players = [];
+        const rows = m.rows || [];
+        if (mine && wasInGame && window.endOnlineGame) {
+          window.endOnlineGame(rows[0] ? String(rows[0].id) : '', rows.map(r => ({
+            id: String(r.id), name: r.n, score: r.sc || 0, rank: r.rank
+          })));
+        }
         // Stay in the room — the hub hands it back to the lobby a moment later.
         renderLobby();
         break;

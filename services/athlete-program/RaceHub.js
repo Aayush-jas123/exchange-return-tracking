@@ -15,6 +15,7 @@
 const { WebSocketServer } = require('ws');
 const crypto = require('crypto');
 const Sim = require('../../public/games/rooftop-sim');
+const PM = require('../../public/games/pacman-sim');
 
 const PATH = '/ws/race';
 const MAX_ROOM = 6;
@@ -233,6 +234,13 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
       return;
     }
     if (m.inRace && rm.status === 'racing') { m.alive = false; m.dnf = true; m.ws = null; }
+    else if (m.inRace && rm.game === 'pac-man' && rm.pm) {
+      // There is no reconnect into a running board — take the athlete out of the
+      // shared world so the last one standing can end the match.
+      const wp = rm.pm.players[m.id];
+      if (wp) { wp.alive = false; wp.lives = 0; }
+      rm.members.delete(m.id);
+    }
     else rm.members.delete(m.id);
     afterMemberGone(rm);
   }
@@ -274,6 +282,12 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
       for (const m of rm.members.values()) {
         Object.assign(m, { inRace: !!m.ws, waiting: !m.ws, alive: !!m.ws, dnf: false, sc: 0 });
       }
+      // Pac-Man plays one shared board: the hub owns its pellets, ghosts and
+      // kills, so every athlete in the room sees the same maze and the same
+      // deaths instead of a private copy of the game.
+      if (rm.game === 'pac-man') {
+        rm.pm = PM.createWorld([...rm.members.values()].filter(m => m.inRace).map(m => ({ id: m.id, spawn: m.c })));
+      }
       broadcastRoom(rm, { t: 'go', race: rm.raceId, room: rm.code, game: rm.game, seed: rm.seed, in: COUNTDOWN_MS, dur: 0,
         roster: [...rm.members.values()].filter(m => m.inRace).map(m => ({ id: m.id, n: m.name, c: m.c })) });
       pushRoom(rm);
@@ -285,7 +299,9 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
         // A player who closes the tab mid-match never reports an end — hand the
         // lobby back so the room does not stay "Match in progress" forever.
         rm.guard = setTimeout(() => {
-          if (!rooms.has(rm.code) || rm.status !== 'playing') return;
+          if (!rooms.has(rm.code)) return;
+          if (rm.game === 'pac-man') return finishPM(rm);
+          if (rm.status !== 'playing') return;
           rm.status = 'lobby';
           for (const m of rm.members.values()) { m.inRace = false; m.alive = false; }
           pushRoom(rm);
@@ -475,62 +491,80 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
     }, 2000);
   }
 
-  // ── Pac-Man state relay (lightweight, no simulation) ──
+  // ── Pac-Man — one shared board per room, simulated here ──
   const pmRateLimit = new Map(); // ws -> lastSendMs
   const crRateLimit = new Map(); // ws -> lastSendMs
   function onPMState(ws, msg) {
     const rm = ws.room && rooms.get(ws.room);
-    if (!rm || rm.game !== 'pac-man' || rm.status !== 'playing') return;
+    if (!rm || rm.game !== 'pac-man' || !rm.pm) return;
+    if (rm.status !== 'playing') return;
     const nowMs = now();
     const last = pmRateLimit.get(ws) || 0;
-    if (nowMs - last < 100) return; // 10Hz cap
+    if (nowMs - last < 60) return; // clients stream at 10Hz
     pmRateLimit.set(ws, nowMs);
     const m = rm.members.get(ws.athlete.id);
     if (!m || !m.inRace) return;
-    // Relay position + score to all other players
-    const payload = JSON.stringify({ t: 'ps', p: [[m.id, Math.round((msg.x || 0) * 100), Math.round((msg.y || 0) * 100), msg.s || 0]] });
-    for (const other of rm.members.values()) {
-      if (other.id !== m.id && other.ws) send(other.ws, payload);
-    }
+    // Position + facing go straight into the world, which also scores the pellet
+    // under the athlete — so every screen loses the same dot.
+    PM.touch(rm.pm, m.id, msg.x, msg.y, msg.d);
   }
-  async function onPMEnd(ws, msg) {
-    const rm = ws.room && rooms.get(ws.room);
-    if (!rm || rm.game !== 'pac-man') return;
-    const scores = msg.scores || [];
-    // Find highest scorer for XP award
-    let bestScore = 0;
-    let bestId = null;
-    for (const s of scores) {
-      if (s.score > bestScore) { bestScore = s.score; bestId = s.id; }
-    }
-    if (bestId) {
+
+  // 10Hz world tick: step ghosts, resolve kills, broadcast the same snapshot to
+  // the whole room. Nothing in here is per-socket.
+  function pmTick(rm) {
+    if (rm.status !== 'playing' || !rm.pm) return;
+    PM.step(rm.pm, TICK_MS / 1000);
+    broadcastRoom(rm, PM.snapshot(rm.pm));
+    if (PM.over(rm.pm)) finishPM(rm);
+  }
+
+  async function finishPM(rm) {
+    if (rm.status !== 'playing' && rm.status !== 'countdown') return;
+    clearTimeout(rm.timer);
+    clearTimeout(rm.guard);
+    rm.status = 'results';
+    const world = rm.pm;
+    rm.pm = null;
+    const racers = [...rm.members.values()].filter(m => m.inRace);
+    const scores = racers.map(m => ({
+      id: m.id,
+      score: world && world.players[m.id] ? Math.floor(world.players[m.id].sc) : 0
+    }));
+    // Arcade XP is paid on the hub's own score, never on a client report.
+    let best = null;
+    for (const s of scores) if (!best || s.score > best.score) best = s;
+    if (best && best.score > 0) {
       try {
-        const runId = 'pm_' + rm.raceId + '_' + bestId;
-        await awardRun(bestId, bestScore, runId);
+        await awardRun(best.id, best.score, 'pm_' + rm.raceId + '_' + best.id);
       } catch (e) { console.error('[RaceHub] pac-man XP award failed:', e.message); }
     }
-    // Build results
-    const members = [...rm.members.values()];
-    const rows = members.map(m => {
-      const entry = scores.find(s => String(s.id) === String(m.id));
-      return { id: m.id, n: m.name, c: m.c, sc: entry ? entry.score : 0, rank: 0, xp: 0, why: null };
+    const rows = racers.map(m => {
+      const s = scores.find(x => x.id === m.id);
+      return { id: m.id, n: m.name, c: m.c, sc: s ? s.score : 0, rank: 0, xp: 0, why: null };
     });
     rows.sort((a, b) => b.sc - a.sc);
     rows.forEach((r, i) => { r.rank = i + 1; });
+    if (!rooms.has(rm.code)) return;
     broadcastRoom(rm, { t: 'res', race: rm.raceId, rows });
-    // Cleanup room
-    rm.status = 'results';
-    for (const m of members) { m.inRace = false; m.alive = false; }
-    clearTimeout(rm.timer);
-    clearTimeout(rm.guard);
-    setTimeout(() => {
-      if (rooms.has(rm.code)) {
-        rm.status = 'lobby';
-        for (const m of [...rm.members.values()]) { if (!m.ws) rm.members.delete(m.id); }
-        if (!rm.members.size) { rooms.delete(rm.code); schedulePresence(); return; }
-        afterMemberGone(rm);
-      }
-    }, 2000);
+    for (const m of [...rm.members.values()]) {
+      if (!m.ws) { rm.members.delete(m.id); continue; }
+      Object.assign(m, { inRace: false, waiting: false, alive: false, dnf: false });
+    }
+    // The board is gone, the athletes are not — straight back to the lobby.
+    rm.status = 'lobby';
+    if (!rm.members.size) { rooms.delete(rm.code); schedulePresence(); return; }
+    afterMemberGone(rm);
+  }
+
+  // Leaving mid-match (tab closed, forfeit) takes the athlete off the board.
+  function onPMEnd(ws) {
+    const rm = ws.room && rooms.get(ws.room);
+    if (!rm || rm.game !== 'pac-man' || !rm.pm) return;
+    const wp = rm.pm.players[ws.athlete.id];
+    if (!wp) return;
+    wp.alive = false;
+    wp.lives = 0;
+    if (PM.over(rm.pm)) finishPM(rm);
   }
 
   function onCRState(ws, msg) {
@@ -679,6 +713,7 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
   const tick = setInterval(() => {
     for (const ws of solos) if (forceLagging(ws.solo) && runOver(ws.solo)) endSolo(ws);
     for (const rm of rooms.values()) {
+      if (rm.game === 'pac-man') { pmTick(rm); continue; }
       if (rm.status !== 'racing' && rm.status !== 'countdown') continue;
       let dirty = false;
       const p = [];
