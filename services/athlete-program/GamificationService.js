@@ -14,12 +14,17 @@ const LedgerService = require('./LedgerService');
 // Arcade scoring: how many score units equal 1 XP / 1 coin for each mini-game.
 const GAME_RULES = {
   // `verified` games are only paid from a server-side replay (RaceHub), never from a client-reported score.
-  'rooftop-racing': { label: 'Rooftop Racing', unitsPerXp: 150, unitsPerCoin: 250, verified: true }, // metres
-  'fruit-ninja': { label: 'Fruit Ninja', unitsPerXp: 8, unitsPerCoin: 12 },            // fruits sliced
-  'ping-pong': { label: 'Ping Pong', unitsPerXp: 2, unitsPerCoin: 3 },                  // points scored
-  'pac-man': { label: 'Pac-Man', unitsPerXp: 50, unitsPerCoin: 80 },                      // score points
-  'crossy-road': { label: 'Crossy Road', unitsPerXp: 5, unitsPerCoin: 8 }                  // lanes crossed
+  // `unit` labels what a run is measured in, so each cabinet ladder can name its own score column.
+  'rooftop-racing': { label: 'Rooftop Racing', unit: 'metres', unitsPerXp: 150, unitsPerCoin: 250, verified: true }, // metres
+  'fruit-ninja': { label: 'Fruit Ninja', unit: 'fruits', unitsPerXp: 8, unitsPerCoin: 12 },            // fruits sliced
+  'ping-pong': { label: 'Ping Pong', unit: 'points', unitsPerXp: 2, unitsPerCoin: 3 },                  // points scored
+  'pac-man': { label: 'Pac-Man', unit: 'score', unitsPerXp: 50, unitsPerCoin: 80 },                      // score points
+  'crossy-road': { label: 'Crossy Road', unit: 'lanes', unitsPerXp: 5, unitsPerCoin: 8 }                  // lanes crossed
 };
+
+// Cabinet order for the Games tab: every playable tile gets its own ladder, even
+// before anyone has run it, so the sideways track never shifts between periods.
+const ARCADE_CABINETS = ['rooftop-racing', 'fruit-ninja', 'ping-pong', 'pac-man'];
 
 // Arcade ledger rows carry the game and the run inside their idempotency key:
 //   game:<athlete>:<game>:<runId>[:coins]   ·   race:<raceId>:<athlete>
@@ -872,8 +877,9 @@ const GamificationService = {
       else a.coins += r.amount;
       if (!game) continue;
       let g = a.games.get(game);
-      if (!g) { g = { xp: 0, coins: 0, runs: new Set(), best: 0 }; a.games.set(game, g); }
+      if (!g) { g = { xp: 0, coins: 0, runs: new Set(), best: 0, last: 0 }; a.games.set(game, g); }
       g.runs.add(runRef);
+      if (ts > g.last) g.last = ts;
       if (r.currency === 'XP') {
         g.xp += r.amount;
         if (r.amount > g.best) g.best = r.amount;
@@ -932,6 +938,7 @@ const GamificationService = {
     const all = roster.map((a, i) => shape(a, i + 1));
     const mine = all.find(r => r.id === influencerId) || null;
     const above = mine ? all[mine.rank - 2] || null : null;
+    const games = this._arcadeGameBoards(roster, all, influencerId);
 
     return {
       period,
@@ -945,6 +952,7 @@ const GamificationService = {
         coins: all.reduce((s, r) => s + r.coins, 0)
       },
       rows: all.slice(0, limit),
+      games,
       me: mine ? {
         ...mine,
         total_athletes: all.length,
@@ -960,6 +968,60 @@ const GamificationService = {
         gap_to_top: all[0]?.arcade_xp || 0, today_xp: todayXp.total, daily_cap: dailyCap
       }
     };
+  },
+
+  /**
+   * @private — one ladder per cabinet. Same ledger rows as the combined board,
+   * re-ranked inside a single game, so a specialist can top Pac-Man without
+   * ever touching the overall standings. Roster filters already applied upstream.
+   */
+  _arcadeGameBoards(roster, ranked, influencerId) {
+    const byId = new Map(ranked.map(r => [r.id, r]));
+    return ARCADE_CABINETS.map(slug => {
+      const rule = GAME_RULES[slug];
+      const entries = [];
+      for (const a of roster) {
+        const g = a.games.get(slug);
+        const row = byId.get(a.id);
+        if (!g || !g.runs.size || !row) continue;
+        entries.push({
+          id: a.id,
+          name: row.name,
+          athlete_no: row.athlete_no,
+          level_name: row.level_name,
+          avatar_base: row.avatar_base, avatar_head: row.avatar_head, avatar_mark: row.avatar_mark,
+          avatar_ground: row.avatar_ground, avatar_frame: row.avatar_frame,
+          xp: g.xp, coins: g.coins, runs: g.runs.size, best_run: g.best,
+          last_played: g.last ? new Date(g.last).toISOString() : null
+        });
+      }
+      entries.sort((x, y) => y.xp - x.xp || y.best_run - x.best_run || y.runs - x.runs);
+      const top = entries.slice(0, 5).map((e, i) => ({ ...e, rank: i + 1 }));
+      const mineIndex = entries.findIndex(e => e.id === influencerId);
+      const mineRow = mineIndex >= 0 ? entries[mineIndex] : null;
+      return {
+        slug,
+        label: rule.label,
+        unit: rule.unit || 'points',
+        top,
+        leader: top[0] ? { name: top[0].name, xp: top[0].xp, runs: top[0].runs } : null,
+        totals: {
+          athletes: entries.length,
+          runs: entries.reduce((s, e) => s + e.runs, 0),
+          xp: entries.reduce((s, e) => s + e.xp, 0),
+          coins: entries.reduce((s, e) => s + e.coins, 0),
+          best_run: entries.reduce((s, e) => Math.max(s, e.best_run), 0)
+        },
+        me: {
+          rank: mineRow ? mineIndex + 1 : null,
+          xp: mineRow ? mineRow.xp : 0,
+          coins: mineRow ? mineRow.coins : 0,
+          runs: mineRow ? mineRow.runs : 0,
+          best_run: mineRow ? mineRow.best_run : 0,
+          total_athletes: entries.length
+        }
+      };
+    });
   },
 
   /** @private — every paid arcade ledger row in the window, paged past the 1000-row cap */

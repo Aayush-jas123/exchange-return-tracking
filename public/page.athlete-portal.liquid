@@ -21,7 +21,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
   {% # theme-check-enable RemoteAsset %}
   {% comment %} Styles and behaviour live in theme assets, not inline (this template was over Shopify's 256 KB limit). Upload the repo files shopify-assets/athlete-portal.css and shopify-assets/athlete-portal.js to Online Store > Themes > Edit code > Assets (keeping those filenames) BEFORE saving this template, otherwise the page loads unstyled and inert. {% endcomment %}
-  <link rel="stylesheet" href="{{ 'athlete-portal.css' | asset_url }}?v=2">
+  <link rel="stylesheet" href="{{ 'athlete-portal.css' | asset_url }}?v=3">
 </head>
 <body>
   <div class="loading" id="loading"><p>Loading athlete portal</p></div>
@@ -274,9 +274,12 @@
 
           <div class="rule" style="margin-top:14px"></div>
 
-          <!-- Arcade ladder: ranked on XP earned inside the games, never on comfort XP -->
+          <!-- Arcade ladder: one combined board across every cabinet, then a board per game -->
           <div class="archead rise" style="animation-delay:.34s">
-            <span class="kick" style="margin-top:0">Arcade ladder</span>
+            <div class="arcttl">
+              <span class="kick" style="margin-top:0">Arcade ladder</span>
+              <span class="arcsub" id="arcSub">&mdash;</span>
+            </div>
             <div class="arcchips" id="arcPeriod" role="group" aria-label="Arcade period">
               <button class="arcchip on" type="button" data-arc="today">Today</button>
               <button class="arcchip" type="button" data-arc="week">7 days</button>
@@ -285,9 +288,21 @@
           </div>
           <p class="arcnote" id="arcNote">Ranked by arcade XP only &mdash; missions, orders and comfort level never move this board.</p>
           <dl class="arcme" id="arcMe"></dl>
-          <div class="rowx" style="margin-top:14px"><span class="kick" style="margin-top:0" id="arcListLabel">Standings</span><span class="mono" id="athleteCount" style="color:var(--dim)"></span></div>
+          <div class="arcpodium" id="arcPodium"></div>
+          <div class="rowx" style="margin-top:14px"><span class="kick" style="margin-top:0" id="arcListLabel">Combined standings</span><span class="mono" id="athleteCount" style="color:var(--dim)"></span></div>
           <div class="alist arcade rise" id="athleteList" style="animation-delay:.42s"></div>
           <div class="arcfoot" id="arcFoot"></div>
+
+          <!-- Cabinet ladders: sideways track, one collapsible board per game -->
+          <div class="gbhead rise" style="animation-delay:.46s">
+            <div class="arcttl">
+              <span class="kick" style="margin-top:0">Cabinet ladders</span>
+              <span class="arcsub" id="arcCabSub">&mdash;</span>
+            </div>
+            <button class="gball" id="gbExpandAll" type="button" aria-pressed="false">Expand all</button>
+          </div>
+          <p class="arcnote">Every game keeps its own board. Tap a cabinet for its top five &mdash; swipe sideways for the rest.</p>
+          <div class="gbtrack" id="arcBoards" role="region" aria-label="Per-game leaderboards"></div>
           <div id="lobbyWrap" hidden>
             <div class="rowx" style="margin-top:14px"><span class="kick" style="margin-top:0">Open race lobbies</span><span class="mono" id="lobbyCount" style="color:var(--dim)"></span></div>
             <div class="alist" id="raceLobbies"></div>
@@ -438,6 +453,6 @@
 
   </div></main>
 
-<script src="{{ 'athlete-portal.js' | asset_url }}?v=2" defer></script>
+<script src="{{ 'athlete-portal.js' | asset_url }}?v=3" defer></script>
 </body>
 </html>

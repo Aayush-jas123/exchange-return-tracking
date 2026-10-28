@@ -3,7 +3,7 @@
    as athlete-portal.js BEFORE saving the template that loads it. */
 const API='https://exchange-return-tracking.onrender.com/api/athlete';
 const BASE='https://exchange-return-tracking.onrender.com';
-const S={token:null,athlete:null,tasks:[],picks:[],maxPicks:5,streak:0,leaderboard:[],climb:null,ranks:null,log:[],weekly:null,assignment:null,bricks:[],active:'tasks',orders:[],commissions:null,productRequests:[],shopifyProducts:[],shop:null,unlocks:null,invited:new Set(),arcade:null,arcPeriod:'today',arcadeError:false};
+const S={token:null,athlete:null,tasks:[],picks:[],maxPicks:5,streak:0,leaderboard:[],climb:null,ranks:null,log:[],weekly:null,assignment:null,bricks:[],active:'tasks',orders:[],commissions:null,productRequests:[],shopifyProducts:[],shop:null,unlocks:null,invited:new Set(),arcade:null,arcPeriod:'today',arcadeError:false,gbOpen:new Set()};
 const $=id=>document.getElementById(id);
 const esc=v=>{const e=document.createElement('div');e.textContent=v||'';return e.innerHTML};
 const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1250,35 +1250,131 @@ function renderArcade(){
   $('arcMe').innerHTML=[
     ['Your rank',m.rank?`#${m.rank}<s> / ${arcN(m.total_athletes)}</s>`:'&mdash;'],
     ['Arcade XP',d?`+${arcN(m.arcade_xp)}`:'&mdash;'],
+    ['Coins',d?arcN(m.coins):'&mdash;'],
     ['Runs',d?arcN(m.runs):'&mdash;'],
     ['Best run',m.best_run?`+${arcN(m.best_run)}`:'&mdash;'],
     ['Today',cap?`${arcN(todayXp)}<s> / ${arcN(cap)}</s>`:'&mdash;']
   ].map(([k,v])=>`<div><dt>${k}</dt><dd>${v}</dd></div>`).join('');
+  $('arcSub').innerHTML=d?`${arcN(d.totals.athletes)} athletes &middot; ${arcN(d.totals.runs)} runs &middot; +${arcN(d.totals.xp)} XP`:'&mdash;';
 
-  // ── Standings: one combined ladder, no per-game split ──
+  // ── Standings: one combined ladder across every cabinet ──
   const rows=(d?.rows||[]);
-  $('arcListLabel').textContent='Standings';
+  $('arcListLabel').textContent='Combined standings';
   const liveCount=rows.filter(r=>arcPresence(r.id).live).length;
-  $('athleteCount').textContent=d?(liveCount?`${liveCount} live now`:`${rows.length} ranked`):'';
+  $('athleteCount').textContent=d?(liveCount?`${liveCount} live now`:`${rows.length} ranked${rows.length<d.totals.athletes?` of ${arcN(d.totals.athletes)}`:''}`):'';
 
+  renderArcPodium(rows);
+
+  const leaderXp=Math.max(1,Number(rows[0]?.arcade_xp||0));
   listEl.innerHTML=!d?`<div class="empty">${S.arcadeError?'Arcade ladder unavailable &mdash; retry in a moment':'Loading the arcade ladder&hellip;'}</div>`
-    :rows.length?rows.map(r=>{
+    :rows.length?rows.map((r,i)=>{
       const isMe=String(r.id)===me;
       const {live,p}=arcPresence(r.id);
       const sent=S.invited.has(String(r.id));
       const btn=p&&p.r&&p.s==='lobby'?`<button class="invt w" type="button" data-join="${esc(p.r)}">Join</button>`
         :live?`<button class="invt" type="button" data-invite="${esc(String(r.id))}" data-name="${esc(r.name||'')}"${sent?' disabled':''}>${sent?'Sent &check;':'Invite'}</button>`:'';
-      const meta=[r.level_name,r.favourite_game_label||'—','played '+arcAgo(r.last_played)].filter(Boolean).join(' &middot; ');
-      return `<div class="arcrow${r.rank<=3?' podium':''}${isMe?' you':''}${live?' live':''}">
+      const meta=[r.level_name,r.favourite_game_label||'\u2014','played '+arcAgo(r.last_played)].filter(Boolean).join(' &middot; ');
+      const pct=Math.max(3,Math.round((Number(r.arcade_xp||0)/leaderXp)*100));
+      const gap=i>0?Number(rows[i-1].arcade_xp||0)-Number(r.arcade_xp||0):0;
+      const gapTxt=i>0?(gap>0?`&minus;${arcN(gap)} vs #${i}`:'level with #'+i):'arcade leader';
+      return `<div class="arcrow${r.rank<=3?' podium':''}${isMe?' you':''}${live?' live':''}" title="${esc(r.name||'Athlete')} &middot; ${arcN(r.coins)} coins &middot; ${r.active_days||0} active days">
         <span class="rk">${r.rank}</span>
         <span class="arav">${renderAthleteAvatar(r,28)}</span>
-        <span class="arcm"><b>${esc(r.name||'Athlete')}${isMe?'<i>You</i>':''}</b><em>${meta}</em></span>
-        <span class="arcr"><span class="arclive"></span><span class="arcscore"><b>+${arcN(r.arcade_xp)}</b><span>${arcN(r.runs)} run${r.runs===1?'':'s'}</span></span>${btn}</span>
+        <span class="arcm"><b>${esc(r.name||'Athlete')}${isMe?'<i>You</i>':''}</b><em>${meta}</em>
+          <span class="arcmr"><span class="arcbar"><i style="width:${pct}%"></i></span><span class="arcgap">${gapTxt}</span></span>
+        </span>
+        <span class="arcr"><span class="arclive"></span><span class="arcscore"><b>+${arcN(r.arcade_xp)}</b><span>${arcN(r.runs)} run${r.runs===1?'':'s'}${r.best_run?' &middot; best +'+arcN(r.best_run):''}</span></span>${btn}</span>
       </div>`;
     }).join('')
     :'<div class="empty">No arcade runs yet this period</div>';
 
-  $('arcFoot').innerHTML=d?`<span>${ARC_PERIOD_LABEL[period]||period} &middot; ${arcN(d.totals.runs)} runs</span><span>${m.rank?`#${m.rank} of ${arcN(m.total_athletes)} &middot; ${m.gap_to_above?`${arcN(m.gap_to_above)} XP behind ${esc(m.above_name||'above')}`:'top of the arcade'}`:'No runs logged yet'}</span>`:'';
+  $('arcFoot').innerHTML=d?`<span>${ARC_PERIOD_LABEL[period]||period} &middot; ${arcN(d.totals.runs)} runs &middot; +${arcN(d.totals.xp)} XP</span><span>${m.rank?`#${m.rank} of ${arcN(m.total_athletes)} &middot; ${m.gap_to_above?`${arcN(m.gap_to_above)} XP behind ${esc(m.above_name||'above')}`:'top of the arcade'}`:'No runs logged yet'}</span>`:'';
+
+  renderArcBoards();
+}
+
+// ── Podium: the top three of the combined board, first place raised ──
+function renderArcPodium(rows){
+  const el=$('arcPodium');if(!el)return;
+  const top=(rows||[]).filter(r=>r.rank<=3);
+  if(top.length<2){el.innerHTML='';el.classList.remove('on');return}
+  el.classList.add('on');
+  const me=String(S.athlete?.id||'');
+  const order=top.length>=3?[top[1],top[0],top[2]]:[top[1],top[0]];
+  el.innerHTML=order.map(r=>{
+    const isMe=String(r.id)===me;
+    return `<div class="pcard p${r.rank}${isMe?' you':''}${arcPresence(r.id).live?' live':''}">
+      <span class="pcrown">${r.rank===1?'01 &middot; leader':'0'+r.rank}</span>
+      <span class="pav">${renderAthleteAvatar(r,r.rank===1?54:44)}</span>
+      <b>${esc(r.name||'Athlete')}${isMe?'<i>You</i>':''}</b>
+      <em>${esc(r.level_name||'\u2014')}</em>
+      <span class="pxp">+${arcN(r.arcade_xp)}<s>XP</s></span>
+      <span class="pmeta">${arcN(r.runs)} run${r.runs===1?'':'s'} &middot; ${esc(r.favourite_game_label||'\u2014')}</span>
+    </div>`;
+  }).join('');
+}
+
+// ── Cabinet ladders: one collapsible board per game on a sideways track ──
+function renderArcBoards(){
+  const el=$('arcBoards');if(!el)return;
+  const d=S.arcade,me=String(S.athlete?.id||'');
+  const boards=d?.games||[];
+  const sub=$('arcCabSub');
+  if(!boards.length){
+    el.innerHTML=`<div class="empty">${d?'No cabinet boards yet':'Loading cabinet ladders&hellip;'}</div>`;
+    if(sub)sub.innerHTML='&mdash;';
+    syncBoardsOpen();
+    return;
+  }
+  if(sub)sub.innerHTML=`${boards.length} games &middot; ${arcN(boards.reduce((s,b)=>s+b.totals.runs,0))} runs &middot; +${arcN(boards.reduce((s,b)=>s+b.totals.xp,0))} XP`;
+  // Presence updates re-render this track; keep the athlete where they scrolled to.
+  const scrollLeft=el.scrollLeft;
+  el.innerHTML=boards.map((b,gi)=>{
+    const open=S.gbOpen.has(b.slug),lead=b.leader;
+    const meta=lead?`${arcN(b.totals.athletes)} ranked &middot; ${arcN(b.totals.runs)} runs &middot; lead ${esc(lead.name)}`:'No paid runs yet';
+    const rows=(b.top||[]).map(r=>{
+      const isMe=String(r.id)===me;
+      return `<div class="gbrow${r.rank===1?' lead':''}${isMe?' you':''}">
+        <span class="gbrk">${r.rank}</span>
+        <span class="gbrav">${renderAthleteAvatar(r,22)}</span>
+        <span class="gbrn"><b>${esc(r.name||'Athlete')}${isMe?'<i>You</i>':''}</b><em>${arcN(r.runs)} run${r.runs===1?'':'s'} &middot; best ${r.best_run?'+'+arcN(r.best_run):'&mdash;'}</em></span>
+        <span class="gbrx">+${arcN(r.xp)}<small>XP</small></span>
+      </div>`;
+    }).join('');
+    const foot=b.totals.athletes
+      ?`<span>${b.me.rank?`You: #${b.me.rank} of ${arcN(b.me.total_athletes)} &middot; +${arcN(b.me.xp)} XP`:'You have not run this cabinet yet'}</span><span>Best run ${b.totals.best_run?'+'+arcN(b.totals.best_run):'&mdash;'} &middot; ${arcN(b.totals.coins)} coins</span>`
+      :`<span>Play ${esc(b.label)} to open this board</span><span>Paid in ${esc(b.unit)}</span>`;
+    return `<article class="gbcard${open?' open':''}${b.totals.runs?'':' idle'}" data-gb="${b.slug}">
+      <button class="gbt" type="button" data-gbtoggle="${b.slug}" aria-expanded="${open?'true':'false'}" aria-controls="gb-${b.slug}">
+        <span class="gbidx">${String(gi+1).padStart(2,'0')}</span>
+        <span class="gbtxt"><b>${esc(b.label)}</b><em>${meta}</em></span>
+        <span class="gbval">+${arcN(b.totals.xp)}<small>XP</small></span>
+        <svg class="gbchev" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>
+      </button>
+      <div class="gbbody" id="gb-${b.slug}"><div class="gbin">
+        ${rows||'<div class="gbempty">No runs in this window</div>'}
+        <div class="gbfoot">${foot}</div>
+      </div></div>
+    </article>`;
+  }).join('');
+  if(scrollLeft)el.scrollLeft=scrollLeft;
+  syncBoardsOpen();
+}
+
+function syncBoardsOpen(){
+  const boards=S.arcade?.games||[];
+  document.querySelectorAll('#arcBoards .gbcard').forEach(c=>{
+    const open=S.gbOpen.has(c.dataset.gb);
+    c.classList.toggle('open',open);
+    const b=c.querySelector('[data-gbtoggle]');
+    if(b)b.setAttribute('aria-expanded',open?'true':'false');
+  });
+  const all=$('gbExpandAll');
+  if(all){
+    const full=boards.length>0&&S.gbOpen.size>=boards.length;
+    all.textContent=full?'Collapse all':'Expand all';
+    all.setAttribute('aria-pressed',full?'true':'false');
+  }
 }
 
 async function loadArcade(period){
@@ -2018,6 +2114,20 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(!b||b.classList.contains('on'))return;
     document.querySelectorAll('#arcPeriod .arcchip').forEach(x=>x.classList.toggle('on',x===b));
     loadArcade(b.dataset.arc);
+  });
+  // ── Cabinet ladders: tap a card header to fold its top five open ──
+  $('arcBoards').addEventListener('click',e=>{
+    const b=e.target.closest('[data-gbtoggle]');
+    if(!b)return;
+    const slug=b.dataset.gbtoggle;
+    if(S.gbOpen.has(slug))S.gbOpen.delete(slug);else S.gbOpen.add(slug);
+    syncBoardsOpen();
+  });
+  $('gbExpandAll').addEventListener('click',()=>{
+    const boards=S.arcade?.games||[];
+    const expand=S.gbOpen.size<boards.length;
+    S.gbOpen=new Set(expand?boards.map(b=>b.slug):[]);
+    syncBoardsOpen();
   });
   // ── Login tab switching ──
   let otpPhone=null,otpResendTimer=null,otpExpiryTimer=null;

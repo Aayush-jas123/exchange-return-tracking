@@ -1039,7 +1039,7 @@
     .arcchip.on{background:#fff;border-color:#fff;color:#000;font-weight:700}
     .arcnote{font-family:var(--m);font-size:8px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);line-height:1.6;margin:7px 0 0}
     .arcme{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;margin:12px 0 0;border:1px solid var(--line);background:var(--line);border-radius:6px;overflow:hidden}
-    @media(min-width:768px){.arcme{grid-template-columns:repeat(5,1fr)}}
+    @media(min-width:768px){.arcme{grid-template-columns:repeat(6,1fr)}}
     .arcme>div{background:#0E0E0E;padding:10px 11px;min-width:0}
     .arcme dt{font-family:var(--m);font-size:6.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .arcme dd{margin:5px 0 0;font-size:14.5px;font-weight:800;letter-spacing:-.01em;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -1066,6 +1066,80 @@
     .arcrow.live .arclive{background:#fff;animation:bp 2s ease-in-out infinite}
     .arcfoot{display:flex;justify-content:space-between;gap:10px;margin-top:10px;font-family:var(--m);font-size:7px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
     @media(max-width:420px){.arcscore b{font-size:11.5px}.arcm em{font-size:7px}}
+
+    /* games — combined ladder rows: scaled XP bar + gap to the rank above */
+    .arcmr{display:flex;align-items:center;gap:7px;margin-top:5px;min-width:0}
+    .arcbar{position:relative;flex:1 1 auto;min-width:0;height:2px;background:rgba(255,255,255,.13);overflow:hidden}
+    .arcbar i{position:absolute;inset:0 auto 0 0;background:#fff;opacity:.72;transition:width .6s cubic-bezier(.16,1,.3,1)}
+    .arcrow.you .arcbar i{opacity:1}
+    .arcgap{flex:none;font-family:var(--m);font-size:6.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--dim);white-space:nowrap}
+    .arcrow.you .arcgap{color:rgba(255,255,255,.82)}
+    .arcttl{display:flex;flex-direction:column;gap:3px;min-width:0}
+    .arcsub{font-family:var(--m);font-size:7px;letter-spacing:.11em;text-transform:uppercase;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+    /* games — podium: top three of the combined board, leader raised */
+    .arcpodium{display:none;grid-template-columns:1fr 1.16fr 1fr;align-items:end;gap:6px;margin-top:12px}
+    .arcpodium.on{display:grid}
+    .pcard{display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px;padding:11px 7px 10px;border:1px solid var(--line);border-radius:7px;background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.005));min-width:0}
+    .pcard.p1{padding:15px 7px 13px;border-color:rgba(255,255,255,.44);background:linear-gradient(180deg,rgba(255,255,255,.14),rgba(255,255,255,.01))}
+    .pcard.you{box-shadow:inset 0 0 0 1px rgba(255,255,255,.42)}
+    .pcard.live{border-style:dashed}
+    .pcrown{font-family:var(--m);font-size:6.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+    .pcard.p1 .pcrown{color:#fff}
+    .pav{width:44px;height:44px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);background:var(--bg);flex:none}
+    .pcard.p1 .pav{width:54px;height:54px;border-color:#fff}
+    .pav svg{display:block}
+    .pcard b{display:block;max-width:100%;font-size:10.5px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .pcard.p1 b{font-size:12px}
+    .pcard b i{display:inline-block;vertical-align:1px;margin-left:4px;font-style:normal;font-family:var(--m);font-size:5.5px;letter-spacing:.1em;text-transform:uppercase;color:#000;background:#fff;padding:1px 3px;border-radius:2px}
+    .pcard em{font-style:normal;max-width:100%;font-family:var(--m);font-size:6.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .pxp{margin-top:2px;font-size:13px;font-weight:800;letter-spacing:-.01em;line-height:1;white-space:nowrap}
+    .pcard.p1 .pxp{font-size:15.5px}
+    .pxp s{text-decoration:none;margin-left:2px;font-family:var(--m);font-size:6.5px;font-weight:400;letter-spacing:.1em;color:var(--dim)}
+    .pmeta{max-width:100%;font-family:var(--m);font-size:6px;letter-spacing:.07em;text-transform:uppercase;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+    /* games — cabinet ladders: sideways track, one collapsible board per game */
+    .gbhead{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;margin-top:20px;padding-top:14px;border-top:1px solid var(--line)}
+    .gball{font-family:var(--m);font-size:7px;letter-spacing:.11em;text-transform:uppercase;background:none;border:1px solid var(--line);color:var(--dim);padding:5px 9px;border-radius:3px;cursor:pointer;white-space:nowrap;transition:color .18s ease,border-color .18s ease,background .18s ease}
+    .gball:hover{color:#fff;border-color:rgba(255,255,255,.4)}
+    .gball:active{transform:scale(.97)}
+    .gball[aria-pressed="true"]{background:#fff;border-color:#fff;color:#000;font-weight:700}
+    .gbtrack{display:flex;gap:9px;margin:12px -15px 0;padding:0 15px 8px;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.15) transparent}
+    @media(min-width:768px){.gbtrack{gap:11px;margin:14px -40px 0;padding:0 40px 8px}}
+    .gbtrack::-webkit-scrollbar{height:4px}
+    .gbtrack::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15)}
+    .gbcard{flex:0 0 83%;max-width:330px;align-self:flex-start;scroll-snap-align:start;background:#0D0D0D;border:1px solid var(--line);border-radius:8px;overflow:hidden;transition:border-color .22s ease}
+    @media(min-width:768px){.gbcard{flex:0 0 300px}}
+    .gbcard.open{border-color:rgba(255,255,255,.34)}
+    .gbt{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:9px;align-items:center;width:100%;padding:11px;background:none;border:0;color:#fff;text-align:left;font-family:inherit;cursor:pointer}
+    .gbt:hover{background:rgba(255,255,255,.04)}
+    .gbidx{font-family:var(--m);font-size:7px;letter-spacing:.12em;color:var(--dim)}
+    .gbtxt{min-width:0}
+    .gbtxt b{display:block;font-size:11.5px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .gbtxt em{display:block;margin-top:2px;font-style:normal;font-family:var(--m);font-size:6.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .gbval{font-size:12px;font-weight:800;letter-spacing:-.01em;white-space:nowrap}
+    .gbval small{margin-left:2px;font-family:var(--m);font-size:6px;font-weight:400;letter-spacing:.1em;color:var(--dim)}
+    .gbchev{width:12px;height:12px;flex:none;fill:none;stroke:var(--dim);stroke-width:1.6;transition:transform .28s cubic-bezier(.16,1,.3,1)}
+    .gbcard.open .gbchev{transform:rotate(180deg);stroke:#fff}
+    .gbbody{max-height:0;overflow:hidden;transition:max-height .34s cubic-bezier(.16,1,.3,1)}
+    .gbcard.open .gbbody{max-height:420px}
+    .gbin{border-top:1px solid var(--line);padding-top:3px}
+    .gbrow{display:grid;grid-template-columns:14px 22px minmax(0,1fr) auto;gap:7px;align-items:center;padding:6px 11px}
+    .gbrow.you{background:rgba(255,255,255,.07)}
+    .gbrk{font-family:var(--m);font-size:8px;color:var(--dim);text-align:right}
+    .gbrow.lead .gbrk{color:#fff;font-weight:700}
+    .gbrav{width:22px;height:22px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);flex:none}
+    .gbrn{min-width:0}
+    .gbrn b{display:block;font-size:10px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .gbrn b i{display:inline-block;vertical-align:1px;margin-left:3px;font-style:normal;font-family:var(--m);font-size:5px;letter-spacing:.08em;text-transform:uppercase;color:#000;background:#fff;padding:1px 3px;border-radius:2px}
+    .gbrn em{display:block;font-style:normal;font-family:var(--m);font-size:6px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .gbrx{font-size:10.5px;font-weight:800;white-space:nowrap}
+    .gbrx small{margin-left:1px;font-family:var(--m);font-size:5.5px;font-weight:400;letter-spacing:.1em;color:var(--dim)}
+    .gbempty{padding:14px 11px;font-family:var(--m);font-size:7px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+    .gbfoot{display:flex;justify-content:space-between;gap:8px;overflow:hidden;padding:9px 11px;border-top:1px solid var(--line);font-family:var(--m);font-size:6px;letter-spacing:.07em;line-height:1.5;text-transform:uppercase;color:var(--dim)}
+    .gbfoot span{flex:0 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .gbfoot span:last-child{text-align:right}
+    .gbcard.idle .gbidx,.gbcard.idle .gbval{color:var(--dim)}
 
     .empty{padding:18px 0;color:var(--dim);font-family:var(--m);font-size:10px;letter-spacing:.08em;text-transform:uppercase}
 
