@@ -5122,25 +5122,36 @@ app.post('/api/get-variants', async (req, res) => {
 async function notifyZohoExchange(requestDetails, items) {
     const botUrl = process.env.WHATSAPP_BOT_URL || 'http://localhost:3000';
     const internalToken = process.env.WHATSAPP_INTERNAL_TOKEN || '';
+    const list = items || [];
+    const exchangedItems = [];
+
+    for (const i of list) {
+        // The replacement size decides which Zoho item (and stock) the invoice
+        // line must point at — resolve it from Shopify when the request was
+        // stored without it, exactly like the forward-order paths do.
+        const variant = await resolveExchangeReplacementVariant(i, requestDetails.requestId);
+        exchangedItems.push({
+            title: buildExchangeProductName(
+                i.replacementProductTitle || i.name || i.title || '',
+                // Only use the resolved replacement size — never fall back to the
+                // original variant, which would send the wrong size to Zoho.
+                variant
+            ),
+            sku: i.replacementSku || '',
+            quantity: parseInt(i.quantity || 1),
+            variant
+        });
+    }
+
     const payload = {
         order_id: String(requestDetails.orderNumber || ''),
-        original_items: (items || []).map(i => ({
+        original_items: list.map(i => ({
             title: i.name || i.title || '',
             sku: i.sku || '',
             quantity: parseInt(i.quantity || 1),
             price: parseFloat(i.paidPrice || i.price || 0)
         })),
-        exchanged_items: (items || []).map(i => ({
-            title: buildExchangeProductName(
-                i.replacementProductTitle || i.name || i.title || '',
-                // Only use replacementVariant — never fall back to original variant,
-                // which would send the wrong size to Zoho.
-                i.replacementVariant || ''
-            ),
-            sku: i.replacementSku || i.sku || '',
-            quantity: parseInt(i.quantity || 1),
-            variant: i.replacementVariant || ''
-        }))
+        exchanged_items: exchangedItems
     };
     const res = await fetch(botUrl.replace(/\/$/, '') + '/webhooks/zoho/exchange', {
         method: 'POST',
@@ -5149,6 +5160,29 @@ async function notifyZohoExchange(requestDetails, items) {
     });
     console.log('[' + requestDetails.requestId + '] 📒 Zoho exchange notify → ' + res.status);
     return res.status;
+}
+
+// Resolve the replacement size (variant title) for an exchange item, falling
+// back to a Shopify variant lookup when replacementVariant was not stored.
+async function resolveExchangeReplacementVariant(item, requestId) {
+    const stored = item.replacementVariant;
+    if (stored && stored !== 'Same') return stored;
+
+    const variantId = item.replacementVariantId || item.variantId || item.id;
+    const productId = item.replacementProductId || item.productId;
+    if (!variantId || variantId === 'Same' || !productId) return '';
+
+    try {
+        const variantsData = await shopifyAPI(`products/${productId}/variants.json`);
+        const match = (variantsData.variants || []).find(v => v.id.toString() === variantId.toString());
+        if (match && match.title && match.title !== 'Default Title') {
+            console.log(`[${requestId}] 🔍 Zoho exchange: replacement size "${match.title}" resolved from Shopify variant ${variantId}`);
+            return match.title;
+        }
+    } catch (e) {
+        console.warn(`[${requestId}] ⚠️ Zoho exchange: variant lookup failed for ${variantId}: ${e.message}`);
+    }
+    return '';
 }
 
 /**
