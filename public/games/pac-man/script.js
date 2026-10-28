@@ -129,6 +129,8 @@
   // Cached assets
   let wallCanvas = null;
   let bgGrad = null;
+  // Logical board units -> canvas device pixels (set by resizeCanvas)
+  let viewScale = 1;
 
   // HUD cache (skip DOM writes when unchanged)
   let _hudScore = -1, _hudLives = -1, _hudPellets = -1;
@@ -283,6 +285,8 @@
   document.addEventListener('keydown', e => {
     keys[e.key] = true;
     if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
+    // Desktop shortcut for the on-screen pause chip
+    if ((e.key === 'p' || e.key === 'P' || e.key === 'Escape') && (mode === 'playing' || mode === 'paused')) togglePause();
   });
   document.addEventListener('keyup', e => { keys[e.key] = false; });
 
@@ -816,11 +820,14 @@
     bg.addColorStop(1, '#000');
     bgGrad = bg;
 
-    // Pre-render walls
+    // Pre-render walls at 2x so they stay crisp when the board is scaled up on
+    // a retina phone or on a full-height desktop window.
+    const SS = 2;
     const wc = document.createElement('canvas');
-    wc.width = CONFIG.GW;
-    wc.height = CONFIG.GH;
+    wc.width = CONFIG.GW * SS;
+    wc.height = CONFIG.GH * SS;
     const wx = wc.getContext('2d');
+    wx.scale(SS, SS);
     for (let r = 0; r < CONFIG.ROWS; r++) {
       for (let c = 0; c < CONFIG.COLS; c++) {
         if (LEVEL[r][c] === '1') {
@@ -839,14 +846,19 @@
   buildCachedAssets();
 
   function render() {
-    ctx.clearRect(0, 0, CONFIG.GW, CONFIG.GH);
+    // Everything below draws in the 560x620 logical board; this transform maps
+    // it onto the fitted, device-pixel-sized backing store, so the maze is sharp
+    // on a 3x phone instead of a stretched 560px bitmap.
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.setTransform(viewScale, 0, 0, viewScale, 0, 0);
 
     // Background
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, CONFIG.GW, CONFIG.GH);
 
     // Walls
-    ctx.drawImage(wallCanvas, 0, 0);
+    ctx.drawImage(wallCanvas, 0, 0, CONFIG.GW, CONFIG.GH);
 
     // Ghost house door — centered in the middle section opening (cols 10-16, row 13)
     ctx.fillStyle = '#888';
@@ -1274,18 +1286,24 @@
   function showOverlay(id) { $(id).classList.remove('hidden'); }
   function hideOverlay(id) { $(id).classList.add('hidden'); }
 
+  // The board owns its own grid cell, so measure that rather than the viewport:
+  // the HUD strip and the D-pad are real rows and can never sit on the maze.
   function resizeCanvas() {
-    const wrap = canvas.parentElement;
-    const ww = wrap.clientWidth;
-    const wh = wrap.clientHeight;
+    const wrap = $('boardWrap') || canvas.parentElement;
+    const ww = wrap ? wrap.clientWidth : 0;
+    const wh = wrap ? wrap.clientHeight : 0;
+    if (ww < 2 || wh < 2) return;   // game screen is hidden — measure again on show
     const ratio = CONFIG.GW / CONFIG.GH;
-    let w, h;
-    if (ww / wh > ratio) { h = wh; w = h * ratio; }
-    else { w = ww; h = w / ratio; }
+    let w = ww, h = ww / ratio;
+    if (h > wh) { h = wh; w = h * ratio; }
+    w = Math.max(1, Math.floor(w));
+    h = Math.max(1, Math.floor(h));
     canvas.style.width = w + 'px';
     canvas.style.height = h + 'px';
-    canvas.width = CONFIG.GW;
-    canvas.height = CONFIG.GH;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    viewScale = canvas.width / CONFIG.GW;
   }
 
   function selectMode(m) {
@@ -1603,9 +1621,14 @@
   // 19. Init
   // ═══════════════════════════════════════════════════════
   resizeCanvas();
-  window.addEventListener('resize', () => {
-    if (mode === 'playing' || mode === 'paused') resizeCanvas();
-  });
+  window.addEventListener('resize', resizeCanvas);
+  window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 120));
+  // The board cell also changes size when the HUD wraps (online score chips) or
+  // when the browser chrome collapses — a resize listener alone misses that.
+  if (window.ResizeObserver) {
+    const boardWrap = $('boardWrap');
+    if (boardWrap) new ResizeObserver(() => resizeCanvas()).observe(boardWrap);
+  }
 
   // Show high score on menu at load
   const initHs = loadHighScore();

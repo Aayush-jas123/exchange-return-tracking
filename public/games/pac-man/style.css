@@ -24,6 +24,8 @@ html, body {
   user-select: none;
   -webkit-user-select: none;
   touch-action: none;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* ── Screens ── */
@@ -54,7 +56,7 @@ html, body {
 #menuScreen {
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: calc(24px + env(safe-area-inset-top)) calc(24px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) calc(24px + env(safe-area-inset-left));
 }
 .menu-inner {
   width: 100%;
@@ -146,7 +148,9 @@ html, body {
 /* ══════════════════════════════════════════
    LOBBY SCREEN
    ═══════════════════════════════════════════ */
-#lobbyScreen { padding: 20px; }
+#lobbyScreen {
+  padding: calc(20px + env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom)) calc(20px + env(safe-area-inset-left));
+}
 .lobby-inner {
   width: 100%;
   max-width: 520px;
@@ -301,6 +305,8 @@ html, body {
   background: var(--line);
   color: var(--text);
 }
+/* My own row: marked, and never offered an invite. */
+.lobby-av.me { box-shadow: inset 0 0 0 1px rgba(255,255,255,.4); }
 .lobby-info { flex: 1; min-width: 0; }
 .lobby-info b {
   font: 600 13px var(--f);
@@ -308,6 +314,14 @@ html, body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.lobby-info b em {
+  font: 600 10px var(--m);
+  font-style: normal;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin-left: 4px;
 }
 .lobby-info small {
   font: 400 11px var(--f);
@@ -372,64 +386,86 @@ html, body {
 .back-btn:hover { border-color: var(--dim); color: var(--text); }
 
 /* ══════════════════════════════════════════
-   GAME SCREEN
+   GAME SCREEN — hud strip / board / deck
+   Three real rows, so the stats and the pad never sit on the maze.
    ═══════════════════════════════════════════ */
-#gameScreen { padding: 0; }
-.game-wrap {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+#gameScreen {
+  height: 100dvh;
+  overflow: hidden;
+  padding: 0;
 }
-#gameCanvas {
-  display: block;
-  background: #000;
-  border-radius: 4px;
-  touch-action: none;
+.game-wrap {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "hud"
+    "board"
+    "deck";
+  padding:
+    calc(8px + env(safe-area-inset-top))
+    calc(10px + env(safe-area-inset-right))
+    calc(8px + env(safe-area-inset-bottom))
+    calc(10px + env(safe-area-inset-left));
 }
 
 /* ── HUD ── */
 .hud {
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  padding: 10px 14px;
-  pointer-events: none;
+  grid-area: hud;
+  position: relative;
   z-index: 10;
+  pointer-events: none;
+  padding-bottom: 4px;
 }
-.hud-row {
+.hud-bar {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  gap: 6px 12px;
+  flex-wrap: wrap;
 }
+.hud-set {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+/* Secondary numbers give way to the three that matter while you play. */
+.hud-meta { margin-left: auto; gap: 12px; }
 .hud-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 1px;
 }
 .hud-label {
-  font: 600 9px var(--m);
-  letter-spacing: .1em;
+  font: 600 8px var(--m);
+  letter-spacing: .12em;
   text-transform: uppercase;
   color: var(--dim);
+  white-space: nowrap;
 }
 .hud-value {
-  font: 800 clamp(18px, 4vw, 28px) var(--f);
+  font: 800 16px/1 var(--f);
   color: var(--text);
-  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.hud-value.hud-small {
+  font: 700 11px var(--m);
+  color: var(--dim);
 }
 
 /* ── Frightened mode indicator ── */
 .hud-fear {
+  height: 12px;
+  margin-top: 1px;
   text-align: center;
-  font: 800 12px var(--m);
+  font: 800 10px var(--m);
   color: var(--text);
-  letter-spacing: .15em;
-  margin-top: 4px;
+  letter-spacing: .16em;
   animation: fearPulse 0.6s ease-in-out infinite alternate;
 }
 @keyframes fearPulse {
@@ -437,82 +473,111 @@ html, body {
   to { opacity: 1; }
 }
 
-/* ── Online scores panel ── */
+/* ── Online scores — chips inside the HUD, not floating over the board ── */
 .opp-scores {
-  position: absolute;
-  top: 50px; right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
   pointer-events: none;
-  z-index: 10;
 }
+.opp-scores[hidden] { display: none; }
 .opp-score-row {
-  font: 600 11px var(--f);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font: 600 10px var(--f);
   color: var(--dim);
-  margin-bottom: 4px;
-  text-align: right;
+  max-width: 40vw;
+}
+.opp-score-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .opp-score-row b {
   color: var(--text);
-  margin-left: 6px;
+  font-variant-numeric: tabular-nums;
 }
 
-/* ── Controls Hint ── */
+/* ── Pause ── */
+.hud-pause {
+  width: 38px; height: 38px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font: 700 12px var(--f);
+  color: var(--dim);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+.hud-pause:hover { color: var(--text); border-color: var(--dim); }
+.hud-pause[hidden] { display: none; }
+
+/* ── Board: the box the canvas is measured against ── */
+.board {
+  grid-area: board;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#gameCanvas {
+  display: block;
+  background: #000;
+  border-radius: 6px;
+  max-width: 100%;
+  max-height: 100%;
+  touch-action: none;
+}
+
+/* ── Deck: hint text + touch pad ── */
+.deck {
+  grid-area: deck;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+}
 .controls-hint {
-  position: absolute;
-  bottom: 16px;
-  left: 50%;
-  transform: translateX(-50%);
   font: 500 11px var(--f);
   color: var(--dim);
   text-align: center;
   white-space: nowrap;
   pointer-events: none;
-  z-index: 10;
-  opacity: 1;
   transition: opacity .5s;
 }
 .controls-hint.fade { opacity: 0; }
-
-/* ── Pause Button ── */
-.pause-btn {
-  position: absolute;
-  top: 12px;
-  right: 16px;
-  font: 700 18px var(--f);
-  color: var(--dim);
-  cursor: pointer;
-  z-index: 10;
-  background: rgba(10,10,12,.7);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  width: 40px; height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: auto;
-}
-.pause-btn:hover { color: var(--text); border-color: var(--dim); }
 
 /* ═══════════════════════════════════════════
    VIRTUAL D-PAD
    ═══════════════════════════════════════════ */
 .dpad {
-  position: absolute;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
+  --dpad: clamp(46px, 13vw, 62px);
   display: grid;
   grid-template-areas:
     ". up ."
     "left . right"
     ". down .";
-  grid-template-columns: 52px 52px 52px;
-  grid-template-rows: 52px 52px 52px;
-  gap: 4px;
-  z-index: 10;
+  grid-template-columns: repeat(3, var(--dpad));
+  grid-template-rows: repeat(3, var(--dpad));
+  gap: 6px;
   pointer-events: auto;
+  touch-action: none;
 }
 .dpad-btn {
-  width: 52px; height: 52px;
+  width: var(--dpad); height: var(--dpad);
   background: rgba(20,20,24,.85);
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -670,19 +735,108 @@ html, body {
 
 /* ═══════════════════════════════════════════
    RESPONSIVE
+   Phones keep the vertical stack, landscape phones move the pad beside the
+   board, desktop drops the pad and frames the maze.
    ═══════════════════════════════════════════ */
-@media (max-height: 500px) and (orientation: landscape) {
-  #menuScreen { padding: 12px; }
+
+/* ── Narrow phones ── */
+@media (max-width: 380px) {
+  .hud-set { gap: 10px; }
+  .hud-meta { gap: 8px; }
+  .hud-label { font-size: 7px; }
+  .hud-value { font-size: 15px; }
+  .hud-value.hud-small { font-size: 10px; }
+  .hud-pause { width: 34px; height: 34px; }
+  .dpad { --dpad: clamp(42px, 12vw, 52px); gap: 4px; }
+  .opp-score-row { padding: 2px 7px; font-size: 9px; }
+}
+
+/* ── Landscape phones: pad to the right of the board, HUD compressed ── */
+@media (orientation: landscape) and (max-height: 560px) {
+  .game-wrap {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas:
+      "hud hud"
+      "board deck";
+    padding:
+      calc(4px + env(safe-area-inset-top))
+      calc(10px + env(safe-area-inset-right))
+      calc(4px + env(safe-area-inset-bottom))
+      calc(10px + env(safe-area-inset-left));
+  }
+  .hud { padding-bottom: 2px; }
+  .hud-bar { gap: 4px 10px; flex-wrap: nowrap; }
+  .hud-set { gap: 10px; }
+  /* Room chips shrink instead of forcing a second HUD line on a short screen */
+  .opp-scores { min-width: 0; overflow: hidden; flex-wrap: nowrap; }
+  .opp-score-row { flex: 0 1 auto; min-width: 0; max-width: 26vw; }
+  .hud-fear { height: 10px; font-size: 9px; }
+  .deck { justify-content: center; padding: 0 0 0 12px; gap: 0; }
+  .controls-hint { display: none; }
+  .dpad { --dpad: clamp(38px, 9vh, 52px); gap: 4px; }
+  .dpad-btn { font-size: 16px; border-radius: 8px; }
+
+  /* Menu / lobby get out of the way on a short screen */
+  #menuScreen { padding: calc(12px + env(safe-area-inset-top)) 12px calc(12px + env(safe-area-inset-bottom)); }
   .brand { margin-bottom: 16px; }
   .mode-btns { gap: 8px; margin-bottom: 12px; }
   .mode-btn { padding: 10px 14px; min-height: 48px; }
   .mode-icon { font-size: 18px; width: 28px; }
   .mode-label { font-size: 13px; }
   .mode-desc { font-size: 11px; }
-  .dpad {
-    grid-template-columns: 44px 44px 44px;
-    grid-template-rows: 44px 44px 44px;
-    bottom: 8px;
+  .instructions { font-size: 12px; }
+}
+
+/* ── Tablets and small laptops ── */
+@media (min-width: 600px) {
+  .hud-label { font-size: 9px; }
+  .hud-value { font-size: 19px; }
+  .hud-value.hud-small { font-size: 12px; }
+  .lobby-inner { max-width: 600px; }
+}
+
+/* ── Desktop ── */
+@media (min-width: 900px) {
+  #menuScreen { padding: 48px; }
+  .menu-inner { max-width: 460px; }
+  .brand { margin-bottom: 40px; }
+  .mode-btn { padding: 18px 22px; }
+  .mode-label { font-size: 16px; }
+  .mode-desc { font-size: 13px; }
+  .instructions { font-size: 14px; padding: 20px; }
+
+  #lobbyScreen { padding: 36px 40px; }
+  .lobby-inner { max-width: 760px; }
+  .lobby-grid { gap: 16px; }
+  .lobby-grid section { padding: 16px; }
+
+  /* HUD spans a readable band; the rest of the screen frames the board */
+  .game-wrap {
+    padding:
+      calc(18px + env(safe-area-inset-top))
+      calc(24px + env(safe-area-inset-right))
+      calc(18px + env(safe-area-inset-bottom))
+      calc(24px + env(safe-area-inset-left));
+    gap: 6px;
   }
-  .dpad-btn { width: 44px; height: 44px; font-size: 16px; }
+  .hud-bar {
+    width: 100%;
+    max-width: 860px;
+    margin: 0 auto;
+    flex-wrap: nowrap;
+  }
+  .hud-label { font-size: 10px; }
+  .hud-value { font-size: 24px; }
+  .hud-value.hud-small { font-size: 13px; }
+  .hud-pause { width: 42px; height: 42px; font-size: 13px; }
+  .hud-fear { font-size: 11px; height: 14px; }
+  .opp-score-row { font-size: 11px; padding: 4px 11px; max-width: none; }
+
+  #gameCanvas {
+    border-radius: 10px;
+    box-shadow: 0 0 0 1px var(--line), 0 26px 70px rgba(0, 0, 0, .6);
+  }
+  .deck { padding-top: 10px; }
+  .controls-hint { font-size: 12px; }
 }

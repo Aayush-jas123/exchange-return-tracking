@@ -83,11 +83,13 @@
     },
 
     invite(id) {
-      const key = myId + ':' + id;
+      const to = sid(id);
+      if (!to || to === myId) return;   // never offer an invite to yourself
+      const key = myId + ':' + to;
       if (Date.now() - (invitedAt.get(key) || 0) < INVITE_COOLDOWN) return;
       invitedAt.set(key, Date.now());
       // Without the game the hub opens a Rooftop Race room for the invite.
-      send({ t: 'invite', to: id, game: GAME_TYPE });
+      send({ t: 'invite', to, game: GAME_TYPE });
       renderLobby();
     },
 
@@ -172,7 +174,7 @@
   function onMsg(m) {
     switch (m.t) {
       case 'hello':
-        myId = String(m.me.id);
+        myId = sid(m.me.id);
         myName = m.me.n || '';
         Net.myId = myId;
         ready = true;
@@ -185,7 +187,9 @@
         break;
 
       case 'pr':
-        athletes = m.a || [];
+        // The hub sends raw database ids (athlete rows are numbers), while every
+        // check below is against myId, a string. Normalise once, at the wire.
+        athletes = (m.a || []).map(a => Object.assign({}, a, { id: sid(a.id) }));
         rooms = (m.rooms || []).filter(rm => !rm.game || rm.game === GAME_TYPE);
         renderLobby();
         break;
@@ -194,7 +198,7 @@
         if (m.r && (!m.g || m.g === GAME_TYPE)) {
           room = {
             r: m.r,
-            host: m.host,
+            host: sid(m.host),
             status: m.s,
             g: m.g || GAME_TYPE,
             members: (m.m || []).map(mem => ({
@@ -222,7 +226,7 @@
         if (!room || (m.room && m.room !== room.r)) break;
         raceId = m.race || null;
         inGame = true;
-        const roster = m.roster || [];
+        const roster = (m.roster || []).map(p => Object.assign({}, p, { id: sid(p.id) }));
         const opps = roster.filter(p => String(p.id) !== myId).map(p => ({
           id: String(p.id),
           name: p.n,
@@ -279,30 +283,37 @@
 
     // Room card
     if (room) {
-      const isHost = room.host === myId;
+      const isHost = sid(room.host) === myId;
       const canStart = isHost && room.status === 'lobby' && room.members.length >= 2;
       const memHtml = room.members.map(m =>
         '<span><i></i>' + esc(m.n) + ' <small style="color:var(--dim)">Lv.' + (m.lv || 1) + '</small></span>'
       ).join('');
+      // Say why there is nothing to press instead of showing a dead lobby.
+      const hint = !isHost ? 'Waiting for the host to start the match\u2026'
+        : (room.members.length < 2 ? 'Invite at least one more athlete to start' : '');
       area.innerHTML = '<div class="room-card">' +
         '<div class="rhead"><div><div class="lab">Room Code</div><div class="code">' + esc(room.r) + '</div></div>' +
         '<span class="chip' + (room.members.length >= MAX_ROOM ? ' hot' : '') + '">' + room.members.length + '/' + MAX_ROOM + '</span></div>' +
         '<div class="mem">' + memHtml + '</div>' +
+        (hint ? '<div class="note">' + hint + '</div>' : '') +
         '<div class="btn-row">' +
         (isHost ? '<button class="btn-p" id="btnStart" ' + (canStart ? '' : 'disabled') + '>Start Game</button>' : '') +
         '<button class="btn-p alt" id="btnLeave">Leave</button>' +
         '</div></div>';
       const btnStart = $('btnStart');
       if (btnStart) btnStart.onclick = () => Net.startGame();
-      $('btnLeave').onclick = () => Net.leaveRoom();
+      const btnLeave = $('btnLeave');
+      if (btnLeave) btnLeave.onclick = () => Net.leaveRoom();
     } else {
       area.innerHTML = '<div class="room-card">' +
         '<div class="note">Create a room to invite athletes, or join an open lobby.</div>' +
         '<div class="btn-row"><button class="btn-p" id="btnCreate">Create Room</button></div></div>';
-      $('btnCreate').onclick = () => Net.createRoom();
+      const btnCreate = $('btnCreate');
+      if (btnCreate) btnCreate.onclick = () => Net.createRoom();
     }
 
-    // Athletes list
+    // Athletes list — invites go to other athletes only, never to yourself and
+    // never to someone already sitting in my own room.
     const live = athletes.filter(a => a.w === 'game' || a.w === 'portal');
     $('liveCount').textContent = live.length;
     if (!live.length) {
@@ -310,13 +321,18 @@
     } else {
       aList.innerHTML = live.map(a => {
         const inRoom = a.r && rooms.find(rm => rm.r === a.r);
+        const isMe = a.id === myId;
+        const already = !!room && room.members.some(mb => mb.id === a.id);
+        const canInvite = !isMe && !already && !!room &&
+          room.status === 'lobby' && room.members.length < MAX_ROOM;
         return '<div class="lobby-row">' +
-          '<div class="lobby-av' + (a.w === 'game' ? ' live' : '') + '">' + (a.n || '?')[0].toUpperCase() + '</div>' +
-          '<div class="lobby-info"><b>' + esc(a.n || 'Unknown') + '</b><small>' +
+          '<div class="lobby-av' + (a.w === 'game' ? ' live' : '') + (isMe ? ' me' : '') + '">' +
+          (a.n || '?')[0].toUpperCase() + '</div>' +
+          '<div class="lobby-info"><b>' + esc(a.n || 'Unknown') +
+          (isMe ? ' <em>you</em>' : '') + '</b><small>' +
           (inRoom ? 'In room ' + inRoom.r : (a.w === 'game' ? 'In game' : 'Portal')) +
           '</small></div>' +
-          (a.id !== myId && room && room.status === 'lobby' && room.members.length < MAX_ROOM ?
-            '<button class="btn-s" data-invite="' + a.id + '">Invite</button>' : '') +
+          (canInvite ? '<button class="btn-s" data-invite="' + a.id + '">Invite</button>' : '') +
           '</div>';
       }).join('');
       aList.querySelectorAll('[data-invite]').forEach(btn => {
@@ -345,6 +361,9 @@
 
   // ── UI helpers ──
   function $(id) { return document.getElementById(id); }
+  // Ids cross the wire as numbers (database rows) and are compared against myId,
+  // which is a string — coerce at every boundary instead of trusting the type.
+  function sid(v) { return v == null ? '' : String(v); }
   function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
   function updateNetStatus(label) {

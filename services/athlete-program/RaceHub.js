@@ -627,7 +627,9 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
     const me = ws.athlete;
     const target = athletes.get(to) || athletes.get(Number(to));
     if (!target) return send(ws, { t: 'err', m: 'That athlete is offline' });
-    if (target.id === me.id) return;
+    // Ids arrive from the client as strings and live here as database values —
+    // compare them as text so a self-invite can never slip through.
+    if (String(target.id) === String(me.id)) return send(ws, { t: 'err', m: "You can't invite yourself" });
     let rm = ws.room && rooms.get(ws.room);
     if (!rm) {
       if (ws.kind !== 'game') return send(ws, { t: 'err', m: 'Open a game to invite' });

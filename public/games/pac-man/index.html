@@ -2,9 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0a0a0c">
   <title>Pac-Man — OFFCOMFRT Arcade</title>
-  <link rel="stylesheet" href="style.css?v=5">
+  <link rel="stylesheet" href="style.css?v=7">
   <!-- Return road to the portal: loaded first so the portal URL survives the hash reset -->
   <script src="../portal-back.js?v=1"></script>
 </head>
@@ -81,54 +82,67 @@
 <!-- ═══ Game Screen ══ -->
 <div class="screen" id="gameScreen">
   <div class="game-wrap">
-    <canvas id="gameCanvas"></canvas>
 
-    <div class="hud" id="hud">
-      <div class="hud-row">
-        <div class="hud-item">
-          <span class="hud-label">Score</span>
-          <span class="hud-value" id="hudScore">0</span>
+    <!-- HUD is its own row: it never covers the maze on phones. -->
+    <header class="hud" id="hud">
+      <div class="hud-bar">
+        <div class="hud-set hud-main">
+          <div class="hud-item">
+            <span class="hud-label">Score</span>
+            <span class="hud-value" id="hudScore">0</span>
+          </div>
+          <div class="hud-item">
+            <span class="hud-label">Lives</span>
+            <span class="hud-value" id="hudLives">3</span>
+          </div>
+          <div class="hud-item">
+            <span class="hud-label">Pellets</span>
+            <span class="hud-value" id="hudPellets">0</span>
+          </div>
         </div>
-        <div class="hud-item">
-          <span class="hud-label">Lives</span>
-          <span class="hud-value" id="hudLives">3</span>
+
+        <div class="hud-set hud-meta">
+          <div class="hud-item">
+            <span class="hud-label">Lvl</span>
+            <span class="hud-value hud-small" id="hudDiff">Lv.1</span>
+          </div>
+          <div class="hud-item">
+            <span class="hud-label">Ghosts</span>
+            <span class="hud-value hud-small" id="hudGhosts">4/7</span>
+          </div>
+          <div class="hud-item">
+            <span class="hud-label">Best</span>
+            <span class="hud-value hud-small" id="hudHighScore">0</span>
+          </div>
         </div>
-        <div class="hud-item">
-          <span class="hud-label">Pellets</span>
-          <span class="hud-value" id="hudPellets">0</span>
+
+        <div class="opp-scores" id="oppScores" hidden>
+          <div class="opp-score-row"><span id="oppName0">P2</span><b id="oppScore0">0</b></div>
+          <div class="opp-score-row"><span id="oppName1">P3</span><b id="oppScore1">0</b></div>
+          <div class="opp-score-row"><span id="oppName2">P4</span><b id="oppScore2">0</b></div>
         </div>
-        <div class="hud-item">
-          <span class="hud-label">Difficulty</span>
-          <span class="hud-value" id="hudDiff" style="font-size:clamp(12px,2.5vw,18px)">Lv.1</span>
-        </div>
-        <div class="hud-item">
-          <span class="hud-label">Ghosts</span>
-          <span class="hud-value" id="hudGhosts">4/7</span>
-        </div>
-        <div class="hud-item">
-          <span class="hud-label">Best</span>
-          <span class="hud-value" id="hudHighScore">0</span>
-        </div>
+
+        <button class="hud-pause" id="pauseBtn" hidden aria-label="Pause">&#10074;&#10074;</button>
       </div>
       <div class="hud-fear" id="hudFear" style="opacity:0">FEAR!</div>
+    </header>
+
+    <!-- The board measures this box, so the HUD and deck can never overlap it. -->
+    <div class="board" id="boardWrap">
+      <canvas id="gameCanvas"></canvas>
     </div>
 
-    <div class="opp-scores" id="oppScores" hidden>
-      <div class="opp-score-row"><span id="oppName0">P2</span><b id="oppScore0">0</b></div>
-      <div class="opp-score-row"><span id="oppName1">P3</span><b id="oppScore1">0</b></div>
-      <div class="opp-score-row"><span id="oppName2">P4</span><b id="oppScore2">0</b></div>
-    </div>
+    <footer class="deck">
+      <div class="controls-hint" id="controlsHint">Arrow keys / WASD to move</div>
+      <!-- Virtual D-Pad -->
+      <div class="dpad" id="dpad">
+        <div class="dpad-btn" id="dpadUp">&#9650;</div>
+        <div class="dpad-btn" id="dpadLeft">&#9664;</div>
+        <div class="dpad-btn" id="dpadRight">&#9654;</div>
+        <div class="dpad-btn" id="dpadDown">&#9660;</div>
+      </div>
+    </footer>
 
-    <div class="controls-hint" id="controlsHint">Arrow keys / WASD to move</div>
-    <div class="pause-btn" id="pauseBtn" hidden>&#10074;&#10074;</div>
-
-    <!-- Virtual D-Pad -->
-    <div class="dpad" id="dpad">
-      <div class="dpad-btn" id="dpadUp">&#9650;</div>
-      <div class="dpad-btn" id="dpadLeft">&#9664;</div>
-      <div class="dpad-btn" id="dpadRight">&#9654;</div>
-      <div class="dpad-btn" id="dpadDown">&#9660;</div>
-    </div>
   </div>
 </div>
 
@@ -157,7 +171,7 @@
 
 <script src="../athlete-xp.js?v=5"></script>
 <script src="../pacman-sim.js?v=1"></script>
-<script src="pac-man-net.js?v=8"></script>
-<script src="script.js?v=8"></script>
+<script src="pac-man-net.js?v=9"></script>
+<script src="script.js?v=9"></script>
 </body>
 </html>
