@@ -1037,6 +1037,10 @@
   };
 
   window.startOnlineGame = function(opponentName) {
+    // Every room entry path already switches the cabinet online (menu select, deep
+    // link, invite toast), but a match must never start with the local AI holding
+    // the far paddle and no state streaming to the hub.
+    gameMode = 'online';
     showScreen('gameScreen');
     resizeCanvas();
     initGame();
