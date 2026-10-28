@@ -25,6 +25,7 @@
   // Room state
   let room = null;
   let joiningCode = null;
+  let raceId = null;   // hub id of the match in flight (room codes are shared across games)
 
   // Invite tracking
   const invitedAt = new Map();
@@ -54,6 +55,7 @@
       if (ws) { ws.onclose = null; ws.close(); ws = null; }
       ready = false;
       room = null;
+      raceId = null;
       inGame = false;
       players = [];
       Net.players = [];
@@ -66,12 +68,13 @@
 
     joinRoom(code) {
       joiningCode = String(code).toUpperCase();
-      send({ t: 'join', r: joiningCode });
+      send({ t: 'join', r: joiningCode, game: GAME_TYPE });
     },
 
     leaveRoom() {
       send({ t: 'leave' });
       room = null;
+      raceId = null;
       renderLobby();
     },
 
@@ -83,7 +86,8 @@
       const key = myId + ':' + id;
       if (Date.now() - (invitedAt.get(key) || 0) < INVITE_COOLDOWN) return;
       invitedAt.set(key, Date.now());
-      send({ t: 'invite', to: id });
+      // Without the game the hub opens a Rooftop Race room for the invite.
+      send({ t: 'invite', to: id, game: GAME_TYPE });
       renderLobby();
     },
 
@@ -149,6 +153,18 @@
     }
   }
 
+  // ── Deep links ──
+  // The portal opens a game with `#t=<token>&r=<room>` or `#t=<token>&inv=<athlete>`.
+  // athlete-xp.js consumes the hash on load, so its parsed params are read first.
+  function deepLink() {
+    const p = (window.AthleteXP && window.AthleteXP.params) || {};
+    const hash = new URLSearchParams(location.hash.slice(1));
+    const r = p.r || hash.get('r');
+    const inv = p.inv || hash.get('inv');
+    if (window.AthleteXP && window.AthleteXP.params) { window.AthleteXP.params.r = null; window.AthleteXP.params.inv = null; }
+    return { r: r || null, inv: inv || null };
+  }
+
   // ── Message handling ──
   function onMsg(m) {
     switch (m.t) {
@@ -159,14 +175,9 @@
         ready = true;
         updateNetStatus('Live');
         if (room && room.r) Net.joinRoom(room.r);
-        const hash = new URLSearchParams(location.hash.slice(1));
-        const r = hash.get('r');
-        const inv = hash.get('inv');
-        if (r) { Net.joinRoom(r); hash.delete('r'); }
-        if (inv) { send({ t: 'invite', to: inv }); hash.delete('inv'); }
-        if (hash.toString()) {
-          history.replaceState(null, '', location.pathname + location.search + (hash.toString() ? '#' + hash.toString() : ''));
-        }
+        if (!room && BOOT.r) Net.joinRoom(BOOT.r);
+        if (BOOT.inv) send({ t: 'invite', to: BOOT.inv, game: GAME_TYPE });
+        BOOT.r = null; BOOT.inv = null;
         renderLobby();
         break;
 
@@ -177,11 +188,12 @@
         break;
 
       case 'room':
-        if (m.r) {
+        if (m.r && (!m.g || m.g === GAME_TYPE)) {
           room = {
             r: m.r,
             host: m.host,
             status: m.s,
+            g: m.g || GAME_TYPE,
             members: (m.m || []).map(mem => ({
               id: String(mem.id),
               n: mem.n,
@@ -198,25 +210,28 @@
         break;
 
       case 'inv':
-        showInviteToast(m);
+        // Invites reach every socket of the athlete — only take the pac-man ones.
+        if (!m.g || m.g === GAME_TYPE) showInviteToast(m);
         break;
 
-      case 'go':
-        if (room && room.r === m.race) {
-          inGame = true;
-          const roster = m.roster || [];
-          const opps = roster.filter(p => String(p.id) !== myId).map(p => ({
-            id: String(p.id),
-            name: p.n,
-            x: 1, y: 29,
-            score: 0,
-            alive: true
-          }));
-          players = opps;
-          Net.players = opps;
-          if (window.startOnlineGame) window.startOnlineGame(roster);
-        }
+      case 'go': {
+        // The hub names the room the match belongs to; `race` is the match id.
+        if (!room || (m.room && m.room !== room.r)) break;
+        raceId = m.race || null;
+        inGame = true;
+        const roster = m.roster || [];
+        const opps = roster.filter(p => String(p.id) !== myId).map(p => ({
+          id: String(p.id),
+          name: p.n,
+          x: 1, y: 29,
+          score: 0,
+          alive: true
+        }));
+        players = opps;
+        Net.players = opps;
+        if (window.startOnlineGame) window.startOnlineGame(roster);
         break;
+      }
 
       case 'ps':
         if (!inGame) break;
@@ -234,20 +249,24 @@
         if (window.updateOnlinePlayers) window.updateOnlinePlayers(players);
         break;
 
-      case 'res':
-        if (inGame && room && m.race === room.r) {
+      case 'res': {
+        if (room && (m.room ? m.room === room.r : (!raceId || m.race === raceId))) {
           const rows = m.rows || [];
-          if (window.endOnlineGame) {
+          const wasInGame = inGame;
+          inGame = false;
+          if (wasInGame && window.endOnlineGame) {
             const winner = rows[0] ? String(rows[0].id) : '';
             window.endOnlineGame(winner, rows.map(r => ({ id: String(r.id), score: r.sc || 0 })));
           }
         }
         inGame = false;
-        room = null;
+        raceId = null;
         players = [];
         Net.players = [];
+        // Stay in the room — the hub hands it back to the lobby a moment later.
         renderLobby();
         break;
+      }
 
       case 'err':
         showToast(m.m || 'Error');
@@ -368,5 +387,14 @@
 
   // Expose
   window.PacManNet = Net;
+
+  // A lobby invite/join link must land straight in the lobby, not on the menu.
+  const BOOT = deepLink();
+  if (BOOT.r || BOOT.inv) {
+    setTimeout(() => {
+      if (window.openOnlineLobby) window.openOnlineLobby();
+      Net.connect();
+    }, 0);
+  }
 
 })();

@@ -492,9 +492,14 @@
 
   // ── End game ──
   function endGame(winner, reason) {
+    const wasOnline = gameMode === 'online' && mode === 'playing';
     mode = 'gameover';
     if (animId) { cancelAnimationFrame(animId); animId = null; }
     tauntState.active = false;
+
+    // Tell the hub the match is over, otherwise the lobby stays "Match in progress"
+    // and neither player can start another one.
+    if (wasOnline && window.PingPongNet) window.PingPongNet.endGame(winner, p1.score, p2.score);
 
     const resultEl = $('goResult');
     resultEl.textContent = winner === 1 ? 'You Win!' : 'You Lose';
@@ -993,6 +998,10 @@
       if (gameMode === 'single') {
         showScreen('diffScreen');
         mode = 'menu';
+      } else if (gameMode === 'online') {
+        // Online rematches are started by the host from the shared lobby
+        showScreen('lobbyScreen');
+        mode = 'menu';
       } else {
         startCountdown();
       }
@@ -1021,6 +1030,12 @@
   });
 
   // ── Online game start callback (called by ping-pong-net.js) ──
+  window.openOnlineLobby = function() {
+    gameMode = 'online';
+    showScreen('lobbyScreen');
+    mode = 'menu';
+  };
+
   window.startOnlineGame = function(opponentName) {
     showScreen('gameScreen');
     resizeCanvas();

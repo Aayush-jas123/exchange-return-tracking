@@ -18,6 +18,19 @@ const Sim = require('../../public/games/rooftop-sim');
 
 const PATH = '/ws/race';
 const MAX_ROOM = 6;
+// Every cabinet shares this hub, so each room names the game it belongs to and
+// the clients filter lobbies by it — a rooftop client must never join a ping-pong room.
+const GAME_LABELS = {
+  'rooftop-racing': 'Rooftop Racing',
+  'fruit-ninja': 'Fruit Ninja',
+  'ping-pong': 'Ping Pong',
+  'pac-man': 'Pac-Man',
+  'crossy-road': 'Crossy Road'
+};
+const ROOM_MAX = { 'ping-pong': 2, 'pac-man': 4, 'crossy-road': 4 };
+const PLAY_MS = 10 * 60 * 1000;   // a match nobody reports an end for still hands the lobby back
+function normalizeGame(v) { return Object.prototype.hasOwnProperty.call(GAME_LABELS, v) ? v : 'rooftop-racing'; }
+function isArcade(game) { return game === 'ping-pong' || game === 'pac-man' || game === 'crossy-road'; }
 const COUNTDOWN_MS = 3500;
 const RACE_MS = 180000;          // hard cap so infinite runs still finish
 const GRACE_MS = 4000;           // late "end" reports after the cap
@@ -135,7 +148,7 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
         if (ws.room) room = ws.room;
       }
       const rm = room && rooms.get(room);
-      a.push({ id: p.id, n: p.name, lv: p.level, w: inGame ? 'game' : 'portal', r: rm ? rm.code : null, s: rm ? rm.status : null });
+      a.push({ id: p.id, n: p.name, lv: p.level, w: inGame ? 'game' : 'portal', r: rm ? rm.code : null, s: rm ? rm.status : null, g: rm ? rm.game : null });
     }
     const list = [];
     for (const rm of rooms.values()) {
@@ -169,7 +182,7 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
   }
   function roomState(rm) {
     return {
-      t: 'room', r: rm.code, host: rm.hostId, s: rm.status, dur: (rm.game === 'ping-pong' || rm.game === 'pac-man' || rm.game === 'crossy-road') ? 0 : RACE_MS,
+      t: 'room', r: rm.code, host: rm.hostId, s: rm.status, g: rm.game, max: rm.max || MAX_ROOM, dur: isArcade(rm.game) ? 0 : RACE_MS,
       m: [...rm.members.values()].map(m => ({ id: m.id, n: m.name, lv: m.level, c: m.c, wait: !!m.waiting, on: !!m.ws }))
     };
   }
@@ -179,8 +192,13 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
   }
   function pushRoom(rm) { broadcastRoom(rm, roomState(rm)); schedulePresence(); }
 
-  function joinRoom(ws, rm) {
+  function joinRoom(ws, rm, gameType) {
     const me = ws.athlete;
+    // Codes are typed/shared across cabinets — refuse a seat in another game's room
+    // instead of dropping a rooftop racer into a ping-pong lobby.
+    if (gameType && normalizeGame(gameType) !== rm.game) {
+      return send(ws, { t: 'err', m: `That lobby is for ${GAME_LABELS[rm.game] || 'another game'}` });
+    }
     if (ws.room && ws.room !== rm.code) leaveRoom(ws);
     let m = rm.members.get(me.id);
     if (m) {
@@ -223,6 +241,7 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
     const connected = [...rm.members.values()].filter(m => m.ws);
     if (!connected.length) {
       clearTimeout(rm.timer);
+      clearTimeout(rm.guard);
       rooms.delete(rm.code);
       schedulePresence();
       return;
@@ -235,7 +254,7 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
 
   function goMessage(rm) {
     return {
-      t: 'go', race: rm.raceId, seed: rm.seed, in: rm.startAt - now(), dur: RACE_MS,
+      t: 'go', race: rm.raceId, room: rm.code, game: rm.game, seed: rm.seed, in: rm.startAt - now(), dur: RACE_MS,
       roster: [...rm.members.values()].filter(m => m.inRace).map(m => ({ id: m.id, n: m.name, c: m.c }))
     };
   }
@@ -250,16 +269,28 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
     rm.startAt = now() + COUNTDOWN_MS;
     rm.status = 'countdown';
 
-    if (rm.game === 'ping-pong' || rm.game === 'pac-man' || rm.game === 'crossy-road') {
+    if (isArcade(rm.game)) {
       // Lightweight start — no simulation replay needed
       for (const m of rm.members.values()) {
         Object.assign(m, { inRace: !!m.ws, waiting: !m.ws, alive: !!m.ws, dnf: false, sc: 0 });
       }
-      broadcastRoom(rm, { t: 'go', race: rm.raceId, seed: rm.seed, in: COUNTDOWN_MS, dur: 0,
+      broadcastRoom(rm, { t: 'go', race: rm.raceId, room: rm.code, game: rm.game, seed: rm.seed, in: COUNTDOWN_MS, dur: 0,
         roster: [...rm.members.values()].filter(m => m.inRace).map(m => ({ id: m.id, n: m.name, c: m.c })) });
       pushRoom(rm);
       clearTimeout(rm.timer);
-      rm.timer = setTimeout(() => { rm.status = 'playing'; pushRoom(rm); }, COUNTDOWN_MS);
+      clearTimeout(rm.guard);
+      rm.timer = setTimeout(() => {
+        rm.status = 'playing';
+        pushRoom(rm);
+        // A player who closes the tab mid-match never reports an end — hand the
+        // lobby back so the room does not stay "Match in progress" forever.
+        rm.guard = setTimeout(() => {
+          if (!rooms.has(rm.code) || rm.status !== 'playing') return;
+          rm.status = 'lobby';
+          for (const m of rm.members.values()) { m.inRace = false; m.alive = false; }
+          pushRoom(rm);
+        }, PLAY_MS);
+      }, COUNTDOWN_MS);
       return;
     }
 
@@ -433,6 +464,7 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
     rm.status = 'results';
     for (const m of members) { m.inRace = false; m.alive = false; }
     clearTimeout(rm.timer);
+    clearTimeout(rm.guard);
     setTimeout(() => {
       if (rooms.has(rm.code)) {
         rm.status = 'lobby';
@@ -490,6 +522,7 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
     rm.status = 'results';
     for (const m of members) { m.inRace = false; m.alive = false; }
     clearTimeout(rm.timer);
+    clearTimeout(rm.guard);
     setTimeout(() => {
       if (rooms.has(rm.code)) {
         rm.status = 'lobby';
@@ -545,6 +578,7 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
     rm.status = 'results';
     for (const m of members) { m.inRace = false; m.alive = false; }
     clearTimeout(rm.timer);
+    clearTimeout(rm.guard);
     setTimeout(() => {
       if (rooms.has(rm.code)) {
         rm.status = 'lobby';
@@ -562,23 +596,23 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
     if (target.id === me.id) return;
     let rm = ws.room && rooms.get(ws.room);
     if (!rm) {
-      if (ws.kind !== 'game') return send(ws, { t: 'err', m: 'Open the race to invite' });
+      if (ws.kind !== 'game') return send(ws, { t: 'err', m: 'Open a game to invite' });
+      // The room inherits the inviting game — an invite from Pac-Man must never
+      // land the pair in a Rooftop Race room.
       rm = createRoom(ws, gameType);
     }
     const key = `${me.id}:${target.id}`;
     if (now() - (inviteLog.get(key) || 0) < 8000) return send(ws, { t: 'ok', m: 'Invite already sent' });
     inviteLog.set(key, now());
-    const msg = JSON.stringify({ t: 'inv', from: { id: me.id, n: me.name }, r: rm.code, s: rm.status });
+    const msg = JSON.stringify({ t: 'inv', from: { id: me.id, n: me.name }, r: rm.code, s: rm.status, g: rm.game });
     for (const s of target.sockets) send(s, msg);
     send(ws, { t: 'ok', m: `Invite sent to ${target.name}`, to: target.id });
   }
 
   function createRoom(ws, gameType) {
     if (ws.room) leaveRoom(ws);
-    const isPP = gameType === 'ping-pong';
-    const isPM = gameType === 'pac-man';
-    const isCR = gameType === 'crossy-road';
-    const rm = { code: newCode(), hostId: ws.athlete.id, status: 'lobby', members: new Map(), seed: 0, raceId: null, startAt: 0, timer: null, game: isPP ? 'ping-pong' : isPM ? 'pac-man' : isCR ? 'crossy-road' : 'rooftop-racing', max: isPP ? 2 : isPM ? 4 : isCR ? 4 : MAX_ROOM };
+    const game = normalizeGame(gameType);
+    const rm = { code: newCode(), hostId: ws.athlete.id, status: 'lobby', members: new Map(), seed: 0, raceId: null, startAt: 0, timer: null, guard: null, game, max: ROOM_MAX[game] || MAX_ROOM };
     rooms.set(rm.code, rm);
     joinRoom(ws, rm);
     return rm;
@@ -626,7 +660,7 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
       if (msg.t === 'join') {
         const rm = rooms.get(String(msg.r || '').toUpperCase());
         if (!rm) return send(ws, { t: 'err', m: 'That lobby has closed' });
-        return joinRoom(ws, rm);
+        return joinRoom(ws, rm, msg.game);
       }
       if (msg.t === 'leave') { leaveRoom(ws); return send(ws, { t: 'room', r: null }); }
       if (msg.t === 'start') return startRace(ws);

@@ -1160,6 +1160,7 @@ function renderResBtns() {
 }
 
 /* ═══ Network ═══ */
+const GAME_ID = 'rooftop-racing'; // this cabinet's id in the shared race hub
 const NET = { ws: null, ready: false, tries: 0, timer: 0, stop: false, room: null, joining: null, pr: { a: [], rooms: [] }, invited: new Map() };
 function net(m) { const w = NET.ws; if (w && w.readyState === 1) w.send(JSON.stringify(m)); }
 function connect() {
@@ -1182,19 +1183,19 @@ function retry() {
   clearTimeout(NET.timer);
   NET.timer = setTimeout(connect, Math.min(15000, 1000 * 2 ** NET.tries++));
 }
-function join(code) { NET.joining = String(code).toUpperCase(); net({ t: 'join', r: NET.joining }); }
+function join(code) { NET.joining = String(code).toUpperCase(); net({ t: 'join', r: NET.joining, game: GAME_ID }); }
 function onMsg(m) {
   switch (m.t) {
     case 'hello':
       myId = String(m.me.id); NET.ready = true; NET.tries = 0;
       if (NET.room && NET.room.r) join(NET.room.r);
       else if (XP.params.r) { join(XP.params.r); XP.params.r = null; }
-      else if (XP.params.inv) { net({ t: 'invite', to: XP.params.inv }); XP.params.inv = null; }
+      else if (XP.params.inv) { net({ t: 'invite', to: XP.params.inv, game: GAME_ID }); XP.params.inv = null; }
       renderLobby();
       break;
     case 'pr': NET.pr = m; renderLobby(); break;
     case 'room':
-      NET.room = m.r ? m : null; NET.joining = null;
+      NET.room = (m.r && (!m.g || m.g === GAME_ID)) ? m : null; NET.joining = null;
       renderLobby(); if (mode === 'results') renderResBtns();
       break;
     case 'go': onGo(m); break;
@@ -1210,7 +1211,7 @@ function onMsg(m) {
       refreshSoloNote();
       break;
     case 'rs': sentI = Math.max(0, Math.min(Math.floor(+m.n) || 0, LOG.length)); break; // hub missed inputs → resend from n
-    case 'inv': if (!(NET.room && NET.room.r === m.r)) showInvite(m); break;
+    case 'inv': if (!m.g || m.g === GAME_ID) { if (!(NET.room && NET.room.r === m.r)) showInvite(m); } break;
     case 'ok':
       if (m.to != null) { NET.invited.set(String(m.to), Date.now()); setTimeout(renderLobby, 8100); }
       toast(m.m); renderLobby();
@@ -1292,9 +1293,13 @@ function renderLobby() {
   $('liveList').innerHTML = !on ? '<div class="empty">Offline</div>' : !people.length ? '<div class="empty">No one else is live right now</div>' : people.slice(0, 40).map(a => {
     let st, b = '';
     const mine = a.r && a.r === myR;
+    // Lobbies of other cabinets are not racers for this room — never offer a join
     if (mine) st = 'In your room';
-    else if (a.r && a.s === 'lobby') { st = `In lobby · ${a.r}`; b = `<button class="sb" data-act="join" data-r="${esc(a.r)}">Join</button>`; }
-    else if (a.r) st = 'Racing';
+    else if (a.r && (!a.g || a.g === GAME_ID)) {
+      if (a.s === 'lobby') { st = `In lobby · ${a.r}`; b = `<button class="sb" data-act="join" data-r="${esc(a.r)}">Join</button>`; }
+      else st = 'Racing';
+    }
+    else if (a.r) st = 'In another game';
     else st = a.w === 'game' ? 'In arcade' : 'On portal';
     if (!b && !mine) {
       const sent = t - (NET.invited.get(String(a.id)) || 0) < 8000;
@@ -1302,7 +1307,7 @@ function renderLobby() {
     }
     return `<div class="row"><div class="av live">${esc(initials(a.n))}</div><div class="rn"><b>${esc(a.n)}</b><small>${esc(st)}${a.lv ? ' · ' + esc(a.lv) : ''}</small></div>${b}</div>`;
   }).join('');
-  const rooms = (NET.pr.rooms || []).filter(x => x.r !== myR);
+  const rooms = (NET.pr.rooms || []).filter(x => x.r !== myR && (!x.game || x.game === GAME_ID));
   $('roomList').innerHTML = !on ? '<div class="empty">Offline</div>' : !rooms.length ? '<div class="empty">No open lobbies — create one</div>' : rooms.map(x => {
     const full = x.n >= x.max;
     return `<div class="row"><div class="av">${x.n}</div><div class="rn"><b>${esc(firstName(x.h))}'s room</b><small>${esc(x.r)} · ${x.n}/${x.max} · ${esc(STATUS[x.s] || x.s)}</small></div><button class="sb${x.s === 'lobby' && !full ? ' w' : ''}" data-act="join" data-r="${esc(x.r)}"${full ? ' disabled' : ''}>${full ? 'Full' : x.s === 'lobby' ? 'Join' : 'Join next'}</button></div>`;
@@ -1315,11 +1320,11 @@ document.addEventListener('click', e => {
   if (!el || el.disabled) return;
   const a = el.dataset.act;
   if (a === 'solo') startSolo();
-  else if (a === 'create') net({ t: 'create' });
+  else if (a === 'create') net({ t: 'create', game: GAME_ID });
   else if (a === 'start') net({ t: 'start' });
   else if (a === 'leave') { net({ t: 'leave' }); NET.room = null; renderLobby(); }
   else if (a === 'join') { hideInvite(); if (mode !== 'lobby') toLobby(); join(el.dataset.r); }
-  else if (a === 'invite') { net({ t: 'invite', to: el.dataset.id }); el.disabled = true; }
+  else if (a === 'invite') { net({ t: 'invite', to: el.dataset.id, game: GAME_ID }); el.disabled = true; }
   else if (a === 'lobby') toLobby();
   else if (a === 'dismiss') hideInvite();
 });

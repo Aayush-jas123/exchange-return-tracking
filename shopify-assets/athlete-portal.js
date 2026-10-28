@@ -1205,12 +1205,14 @@ function renderBoard(){
 
 function renderLobby(){
   renderArcade();
-  const rooms=(RACE.rooms||[]).filter(r=>!r.game||r.game==='rooftop-racing');
+  // Lobbies of every cabinet share one hub — label each room with its game so the
+  // Join button opens the right cabinet instead of always Rooftop Racing.
+  const rooms=RACE.rooms||[];
   $('lobbyWrap').hidden=!rooms.length;
   $('lobbyCount').textContent=rooms.length?`${rooms.length} open`:'';
   $('raceLobbies').innerHTML=rooms.map(r=>{
-    const full=r.n>=r.max;
-    return `<div class="arow on"><span class="aface">${r.n}</span><span class="am"><b>${esc((r.h||'Athlete').split(/\s+/)[0])}'s room</b><em>${esc(r.r)} &middot; ${r.n}/${r.max} racers</em></span><span class="aright"><span class="astat"><i></i>${r.s==='lobby'?'In lobby':'Racing'}</span><button class="invt${r.s==='lobby'&&!full?' w':''}" type="button" data-join="${esc(r.r)}"${full?' disabled':''}>${full?'Full':r.s==='lobby'?'Join':'Join next'}</button></span></div>`;
+    const full=r.n>=r.max,game=r.game||'rooftop-racing';
+    return `<div class="arow on"><span class="aface">${r.n}</span><span class="am"><b>${esc((r.h||'Athlete').split(/\s+/)[0])}'s room</b><em>${esc(GAME_LABELS[game]||game)} &middot; ${esc(r.r)} &middot; ${r.n}/${r.max}</em></span><span class="aright"><span class="astat"><i></i>${r.s==='lobby'?'In lobby':'Playing'}</span><button class="invt${r.s==='lobby'&&!full?' w':''}" type="button" data-join="${esc(r.r)}" data-game="${esc(game)}"${full?' disabled':''}>${full?'Full':r.s==='lobby'?'Join':'Join next'}</button></span></div>`;
   }).join('');
 }
 
@@ -1271,7 +1273,7 @@ function renderArcade(){
       const isMe=String(r.id)===me;
       const {live,p}=arcPresence(r.id);
       const sent=S.invited.has(String(r.id));
-      const btn=p&&p.r&&p.s==='lobby'?`<button class="invt w" type="button" data-join="${esc(p.r)}">Join</button>`
+      const btn=p&&p.r&&p.s==='lobby'?`<button class="invt w" type="button" data-join="${esc(p.r)}" data-game="${esc(p.g||'rooftop-racing')}">Join</button>`
         :live?`<button class="invt" type="button" data-invite="${esc(String(r.id))}" data-name="${esc(r.name||'')}"${sent?' disabled':''}>${sent?'Sent &check;':'Invite'}</button>`:'';
       const meta=[r.level_name,r.favourite_game_label||'\u2014','played '+arcAgo(r.last_played)].filter(Boolean).join(' &middot; ');
       const pct=Math.max(3,Math.round((Number(r.arcade_xp||0)/leaderXp)*100));
@@ -1406,19 +1408,24 @@ function raceConnect(){
 }
 function raceRetry(){clearTimeout(RACE.timer);if(S.token)RACE.timer=setTimeout(raceConnect,Math.min(30000,1000*2**RACE.tries++))}
 function raceClose(){clearTimeout(RACE.timer);const ws=RACE.ws;RACE.ws=null;if(ws)ws.close()}
-function gameUrl(extra){return BASE+'/athlete-game.html#t='+encodeURIComponent(S.token||'')+(extra||'')}
+// Every cabinet has its own page and rooms are game-scoped, so a lobby or invite
+// link must open the game the room belongs to — not always Rooftop Racing.
+const GAME_LABELS={'rooftop-racing':'Rooftop Race','fruit-ninja':'Fruit Ninja','ping-pong':'Ping Pong','pac-man':'Pac-Man','crossy-road':'Crossy Road'};
+const GAME_URLS={'rooftop-racing':BASE+'/athlete-game.html','fruit-ninja':BASE+'/games/fruit-ninja/index.html','ping-pong':BASE+'/games/ping-pong/index.html','pac-man':BASE+'/games/pac-man/index.html','crossy-road':BASE+'/games/crossy-road/index.html'};
+function gameUrl(extra,game){const g=GAME_URLS[game]?game:'rooftop-racing';return GAME_URLS[g]+'#t='+encodeURIComponent(S.token||'')+(extra||'')}
 function raceInvite(m){
   let el=$('raceInv');
+  const game=GAME_URLS[m.g]?m.g:'rooftop-racing';
   if(!el){
     el=document.createElement('div');el.id='raceInv';el.className='rinv';document.body.appendChild(el);
     el.addEventListener('click',e=>{
       const b=e.target.closest('[data-rinv]');if(!b)return;
-      if(b.dataset.rinv==='join')window.open(gameUrl('&r='+encodeURIComponent(el.dataset.r)),'_blank','noopener');
+      if(b.dataset.rinv==='join')window.open(gameUrl('&r='+encodeURIComponent(el.dataset.r),el.dataset.game),'_blank','noopener');
       el.classList.remove('show');
     });
   }
-  el.dataset.r=m.r;
-  el.innerHTML=`<span><b>${esc(m.from?.n||'An athlete')}</b> invited you to Rooftop Race</span><button type="button" class="invt w" data-rinv="join">Join</button><button type="button" class="invt" data-rinv="x" aria-label="Dismiss">&times;</button>`;
+  el.dataset.r=m.r;el.dataset.game=game;
+  el.innerHTML=`<span><b>${esc(m.from?.n||'An athlete')}</b> invited you to ${esc(GAME_LABELS[game])}</span><button type="button" class="invt w" data-rinv="join">Join</button><button type="button" class="invt" data-rinv="x" aria-label="Dismiss">&times;</button>`;
   el.classList.add('show');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('show'),25000);
 }
 
@@ -2097,7 +2104,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   $('briefPool').addEventListener('click',()=>scrollToPool(S.focusId));
   const onLobbyClick=e=>{
     const j=e.target.closest('[data-join]');
-    if(j&&!j.disabled){window.open(gameUrl('&r='+encodeURIComponent(j.dataset.join)),'_blank','noopener');return}
+    if(j&&!j.disabled){window.open(gameUrl('&r='+encodeURIComponent(j.dataset.join),j.dataset.game),'_blank','noopener');return}
     const b=e.target.closest('[data-invite]');
     if(!b||b.disabled)return;
     const id=b.dataset.invite;

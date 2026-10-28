@@ -23,8 +23,9 @@
   let rooms = [];      // [{ r, h, n, max, s, game }]
 
   // Room state
-  let room = null;     // { r, host, status, members: [] }
+  let room = null;     // { r, host, status, g, members: [] }
   let joiningCode = null;
+  let raceId = null;   // hub id of the match in flight (room codes are shared across games)
 
   // Invite tracking
   const invitedAt = new Map(); // id -> timestamp
@@ -55,6 +56,7 @@
       if (ws) { ws.onclose = null; ws.close(); ws = null; }
       ready = false;
       room = null;
+      raceId = null;
       inGame = false;
       renderLobby();
     },
@@ -65,12 +67,13 @@
 
     joinRoom(code) {
       joiningCode = String(code).toUpperCase();
-      send({ t: 'join', r: joiningCode });
+      send({ t: 'join', r: joiningCode, game: GAME_TYPE });
     },
 
     leaveRoom() {
       send({ t: 'leave' });
       room = null;
+      raceId = null;
       renderLobby();
     },
 
@@ -150,6 +153,18 @@
     }
   }
 
+  // ── Deep links ──
+  // The portal opens a game with `#t=<token>&r=<room>` or `#t=<token>&inv=<athlete>`.
+  // athlete-xp.js consumes the hash on load, so its parsed params are read first.
+  function deepLink() {
+    const p = (window.AthleteXP && window.AthleteXP.params) || {};
+    const hash = new URLSearchParams(location.hash.slice(1));
+    const r = p.r || hash.get('r');
+    const inv = p.inv || hash.get('inv');
+    if (window.AthleteXP && window.AthleteXP.params) { window.AthleteXP.params.r = null; window.AthleteXP.params.inv = null; }
+    return { r: r || null, inv: inv || null };
+  }
+
   // ── Message handling ──
   function onMsg(m) {
     switch (m.t) {
@@ -162,15 +177,11 @@
         if (room && room.r) {
           Net.joinRoom(room.r);
         }
-        // Handle URL params
-        const hash = new URLSearchParams(location.hash.slice(1));
-        const r = hash.get('r');
-        const inv = hash.get('inv');
-        if (r) { Net.joinRoom(r); hash.delete('r'); }
-        if (inv) { send({ t: 'invite', to: inv, game: GAME_TYPE }); hash.delete('inv'); }
-        if (hash.toString()) {
-          history.replaceState(null, '', location.pathname + location.search + (hash.toString() ? '#' + hash.toString() : ''));
-        }
+        // Deep links from the portal: `#r=<code>` joins a room, `#inv=<id>` invites an athlete.
+        // They are read once at load — athlete-xp.js consumes the hash before this module runs.
+        if (!room && BOOT.r) Net.joinRoom(BOOT.r);
+        if (BOOT.inv) send({ t: 'invite', to: BOOT.inv, game: GAME_TYPE });
+        BOOT.r = null; BOOT.inv = null;
         renderLobby();
         break;
 
@@ -181,11 +192,12 @@
         break;
 
       case 'room':
-        if (m.r) {
+        if (m.r && (!m.g || m.g === GAME_TYPE)) {
           room = {
             r: m.r,
             host: m.host,
             status: m.s,
+            g: m.g || GAME_TYPE,
             members: (m.m || []).map(mem => ({
               id: String(mem.id),
               n: mem.n,
@@ -202,20 +214,22 @@
         break;
 
       case 'inv':
-        showInviteToast(m);
+        // Invites reach every socket of the athlete — only take the ping-pong ones.
+        if (!m.g || m.g === GAME_TYPE) showInviteToast(m);
         break;
 
-      case 'go':
-        // Game start — check if this is a ping-pong room
-        if (room && room.r === m.race) {
-          inGame = true;
-          const roster = m.roster || [];
-          const opp = roster.find(p => String(p.id) !== myId);
-          opponentName = opp ? opp.n : 'Opponent';
-          Net.opponentName = opponentName;
-          if (window.startOnlineGame) window.startOnlineGame(opponentName);
-        }
+      case 'go': {
+        // The hub names the room the match belongs to; `race` is the match id.
+        if (!room || (m.room && m.room !== room.r)) break;
+        raceId = m.race || null;
+        inGame = true;
+        const roster = m.roster || [];
+        const opp = roster.find(p => String(p.id) !== myId);
+        opponentName = opp ? opp.n : 'Opponent';
+        Net.opponentName = opponentName;
+        if (window.startOnlineGame) window.startOnlineGame(opponentName);
         break;
+      }
 
       case 'ps':
         // Position/state relay
@@ -237,18 +251,21 @@
         break;
 
       case 'res':
-        // Race results — check if ping-pong
-        if (inGame && room && m.race === room.r) {
+        // Results for this room. The local game usually reported its own end already,
+        // so the server scoreboard is only applied when the match is still on screen.
+        if (room && (m.room ? m.room === room.r : (!raceId || m.race === raceId))) {
           const rows = m.rows || [];
           const mine = rows.find(r => String(r.id) === myId);
           const opp = rows.find(r => String(r.id) !== myId);
-          if (mine && opp) {
-            const winner = mine.rank < opp.rank ? 1 : 2;
-            if (window.endOnlineGame) window.endOnlineGame(winner, mine.sc || 0, opp.sc || 0);
+          const wasInGame = inGame;
+          inGame = false;
+          if (wasInGame && mine && window.endOnlineGame) {
+            window.endOnlineGame(opp && opp.rank < mine.rank ? 2 : 1, mine.sc || 0, opp ? opp.sc || 0 : 0);
           }
         }
         inGame = false;
-        room = null;
+        raceId = null;
+        // Stay in the room — the hub hands it back to the lobby a moment later.
         renderLobby();
         break;
 
@@ -465,5 +482,14 @@
 
   // ── Expose ──
   window.PingPongNet = Net;
+
+  // A lobby invite/join link must land straight in the lobby, not on the menu.
+  const BOOT = deepLink();
+  if (BOOT.r || BOOT.inv) {
+    setTimeout(() => {
+      if (window.openOnlineLobby) window.openOnlineLobby();
+      Net.connect();
+    }, 0);
+  }
 
 })();

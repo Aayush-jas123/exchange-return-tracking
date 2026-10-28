@@ -1414,6 +1414,12 @@
   // ═══════════════════════════════════════════════════════
   // 18. Online callbacks
   // ═══════════════════════════════════════════════════════
+  window.openOnlineLobby = function() {
+    gameMode = 'online';
+    showScreen('lobbyScreen');
+    mode = 'menu';
+  };
+
   window.startOnlineGame = function(players) {
     showScreen('gameScreen');
     resizeCanvas();
