@@ -265,8 +265,21 @@
           const opp = rows.find(r => String(r.id) !== myId);
           const wasInGame = inGame;
           inGame = false;
+          // The hub pays each player on their own points, so this match has its own
+          // XP line and toast instead of looking like an unpaid friendly.
+          const reward = mine ? { xp: mine.xp || 0, coins: mine.coins || 0, today: mine.today, cap: mine.cap, why: mine.why } : null;
           if (wasInGame && mine && window.endOnlineGame) {
-            window.endOnlineGame(opp && opp.rank < mine.rank ? 2 : 1, mine.sc || 0, opp ? opp.sc || 0 : 0);
+            window.endOnlineGame(opp && opp.rank < mine.rank ? 2 : 1, mine.sc || 0, opp ? opp.sc || 0 : 0, reward);
+          }
+          // A second report of the same match comes back as a duplicate — that one is silent.
+          if (reward && (reward.xp > 0 || reward.coins > 0 || reward.why === 'daily_cap')) {
+            if (window.showOnlineReward) window.showOnlineReward(reward);
+            if (window.AthleteXP && window.AthleteXP.announce) {
+              window.AthleteXP.announce({
+                awarded: reward.xp, coins_awarded: reward.coins,
+                earned_today: reward.today, daily_cap: reward.cap, reason: reward.why
+              }, 'Ping Pong');
+            }
           }
         }
         inGame = false;

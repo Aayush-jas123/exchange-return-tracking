@@ -37,6 +37,17 @@
     duplicate: 'Run already counted'
   };
 
+  // One line of feedback for a paid run — shared by the single-player report and
+  // by the hub results of a multiplayer match, so every cabinet says what it paid.
+  function announce(r, label) {
+    if (!r) return;
+    const parts = [];
+    if (r.awarded > 0) parts.push(`+${r.awarded} XP`);
+    if (r.coins_awarded > 0) parts.push(`+${r.coins_awarded} coins`);
+    if (parts.length) toast(`${parts.join(' · ')}${label ? ` · ${label}` : ''} · ${r.earned_today}/${r.daily_cap} XP today`);
+    else if (MESSAGES[r.reason]) toast(MESSAGES[r.reason]);
+  }
+
   async function report(game, score) {
     const t = token();
     if (!t) return null; // played outside the portal — nothing to credit
@@ -53,16 +64,12 @@
         return null;
       }
       const r = body.data || {};
-      const parts = [];
-      if (r.awarded > 0) parts.push(`+${r.awarded} XP`);
-      if (r.coins_awarded > 0) parts.push(`+${r.coins_awarded} coins`);
-      if (parts.length) toast(`${parts.join(' · ')} · ${r.earned_today}/${r.daily_cap} XP today`);
-      else if (MESSAGES[r.reason]) toast(MESSAGES[r.reason]);
+      announce(r);
       return r;
     } catch (e) {
       return null;
     }
   }
 
-  window.AthleteXP = { report, token, params, toast };
+  window.AthleteXP = { report, announce, token, params, toast };
 })();

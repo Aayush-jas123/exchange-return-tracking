@@ -254,10 +254,23 @@
         players = [];
         Net.players = [];
         const rows = m.rows || [];
+        // The hub scores the pellets for every athlete and pays each of them, so the
+        // board reports its own XP line even when this client died early.
+        const myRow = rows.find(r => String(r.id) === myId);
+        const reward = myRow ? { xp: myRow.xp || 0, coins: myRow.coins || 0, today: myRow.today, cap: myRow.cap, why: myRow.why } : null;
         if (mine && wasInGame && window.endOnlineGame) {
           window.endOnlineGame(rows[0] ? String(rows[0].id) : '', rows.map(r => ({
             id: String(r.id), name: r.n, score: r.sc || 0, rank: r.rank
-          })));
+          })), reward);
+        }
+        if (mine && reward && (reward.xp > 0 || reward.coins > 0 || reward.why === 'daily_cap')) {
+          if (window.showOnlineReward) window.showOnlineReward(reward);
+          if (window.AthleteXP && window.AthleteXP.announce) {
+            window.AthleteXP.announce({
+              awarded: reward.xp, coins_awarded: reward.coins,
+              earned_today: reward.today, daily_cap: reward.cap, reason: reward.why
+            }, 'Pac-Man');
+          }
         }
         // Stay in the room — the hub hands it back to the lobby a moment later.
         renderLobby();

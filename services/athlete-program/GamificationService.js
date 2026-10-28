@@ -43,6 +43,21 @@ function arcadeRunOf(key) {
   return k.startsWith('race:') ? k : k.replace(/:coins$/, '');
 }
 
+// Per-cabinet totals and the time of the newest award, rebuilt from today's rows.
+function arcadeTotalsByGame(rows) {
+  const out = new Map();
+  for (const r of (rows || [])) {
+    const game = arcadeGameOf(r.idempotency_key);
+    if (!game) continue;
+    const at = new Date(r.created_at).getTime();
+    const prev = out.get(game) || { total: 0, at: 0 };
+    prev.total += r.amount;
+    if (at > prev.at) prev.at = at;
+    out.set(game, prev);
+  }
+  return out;
+}
+
 // Which ledger reason codes feed which coin source in the shop.
 const COIN_SOURCE_BY_REASON = {
   GAME_COINS: 'games',
@@ -1259,9 +1274,11 @@ const GamificationService = {
       game: rule.label
     };
 
+    // The cooldown is per cabinet: it exists to stop re-farming the same game in a
+    // loop, and must never swallow the XP of the next game the athlete opens.
     const lastAt = Math.max(
-      today.lastAt ? new Date(today.lastAt).getTime() : 0,
-      coinsToday.lastAt ? new Date(coinsToday.lastAt).getTime() : 0
+      today.byGame.get(game)?.at || 0,
+      coinsToday.byGame.get(game)?.at || 0
     );
     if (lastAt && Date.now() - lastAt < cooldownSec * 1000) {
       return { ...base, reason: 'cooldown' };
@@ -1333,11 +1350,11 @@ const GamificationService = {
     return list.length ? list : [20, 14, 10, 7, 5];
   },
 
-  /** @private — arcade XP earned since IST midnight + time of the last award */
+  /** @private — arcade XP earned since IST midnight + time of the last award, split per cabinet */
   async _gameXpToday(influencerId) {
     const { data, error } = await supabase
       .from('ledger_entries')
-      .select('amount, created_at')
+      .select('amount, created_at, idempotency_key')
       .eq('influencer_id', influencerId)
       .eq('currency', 'XP')
       .eq('reason_code', 'GAME_XP')
@@ -1346,15 +1363,16 @@ const GamificationService = {
     if (error) throw error;
     return {
       total: (data || []).reduce((sum, e) => sum + e.amount, 0),
-      lastAt: data?.[0]?.created_at || null
+      lastAt: data?.[0]?.created_at || null,
+      byGame: arcadeTotalsByGame(data)
     };
   },
 
-  /** @private — arcade coins earned since IST midnight + time of the last award */
+  /** @private — arcade coins earned since IST midnight + time of the last award, split per cabinet */
   async _gameCoinsToday(influencerId) {
     const { data, error } = await supabase
       .from('ledger_entries')
-      .select('amount, created_at')
+      .select('amount, created_at, idempotency_key')
       .eq('influencer_id', influencerId)
       .eq('currency', 'COIN')
       .eq('reason_code', 'GAME_COINS')
@@ -1363,7 +1381,8 @@ const GamificationService = {
     if (error) throw error;
     return {
       total: (data || []).reduce((sum, e) => sum + e.amount, 0),
-      lastAt: data?.[0]?.created_at || null
+      lastAt: data?.[0]?.created_at || null,
+      byGame: arcadeTotalsByGame(data)
     };
   },
 

@@ -1603,8 +1603,8 @@
     onlineGhosts = (m.g || []).map(g => ({ x: g[0] / 100, y: g[1] / 100, state: g[2] | 0 }));
   };
 
-  window.endOnlineGame = function(winnerId, rows) {
-    if (mode !== 'playing' && mode !== 'paused' && mode !== 'countdown') return;
+  window.endOnlineGame = function(winnerId, rows, reward) {
+    if (mode !== 'playing' && mode !== 'paused' && mode !== 'countdown') { window.showOnlineReward(reward); return; }
     const myId = window.PacManNet ? String(window.PacManNet.myId) : '';
     const list = rows || [];
     const mine = list.find(r => String(r.id) === myId);
@@ -1615,6 +1615,22 @@
       won: !!mine && String(winnerId) === myId
     };
     endGame();
+    window.showOnlineReward(reward);
+  };
+
+  // Online XP is paid by the hub after this screen is already up (a client that died
+  // early still gets its pellets counted), so the reward is written from the result.
+  window.showOnlineReward = function(reward) {
+    const el = $('goXp');
+    if (!el || !reward) return;
+    const parts = [];
+    if (reward.xp > 0) parts.push('+' + reward.xp + ' XP');
+    if (reward.coins > 0) parts.push('+' + reward.coins + ' coins');
+    el.textContent = parts.length ? parts.join(' \u00b7 ')
+      : reward.why === 'daily_cap' ? 'Daily XP cap reached'
+      : reward.why === 'cooldown' ? 'Reward cooldown \u2014 the next match pays'
+      : reward.why === 'score_too_low' ? 'Score more to earn XP'
+      : '';
   };
 
   // ═══════════════════════════════════════════════════════

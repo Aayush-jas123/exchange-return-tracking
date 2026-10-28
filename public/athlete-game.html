@@ -559,7 +559,7 @@ function drawParticles() {
 }
 
 /* ═══ Local athlete — simulated by rooftop-sim.js, dressed up here ═══ */
-let shake = 0, flash = 0, clock = 0, deathCause = null, goOn = false;
+let shake = 0, flash = 0, clock = 0, deathCause = null, goOn = false, birdFlash = 0;
 const FX = {
   dust, burst,
   hit(x, y, c) { shake = Math.max(shake, 4.5); flash = Math.max(flash, .06); burst(x, y, 9, c); },
@@ -567,7 +567,7 @@ const FX = {
   land(hard) { if (hard) shake = Math.max(shake, 3); },
   smash(x, y) { burst(x, y, 8, 4); shake = Math.max(shake, 2.4); },          // boost ploughs through
   scatter(x, y) { burst(x, y, 7, 5); shake = Math.max(shake, 1.6); },       // boost swats birds aside
-  bird(x, y) { birdStrike(x, y); },
+  bird(x, y) { birdStrike(x, y); birdFlash = BIRD_FLASH; },          // strobe the frame the bird lands
   power(x, y) { flash = Math.max(flash, .26); shake = Math.max(shake, 3); orbPulse = 1; burst(x, y, 16, 0); },
   die(p, cause) {
     flash = .2; shake = 8; burst(p.x, p.y - 15, 18, 0);
@@ -953,7 +953,7 @@ function drawBird(d) {
 
 /* Bird-strike aftermath — render-only: a puff of feathers and the bird tumbling away,
    so a death by bird reads differently from falling off a roof. */
-const BF = [];
+const BF = [], BIRD_FLASH = .62;
 function birdStrike(x, y) {
   for (let i = 0; i < 14; i++) emit(x, y, -40 - rnd() * 120, -70 - rnd() * 90, .55 + rnd() * .55, .9 + rnd() * 1.5, 5, 1);
   shake = Math.max(shake, 7);
@@ -1074,6 +1074,14 @@ function render(dt, alpha, focus) {
   X.setTransform(1, 0, 0, 1, 0, 0);
   if (mode === 'race' || mode === 'spectate') drawTags();
   X.drawImage(VIGN, 0, 0, W, H);
+  // Bird strike — a hard white burst on the hit frame, then red pulses as it fades,
+  // so being taken out by a bird is impossible to miss.
+  if (birdFlash > 0) {
+    const k = birdFlash / BIRD_FLASH;
+    X.fillStyle = '#ff2b2b'; X.globalAlpha = .34 * k * (.55 + .45 * Math.sin(clock * 26)); X.fillRect(0, 0, W, H);
+    if (k > .62) { X.fillStyle = '#fff'; X.globalAlpha = (k - .62) / .38 * .8; X.fillRect(0, 0, W, H); }
+    X.globalAlpha = 1; birdFlash -= dt;
+  }
   if (flash > 0) { X.globalAlpha = Math.min(.5, flash); X.fillStyle = '#fff'; X.fillRect(0, 0, W, H); X.globalAlpha = 1; flash -= dt; }
 }
 function drawTags() {
@@ -1187,7 +1195,7 @@ function setGo(on) {
 function showHud(on) { $('hud').classList.toggle('hidden', !on); if (!on) { $('spec').classList.add('hidden'); $('hint').classList.add('hidden'); $('zoneTag').classList.remove('on'); setGo(false); } }
 let hintT = 0;
 function showHint() { const h = $('hint'); h.classList.remove('hidden'); clearTimeout(hintT); hintT = setTimeout(() => h.classList.add('hidden'), 4500); }
-function freshRun() { camY = 20; zoneCur = zonePrev = 0; zoneFade = 1; shake = flash = 0; lastDistrict = -1; lastPace = 0; hudT = 0; sendAt = 0; deathCause = null; BF.length = 0; setGo(false); }
+function freshRun() { camY = 20; zoneCur = zonePrev = 0; zoneFade = 1; shake = flash = 0; lastDistrict = -1; lastPace = 0; hudT = 0; sendAt = 0; deathCause = null; BF.length = 0; birdFlash = 0; setGo(false); }
 
 // Solo: ask the hub for a verified session (seed + id); offline / no reply → practice run, no XP
 function startSolo() {
