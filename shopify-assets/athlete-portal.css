@@ -594,9 +594,9 @@
     .rk-top-row:last-child{border-bottom:none}
     .rk-top-row .rk-medal{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--m);font-size:11px;font-weight:800;letter-spacing:.04em;border:1px solid var(--line)}
     .rk-top-row .rk-top-avatar{width:36px;height:36px;display:flex;align-items:center;justify-content:center}
-    .rk-top-row .rk-medal.m1{background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#000;border-color:rgba(251,191,36,.4)}
-    .rk-top-row .rk-medal.m2{background:linear-gradient(135deg,#d1d5db,#9ca3af);color:#000;border-color:rgba(156,163,175,.4)}
-    .rk-top-row .rk-medal.m3{background:linear-gradient(135deg,#d97706,#b45309);color:#fff;border-color:rgba(217,119,6,.4)}
+    .rk-top-row .rk-medal.m1{background:rgba(255,255,255,.12);color:var(--dim);border-color:var(--line)}
+    .rk-top-row .rk-medal.m2{background:rgba(255,255,255,.09);color:var(--dim);border-color:var(--line)}
+    .rk-top-row .rk-medal.m3{background:rgba(255,255,255,.06);color:var(--dim);border-color:var(--line)}
     .rk-top-row .rk-medal.m4,.rk-top-row .rk-medal.m5{background:rgba(255,255,255,.06);color:var(--dim);border-color:var(--line)}
     .rk-top-info{display:flex;flex-direction:column;gap:3px;min-width:0}
     .rk-top-info b{font-size:12px;font-weight:700;letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -637,9 +637,9 @@
     .rk-climber-delta b{font-size:12px;font-weight:800;color:#4ade80;letter-spacing:-.02em}
     .rk-climber-delta svg{width:12px;height:12px}
     /* Personal best + motivation */
-    .rk-pb-banner{display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid rgba(251,191,36,.3);border-radius:8px;background:rgba(251,191,36,.06);margin-bottom:14px}
-    .rk-pb-banner svg{width:20px;height:20px;flex-shrink:0;color:#fbbf24}
-    .rk-pb-banner span{font-family:var(--m);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:#fbbf24}
+    .rk-pb-banner{display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid rgba(255,255,255,.1);border-radius:8px;background:rgba(255,255,255,.03);margin-bottom:14px}
+    .rk-pb-banner svg{width:20px;height:20px;flex-shrink:0;color:var(--dim)}
+    .rk-pb-banner span{font-family:var(--m);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);display:block;margin-bottom:4px}
     .rk-pb-banner b{font-size:11px;font-weight:700;color:#fff}
     .rk-motivation{padding:12px 0;border-bottom:1px solid var(--line);font-family:var(--m);font-size:10px;letter-spacing:.04em;color:var(--dim);font-style:italic;line-height:1.5}
     .rk-motivation b{color:#fff;font-style:normal;font-weight:700}

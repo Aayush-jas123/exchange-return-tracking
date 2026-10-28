@@ -16,8 +16,9 @@
   // ── Constants ──
   const GW = 600;   // game width (logical)
   const GH = 400;   // game height (logical)
-  const PADDLE_W = 12;
-  const PADDLE_H = 70;
+  const PADDLE_W = 10;
+  const PADDLE_H = 80;
+  const PADDLE_CURVE = 12;  // how far the arc bows outward (px)
   const BALL_R = 8;
   const MAX_SCORE = 5;
   const BASE_SPEED = 4.5;
@@ -62,81 +63,63 @@
   let lastScorer = 0; // 1 = player, 2 = AI/bot
   const POINT_PAUSE_FRAMES = 120; // 2 seconds at 60fps
 
-  // ── Quote panels ──
-  const QUOTE_POOL = [
-    { t: 'He who has a why to live\ncan bear almost any how.', a: 'Friedrich Nietzsche' },
-    { t: 'The impediment to action\nadvances action.', a: 'Marcus Aurelius' },
-    { t: 'It always seems impossible\nuntil it\'s done.', a: 'Nelson Mandela' },
-    { t: 'Fortune favors the bold.', a: 'Latin maxim' },
-    { t: 'No guts, no glory.', a: '' },
-    { t: 'Fall seven times,\nstand up eight.', a: 'Japanese proverb' },
-    { t: 'UNCOMFORTABLY BETTER.', a: '' },
-    { t: 'NOT MADE TO SETTLE.', a: '' },
-    { t: 'GROW AGAINST GRAVITY.', a: '' },
-    { t: 'NEVER FINISHED.', a: '' },
-    { t: 'PROGRESS OVER PEACE.', a: '' },
-    { t: 'REST. NEVER RETREAT.', a: '' },
-    { t: 'BECOMING IS BRUTAL.', a: '' },
-    { t: 'OUTWORK YOUR EXCUSES.', a: '' },
-    { t: 'BUILT IN SILENCE.', a: '' },
-    { t: 'NOT HERE TO COAST.', a: '' },
-    { t: 'CHOOSE THE HARDER WAY.', a: '' },
-    { t: 'MORE THAN POTENTIAL.', a: '' },
+  // ── Taunt Bank ──
+  const TAUNT_TIER1 = [
+    { t: 'COMFORTABLE?', icon: 'FLAT' },
+    { t: 'THAT ONE WAS YOURS.', icon: 'WHOOSH' },
+    { t: 'WATCHED IT GO PAST.', icon: 'SIDE' },
+    { t: 'NICE STRETCH.', icon: 'CLAP' },
+    { t: 'STILL WARMING UP?', icon: 'CLOCK' },
+    { t: 'DID YOU WANT IT?', icon: 'BROW' },
+    { t: 'BLINK AND IT\'S GONE.', icon: 'WHOOSH' },
+    { t: 'THAT\'S A GIFT.', icon: 'CLAP' },
+    { t: 'PLENTY OF TIME.', icon: 'CLOCK' },
+    { t: 'LOOKED EASY.', icon: 'FLAT' },
+  ];
+  const TAUNT_TIER2 = [
+    { t: 'TWO IN A ROW.', icon: 'SIDE' },
+    { t: 'YOUR COMFORT IS SHOWING.', icon: 'YAWN' },
+    { t: 'WERE YOU RESTING?', icon: 'SLEEP' },
+    { t: 'STILL LOOKING FOR IT.', icon: 'GLASS' },
+    { t: 'NOT EVEN CLOSE.', icon: 'WHOOSH' },
+    { t: 'GOING EASY ON YOURSELF.', icon: 'YAWN' },
+    { t: 'SAY SOMETHING BACK.', icon: 'BROW' },
+    { t: 'IT WAS RIGHT THERE.', icon: 'GLASS' },
+    { t: 'WARM IN THERE?', icon: 'YAWN' },
+    { t: 'TRY MOVING.', icon: 'CLOCK' },
+  ];
+  const TAUNT_TIER3 = [
+    { t: 'THREE. IN A ROW.', icon: 'ZERO' },
+    { t: 'ZERO COMFORT LOOKS FAR FROM HERE.', icon: 'ZERO' },
+    { t: 'THIS IS THE COMFORT ZONE.', icon: 'SLEEP' },
+    { t: 'SOMEBODY WAKE THEM.', icon: 'SLEEP' },
+    { t: 'PADDLE IS THE WHITE ONE.', icon: 'GLASS' },
+    { t: 'HARDEST PART WAS THE PADDLE.', icon: 'ZERO' },
+    { t: 'ARE YOU STILL THERE?', icon: 'SLEEP' },
+    { t: 'WE CAN WAIT.', icon: 'CLOCK' },
+    { t: 'THAT WAS NOT A RALLY.', icon: 'WHOOSH' },
+    { t: 'PUT IT ON THE LOGBOOK.', icon: 'FLAT' },
+  ];
+  const TAUNT_MATCH_POINT = [
+    { t: 'MATCH POINT. BREATHE.', icon: 'CLOCK' },
+    { t: 'ONE MORE AND IT\'S OVER.', icon: 'BROW' },
+    { t: 'LAST CHANCE TO BE INTERESTING.', icon: 'SIDE' },
+    { t: 'SAVE IT, OR EXPLAIN IT LATER.', icon: 'FLAT' },
+    { t: 'THIS IS THE ONE YOU REMEMBER.', icon: 'GLASS' },
+    { t: 'HOLD THIS POINT AND WE TALK.', icon: 'CLAP' },
+    { t: 'COMFORT WOULD LET THIS ONE GO.', icon: 'YAWN' },
+    { t: 'ONE RALLY FROM THE HANDSHAKE.', icon: 'WHOOSH' },
+    { t: 'NOTHING AFTER THIS IS PRACTICE.', icon: 'ZERO' },
+    { t: 'EVERYONE IS WATCHING THIS POINT.', icon: 'GLASS' },
+    { t: 'STILL TIME. BARELY.', icon: 'CLOCK' },
+    { t: 'ZERO COMFORT IS ONE POINT AWAY.', icon: 'ZERO' },
   ];
 
-  let quoteTimers = [];
-
-  function pickQuote(excludeIdx) {
-    let idx;
-    do { idx = Math.floor(Math.random() * QUOTE_POOL.length); }
-    while (idx === excludeIdx && QUOTE_POOL.length > 1);
-    return { q: QUOTE_POOL[idx], idx: idx };
-  }
-
-  function showQuote(panelId, textId, excludeIdx) {
-    const panel = $(panelId);
-    const textEl = $(textId);
-    if (!panel || !textEl) return -1;
-    const { q, idx } = pickQuote(excludeIdx);
-    // Fade out, swap text while hidden, fade back in — no animation/transition conflict
-    panel.classList.remove('visible');
-    setTimeout(function() {
-      textEl.textContent = q.t;
-      textEl.className = 'qp-text' + (q.a ? ' small' : '');
-      const oldAttr = panel.querySelector('.qp-attr');
-      if (oldAttr) oldAttr.remove();
-      if (q.a) {
-        const attr = document.createElement('div');
-        attr.className = 'qp-attr';
-        attr.textContent = '\u2014 ' + q.a;
-        attr.style.cssText = 'font:600 10px/1 var(--m);color:#666;letter-spacing:.04em;margin-bottom:12px;';
-        panel.insertBefore(attr, panel.querySelector('.qp-brand'));
-      }
-      panel.classList.add('visible');
-    }, 400);
-    return idx;
-  }
-
-  function startQuoteRotation() {
-    stopQuoteRotation();
-    const leftEl = $('quoteLeft');
-    const rightEl = $('quoteRight');
-    if (!leftEl || !rightEl) return;
-    let leftIdx = -1, rightIdx = -1;
-    leftIdx = showQuote('quoteLeft', 'quoteLeftText', leftIdx);
-    rightIdx = showQuote('quoteRight', 'quoteRightText', leftIdx);
-    quoteTimers.push(setInterval(function() {
-      leftIdx = showQuote('quoteLeft', 'quoteLeftText', leftIdx);
-    }, 8000));
-    quoteTimers.push(setInterval(function() {
-      rightIdx = showQuote('quoteRight', 'quoteRightText', rightIdx);
-    }, 12000));
-  }
-
-  function stopQuoteRotation() {
-    quoteTimers.forEach(clearInterval);
-    quoteTimers = [];
-  }
+  const TAUNT_FONT = '-apple-system, BlinkMacSystemFont, Inter, Segoe UI, sans-serif';
+  const TAUNT_DISPLAY_FRAMES = 90;
+  const MATCH_POINT_THRESHOLD = MAX_SCORE - 1;
+  let lastTauntIdx = -1;
+  let tauntState = { active: false, text: '', icon: '', misser: 0, y: 0, fs: 22, iconSize: 24, textX: 0, iconCx: 0, alpha: 0, phase: 'idle', framesLeft: 0 };
 
   // Input
   const keys = {};
@@ -157,8 +140,8 @@
 
   function initGame() {
     const d = DIFFICULTIES[difficulty];
-    p1 = { y: GH / 2 - PADDLE_H / 2, score: 0, misses: 0, hitFlash: 0 };
-    p2 = { y: GH / 2 - PADDLE_H / 2, score: 0, misses: 0, hitFlash: 0 };
+    p1 = { y: GH / 2 - PADDLE_H / 2, score: 0, misses: 0, hitFlash: 0, consecMiss: 0 };
+    p2 = { y: GH / 2 - PADDLE_H / 2, score: 0, misses: 0, hitFlash: 0, consecMiss: 0 };
     rallyCount = 0;
     totalPoints = 0;
     speedMult = 1;
@@ -167,6 +150,8 @@
     borderFlash = 0;
     pointPause = false;
     pointPauseFrames = 0;
+    lastTauntIdx = -1;
+    tauntState = { active: false, text: '', icon: '', x: 0, y: 0, alpha: 0, phase: 'idle', framesLeft: 0 };
     pointIndicator.classList.remove('visible');
     canvas.parentElement.classList.remove('paused');
     aiReaction = d.aiReaction;
@@ -183,12 +168,8 @@
     let w, h;
     if (ww / wh > ratio) { h = wh; w = h * ratio; }
     else { w = ww; h = w / ratio; }
-    // Constrain canvas to 70% of viewport width to create side margins for quote panels
-    const maxW = ww * 0.70;
-    if (w > maxW) { w = maxW; h = w / ratio; }
     canvas.style.width = w + 'px';
     canvas.style.height = h + 'px';
-    wrap.style.setProperty('--cw', w);
     canvas.width = GW;
     canvas.height = GH;
     canvasRect = null; // invalidate cached rect
@@ -259,7 +240,6 @@
     $('pauseBtn').hidden = false;
     showHint();
     updateHUD();
-    startQuoteRotation();
     if (animId) cancelAnimationFrame(animId);
     lastTime = performance.now();
     animId = requestAnimationFrame(gameLoop);
@@ -383,10 +363,12 @@
     if (ball.x < -BALL_R * 2) {
       p2.score++;
       totalPoints++;
+      p1.consecMiss++;
       onPointScored(2);
     } else if (ball.x > GW + BALL_R * 2) {
       p1.score++;
       totalPoints++;
+      p2.consecMiss++;
       onPointScored(1);
     }
   }
@@ -407,6 +389,7 @@
 
     // Hit flash
     paddle.hitFlash = 6;
+    paddle.consecMiss = 0; // rally won, streak broken
 
     // Squash effect
     squashTimer = SQUASH_FRAMES;
@@ -444,14 +427,74 @@
     updateHUD();
   }
 
+  // Measure once; shrink font + icon until icon+gap+text fits one half-court
+  function fitTauntLayout(text) {
+    const pad = 10;                 // reserve from center line and frame edge
+    const gap = 10;                 // icon-to-text gap
+    const avail = GW / 2 - pad * 2; // 280px budget for icon+gap+text
+    const baseFs = 22;
+    let fs = baseFs;
+    let iconSize = 24;
+    ctx.font = '700 ' + baseFs + 'px ' + TAUNT_FONT;
+    let textW = ctx.measureText(text).width;
+    if (iconSize + gap + textW > avail) {
+      const scale = (avail / (iconSize + gap + textW)) * 0.97; // safety epsilon
+      fs = Math.max(11, Math.floor(baseFs * scale));
+      iconSize = Math.max(14, Math.round(24 * scale));
+      ctx.font = '700 ' + fs + 'px ' + TAUNT_FONT;
+      textW = ctx.measureText(text).width;
+      if (iconSize + gap + textW > avail) { // second clamp if font floor was hit
+        fs = Math.max(10, Math.floor(fs * (avail - iconSize - gap) / textW));
+        ctx.font = '700 ' + fs + 'px ' + TAUNT_FONT;
+        textW = ctx.measureText(text).width;
+      }
+    }
+    return { fs: fs, iconSize: iconSize, textW: textW };
+  }
+
+  function scheduleTaunt(scorer) {
+    const misser = scorer === 1 ? 2 : 1;
+    const consec = misser === 1 ? p1.consecMiss : p2.consecMiss;
+    const scorerScore = scorer === 1 ? p1.score : p2.score;
+
+    let pool;
+    if (scorerScore >= MATCH_POINT_THRESHOLD) {
+      pool = TAUNT_MATCH_POINT;
+    } else if (consec >= 3) {
+      pool = TAUNT_TIER3;
+    } else if (consec >= 2) {
+      pool = TAUNT_TIER2;
+    } else {
+      pool = TAUNT_TIER1;
+    }
+
+    // Pick non-repeating line (reroll up to 8 times)
+    let idx, attempts = 0;
+    do { idx = Math.floor(Math.random() * pool.length); attempts++; }
+    while (idx === lastTauntIdx && attempts < 8 && pool.length > 1);
+    lastTauntIdx = idx;
+
+    // Layout is computed once here — render() never re-measures per frame
+    const fit = fitTauntLayout(pool[idx].t);
+    let textX, iconCx;
+    if (misser === 2) {
+      // Player scored: right edge pinned before center line
+      textX = GW / 2 - 10 - fit.textW;
+      iconCx = textX - 10 - fit.iconSize / 2;
+    } else {
+      // AI scored: left edge pinned after center line
+      textX = GW / 2 + 10 + fit.iconSize + 10;
+      iconCx = GW / 2 + 10 + fit.iconSize / 2;
+    }
+
+    tauntState = { active: true, text: pool[idx].t, icon: pool[idx].icon, misser: misser, y: GH * 0.5, fs: fit.fs, iconSize: fit.iconSize, textX: textX, iconCx: iconCx, alpha: 0, phase: 'fade-in', framesLeft: TAUNT_DISPLAY_FRAMES };
+  }
+
   // ── End game ──
   function endGame(winner, reason) {
     mode = 'gameover';
     if (animId) { cancelAnimationFrame(animId); animId = null; }
-    stopQuoteRotation();
-    const ql = $('quoteLeft'), qr = $('quoteRight');
-    if (ql) ql.classList.remove('visible');
-    if (qr) qr.classList.remove('visible');
+    tauntState.active = false;
 
     const resultEl = $('goResult');
     resultEl.textContent = winner === 1 ? 'You Win!' : 'You Lose';
@@ -529,7 +572,137 @@
     }
   }
 
-  // ── Render ─
+  // ── Taunt icon drawing ──
+  function drawTauntIcon(type, cx, cy, size) {
+    const s = size;
+    const h = s / 2;
+    ctx.save();
+    ctx.strokeStyle = '#fff';
+    ctx.fillStyle = '#fff';
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    switch (type) {
+      case 'FLAT':
+        ctx.beginPath();
+        ctx.arc(cx + h * 0.3, cy + h * 0.35, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(cx + h * 1.2, cy + h * 0.35, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(cx + h * 0.2, cy + h * 1.3);
+        ctx.lineTo(cx + h * 1.3, cy + h * 1.3);
+        ctx.stroke();
+        break;
+
+      case 'WHOOSH':
+        for (let i = 0; i < 3; i++) {
+          const ay = cy + h * 0.25 + i * h * 0.55;
+          ctx.beginPath();
+          ctx.moveTo(cx + h * 0.1, ay);
+          ctx.lineTo(cx + h * 1.3, ay);
+          ctx.moveTo(cx + h * 1.0, ay - h * 0.2);
+          ctx.lineTo(cx + h * 1.4, ay);
+          ctx.lineTo(cx + h * 1.0, ay + h * 0.2);
+          ctx.stroke();
+        }
+        break;
+
+      case 'SIDE':
+        ctx.beginPath();
+        ctx.arc(cx + h * 0.35, cy + h * 0.4, h * 0.22, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(cx + h * 1.15, cy + h * 0.4, h * 0.22, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(cx + h * 0.5, cy + h * 1.35);
+        ctx.lineTo(cx + h * 1.0, cy + h * 1.35);
+        ctx.stroke();
+        break;
+
+      case 'CLAP':
+        ctx.beginPath();
+        ctx.arc(cx + h * 0.4, cy + h * 0.9, h * 0.3, -Math.PI * 0.7, Math.PI * 0.5);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(cx + h * 1.1, cy + h * 0.9, h * 0.3, Math.PI * 0.5, -Math.PI * 0.7, true);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(cx + h * 0.5, cy + h * 0.2, 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(cx + h * 1.0, cy + h * 0.2, 2, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+
+      case 'CLOCK':
+        ctx.beginPath();
+        ctx.arc(cx + h, cy + h, h * 0.75, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(cx + h, cy + h);
+        ctx.lineTo(cx + h * 0.65, cy + h * 0.35);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(cx + h, cy + h);
+        ctx.lineTo(cx + h * 1.3, cy + h * 0.7);
+        ctx.stroke();
+        break;
+
+      case 'BROW':
+        ctx.beginPath();
+        ctx.arc(cx + h * 0.4, cy + h * 0.65, h * 0.18, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(cx + h * 1.1, cy + h * 0.65, h * 0.18, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(cx + h * 0.75, cy + h * 0.15, h * 0.55, Math.PI * 1.1, Math.PI * 1.9);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(cx + h * 0.75, cy + h * 1.15, h * 0.25, Math.PI * 0.15, Math.PI * 0.85);
+        ctx.stroke();
+        break;
+
+      case 'SLEEP':
+        ctx.font = 'bold ' + Math.round(s * 0.42) + 'px -apple-system, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillText('Z', cx + h * 0.9, cy + h * 0.05);
+        ctx.font = 'bold ' + Math.round(s * 0.34) + 'px -apple-system, sans-serif';
+        ctx.fillText('Z', cx + h * 0.5, cy + h * 0.45);
+        ctx.font = 'bold ' + Math.round(s * 0.26) + 'px -apple-system, sans-serif';
+        ctx.fillText('z', cx + h * 0.15, cy + h * 0.8);
+        break;
+
+      case 'GLASS':
+        ctx.beginPath();
+        ctx.arc(cx + h * 0.7, cy + h * 0.65, h * 0.45, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(cx + h * 1.0, cy + h * 1.0);
+        ctx.lineTo(cx + h * 1.45, cy + h * 1.45);
+        ctx.stroke();
+        break;
+
+      case 'ZERO':
+        ctx.beginPath();
+        ctx.arc(cx + h, cy + h, h * 0.7, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(cx + h * 0.4, cy + h * 0.4);
+        ctx.lineTo(cx + h * 1.6, cy + h * 1.6);
+        ctx.stroke();
+        break;
+    }
+
+    ctx.restore();
+  }
+
+  // ── Render ──
   function render() {
     ctx.clearRect(0, 0, GW, GH);
 
@@ -571,6 +744,41 @@
     // 8. Vignette overlay — cached gradient
     ctx.fillStyle = vignetteGrad;
     ctx.fillRect(0, 0, GW, GH);
+
+    // 8b. Taunt overlay — drawn icon + text + subtitle
+    if (tauntState.active) {
+      ctx.save();
+
+      if (tauntState.phase === 'fade-in') {
+        tauntState.alpha = Math.min(1, tauntState.alpha + 0.1);
+        if (tauntState.alpha >= 1) tauntState.phase = 'display';
+      } else if (tauntState.framesLeft <= 10) {
+        tauntState.alpha = Math.max(0, tauntState.alpha - 0.1);
+      }
+
+      ctx.globalAlpha = tauntState.alpha;
+
+      // Layout (fs, iconSize, textX, iconCx) was precomputed in scheduleTaunt()
+      ctx.font = '700 ' + tauntState.fs + 'px ' + TAUNT_FONT;
+      drawTauntIcon(tauntState.icon, tauntState.iconCx, tauntState.y - tauntState.iconSize / 2, tauntState.iconSize);
+
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(tauntState.text, tauntState.textX, tauntState.y);
+
+      const subtitle = tauntState.misser === 1 ? 'YOU MISSED' : 'THEY MISSED';
+      ctx.font = '600 10px SF Mono, Fira Code, Consolas, monospace';
+      ctx.fillStyle = 'rgba(255,255,255,0.45)';
+      ctx.fillText(subtitle, tauntState.textX, tauntState.y + Math.round(tauntState.fs * 0.95));
+
+      ctx.restore();
+
+      tauntState.framesLeft--;
+      if (tauntState.framesLeft <= 0 || tauntState.alpha <= 0) {
+        tauntState.active = false;
+      }
+    }
 
     // 9. Border flash
     if (borderFlash > 0) {
@@ -675,12 +883,27 @@
   function drawPaddle(x, y, flash) {
     ctx.save();
 
+    // Hit reaction: eased scale factor (peaks at flash=6, decays to 0)
+    const hitT = flash / 6;
+
+    // Paddle grows ~15% taller on hit, centered on its midpoint
+    const growExtra = PADDLE_H * 0.15 * hitT;
+    const effH = PADDLE_H + growExtra;
+    const effY = y - growExtra / 2;
+
+    // Paddle shifts ~3px toward the ball on hit (pushed-back feel)
+    const shiftX = (x < GW / 2 ? 1 : -1) * 3 * hitT;
+    const effX = x + shiftX;
+
     // Drop shadow
     ctx.shadowBlur = flash > 0 ? 16 : 12;
     ctx.shadowColor = flash > 0 ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.20)';
 
-    // Gradient must match paddle position (canvas gradients are in absolute coords)
-    const grad = ctx.createLinearGradient(x, y, x, y + PADDLE_H);
+    // Determine curve direction: left paddle bows left, right paddle bows right
+    const curveDir = x < GW / 2 ? 1 : -1;
+
+    // Vertical gradient along the paddle stroke
+    const grad = ctx.createLinearGradient(effX, effY, effX, effY + effH);
     if (flash > 0) {
       grad.addColorStop(0, '#fff');
       grad.addColorStop(0.5, '#fff');
@@ -690,33 +913,18 @@
       grad.addColorStop(0.4, '#ddd');
       grad.addColorStop(1, '#777');
     }
-    ctx.fillStyle = grad;
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = PADDLE_W;
+    ctx.lineCap = 'round';
 
-    // Capsule shape — arc radius must be <= PADDLE_W / 2
-    const r = PADDLE_W / 2;
+    // Curved arc paddle — quadratic bezier from top to bottom
+    const startX = effX + PADDLE_W / 2;
+    const endX = effX + PADDLE_W / 2;
+    const cpX = startX + curveDir * PADDLE_CURVE;
+    const cpY = effY + effH / 2;
     ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.lineTo(x + PADDLE_W - r, y);
-    ctx.arc(x + PADDLE_W / 2, y, r, -Math.PI / 2, Math.PI / 2, true);
-    ctx.lineTo(x + r, y + PADDLE_H);
-    ctx.arc(x + PADDLE_W / 2, y + PADDLE_H, r, Math.PI / 2, -Math.PI / 2, true);
-    ctx.closePath();
-    ctx.fill();
-
-    // Outline ring — always visible, expands + glows on hit
-    const ringBase = PADDLE_H / 2 + 3;
-    ctx.strokeStyle = flash > 0
-      ? 'rgba(255,255,255,' + (0.15 + (flash / 6) * 0.55) + ')'
-      : 'rgba(255,255,255,0.15)';
-    ctx.lineWidth = flash > 0 ? 2.5 : 1;
-    if (flash > 0) {
-      ctx.shadowBlur = 14;
-      ctx.shadowColor = 'rgba(255,255,255,0.45)';
-    } else {
-      ctx.shadowBlur = 0;
-    }
-    ctx.beginPath();
-    ctx.arc(x + PADDLE_W / 2, y + PADDLE_H / 2, ringBase + (flash > 0 ? 5 : 0), 0, Math.PI * 2);
+    ctx.moveTo(startX, effY);
+    ctx.quadraticCurveTo(cpX, cpY, endX, effY + effH);
     ctx.stroke();
 
     ctx.restore();
@@ -734,6 +942,7 @@
         pointIndicator.classList.remove('visible');
         canvas.parentElement.classList.remove('paused');
         resetBall(lastScorer === 1 ? -1 : 1);
+        scheduleTaunt(lastScorer);
       }
     } else {
       updateBall();

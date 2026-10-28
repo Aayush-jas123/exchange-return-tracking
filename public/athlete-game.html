@@ -47,6 +47,8 @@
     @keyframes pop{0%{opacity:0;transform:scale(1.5)}18%{opacity:1;transform:scale(1)}75%{opacity:1}100%{opacity:0;transform:scale(.92)}}
     .spec{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:3;pointer-events:none;font:700 9px var(--m);letter-spacing:.2em;text-transform:uppercase;color:var(--dim);background:rgba(0,0,0,.45);border:1px solid var(--line);padding:8px 14px;border-radius:999px;white-space:nowrap}
     .hint{position:fixed;left:50%;bottom:calc(14px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:2;pointer-events:none;font:600 8px var(--m);letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.28);white-space:nowrap;transition:opacity 1s}
+    .hint-mobile{display:none}
+    @media(max-width:480px){.hint-desktop{display:none}.hint-mobile{display:inline}}
 
     /* Overlays */
     .ov{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:18px;padding-top:calc(18px + env(safe-area-inset-top,0px));padding-bottom:calc(18px + env(safe-area-inset-bottom,0px));background:linear-gradient(180deg,rgba(5,5,7,.55),rgba(5,5,7,.9) 55%)}
@@ -93,6 +95,8 @@
     .sb[disabled]{opacity:.35;pointer-events:none}
     .empty{font:500 11px var(--f);color:var(--faint);padding:12px 2px}
     .keys{margin-top:16px;font:600 8px/1.8 var(--m);letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+    .keys-mobile{display:none}
+    @media(max-width:480px){.keys-desktop{display:none}.keys-mobile{display:block}}
     .rr{display:grid;grid-template-columns:28px 10px 1fr auto auto;gap:10px;align-items:center;padding:10px 4px;border-bottom:1px solid var(--line);font:600 12px var(--f)}
     .rr.me{color:#fff;font-weight:800}
     .rr .rk{font:800 12px var(--m);color:var(--dim)}
@@ -106,6 +110,89 @@
     .inv{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:20;display:flex;align-items:center;gap:12px;background:rgba(14,14,18,.96);border:1px solid rgba(255,255,255,.18);border-radius:16px;padding:10px 10px 10px 16px;box-shadow:0 20px 50px rgba(0,0,0,.55);font:600 12px var(--f);max-width:calc(100% - 24px);animation:drop .35s cubic-bezier(.2,.8,.2,1)}
     @keyframes drop{from{opacity:0;transform:translate(-50%,-14px)}}
     .inv b{font-weight:800}
+
+    /* D-pad touch controls */
+    .dpad{display:none;position:fixed;bottom:0;left:0;right:0;z-index:5;pointer-events:none;padding:0 12px calc(14px + env(safe-area-inset-bottom,0px));justify-content:space-between;align-items:flex-end}
+    .dpad.show{display:flex}
+    .dpad-group{display:flex;gap:10px;pointer-events:auto}
+    .dpad-btn{width:64px;height:64px;border-radius:50%;border:2px solid rgba(255,255,255,.35);background:rgba(255,255,255,.08);color:rgba(255,255,255,.7);font:800 22px var(--f);display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;touch-action:none;user-select:none;transition:background .08s,border-color .08s}
+    .dpad-btn:active,.dpad-btn.pressed{background:rgba(255,255,255,.22);border-color:rgba(255,255,255,.6);color:#fff}
+    .dpad-btn.sm{width:52px;height:52px;font-size:16px}
+
+    /* ── Responsive: tablets ── */
+    @media(max-width:768px){
+      .hud{padding:10px 12px;padding-top:calc(10px + env(safe-area-inset-top,0px))}
+      .hd b{font-size:18px}
+      .pos{font-size:22px}
+      .board{min-width:110px}
+      .br{font-size:9px;padding:2px 6px}
+      .br span{max-width:68px}
+    }
+
+    /* ── Responsive: phones ── */
+    @media(max-width:480px){
+      .hud{padding:8px 10px;padding-top:calc(8px + env(safe-area-inset-top,0px))}
+      .hd b{font-size:16px}
+      .hd b small{font-size:9px}
+      .pace{font-size:7px;gap:4px}
+      .pace b{font-size:8px}
+      .pace u{width:4px;height:2px}
+      .pos{font-size:18px}
+      .pos small{font-size:9px}
+      .time{font-size:8px;margin-top:2px}
+      .board{min-width:0;max-width:90px}
+      .br{grid-template-columns:10px 6px 1fr auto;gap:4px;font-size:8px;padding:2px 4px;border-radius:4px}
+      .br i{width:5px;height:5px}
+      .br span{max-width:50px}
+      .zonetag{font-size:7px;top:calc(56px + env(safe-area-inset-top,0px))}
+      .spec{font-size:7px;padding:6px 10px}
+      .hint{font-size:7px;bottom:calc(84px + env(safe-area-inset-bottom,0px))}
+
+      .panel{padding:14px;border-radius:16px}
+      .panel.sm{padding:14px}
+      h1{font-size:clamp(22px,6vw,28px)}
+      h2{font-size:24px}
+      .eyebrow{font-size:8px}
+      .room{padding:12px;border-radius:12px}
+      .room p{font-size:11px}
+      .code{font-size:20px}
+      .chip{font-size:7px;padding:4px 7px}
+      .mem span{font-size:11px;padding:5px 8px}
+      .btns{gap:8px}
+      .pb{padding:12px 14px;font-size:10px;min-height:44px;flex:1 1 120px}
+      .xprow span{font-size:8px;padding:4px 6px}
+      .sh{font-size:8px}
+      .row{grid-template-columns:26px 1fr auto;gap:8px;padding:6px 8px;border-radius:10px}
+      .av{width:26px;height:26px;font-size:10px}
+      .rn b{font-size:11px}
+      .rn small{font-size:7px}
+      .sb{font-size:8px;padding:6px 10px;min-height:36px}
+      .empty{font-size:10px}
+      .keys{font-size:7px;line-height:1.7}
+      .rr{grid-template-columns:22px 8px 1fr auto auto;gap:6px;padding:8px 2px;font-size:11px}
+      .rr .rk{font-size:10px}
+      .rr i{width:7px;height:7px}
+      .rr .sc{font-size:10px}
+      .rr .xp{font-size:7px;padding:3px 5px}
+      .big{font-size:36px}
+      .big small{font-size:14px}
+      .note{font-size:8px}
+      .inv{padding:8px 8px 8px 12px;border-radius:12px;font-size:11px;gap:8px}
+      .net{font-size:8px;padding:5px 8px}
+
+      .cd{font-size:min(22vw,120px)}
+    }
+
+    /* ── Responsive: very small phones ── */
+    @media(max-width:360px){
+      .board{display:none}
+      .hud{grid-template-columns:1fr auto}
+      .hd b{font-size:14px}
+      .pos{font-size:16px}
+      .big{font-size:28px}
+      .dpad-btn{width:54px;height:54px;font-size:18px}
+      .dpad-btn.sm{width:44px;height:44px;font-size:14px}
+    }
   </style>
 </head>
 <body>
@@ -119,7 +206,18 @@
   <div class="zonetag" id="zoneTag"></div>
   <div class="cd" id="cd"></div>
   <div class="spec hidden" id="spec"></div>
-  <div class="hint hidden" id="hint">Tap right · jump &nbsp;/&nbsp; tap left · slide &nbsp;/&nbsp; double tap · flip</div>
+  <div class="hint hidden" id="hint"><span class="hint-desktop">Tap right · jump &nbsp;/&nbsp; tap left · slide &nbsp;/&nbsp; double tap · flip</span><span class="hint-mobile">Use buttons below &mdash; &#9650; jump &middot; &#9660; slide &middot; &#8635; flip</span></div>
+
+  <!-- D-pad touch controls (mobile) -->
+  <div class="dpad" id="dpad">
+    <div class="dpad-group">
+      <button class="dpad-btn" id="btnSlide" aria-label="Slide">&#9660;</button>
+    </div>
+    <div class="dpad-group">
+      <button class="dpad-btn sm" id="btnFlip" aria-label="Flip">&#8635;</button>
+      <button class="dpad-btn" id="btnJump" aria-label="Jump">&#9650;</button>
+    </div>
+  </div>
 
   <div class="ov" id="lobby">
     <div class="panel">
@@ -132,7 +230,8 @@
         <section><div class="sh"><span>Live athletes</span><span id="liveN"></span></div><div class="list" id="liveList"></div></section>
         <section><div class="sh"><span>Open lobbies</span></div><div class="list" id="roomList"></div></section>
       </div>
-      <div class="keys">Space / ↑ / tap right — jump · hold for height · jump again in the air to flip<br>↓ / tap left / swipe down — slide under pipes &amp; birds · slide on a glowing hatch for a shortcut<br>Hit a wall? Jump to climb it<br>Fell off? Jump to save yourself — 2 saves per run</div>
+      <div class="keys keys-desktop">Space / ↑ — jump · hold for height · jump again in the air to flip<br>↓ — slide under pipes &amp; birds · slide on a glowing hatch for a shortcut<br>Hit a wall? Jump to climb it<br>Fell off? Jump to save yourself — 2 saves per run</div>
+      <div class="keys keys-mobile">&#9650; Jump · hold for height · tap again in air to flip<br>&#9660; Slide under pipes &amp; birds · slide on a glowing hatch for a shortcut<br>Hit a wall? Jump to climb it<br>Fell off? Jump to save yourself — 2 saves per run</div>
     </div>
   </div>
 
@@ -147,8 +246,8 @@
 
   <div class="inv hidden" id="inv"></div>
 
-<script src="/games/athlete-xp.js"></script>
-<script src="/games/rooftop-sim.js"></script>
+<script src="/games/athlete-xp.js?v=2"></script>
+<script src="/games/rooftop-sim.js?v=2"></script>
 <script>
 (() => {
 'use strict';
@@ -969,6 +1068,7 @@ function onMyDeath() {
 function finishMine(sc, timeUp) {
   RACE.done = true;
   flushLog('st', 'end');
+  showDpad(false);
   setTimeout(() => {
     if (mode !== 'race') return;
     mode = 'spectate'; SPECF.x = ME.x; SPECF.y = Math.min(ME.y, 120);
@@ -1001,14 +1101,14 @@ function beginSolo(id, seed) {
   RACE = null; REM.clear();
   spawn(seed, myColor()); runBase = performance.now();
   mode = 'solo'; freshRun();
-  hideOverlays(); showHud(true); showHint();
+  hideOverlays(); showHud(true); showHint(); showDpad(true);
 }
 function toLobby() {
   if (mode === 'race' && RACE && !RACE.done && ME.alive) { RACE.done = true; flushLog('st', 'end'); }
   cancelSolo();
   RACE = null; REM.clear(); lastRes = null;
   demoX = camX - VW * .18; mode = 'lobby';
-  showHud(false); $('res').classList.add('hidden'); $('lobby').classList.remove('hidden');
+  showHud(false); showDpad(false); $('res').classList.add('hidden'); $('lobby').classList.remove('hidden');
   renderLobby();
 }
 
@@ -1142,7 +1242,7 @@ function onGo(m) {
     const o = mkRemote(r); o.buf.push({ t, x: 0, y: 60, a: RUN, v: 0 }); REM.set(o.id, o);
   }
   mode = 'race'; lastRes = null; freshRun(); hideInvite();
-  hideOverlays(); showHud(true); showHint();
+  hideOverlays(); showHud(true); showHint(); showDpad(true);
 }
 function countdown(now) {
   const rem = RACE.startAt - now, n = rem > 0 ? Math.ceil(rem / 1000) : 0;
@@ -1252,6 +1352,25 @@ C.addEventListener('pointermove', e => {
 const ptrUp = e => { if (ptr && e.pointerId === ptr.id) ptr = null; release(); };
 C.addEventListener('pointerup', ptrUp); C.addEventListener('pointercancel', ptrUp);
 C.addEventListener('contextmenu', e => e.preventDefault());
+
+/* ═══ D-pad touch controls (mobile) ═══ */
+const isTouch = matchMedia('(pointer:coarse)').matches || 'ontouchstart' in window;
+const dpad = $('dpad');
+const btnJump = $('btnJump'), btnSlide = $('btnSlide'), btnFlip = $('btnFlip');
+function showDpad(v) { if (isTouch) dpad.classList.toggle('show', v); }
+function dpadPress(btn, fn) {
+  const down = e => { e.preventDefault(); btn.classList.add('pressed'); fn(); };
+  const up = e => { btn.classList.remove('pressed'); };
+  btn.addEventListener('pointerdown', down);
+  btn.addEventListener('pointerup', up);
+  btn.addEventListener('pointerleave', up);
+  btn.addEventListener('pointercancel', up);
+}
+dpadPress(btnJump, press);
+dpadPress(btnSlide, slide);
+// Flip = double-tap jump: quick press+release+press sequence
+dpadPress(btnFlip, () => { press(); setTimeout(release, 60); setTimeout(press, 120); });
+// Canvas touch zones still work alongside D-pad for users who prefer tap-left/tap-right
 
 /* ═══ HUD — DOM writes throttled to 8 Hz, only when values change ═══ */
 let hudT = 0, lastDistrict = -1, zoneT = 0, specName = '';
