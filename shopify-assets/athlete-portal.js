@@ -2300,8 +2300,13 @@ document.addEventListener('DOMContentLoaded',()=>{
   $('avClose').onclick=closeAvSheet;
   document.addEventListener('click',e=>{if(e.target.closest('.avbtn'))openAvSheet()});
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('avSheet').classList.contains('on'))closeAvSheet()});
-  // Banner click
-  $('pickbanner').onclick=()=>toast('Opens the pick menu','push');
+  // Banner click — jump down to the mission pool on this screen.
+  const banner=$('pickbanner');
+  if(banner){
+    const jumpToPool=()=>scrollToPool(S.focusId);
+    banner.onclick=jumpToPool;
+    banner.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();jumpToPool()}};
+  }
   // Register service worker for PWA
   if('serviceWorker' in navigator){
     navigator.serviceWorker.register('https://exchange-return-tracking.onrender.com/sw.js').catch(()=>{});
