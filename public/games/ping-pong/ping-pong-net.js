@@ -82,10 +82,12 @@
     },
 
     invite(id) {
-      const key = myId + ':' + id;
+      const to = id == null ? '' : String(id);
+      if (!to || to === myId) return;   // never offer an invite to yourself
+      const key = myId + ':' + to;
       if (Date.now() - (invitedAt.get(key) || 0) < INVITE_COOLDOWN) return;
       invitedAt.set(key, Date.now());
-      send({ t: 'invite', to: id, game: GAME_TYPE });
+      send({ t: 'invite', to, game: GAME_TYPE });
       renderLobby();
     },
 
@@ -180,13 +182,17 @@
         // Deep links from the portal: `#r=<code>` joins a room, `#inv=<id>` invites an athlete.
         // They are read once at load — athlete-xp.js consumes the hash before this module runs.
         if (!room && BOOT.r) Net.joinRoom(BOOT.r);
-        if (BOOT.inv) send({ t: 'invite', to: BOOT.inv, game: GAME_TYPE });
+        // A deep link may carry my own id (a stale share link) — inviting myself
+        // is never a real invite.
+        if (BOOT.inv && String(BOOT.inv) !== myId) send({ t: 'invite', to: String(BOOT.inv), game: GAME_TYPE });
         BOOT.r = null; BOOT.inv = null;
         renderLobby();
         break;
 
       case 'pr':
-        athletes = m.a || [];
+        // The hub sends raw database ids (athlete rows are numbers) while myId is
+        // a string — normalise at the wire instead of trusting the type per site.
+        athletes = (m.a || []).map(a => Object.assign({}, a, { id: String(a.id) }));
         rooms = (m.rooms || []).filter(rm => !rm.game || rm.game === GAME_TYPE);
         renderLobby();
         break;
@@ -433,6 +439,10 @@
       const btn = ev.target.closest('[data-invite]');
       if (!btn) return;
       if (btn.dataset.invite === 'join') {
+        // Land in the lobby first. Joining straight from the toast skips the menu,
+        // and the menu is what switches the cabinet into online mode — without it
+        // the match would start against the local AI.
+        if (window.openOnlineLobby) window.openOnlineLobby();
         Net.joinRoom(m.r);
       }
       el.className = 'invite-toast hidden';

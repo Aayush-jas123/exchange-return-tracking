@@ -1273,7 +1273,8 @@ function renderArcade(){
       const isMe=String(r.id)===me;
       const {live,p}=arcPresence(r.id);
       const sent=S.invited.has(String(r.id));
-      const btn=p&&p.r&&p.s==='lobby'?`<button class="invt w" type="button" data-join="${esc(p.r)}" data-game="${esc(p.g||'rooftop-racing')}">Join</button>`
+      // My own row is never joinable or invitable — you cannot race or invite yourself.
+      const btn=isMe?'':p&&p.r&&p.s==='lobby'?`<button class="invt w" type="button" data-join="${esc(p.r)}" data-game="${esc(p.g||'rooftop-racing')}">Join</button>`
         :live?`<button class="invt" type="button" data-invite="${esc(String(r.id))}" data-name="${esc(r.name||'')}"${sent?' disabled':''}>${sent?'Sent &check;':'Invite'}</button>`:'';
       const meta=[r.level_name,r.favourite_game_label||'\u2014','played '+arcAgo(r.last_played)].filter(Boolean).join(' &middot; ');
       const pct=Math.max(3,Math.round((Number(r.arcade_xp||0)/leaderXp)*100));
