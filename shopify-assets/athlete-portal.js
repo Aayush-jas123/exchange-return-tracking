@@ -717,13 +717,35 @@ function show(id){
   if(id==='games'&&S.token)loadArcade();
 }
 
+// The engine gates promotion on more than XP: days at the current level,
+// standing score, manual approval. Name whichever gate is actually holding,
+// so a level that "should" have moved never looks stuck or goes negative.
+function nextGate(a){
+  const current=a.level||{},next=a.next_level||{},xp=a.xp_total||0;
+  if(!next.min_xp) return {max:true,label:'Maximum level reached',sub:'Level complete'};
+  const name=String(next.code||next.display_name||'Next level').toUpperCase();
+  const toXp=Math.max(0,next.min_xp-xp);
+  if(toXp>0) return {label:`${toXp.toLocaleString('en-IN')} XP to next level`,sub:`${toXp.toLocaleString('en-IN')} to go`};
+  const days=next.days_in_level||0,need=next.min_days_in_previous||0;
+  if(need&&days<need){
+    const left=need-days;
+    return {label:`${left} ${left===1?'day':'days'} to ${name}`,sub:`${days}/${need} days at ${String(current.code||'this level').toUpperCase()}`};
+  }
+  if(next.min_standing!=null&&(a.standing_score||0)<next.min_standing)
+    return {label:`${name} held at ${next.min_standing} standing`,sub:`${Math.round(a.standing_score||0)} standing \u00b7 ${next.min_standing} needed`};
+  if(next.requires_manual_approval)
+    return {label:`${name} awaiting approval`,sub:'promotion review pending'};
+  return {label:`${name} cleared`,sub:'promotes on the next daily run'};
+}
+
 function renderProfile(){
   const a=S.athlete||{},current=a.level||{},next=a.next_level||{},xp=a.xp_total||0;
   const pct=Math.min(100,Math.max(0,(xp-(current.min_xp||0))/Math.max(1,(next.min_xp||xp+100)-(current.min_xp||0))*100));
   $('taskDial').textContent=current.display_number??'—';
   $('taskLevel').innerHTML=esc(current.display_name||'Comfort Level').replace(' - ','<br>- ');
   $('taskBar').style.width=pct+'%';
-  $('taskProgress').textContent=next.min_xp?`${(next.min_xp-xp).toLocaleString('en-IN')} TO ${String(next.display_name||'NEXT LEVEL').toUpperCase()}`:'MAXIMUM COMFORT LEVEL';
+  const gate=nextGate(a);
+  $('taskProgress').textContent=gate.max?'MAXIMUM COMFORT LEVEL':gate.label.toUpperCase();
   count('taskXp',xp);
   // Sync all .xpv elements
   document.querySelectorAll('.xpv').forEach(el=>{el.textContent=xp.toLocaleString('en-IN')});
@@ -735,17 +757,19 @@ function renderTasks(){
   const totalAtLevel=10; // tasks needed to clear this level
   const doneAtLevel=Math.min(totalAtLevel,Math.floor(xp/(next.min_xp?next.min_xp/totalAtLevel:100)));
   const remaining=totalAtLevel-doneAtLevel;
-  const xpToNext=next.min_xp?next.min_xp-xp:0;
+  // XP above the threshold is expected while a level's own gates hold — the
+  // engine promotes on XP *and* schedule, so never render a negative delta.
+  const gate=nextGate(a);
 
   // Pips
   let pipsHTML='';
   for(let i=0;i<totalAtLevel;i++) pipsHTML+=`<i class="${i<doneAtLevel?'on':i===doneAtLevel?'next':''}"></i>`;
   $('pips').innerHTML=pipsHTML;
 
-  // Progress hero — show XP remaining to next level
-  $('xpLabel').textContent=xpToNext?xpToNext.toLocaleString('en-IN')+' XP to next level':'Maximum level reached';
+  // Progress hero — name the gate that is holding, not just the XP delta
+  $('xpLabel').textContent=gate.label;
   $('xpEarned').textContent=xp.toLocaleString('en-IN');
-  $('xpToGo').textContent=xpToNext?xpToNext.toLocaleString('en-IN')+' to go':'Level complete';
+  $('xpToGo').textContent=gate.sub;
 
   // Cleared tasks (from today's completed picks)
   const cleared=tasks.filter(x=>x.picked&&!['PICKED','ASSIGNED','IN_PROGRESS','CHANGES_REQUESTED'].includes(x.pick_status));

@@ -104,8 +104,10 @@ const LevelEngine = {
     // (Future: verify athlete has completed required tasks)
 
     if (meetsXp && meetsStanding && meetsTimeReq) {
-      // Requires manual approval?
+      // Requires manual approval? Nothing consumes a 'Candidate' result yet, so
+      // log it — otherwise the athlete sits on a cleared threshold invisibly.
       if (nextLevel.requires_manual_approval) {
+        console.log(`[LevelEngine] Athlete ${influencerId} is a Candidate for ${nextLevel.code} — waiting for manual approval`);
         return { result: 'Candidate', fromLevel: currentLevel, toLevel: nextLevel, reEnqueue: false };
       }
 

@@ -833,7 +833,7 @@ module.exports = function mountAthleteRoutes(app) {
 
       // Try with avatar columns first, fall back to without if columns don't exist yet
       let athlete, error;
-      const baseFields = 'id, name, athlete_no, athlete_status, xp_total, coin_balance, standing_score, level_id, joined_at, instagram_handle, phone, leaderboard_opt_out, shipping_address, shipping_city, shipping_state, shipping_pin, shipping_landmark, address_type';
+      const baseFields = 'id, name, athlete_no, athlete_status, xp_total, coin_balance, standing_score, level_id, level_since, joined_at, instagram_handle, phone, leaderboard_opt_out, shipping_address, shipping_city, shipping_state, shipping_pin, shipping_landmark, address_type';
       const avatarFields = ', avatar_base, avatar_head, avatar_mark, avatar_ground, avatar_frame';
       
       ({ data: athlete, error } = await supabase
@@ -865,6 +865,12 @@ module.exports = function mountAthleteRoutes(app) {
         const { data: next } = await supabase.from('comfort_levels').select('*').eq('ordinal', lvl.ordinal + 1).maybeSingle();
         nextLevel = next;
       }
+
+      // Promotion is gated on more than XP (days at the current level, standing,
+      // manual approval). The portal needs these to name the gate that is
+      // actually holding, otherwise a time-gated level looks frozen.
+      const levelSince = athlete.level_since || athlete.joined_at;
+      const daysInLevel = levelSince ? Math.max(0, Math.floor((Date.now() - new Date(levelSince).getTime()) / 86400000)) : 0;
 
       // Get discount code. Resolved through DiscountCodeService so athletes
       // whose code only lives on the legacy influencers.referral_code columns
@@ -907,7 +913,17 @@ module.exports = function mountAthleteRoutes(app) {
         avatar_ground: athlete.avatar_ground,
         avatar_frame: athlete.avatar_frame,
         level: level ? { display_name: level.display_name, ordinal: level.ordinal, display_number: level.display_number, dial_segments_lit: level.dial_segments_lit, min_xp: level.min_xp, commission_pct: CommissionService.pctOf(level) } : null,
-        next_level: nextLevel ? { display_name: nextLevel.display_name, min_xp: nextLevel.min_xp, commission_pct: CommissionService.pctOf(nextLevel) } : null,
+        next_level: nextLevel ? {
+          code: nextLevel.code,
+          display_name: nextLevel.display_name,
+          min_xp: nextLevel.min_xp,
+          min_standing: nextLevel.min_standing,
+          min_days_in_previous: nextLevel.min_days_in_previous,
+          requires_manual_approval: !!nextLevel.requires_manual_approval,
+          commission_pct: CommissionService.pctOf(nextLevel),
+          days_in_level: daysInLevel
+        } : null,
+        days_in_level: daysInLevel,
         commission_rate: CommissionService.pctOf(level) ?? await CommissionService.getDefaultRate(),
         discount_code: discountCode,
         month_orders: monthOrders || 0
@@ -1917,6 +1933,15 @@ module.exports = function mountAthleteRoutes(app) {
       // LedgerService writes the delta as a ledger row, then sets the cached total
       const result = await LedgerService.setBalance(id, 'XP', xp_total, reason || 'Admin override', 'admin');
 
+      // XP written by hand can cross one or more thresholds at once; the nightly
+      // engine would otherwise be the only thing that notices, so evaluate here.
+      let levelChange = null;
+      try {
+        levelChange = await LevelEngine.evaluate(id);
+      } catch (evalErr) {
+        console.error(`[AthleteAdmin] Level evaluation after XP override failed for ${id}:`, evalErr.message);
+      }
+
       const { data, error } = await supabase
         .from('influencers')
         .select()
@@ -1924,7 +1949,7 @@ module.exports = function mountAthleteRoutes(app) {
         .single();
       if (error) throw error;
 
-      res.json({ success: true, data, delta: result.delta });
+      res.json({ success: true, data, delta: result.delta, level: levelChange });
     } catch (err) { res.status(err.status || 500).json({ error: err.message }); }
   });
 
