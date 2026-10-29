@@ -10,12 +10,21 @@
   const pointIndicator = $('pointIndicator');
   const pointLabel = $('pointLabel');
   const ctx = canvas.getContext('2d');
+  const courtArea = canvas.parentElement;
   const screens = document.querySelectorAll('.screen');
   let canvasRect = null;
 
-  // ── Constants ──
-  const GW = 600;   // game width (logical)
-  const GH = 400;   // game height (logical)
+  // ── Court geometry ──
+  // Everything physical lives in court space: x runs goal-to-goal along the travel
+  // axis (courtLen) and y runs along the paddle axis (courtSpan). Landscape draws
+  // that space as-is; a portrait screen rotates it a quarter turn so the court
+  // stands upright and the player's paddle lands on the bottom edge.
+  const LAND_LEN = 600;    // travel length in landscape
+  const courtSpan = 400;   // paddle axis — the same ruler in both orientations
+  let courtLen = LAND_LEN;
+  let vertical = false;    // upright court?
+  let viewScale = 1;       // backing pixels per court unit
+  let speedScale = 1;      // ball speed follows the travel length
   const PADDLE_W = 10;
   const PADDLE_H = 80;
   const PADDLE_CURVE = 12;  // how far the arc bows outward (px)
@@ -128,10 +137,10 @@
   // ── Helpers ──
   function resetBall(direction) {
     const angle = (Math.random() * 0.8 - 0.4); // -0.4 to 0.4 rad
-    const spd = curDiff.baseSpeed + totalPoints * curDiff.pointSpeedBonus;
+    const spd = (curDiff.baseSpeed + totalPoints * curDiff.pointSpeedBonus) * speedScale;
     ball = {
-      x: GW / 2,
-      y: GH / 2,
+      x: courtLen / 2,
+      y: courtSpan / 2,
       vx: Math.cos(angle) * spd * (direction || (Math.random() > 0.5 ? 1 : -1)),
       vy: Math.sin(angle) * spd
     };
@@ -140,8 +149,8 @@
 
   function initGame() {
     const d = DIFFICULTIES[difficulty];
-    p1 = { y: GH / 2 - PADDLE_H / 2, score: 0, misses: 0, hitFlash: 0, consecMiss: 0 };
-    p2 = { y: GH / 2 - PADDLE_H / 2, score: 0, misses: 0, hitFlash: 0, consecMiss: 0 };
+    p1 = { y: courtSpan / 2 - PADDLE_H / 2, score: 0, misses: 0, hitFlash: 0, consecMiss: 0 };
+    p2 = { y: courtSpan / 2 - PADDLE_H / 2, score: 0, misses: 0, hitFlash: 0, consecMiss: 0 };
     rallyCount = 0;
     totalPoints = 0;
     speedMult = 1;
@@ -153,26 +162,51 @@
     lastTauntIdx = -1;
     tauntState = { active: false, text: '', icon: '', misser: 0, y: 0, fs: 22, iconSize: 24, textX: 0, iconCx: 0, alpha: 0, phase: 'idle', framesLeft: 0 };
     pointIndicator.classList.remove('visible');
-    canvas.parentElement.classList.remove('paused');
+    courtArea.classList.remove('paused');
     aiReaction = d.aiReaction;
     curDiff = d;
     resetBall();
   }
 
   // ─ Canvas sizing ──
+  // Landscape keeps the 3:2 court fitted inside the area. A portrait screen instead
+  // stretches the travel axis to the screen, so the court fills a phone edge to edge
+  // with no letterbox and no squashed circles.
   function resizeCanvas() {
-    const wrap = canvas.parentElement;
-    const ww = wrap.clientWidth;
-    const wh = wrap.clientHeight;
-    const ratio = GW / GH;
+    const wrap = courtArea.parentElement;
+    if (!wrap.clientWidth || !wrap.clientHeight) return; // screen hidden — first visible fit wins
+
+    // The upright layout reserves a HUD strip inside the court area, so the
+    // orientation is decided on the un-inset wrapper and only then measured.
+    const wantVertical = wrap.clientHeight > wrap.clientWidth * 1.1;
+    if (vertical !== wantVertical) document.body.classList.toggle('vertical', wantVertical);
+    vertical = wantVertical;
+
+    const ww = courtArea.clientWidth;
+    const wh = courtArea.clientHeight;
+    if (!ww || !wh) return;
+
     let w, h;
-    if (ww / wh > ratio) { h = wh; w = h * ratio; }
-    else { w = ww; h = w / ratio; }
+    if (vertical) {
+      courtLen = Math.round(courtSpan * (wh / ww));
+      w = ww;
+      h = wh;
+    } else {
+      courtLen = LAND_LEN;
+      const ratio = courtLen / courtSpan;
+      if (ww / wh > ratio) { h = wh; w = h * ratio; }
+      else { w = ww; h = w / ratio; }
+    }
+
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
     canvas.style.width = w + 'px';
     canvas.style.height = h + 'px';
-    canvas.width = GW;
-    canvas.height = GH;
+    canvas.width = Math.max(1, Math.round(w * dpr));
+    canvas.height = Math.max(1, Math.round(h * dpr));
+    viewScale = vertical ? canvas.width / courtSpan : canvas.width / courtLen;
+    speedScale = Math.min(1.5, Math.max(1, courtLen / LAND_LEN));
     canvasRect = null; // invalidate cached rect
+    buildCachedAssets();
   }
 
   // ── Screen management ──
@@ -250,7 +284,8 @@
     const el = $('controlsHint');
     hintVisible = true;
     el.classList.remove('fade');
-    el.textContent = isMobile() ? 'Touch & drag to move paddle' : 'Arrow keys to move';
+    el.textContent = vertical ? 'Drag left & right to move'
+      : (isMobile() ? 'Touch & drag to move paddle' : 'Arrow keys to move');
     clearTimeout(hintTimer);
     hintTimer = setTimeout(() => { el.classList.add('fade'); hintVisible = false; }, 4000);
   }
@@ -283,11 +318,21 @@
   canvas.addEventListener('touchmove', handleTouch, { passive: false });
   canvas.addEventListener('touchend', () => { touchP1 = null; });
 
+  // ── Input mapping ──
+  // Landscape steers on the vertical screen axis, an upright court on the
+  // horizontal one — the paddle axis either way.
+  function axisNorm(clientX, clientY) {
+    if (!canvasRect) canvasRect = canvas.getBoundingClientRect();
+    const v = vertical
+      ? (clientX - canvasRect.left) / canvasRect.width
+      : (clientY - canvasRect.top) / canvasRect.height;
+    return Math.max(0, Math.min(1, v));
+  }
+
   function handleTouch(e) {
     e.preventDefault();
-    if (!canvasRect) canvasRect = canvas.getBoundingClientRect();
     for (const touch of e.touches) {
-      touchP1 = Math.max(0, Math.min(1, (touch.clientY - canvasRect.top) / canvasRect.height));
+      touchP1 = axisNorm(touch.clientX, touch.clientY);
     }
   }
 
@@ -299,30 +344,31 @@
 
   function handleMouse(e) {
     if (gameMode !== 'single') return;
-    if (!canvasRect) canvasRect = canvas.getBoundingClientRect();
-    touchP1 = Math.max(0, Math.min(1, (e.clientY - canvasRect.top) / canvasRect.height));
+    touchP1 = axisNorm(e.clientX, e.clientY);
   }
 
   // ── Paddle movement ──
   function movePaddles() {
-    // Player paddle (left)
+    // Player paddle (own goal end)
     if (keys['ArrowUp']) { p1.y -= PADDLE_SPEED; }
     if (keys['ArrowDown']) { p1.y += PADDLE_SPEED; }
     if (touchP1 !== null) {
-      p1.y = touchP1 * GH - PADDLE_H / 2;
+      p1.y = touchP1 * courtSpan - PADDLE_H / 2;
     }
-    p1.y = Math.max(0, Math.min(GH - PADDLE_H, p1.y));
+    p1.y = Math.max(0, Math.min(courtSpan - PADDLE_H, p1.y));
 
-    // Send paddle state in online mode (rate-limited to ~20Hz inside sendState)
+    // Send paddle state in online mode (rate-limited to ~20Hz inside sendState).
+    // The fraction is of the paddle axis, so a portrait phone and a landscape
+    // desktop read each other's paddle correctly.
     if (gameMode === 'online' && window.PingPongNet) {
-      window.PingPongNet.sendState(p1.y / GH, rallyCount);
+      window.PingPongNet.sendState(p1.y / courtSpan, rallyCount);
     }
 
-    // Opponent paddle (right) — AI or online opponent
+    // Opponent paddle (far end) — AI or online opponent
     if (gameMode === 'single') {
       moveAI();
     } else if (window.PingPongNet && window.PingPongNet.opponentY !== null) {
-      p2.y = window.PingPongNet.opponentY * GH - PADDLE_H / 2;
+      p2.y = window.PingPongNet.opponentY * courtSpan - PADDLE_H / 2;
     }
   }
 
@@ -334,32 +380,37 @@
     aiReaction = Math.min(d.aiMax, d.aiReaction + rallyCount * d.aiImprove);
     const target = ball.y - PADDLE_H / 2 + (Math.random() * 2 - 1) * d.aiError;
     p2.y += (target - p2.y) * aiReaction;
-    p2.y = Math.max(0, Math.min(GH - PADDLE_H, p2.y));
+    p2.y = Math.max(0, Math.min(courtSpan - PADDLE_H, p2.y));
   }
 
   // ── Ball physics ─
   function updateBall() {
+    const prevX = ball.x;
     ball.x += ball.vx;
     ball.y += ball.vy;
 
-    // Top/bottom bounce
+    // Side walls (the paddle axis) bounce
     if (ball.y - BALL_R < 0) { ball.y = BALL_R; ball.vy = Math.abs(ball.vy); }
-    if (ball.y + BALL_R > GH) { ball.y = GH - BALL_R; ball.vy = -Math.abs(ball.vy); }
+    if (ball.y + BALL_R > courtSpan) { ball.y = courtSpan - BALL_R; ball.vy = -Math.abs(ball.vy); }
 
     // Trail
     trail.push({ x: ball.x, y: ball.y });
     if (trail.length > TRAIL_LENGTH) trail.shift();
 
-    // Left paddle collision
-    if (ball.vx < 0 && ball.x - BALL_R <= PADDLE_W &&
+    // Paddles — test the crossing of the return plane, not just the arrival point,
+    // so a hot ball on a long upright court can never skip through a paddle.
+    const leftPlane = PADDLE_W + BALL_R;
+    if (ball.vx < 0 && prevX >= leftPlane && ball.x <= leftPlane &&
         ball.y >= p1.y && ball.y <= p1.y + PADDLE_H) {
+      ball.x = leftPlane;
       ball.vx = Math.abs(ball.vx);
       onPaddleHit(1);
     }
 
-    // Right paddle collision
-    if (ball.vx > 0 && ball.x + BALL_R >= GW - PADDLE_W &&
+    const rightPlane = courtLen - PADDLE_W - BALL_R;
+    if (ball.vx > 0 && prevX <= rightPlane && ball.x >= rightPlane &&
         ball.y >= p2.y && ball.y <= p2.y + PADDLE_H) {
+      ball.x = rightPlane;
       ball.vx = -Math.abs(ball.vx);
       onPaddleHit(2);
     }
@@ -370,7 +421,7 @@
       totalPoints++;
       p1.consecMiss++;
       onPointScored(2);
-    } else if (ball.x > GW + BALL_R * 2) {
+    } else if (ball.x > courtLen + BALL_R * 2) {
       p1.score++;
       totalPoints++;
       p2.consecMiss++;
@@ -381,8 +432,8 @@
   function onPaddleHit(player) {
     rallyCount++;
     speedMult = 1 + rallyCount * curDiff.speedIncrement;
-    const spd = (curDiff.baseSpeed + totalPoints * curDiff.pointSpeedBonus) * speedMult;
-    const clampedSpd = Math.min(spd, curDiff.maxSpeed);
+    const spd = (curDiff.baseSpeed + totalPoints * curDiff.pointSpeedBonus) * speedMult * speedScale;
+    const clampedSpd = Math.min(spd, curDiff.maxSpeed * speedScale);
 
     // Add slight angle variation based on where ball hit paddle
     const paddle = player === 1 ? p1 : p2;
@@ -423,7 +474,7 @@
     pointPauseFrames = POINT_PAUSE_FRAMES;
     pointLabel.textContent = scorer === 1 ? 'YOUR POINT' : 'AI POINT';
     pointIndicator.classList.add('visible');
-    canvas.parentElement.classList.add('paused');
+    courtArea.classList.add('paused');
     updateHUD();
   }
 
@@ -431,7 +482,7 @@
   function fitTauntLayout(text) {
     const pad = 10;                 // reserve from center line and frame edge
     const gap = 10;                 // icon-to-text gap
-    const avail = GW / 2 - pad * 2; // 280px budget for icon+gap+text
+    const avail = courtLen / 2 - pad * 2; // budget for icon+gap+text
     const baseFs = 22;
     let fs = baseFs;
     let iconSize = 24;
@@ -450,6 +501,17 @@
       }
     }
     return { fs: fs, iconSize: iconSize, textW: textW };
+  }
+
+  // An upright court has no half-court to lay text beside — the line is centred on
+  // the whole device width with the icon stacked above it.
+  function fitTauntVertical(text) {
+    const budget = canvas.width - 32 * viewScale;
+    let fs = Math.round(22 * viewScale);
+    ctx.font = '700 ' + fs + 'px ' + TAUNT_FONT;
+    const w = ctx.measureText(text).width;
+    if (w > budget) fs = Math.max(Math.round(11 * viewScale), Math.floor(fs * budget / w));
+    return { fs: fs, iconSize: Math.round(fs * 1.05) };
   }
 
   function scheduleTaunt(scorer) {
@@ -475,19 +537,26 @@
     lastTauntIdx = idx;
 
     // Layout is computed once here — render() never re-measures per frame
+    if (vertical) {
+      // Same semantics as the landscape halves: the line lands in the misser's end.
+      const vfit = fitTauntVertical(pool[idx].t);
+      tauntState = { active: true, text: pool[idx].t, icon: pool[idx].icon, misser: misser, y: (misser === 1 ? 0.72 : 0.28) * canvas.height, fs: vfit.fs, iconSize: vfit.iconSize, textX: 0, iconCx: 0, alpha: 0, phase: 'fade-in', framesLeft: TAUNT_DISPLAY_FRAMES };
+      return;
+    }
+
     const fit = fitTauntLayout(pool[idx].t);
     let textX, iconCx;
     if (misser === 2) {
       // Player scored: right edge pinned before center line
-      textX = GW / 2 - 10 - fit.textW;
+      textX = courtLen / 2 - 10 - fit.textW;
       iconCx = textX - 10 - fit.iconSize / 2;
     } else {
       // AI scored: left edge pinned after center line
-      textX = GW / 2 + 10 + fit.iconSize + 10;
-      iconCx = GW / 2 + 10 + fit.iconSize / 2;
+      textX = courtLen / 2 + 10 + fit.iconSize + 10;
+      iconCx = courtLen / 2 + 10 + fit.iconSize / 2;
     }
 
-    tauntState = { active: true, text: pool[idx].t, icon: pool[idx].icon, misser: misser, y: GH * 0.5, fs: fit.fs, iconSize: fit.iconSize, textX: textX, iconCx: iconCx, alpha: 0, phase: 'fade-in', framesLeft: TAUNT_DISPLAY_FRAMES };
+    tauntState = { active: true, text: pool[idx].t, icon: pool[idx].icon, misser: misser, y: courtSpan * 0.5, fs: fit.fs, iconSize: fit.iconSize, textX: textX, iconCx: iconCx, alpha: 0, phase: 'fade-in', framesLeft: TAUNT_DISPLAY_FRAMES };
   }
 
   // ── End game ──
@@ -708,20 +777,29 @@
   }
 
   // ── Render ──
+  // One transform carries the whole orientation switch: landscape maps court units
+  // straight onto the backing store, portrait turns the court a quarter turn so the
+  // player's goal (x = 0) lands on the bottom edge.
+  function applyView() {
+    if (vertical) ctx.setTransform(0, -viewScale, viewScale, 0, 0, viewScale * courtLen);
+    else ctx.setTransform(viewScale, 0, 0, viewScale, 0, 0);
+  }
+
   function render() {
-    ctx.clearRect(0, 0, GW, GH);
+    applyView();
+    ctx.clearRect(0, 0, courtLen, courtSpan);
 
     // 1. Court background — cached radial gradient
     ctx.fillStyle = bgGrad;
-    ctx.fillRect(0, 0, GW, GH);
+    ctx.fillRect(0, 0, courtLen, courtSpan);
 
     // 2. Court border lines
     ctx.strokeStyle = 'rgba(255,255,255,0.08)';
     ctx.lineWidth = 1;
-    ctx.strokeRect(0.5, 0.5, GW - 1, GH - 1);
+    ctx.strokeRect(0.5, 0.5, courtLen - 1, courtSpan - 1);
 
     // 3. Center line — pre-rendered offscreen canvas
-    ctx.drawImage(centerLineCanvas, 0, 0);
+    ctx.drawImage(centerLineCanvas, 0, 0, courtLen, courtSpan);
 
     // 4. Ball trail — smooth tapered path
     drawTrail();
@@ -734,7 +812,7 @@
 
     // 7. Paddles — gradient with shadow
     drawPaddle(0, p1.y, p1.hitFlash);
-    drawPaddle(GW - PADDLE_W, p2.y, p2.hitFlash);
+    drawPaddle(courtLen - PADDLE_W, p2.y, p2.hitFlash);
 
     // Decay hit flash
     if (p1.hitFlash > 0) p1.hitFlash--;
@@ -748,22 +826,53 @@
 
     // 8. Vignette overlay — cached gradient
     ctx.fillStyle = vignetteGrad;
-    ctx.fillRect(0, 0, GW, GH);
+    ctx.fillRect(0, 0, courtLen, courtSpan);
 
-    // 8b. Taunt overlay — drawn icon + text + subtitle
-    if (tauntState.active) {
-      ctx.save();
+    // 9. Border flash
+    if (borderFlash > 0) {
+      const alpha = (borderFlash / BORDER_FLASH_FRAMES) * 0.3;
+      ctx.strokeStyle = 'rgba(255,255,255,' + alpha + ')';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(1, 1, courtLen - 2, courtSpan - 2);
+    }
 
-      if (tauntState.phase === 'fade-in') {
-        tauntState.alpha = Math.min(1, tauntState.alpha + 0.1);
-        if (tauntState.alpha >= 1) tauntState.phase = 'display';
-      } else if (tauntState.framesLeft <= 10) {
-        tauntState.alpha = Math.max(0, tauntState.alpha - 0.1);
-      }
+    // 10. Taunt overlay — drawn last, and off the court transform on phones
+    if (tauntState.active) drawTauntOverlay();
+  }
 
-      ctx.globalAlpha = tauntState.alpha;
+  // ── Taunt overlay (fade + placement) ──
+  // The layout numbers (fs, iconSize, textX, iconCx) were precomputed in
+  // scheduleTaunt(), so this never measures text per frame.
+  function drawTauntOverlay() {
+    if (tauntState.phase === 'fade-in') {
+      tauntState.alpha = Math.min(1, tauntState.alpha + 0.1);
+      if (tauntState.alpha >= 1) tauntState.phase = 'display';
+    } else if (tauntState.framesLeft <= 10) {
+      tauntState.alpha = Math.max(0, tauntState.alpha - 0.1);
+    }
 
-      // Layout (fs, iconSize, textX, iconCx) was precomputed in scheduleTaunt()
+    const subtitle = tauntState.misser === 1 ? 'YOU MISSED' : 'THEY MISSED';
+
+    ctx.save();
+    ctx.globalAlpha = tauntState.alpha;
+
+    if (vertical) {
+      // Upright court, upright copy: drop the rotation, centre on the device width.
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      const cx = canvas.width / 2;
+      const iconSize = tauntState.iconSize;
+      drawTauntIcon(tauntState.icon, cx - iconSize / 2, tauntState.y - tauntState.fs * 0.75 - iconSize, iconSize);
+
+      ctx.font = '700 ' + tauntState.fs + 'px ' + TAUNT_FONT;
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(tauntState.text, cx, tauntState.y);
+
+      ctx.font = '600 ' + Math.round(10 * viewScale) + 'px SF Mono, Fira Code, Consolas, monospace';
+      ctx.fillStyle = 'rgba(255,255,255,0.45)';
+      ctx.fillText(subtitle, cx, tauntState.y + Math.round(tauntState.fs * 0.9));
+    } else {
       ctx.font = '700 ' + tauntState.fs + 'px ' + TAUNT_FONT;
       drawTauntIcon(tauntState.icon, tauntState.iconCx, tauntState.y - tauntState.iconSize / 2, tauntState.iconSize);
 
@@ -772,25 +881,16 @@
       ctx.textBaseline = 'middle';
       ctx.fillText(tauntState.text, tauntState.textX, tauntState.y);
 
-      const subtitle = tauntState.misser === 1 ? 'YOU MISSED' : 'THEY MISSED';
       ctx.font = '600 10px SF Mono, Fira Code, Consolas, monospace';
       ctx.fillStyle = 'rgba(255,255,255,0.45)';
       ctx.fillText(subtitle, tauntState.textX, tauntState.y + Math.round(tauntState.fs * 0.95));
-
-      ctx.restore();
-
-      tauntState.framesLeft--;
-      if (tauntState.framesLeft <= 0 || tauntState.alpha <= 0) {
-        tauntState.active = false;
-      }
     }
 
-    // 9. Border flash
-    if (borderFlash > 0) {
-      const alpha = (borderFlash / BORDER_FLASH_FRAMES) * 0.3;
-      ctx.strokeStyle = 'rgba(255,255,255,' + alpha + ')';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(1, 1, GW - 2, GH - 2);
+    ctx.restore();
+
+    tauntState.framesLeft--;
+    if (tauntState.framesLeft <= 0 || tauntState.alpha <= 0) {
+      tauntState.active = false;
     }
   }
 
@@ -842,43 +942,46 @@
     ctx.restore();
   }
 
-  // ─ Cached static assets (position-independent, built once) ──
+  // ─ Cached static assets (position-independent, rebuilt when the court changes) ──
   let bgGrad = null;
   let vignetteGrad = null;
   let centerLineCanvas = null;
 
   function buildCachedAssets() {
+    const long = Math.max(courtLen, courtSpan);
+
     // Background radial gradient
-    const bg = ctx.createRadialGradient(GW / 2, GH / 2, 0, GW / 2, GH / 2, GW * 0.7);
+    const bg = ctx.createRadialGradient(courtLen / 2, courtSpan / 2, 0, courtLen / 2, courtSpan / 2, long * 0.7);
     bg.addColorStop(0, '#111');
     bg.addColorStop(1, '#000');
     bgGrad = bg;
 
     // Vignette overlay
-    const vg = ctx.createRadialGradient(GW / 2, GH / 2, GH * 0.3, GW / 2, GH / 2, GW * 0.75);
+    const vg = ctx.createRadialGradient(courtLen / 2, courtSpan / 2, courtSpan * 0.3, courtLen / 2, courtSpan / 2, long * 0.75);
     vg.addColorStop(0, 'rgba(0,0,0,0)');
     vg.addColorStop(1, 'rgba(0,0,0,0.45)');
     vignetteGrad = vg;
 
-    // Pre-render center line to offscreen canvas (static, never changes)
+    // Pre-render center line to an offscreen canvas at 2x (static, never changes)
     const clc = document.createElement('canvas');
-    clc.width = GW;
-    clc.height = GH;
+    clc.width = courtLen * 2;
+    clc.height = courtSpan * 2;
     const clx = clc.getContext('2d');
+    clx.scale(2, 2);
     const dashLen = 10;
     const gapLen = 8;
-    const segments = Math.floor(GH / (dashLen + gapLen));
-    const startY = (GH - segments * (dashLen + gapLen)) / 2;
+    const segments = Math.floor(courtSpan / (dashLen + gapLen));
+    const startY = (courtSpan - segments * (dashLen + gapLen)) / 2;
     for (let i = 0; i < segments; i++) {
       const y = startY + i * (dashLen + gapLen);
       const midY = y + dashLen / 2;
-      const distFromCenter = Math.abs(midY - GH / 2) / (GH / 2);
+      const distFromCenter = Math.abs(midY - courtSpan / 2) / (courtSpan / 2);
       const alpha = Math.max(0.04, 0.15 * (1 - distFromCenter * 0.7));
       clx.strokeStyle = 'rgba(255,255,255,' + alpha + ')';
       clx.lineWidth = 2;
       clx.beginPath();
-      clx.moveTo(GW / 2, y);
-      clx.lineTo(GW / 2, y + dashLen);
+      clx.moveTo(courtLen / 2, y);
+      clx.lineTo(courtLen / 2, y + dashLen);
       clx.stroke();
     }
     centerLineCanvas = clc;
@@ -897,15 +1000,15 @@
     const effY = y - growExtra / 2;
 
     // Paddle shifts ~3px toward the ball on hit (pushed-back feel)
-    const shiftX = (x < GW / 2 ? 1 : -1) * 3 * hitT;
+    const shiftX = (x < courtLen / 2 ? 1 : -1) * 3 * hitT;
     const effX = x + shiftX;
 
     // Drop shadow
     ctx.shadowBlur = flash > 0 ? 16 : 12;
     ctx.shadowColor = flash > 0 ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.20)';
 
-    // Determine curve direction: left paddle bows left, right paddle bows right
-    const curveDir = x < GW / 2 ? 1 : -1;
+    // Determine curve direction: the near paddle bows toward its own goal
+    const curveDir = x < courtLen / 2 ? 1 : -1;
 
     // Vertical gradient along the paddle stroke
     const grad = ctx.createLinearGradient(effX, effY, effX, effY + effH);
@@ -945,7 +1048,7 @@
       if (pointPauseFrames <= 0) {
         pointPause = false;
         pointIndicator.classList.remove('visible');
-        canvas.parentElement.classList.remove('paused');
+        courtArea.classList.remove('paused');
         resetBall(lastScorer === 1 ? -1 : 1);
         scheduleTaunt(lastScorer);
       }
@@ -1051,7 +1154,7 @@
   // ── Online paddle update callback ─
   window.updateOpponentPaddle = function(normalizedY) {
     if (mode === 'playing' || mode === 'countdown') {
-      p2.y = normalizedY * GH - PADDLE_H / 2;
+      p2.y = normalizedY * courtSpan - PADDLE_H / 2;
     }
   };
 
@@ -1082,8 +1185,13 @@
 
   // ── Init ──
   resizeCanvas();
-  window.addEventListener('resize', () => {
-    if (mode === 'playing' || mode === 'paused') resizeCanvas();
-  });
+  // Court size changes are real mid-match (phone URL bar, rotation, keyboard), so
+  // re-fit whenever the court area itself resizes, not just on window resize.
+  function refit() {
+    if (mode === 'countdown' || mode === 'playing' || mode === 'paused') resizeCanvas();
+  }
+  window.addEventListener('resize', refit);
+  window.addEventListener('orientationchange', () => setTimeout(refit, 120));
+  if (window.ResizeObserver) new ResizeObserver(refit).observe(courtArea);
 
 })();

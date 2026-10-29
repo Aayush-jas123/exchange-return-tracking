@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
 <title>OFFCOMFRT &mdash; Ping Pong</title>
-<link rel="stylesheet" href="style.css" />
+<link rel="stylesheet" href="style.css?v=2" />
 </head>
 <body>
 
@@ -82,9 +82,12 @@
 <!-- ═══ Game Screen ═══ -->
 <div id="gameScreen" class="screen">
   <div class="game-wrap">
-    <canvas id="gameCanvas"></canvas>
-    <div class="point-indicator" id="pointIndicator">
-      <span class="point-label" id="pointLabel"></span>
+    <div class="court-area">
+      <canvas id="gameCanvas"></canvas>
+      <div class="point-indicator" id="pointIndicator">
+        <span class="point-label" id="pointLabel"></span>
+      </div>
+      <div class="controls-hint" id="controlsHint"></div>
     </div>
     <div class="hud" id="hud">
       <div class="hud-score">
@@ -94,7 +97,6 @@
       </div>
       <div class="hud-speed" id="hudSpeed"></div>
     </div>
-    <div class="controls-hint" id="controlsHint"></div>
     <div class="pause-btn" id="pauseBtn" hidden>&#10074;&#10074;</div>
   </div>
 </div>
@@ -125,6 +127,6 @@
 <script src="../portal-back.js?v=1"></script>
 <script src="../athlete-xp.js?v=8"></script>
 <script src="ping-pong-net.js?v=12"></script>
-<script src="script.js?v=38"></script>
+<script src="script.js?v=39"></script>
 </body>
 </html>

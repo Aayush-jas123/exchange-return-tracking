@@ -440,8 +440,18 @@ html, body {
   align-items: center;
   justify-content: center;
 }
+/* The court box — the canvas fits inside it and the overlays ride on top */
+.court-area {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
 #gameCanvas {
   display: block;
+  flex: none;
   background: #000;
   border-radius: 4px;
 }
@@ -476,7 +486,7 @@ html, body {
 }
 
 /* Court blur during point pause */
-.game-wrap.paused canvas {
+.court-area.paused canvas {
   filter: blur(6px);
   transition: filter 0.3s ease;
 }
@@ -678,6 +688,76 @@ html, body {
   font-size: 16px;
   cursor: pointer;
   padding: 4px;
+}
+
+/* ═══════════════════════════════════════════
+   UPRIGHT COURT (portrait screens / phones)
+   body.vertical is set by script.js from the measured court box. The court
+   stands the long way up and fills the screen; the HUD becomes a strip so it
+   never sits under the far paddle, and the near paddle clears the home bar.
+   ═══════════════════════════════════════════ */
+.vertical .game-wrap {
+  --hud-h: 62px;
+  --pad-top: env(safe-area-inset-top, 0px);
+}
+
+.vertical .court-area {
+  inset: calc(var(--hud-h) + var(--pad-top)) 0 env(safe-area-inset-bottom, 0px) 0;
+}
+.vertical #gameCanvas { border-radius: 0; }
+
+.vertical .hud {
+  height: calc(var(--hud-h) + var(--pad-top));
+  padding: calc(8px + var(--pad-top)) 62px 6px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  background: #07080a;
+  border-bottom: 1px solid rgba(255,255,255,.07);
+}
+.vertical .hud-score {
+  justify-content: space-between;
+  gap: 10px;
+}
+.vertical .hud-player {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
+}
+.vertical .hud-player:last-child { flex-direction: row-reverse; }
+.vertical .hud-name {
+  font-size: 10px;
+  max-width: 32vw;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vertical .hud-pts { font-size: 26px; }
+.vertical .hud-vs { font-size: 10px; }
+.vertical .hud-speed {
+  margin-top: 0;
+  font-size: 9px;
+  text-align: left;
+}
+
+/* Overlays inside the tall court */
+.vertical .point-indicator {
+  padding: 14px 22px;
+  max-width: 88%;
+}
+.vertical .point-label { font-size: clamp(18px, 6vw, 30px); }
+.vertical .controls-hint {
+  bottom: 22px;
+  font-size: 10px;
+}
+.vertical .pause-btn {
+  top: calc(12px + var(--pad-top));
+  right: 12px;
+  width: 38px;
+  height: 38px;
+  font-size: 16px;
 }
 
 /* ═══════════════════════════════════════════
