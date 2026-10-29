@@ -293,6 +293,46 @@ module.exports = function mountAthleteRoutes(app) {
     }
   });
 
+  // ── Open an athlete's portal from the admin console ──
+  // Issues an EXTRA PROGRESS token instead of rotating, so the athlete's own
+  // session keeps working while the admin looks in. The token rides in the URL
+  // hash (#ap_token=…) which never reaches a server or Referer header.
+  app.post('/api/athlete-admin/athletes/:id/portal-session', authAdmin, async (req, res) => {
+    try {
+      const athleteId = parseInt(req.params.id, 10);
+      if (!athleteId) return res.status(400).json({ error: 'Invalid athlete id' });
+
+      const { data: athlete, error } = await supabase
+        .from('influencers')
+        .select('id, name, phone, athlete_status')
+        .eq('id', athleteId)
+        .maybeSingle();
+      if (error) throw error;
+      if (!athlete) return res.status(404).json({ error: 'Athlete not found' });
+
+      // 7-day TTL: long enough for one admin session, short enough that a leaked
+      // link does not stay live forever.
+      const rawToken = await TokenService.issue('PROGRESS', athlete.id, null, 7 * 24 * 60 * 60);
+      // Athlete portal is Shopify-hosted (the Render app has no /pages route).
+      const portalUrl = process.env.ATHLETE_PORTAL_URL || 'https://offcomfrt.in/pages/athlete-portal';
+
+      console.log(`[athlete-admin-portal] Opened portal for athlete ${athlete.id} (${athlete.name})`);
+
+      res.json({
+        success: true,
+        data: {
+          athlete: { id: athlete.id, name: athlete.name, status: athlete.athlete_status },
+          portal_url: portalUrl,
+          portal_link: `${portalUrl}#ap_token=${rawToken}`,
+          access_token: rawToken // Only returned once
+        }
+      });
+    } catch (err) {
+      console.error('[athlete-admin-portal] error:', err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // ─ Task Templates ──
   app.get('/api/athlete-admin/tasks', authAdmin, async (req, res) => {
     try {
@@ -596,85 +636,6 @@ module.exports = function mountAthleteRoutes(app) {
       await supabase.from('payouts').update({ status: 'QUEUED', queued_at: new Date().toISOString() }).eq('id', req.params.id);
       res.json({ success: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
-  });
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // ADMIN: LOGIN AS ATHLETE (mobile + super admin password)
-  // ══════════════════════════════════════════════════════════════════════════
-
-  app.post('/api/athlete-admin/login-as-athlete', async (req, res) => {
-    try {
-      const { phone, password } = req.body;
-      if (!phone || !password) {
-        return res.status(400).json({ error: 'Mobile number and password are required' });
-      }
-
-      // Verify super admin password
-      const expectedPassword = process.env.ADMIN_PASSWORD || 'admin123';
-      if (password !== expectedPassword) {
-        return res.status(401).json({ error: 'Invalid admin password' });
-      }
-
-      // Normalize phone
-      const normalized = otpService.normalizeIndianPhone(phone);
-      if (!normalized) {
-        return res.status(400).json({ error: 'Please enter a valid 10-digit mobile number' });
-      }
-
-      // Look up athlete by phone (try normalized format first, then raw 10-digit fallback)
-      let { data: athlete, error: athErr } = await supabase
-        .from('influencers')
-        .select('id, name, athlete_status, phone')
-        .eq('phone', normalized)
-        .maybeSingle();
-
-      if (athErr) throw athErr;
-      if (!athlete) {
-        // Fallback: try raw 10-digit format for legacy records stored without country code
-        const raw10 = normalized.substring(2);
-        const { data: legacyAthlete } = await supabase
-          .from('influencers')
-          .select('id, name, athlete_status, phone')
-          .eq('phone', raw10)
-          .maybeSingle();
-        if (!legacyAthlete) {
-          return res.status(404).json({ error: 'No athlete found with this mobile number' });
-        }
-        // Fix the legacy record for next time
-        await supabase.from('influencers').update({ phone: normalized }).eq('id', legacyAthlete.id);
-        athlete = legacyAthlete;
-      }
-
-      // Get or create PROGRESS token for this athlete
-      const { data: existingTokens } = await supabase
-        .from('access_tokens')
-        .select('id')
-        .eq('influencer_id', athlete.id)
-        .eq('scope', 'PROGRESS')
-        .is('revoked_at', null)
-        .limit(1);
-
-      let rawToken;
-      if (existingTokens && existingTokens.length > 0) {
-        // Rotate to get a fresh token (old one's plaintext is lost)
-        rawToken = await TokenService.rotate(athlete.id, 'PROGRESS');
-      } else {
-        rawToken = await TokenService.issue('PROGRESS', athlete.id);
-      }
-
-      console.log(`[athlete-admin-login] Admin logged in as athlete ${athlete.id} (${athlete.name}) via mobile`);
-
-      res.json({
-        success: true,
-        data: {
-          token: rawToken,
-          athlete: { id: athlete.id, name: athlete.name, status: athlete.athlete_status }
-        }
-      });
-    } catch (err) {
-      console.error('[athlete-admin-login] error:', err.message);
-      res.status(500).json({ error: 'Login failed. Please try again.' });
-    }
   });
 
   // ══════════════════════════════════════════════════════════════════════════

@@ -23,29 +23,24 @@
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
   {% # theme-check-enable RemoteAsset %}
   {% comment %} Styles and behaviour live in theme assets, not inline (this template was over Shopify's 256 KB limit). Upload the repo files shopify-assets/athlete-portal.css and shopify-assets/athlete-portal.js to Online Store > Themes > Edit code > Assets (keeping those filenames) BEFORE saving this template, otherwise the page loads unstyled and inert. {% endcomment %}
-  <link rel="stylesheet" href="{{ 'athlete-portal.css' | asset_url }}?v=6">
+  <link rel="stylesheet" href="{{ 'athlete-portal.css' | asset_url }}?v=8">
 </head>
 <body>
   <div class="loading" id="loading"><p>Loading athlete portal</p></div>
   <div class="auth" id="auth" hidden>
     <form class="auth-card" id="authForm">
       <h1>OFFCOMFRT</h1>
-      <p>Athlete access</p>
+      <p class="auth-sub">Athlete access</p>
 
-      <div class="login-tabs">
-        <button type="button" class="active" data-ltab="athlete">Athlete</button>
-        <button type="button" data-ltab="admin">Admin</button>
-      </div>
-
-      <!-- Athlete OTP Login -->
+      <!-- Athlete OTP login. Admin entry lives in the athlete admin console, which opens a portal tab per athlete. -->
       <div class="login-pane active" id="paneAthlete">
-        <label>Mobile number</label>
-        <input id="athletePhone" type="tel" placeholder="10-digit mobile" autocomplete="tel" required>
+        <label for="athletePhone">Mobile number</label>
+        <input id="athletePhone" type="tel" inputmode="numeric" placeholder="10-digit mobile" autocomplete="tel" required>
         <div id="otpStep1">
           <button type="button" id="sendOtpBtn">Send OTP</button>
         </div>
         <div id="otpStep2" style="display:none">
-          <label>Enter OTP</label>
+          <label for="otpInput">Enter OTP</label>
           <div class="otp-row">
             <input id="otpInput" type="text" inputmode="numeric" maxlength="6" placeholder="6-digit code" autocomplete="one-time-code">
             <button type="button" id="resendOtpBtn" disabled>Resend</button>
@@ -55,26 +50,7 @@
         </div>
       </div>
 
-      <!-- Admin Login -->
-      <div class="login-pane" id="paneAdmin">
-        <label>Athlete mobile number</label>
-        <input id="adminPhone" type="tel" placeholder="10-digit mobile" autocomplete="tel">
-        <label>Admin password</label>
-        <input id="adminPassword" type="password" placeholder="Super admin password">
-        <button type="button" id="adminLoginBtn">Login as athlete</button>
-      </div>
-
       <p id="authError"></p>
-      <div class="dbg" id="dbgPanel" hidden>
-        <div class="dbg-head">
-          <span>Diagnostics</span>
-          <span>
-            <button type="button" id="dbgRetry">Retry</button>
-            <button type="button" id="dbgCopy">Copy</button>
-          </span>
-        </div>
-        <div class="dbg-log" id="dbgLog"></div>
-      </div>
     </form>
   </div>
 
@@ -90,7 +66,7 @@
       </div>
       <div class="sidebar-acct" id="sidebarAcct">
         <div class="sidebar-acct-head" id="sidebarAcctHead" onclick="toggleSidebarAcct()">
-          <div class="sidebar-acct-avatar"></div>
+          <button class="sidebar-acct-ava" type="button" aria-label="Change avatar" title="Change avatar" onclick="event.stopPropagation();openSidebarAcctSub('avatar')"><span class="sidebar-acct-avatar"></span><i class="ava-pen" aria-hidden="true"><svg viewBox="0 0 15 15"><path d="M2.6 12.4h2.2l6.9-6.9a1.56 1.56 0 0 0-2.2-2.2L2.6 10.2Z"/></svg></i></button>
           <div class="sidebar-acct-info"><b id="sbAcctName">Athlete</b><em id="sbAcctMeta">Loading&hellip;</em></div>
           <i class="sidebar-acct-arrow">&#8250;</i>
         </div>
@@ -99,7 +75,6 @@
           <button class="sidebar-acct-item" type="button" data-ak="cash" onclick="openSidebarAcctSub('cash')"><svg viewBox="0 0 15 15" aria-hidden="true"><path d="M2 4.5h11v6H2zM2 7.5h11"/><circle cx="7.5" cy="7.5" r="1.6"/></svg><span>Earnings</span><span class="acct-val" id="sbValCash">&mdash;</span></button>
           <button class="sidebar-acct-item" type="button" data-ak="ship" onclick="openSidebarAcctSub('ship')"><svg viewBox="0 0 15 15" aria-hidden="true"><path d="M1.5 5.5h8v5h-8zM9.5 7h2.3l1.7 2v1.5h-4z"/><circle cx="4" cy="11.5" r="1.1"/><circle cx="10.6" cy="11.5" r="1.1"/></svg><span>Shipments</span><span class="acct-val" id="sbValShip">&mdash;</span></button>
           <button class="sidebar-acct-item" type="button" data-ak="shop" onclick="sbGoShop()"><svg viewBox="0 0 15 15" aria-hidden="true"><path d="M2.5 5h10l-.8 8H3.3z"/><path d="M5.5 5V4a2 2 0 0 1 4 0v1"/></svg><span>Shop</span><span class="acct-val" id="sbValShop">&mdash;</span></button>
-          <button class="sidebar-acct-item" type="button" data-ak="avatar" onclick="openSidebarAcctSub('avatar')"><svg viewBox="0 0 15 15" aria-hidden="true"><circle cx="7.5" cy="5" r="2.8"/><path d="M2.5 13c0-2.8 2.2-5 5-5s5 2.2 5 5"/></svg><span>Avatar</span></button>
           <button class="sidebar-acct-item" type="button" data-ak="card" onclick="openSidebarAcctSub('card')"><svg viewBox="0 0 15 15" aria-hidden="true"><rect x="1.5" y="2.5" width="12" height="10"/><circle cx="5.5" cy="6" r="1.4"/><path d="M3 10.5c0-1.4 1.1-2.2 2.5-2.2S8 9.1 8 10.5M9.5 5.5h2.5M9.5 8h2"/></svg><span>Athlete card</span></button>
           <button class="sidebar-acct-item" type="button" data-ak="set" onclick="openSidebarAcctSub('set')"><svg viewBox="0 0 15 15" aria-hidden="true"><circle cx="7.5" cy="7.5" r="2.1"/><path d="M7.5 1.6v1.8M7.5 11.6v1.8M1.6 7.5h1.8M11.6 7.5h1.8M3.3 3.3l1.3 1.3M10.4 10.4l1.3 1.3M11.7 3.3l-1.3 1.3M4.6 10.4l-1.3 1.3"/></svg><span>Settings</span></button>
         </div>
@@ -459,6 +434,6 @@
 
   </div></main>
 
-<script src="{{ 'athlete-portal.js' | asset_url }}?v=6" defer></script>
+<script src="{{ 'athlete-portal.js' | asset_url }}?v=10" defer></script>
 </body>
 </html>

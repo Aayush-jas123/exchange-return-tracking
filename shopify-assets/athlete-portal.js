@@ -8,15 +8,28 @@ const $=id=>document.getElementById(id);
 const esc=v=>{const e=document.createElement('div');e.textContent=v||'';return e.innerHTML};
 const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+// Admin deep links hand the athlete page a ready-made portal token in the hash
+// (…/pages/athlete-portal#ap_token=<token>) so the console can open any athlete
+// in a new tab. Stored in sessionStorage like an OTP login, then stripped from
+// the address bar so the token is not left in history or shared links.
+(function adoptUrlToken(){
+  const fromHash=new URLSearchParams((location.hash||'').replace(/^#/,'')).get('ap_token');
+  const fromQuery=new URLSearchParams(location.search||'').get('ap_token');
+  const tok=fromHash||fromQuery;
+  if(!tok)return;
+  sessionStorage.setItem('ap_token',tok);
+  history.replaceState(null,'',location.pathname);
+})();
+
 // ── Avatar builder system (extracted from locker.html) ──
 const AV_DK='#0A0A0A';
 function AV_S(d,c,w){return '<path d="'+d+'" fill="none" stroke="'+c+'" stroke-width="'+(w||8.4)+'" stroke-linecap="round" stroke-linejoin="round"/>'}
 const AV_BASE={
-  stand:{n:'Stand',d:function(c){return AV_S('M50 35V60',c)+AV_S('M50 41L39 56M50 41L61 56',c)+AV_S('M50 60L41 84M50 60L59 84',c)}},
-  walk:{n:'Walk',d:function(c){return AV_S('M48 35V59',c)+AV_S('M48 41L36 52M48 41L60 49',c)+AV_S('M48 59L35 82M48 59L60 80',c)}},
-  reach:{n:'Reach',d:function(c){return AV_S('M44 39V62',c)+AV_S('M44 44L32 58M44 44L62 18',c)+AV_S('M44 62L36 86M44 62L54 86',c)}},
-  bow:{n:'Bow',d:function(c){return AV_S('M33 42L62 50',c)+AV_S('M44 45L41 66M54 48L52 68',c,6.5)+AV_S('M62 50L57 86M62 50L73 83',c)}},
-  sit:{n:'Sit',d:function(c){return AV_S('M50 41V58',c)+AV_S('M50 46L35 56M50 46L65 56',c)+AV_S('M50 58L32 74H68L50 58',c,7)}}
+  stand:{n:'Stand',h:[50,26],d:function(c){return AV_S('M50 35V60',c)+AV_S('M50 41L39 56M50 41L61 56',c)+AV_S('M50 60L41 84M50 60L59 84',c)}},
+  walk:{n:'Walk',h:[48,26],d:function(c){return AV_S('M48 35V59',c)+AV_S('M48 41L36 52M48 41L60 49',c)+AV_S('M48 59L35 82M48 59L60 80',c)}},
+  reach:{n:'Reach',h:[44,30],d:function(c){return AV_S('M44 39V62',c)+AV_S('M44 44L32 58M44 44L62 18',c)+AV_S('M44 62L36 86M44 62L54 86',c)}},
+  bow:{n:'Bow',h:[24,40],d:function(c){return AV_S('M33 42L62 50',c)+AV_S('M44 45L41 66M54 48L52 68',c,6.5)+AV_S('M62 50L57 86M62 50L73 83',c)}},
+  sit:{n:'Sit',h:[50,32],d:function(c){return AV_S('M50 41V58',c)+AV_S('M50 46L35 56M50 46L65 56',c)+AV_S('M50 58L32 74H68L50 58',c,7)}}
 };
 const AV_HEAD={
   none:{n:'Bare',d:function(){return ''}},
@@ -56,7 +69,7 @@ const AV_SLOTS=[
 ];
 function avPieceLv(slot,key){if(slot.k==='frame')return(AV_FRAME[key]||AV_FRAME.plain).lv;return slot.lv}
 function avBuild(cfg,SZ){
-  var F=AV_FRAME[cfg.frame]||AV_FRAME.plain,ink=F.inv?AV_DK:'#fff',bg=F.inv?'#fff':AV_DK,B=AV_BASE[cfg.base]||AV_BASE.walk,hx=50,hy=26;
+  var F=AV_FRAME[cfg.frame]||AV_FRAME.plain,ink=F.inv?AV_DK:'#fff',bg=F.inv?'#fff':AV_DK,B=AV_BASE[cfg.base]||AV_BASE.walk,hx=B.h[0],hy=B.h[1];
   var cid='cl'+(++AV_UID);
   var inner=(AV_GROUND[cfg.ground]||AV_GROUND.none).d(ink)+(AV_MARK[cfg.mark]||AV_MARK.none).d(ink)+B.d(ink)+'<circle cx="'+hx+'" cy="'+hy+'" r="7.6" fill="'+ink+'"/>'+(AV_HEAD[cfg.head]||AV_HEAD.none).d(ink,bg,hx,hy);
   var out=F.bg()+'<defs><clipPath id="'+cid+'"><circle cx="50" cy="50" r="50"/></clipPath></defs><g clip-path="url(#'+cid+')">'+inner+'</g>'+F.over(ink);
@@ -101,21 +114,13 @@ function refreshAllAvatars(){
   try{ if($('ranksBody')) renderRanks(); }catch(e){}
 }
 
-// ── Debug logger: console + on-page diagnostics panel ──
+// ── Debug logger: console only. Support reads these via the browser console. ──
 const DBG=[];
 function dbg(msg,level='info'){
   const line=`${new Date().toLocaleTimeString('en-GB',{hour12:false})} ${level==='err'?'!!':'··'} ${msg}`;
   DBG.push({line,level});
   if(DBG.length>200)DBG.shift();
   if(level==='err')console.error('[AP]',msg);else console.log('[AP]',msg);
-  const log=$('dbgLog');
-  if(log){
-    const el=document.createElement('div');
-    if(level==='err')el.className='err';
-    el.textContent=line;
-    log.appendChild(el);
-    log.scrollTop=log.scrollHeight;
-  }
 }
 const maskToken=t=>t?`${t.slice(0,4)}…${t.slice(-4)} (len ${t.length})`:'(none)';
 addEventListener('error',e=>dbg(`JS error: ${e.message} @ ${(e.filename||'').split('/').pop()}:${e.lineno}`,'err'));
@@ -145,8 +150,9 @@ const AV_ICONS={
   card:'<rect x="1.5" y="2.5" width="12" height="10"/><circle cx="5.5" cy="6" r="1.4"/><path d="M3 10.5c0-1.4 1.1-2.2 2.5-2.2S8 9.1 8 10.5M9.5 5.5h2.5M9.5 8h2"/>',
   set:'<circle cx="7.5" cy="7.5" r="2.1"/><path d="M7.5 1.6v1.8M7.5 11.6v1.8M1.6 7.5h1.8M11.6 7.5h1.8M3.3 3.3l1.3 1.3M10.4 10.4l1.3 1.3M11.7 3.3l-1.3 1.3M4.6 10.4l-1.3 1.3"/>'
 };
+// Pencil badge painted on every avatar the athlete can click to rebuild it.
+const AV_PEN='<i class="ava-pen" aria-hidden="true"><svg viewBox="0 0 15 15"><path d="M2.6 12.4h2.2l6.9-6.9a1.56 1.56 0 0 0-2.2-2.2L2.6 10.2Z"/></svg></i>';
 const AV_MENU=[
-  {k:'avatar',t:'Avatar',s:'Build your look',ic:'avatar',note:''},
   {k:'code',t:'Your code',s:'—',ic:'code',note:''},
   {k:'cash',t:'Earnings',s:'—',ic:'cash',note:''},
   {k:'ship',t:'Shipments',s:'—',ic:'ship',note:''},
@@ -159,10 +165,12 @@ function openAvSheet(){avScreen='menu';renderAvMenu();$('avScrim').classList.add
 function closeAvSheet(){$('avScrim').classList.remove('on');$('avSheet').classList.remove('on')}
 function avGo(key){
   if(key==='shop'){closeAvSheet();show('shop');return}
-  const m=AV_MENU.find(x=>x.k===key);if(!m)return;
-  avScreen=key;
+  // Screens are keyed off the renderer map, not AV_MENU: the Avatar screen is
+  // opened straight from the avatar itself and has no menu row of its own.
   const renderers={avatar:renderAvAvatar,code:renderAvCode,cash:renderAvEarnings,ship:renderAvShipments,card:renderAvCard,set:renderAvSettings};
-  (renderers[key]||renderAvMenu)();
+  if(!renderers[key])return;
+  avScreen=key;
+  renderers[key]();
   $('avBody').insertAdjacentHTML('afterbegin','<div class="avbackrow"><button type="button" onclick="avBack()" aria-label="Back">&larr; Back</button></div>');
 }
 function avBack(){avScreen='menu';renderAvMenu()}
@@ -182,7 +190,7 @@ function renderAvMenu(){
   row('ship').s=onTheWay?`${onTheWay} on the way`:'Nothing in transit';
   row('shop').s=`${coinBalance().toLocaleString('en-IN')} coins`;
   row('shop').note='';
-  $('avBody').innerHTML=`<div class="idcard"><span class="big">${renderAthleteAvatar(a,42)}</span><div><b>${esc(a.name||'Athlete')}</b><em>${esc(handle)} · ${esc(lvl)}</em></div></div><div class="menu">${AV_MENU.map(m=>`<button class="mrow" type="button" data-k="${m.k}"><svg viewBox="0 0 15 15" aria-hidden="true">${AV_ICONS[m.ic]}</svg><span><b>${m.t}</b><em>${m.s}</em></span><s${m.note?' class="hot"':''}>${m.note||''}</s><i>&rsaquo;</i></button>`).join('')}</div><p style="font-size:10.5px;color:var(--dim);margin:4px 0 0;line-height:1.45;flex:none">Six screens, none of them worth a tab. An athlete opens any of these a handful of times a month — usually because something sent them here.</p>`;
+  $('avBody').innerHTML=`<div class="idcard"><button class="ava" type="button" aria-label="Change avatar" title="Change avatar" onclick="avGo('avatar')"><span class="big">${renderAthleteAvatar(a,42)}</span>${AV_PEN}</button><div><b>${esc(a.name||'Athlete')}</b><em>${esc(handle)} · ${esc(lvl)}</em></div></div><div class="menu">${AV_MENU.map(m=>`<button class="mrow" type="button" data-k="${m.k}"><svg viewBox="0 0 15 15" aria-hidden="true">${AV_ICONS[m.ic]}</svg><span><b>${m.t}</b><em>${m.s}</em></span><s${m.note?' class="hot"':''}>${m.note||''}</s><i>&rsaquo;</i></button>`).join('')}</div><p style="font-size:10.5px;color:var(--dim);margin:4px 0 0;line-height:1.45;flex:none">Six screens, none of them worth a tab. An athlete opens any of these a handful of times a month — usually because something sent them here.</p>`;
   $('avBody').querySelectorAll('.mrow').forEach(b=>{b.onclick=()=>avGo(b.dataset.k)});
 }
 
@@ -1008,189 +1016,205 @@ function renderClimb(){
     gate=parts.length?` ${parts.join(' + ')} to ${esc(nxt.display_name)}.`:` ${esc(nxt.display_name)} unlocks at tonight's check.`;
   }
 
-  // ── 1. Hero card ──
-  let html=`<div class="climb-hero">
-    <div class="ch-top"><span class="ch-label">Current position</span><span class="ch-live"><i></i>Live</span></div>
-    <div class="ch-level">${esc(cur.display_name||'Unranked')}</div>
-    <div class="ch-name">Comfort Level &ndash; ${cur.display_number??'0'}</div>
-    <div class="ch-sub">${days} day${days!==1?'s':''} at this level.${gate}</div>
-    <div class="ch-bar"><i style="width:${xpPct}%"></i></div>
-    <dl class="ch-stats">
-      <div><dt>XP</dt><dd>${n(xpHave)}</dd></div>
-      <div><dt>Level</dt><dd>${cur.display_number??'0'}</dd></div>
-      <div><dt>Standing</dt><dd>${Number(standing).toFixed(1)}</dd></div>
+  // ── Shared layout values for the whole screen ──
+  const ladderArr=c.ladder||[];
+  const maxLvl=ladderArr[ladderArr.length-1]||null;
+  const rules=c.xp_rules||{};
+  const lvCount=ladderArr.length||1;
+  const pad=v=>String(v??0).padStart(2,'0');
+  const topXp=Math.max(1,maxLvl?.min_xp||0,xpHave);
+
+  // ── 1. Hero: who you are on the route right now ──
+  let html=`<div class="clp">
+    <section class="clp-hero">
+      <div class="clp-hero-top"><span class="clp-kick">Current position</span><span class="clp-live"><i></i>Live</span></div>
+      <div class="clp-hero-main">
+        <div class="clp-hero-id">
+          <span class="clp-hero-no">${pad(cur.display_number)}</span>
+          <div class="clp-hero-nm">
+            <b>${esc(cur.display_name||'Unranked')}</b>
+            <em>${days} day${days!==1?'s':''} at this level &middot; level ${pad(cur.display_number)} of ${pad(lvCount)}</em>
+          </div>
+        </div>
+        <dl class="clp-hero-kpi">
+          <div><dt>Total XP</dt><dd>${n(xpHave)}</dd></div>
+          <div><dt>Standing</dt><dd>${Number(standing).toFixed(1)}</dd></div>
+          <div><dt>To next</dt><dd>${nxt?n(xpToNext):'&mdash;'}<small>${nxt?'xp':''}</small></dd></div>
+        </dl>
+      </div>
+      <div class="clp-hero-bar"><i style="width:${xpPct}%"></i></div>
+      <div class="clp-hero-foot"><span>${xpPct}% to ${nxt?esc(nxt.display_name):'the top'}</span><span>${gate.trim()}</span></div>
+    </section>
+
+    <section class="clp-journey">
+      <div class="clp-journey-top"><span class="clp-kick">Journey to ${esc(maxLvl?.display_name||'the top')}</span><b>${overallPct}<small>%</small></b></div>
+      <div class="clp-journey-track">
+        <span class="clp-journey-fill" style="width:${overallPct}%"></span>
+        ${ladderArr.map(l=>`<i style="left:${Math.min(100,Math.max(0,((l.min_xp||0)/topXp)*100))}%"></i>`).join('')}
+        <span class="clp-journey-now" style="left:${overallPct}%"></span>
+      </div>
+      <div class="clp-journey-foot"><span>0 xp</span><span>${n(topXp)} xp</span></div>
+    </section>
+
+    <dl class="clp-rail">
+      <div><dt>Streak</dt><dd>${streak.current_streak||0}<small>d</small></dd><em>best ${streak.longest_streak||0}</em></div>
+      <div><dt>Missions</dt><dd>${n(missionsDone)}</dd><em>approved</em></div>
+      <div><dt>Active days</dt><dd>${streak.total_active_days||0}</dd><em>all time</em></div>
+      <div><dt>XP / 7d</dt><dd>${n(c.xp_last_7)}</dd><em>last week</em></div>
+      <div><dt>XP / 30d</dt><dd>${n(c.xp_last_30)}</dd><em>last month</em></div>
+      <div><dt>Arcade today</dt><dd>${n(c.game_xp_today)}<small>/${n(rules.game_daily_xp_cap)}</small></dd><em>daily cap</em></div>
     </dl>
-  </div>`;
 
-  // ── 2. Activity strip: streak / missions / active days ──
-  html+=`<div class="climb-activity">
-    <div><dt>Streak</dt><dd>${streak.current_streak||0}<s style="font:500 8px var(--m);color:var(--dim);text-decoration:none;margin-left:3px">d</s></dd></div>
-    <div><dt>Missions</dt><dd>${n(missionsDone)}</dd></div>
-    <div><dt>Active days</dt><dd>${streak.total_active_days||0}</dd></div>
-  </div>`;
+    <div class="clp-body">
+      <div class="clp-main">`;
 
-  // ── 3. Overall progress to max level ──
-  const maxLvl=(c.ladder||[])[(c.ladder||[]).length-1];
-  html+=`<div class="climb-overall">
-    <div class="co-label">Journey to ${esc(maxLvl?.display_name||'Zero Comfort')}</div>
-    <div class="co-pct">${overallPct}%</div>
-    <div class="co-bar"><i style="width:${overallPct}%"></i></div>
-    <div class="co-marks"><span>${n(xpHave)} XP</span><span>${n(maxLvl?.min_xp||20000)} XP</span></div>
-  </div>`;
-
-  // ── 4. Next-level requirements checklist ──
+  // ── 2. Next level: what still stands between you and it ──
   if(nxt&&req){
-    const xpDone=req.xp.complete,daysDone=req.days.complete,standDone=req.standing.complete;
-    const xpPctReq=Math.min(100,Math.round((req.xp.current/Math.max(1,req.xp.required))*100));
-    const daysPctReq=req.days.required?Math.min(100,Math.round((req.days.current/Math.max(1,req.days.required))*100)):100;
-    const standPctReq=req.standing.required?Math.min(100,Math.round((req.standing.current/Math.max(1,req.standing.required))*100)):100;
-    const allDone=xpDone&&daysDone&&standDone;
-    html+=`<div class="climb-req">
-      <div class="cr-label">Next level requirements</div>
-      <div class="cr-head"><h3>${esc(nxt.display_name)}</h3><span>${allDone?'All complete':'In progress'}</span></div>
-      <div class="req-row ${xpDone?'done':''}">
-        <div class="req-icon ${xpDone?'done':''}">${xpDone?'\u2713':'XP'}</div>
-        <div class="req-body">
-          <div class="req-title">${n(req.xp.required).toLocaleString('en-IN')} XP required</div>
-          <div class="req-sub">${n(req.xp.current).toLocaleString('en-IN')} / ${n(req.xp.required).toLocaleString('en-IN')} &middot; ${n(Math.max(0,req.xp.required-req.xp.current)).toLocaleString('en-IN')} to go</div>
-          <div class="req-bar"><i style="width:${xpPctReq}%"></i></div>
-        </div>
-        <div class="req-val">${xpPctReq}%</div>
-      </div>
-      <div class="req-row ${daysDone?'done':''}">
-        <div class="req-icon ${daysDone?'done':''}">${daysDone?'\u2713':'D'}</div>
-        <div class="req-body">
-          <div class="req-title">${req.days.required} days at current level</div>
-          <div class="req-sub">${days} / ${req.days.required} days &middot; ${Math.max(0,req.days.required-days)} day${Math.max(0,req.days.required-days)!==1?'s':''} remaining</div>
-          <div class="req-bar"><i style="width:${daysPctReq}%"></i></div>
-        </div>
-        <div class="req-val">${daysPctReq}%</div>
-      </div>
-      ${req.standing.required?`<div class="req-row ${standDone?'done':''}">
-        <div class="req-icon ${standDone?'done':''}">${standDone?'\u2713':'S'}</div>
-        <div class="req-body">
-          <div class="req-title">Standing score ${req.standing.required}</div>
-          <div class="req-sub">${Number(req.standing.current).toFixed(1)} / ${req.standing.required}</div>
-          <div class="req-bar"><i style="width:${standPctReq}%"></i></div>
-        </div>
-        <div class="req-val">${standPctReq}%</div>
-      </div>`:''}
-    </div>`;
+    const xpRowPct=Math.min(100,Math.round((req.xp.current/Math.max(1,req.xp.required))*100));
+    const dayRowPct=req.days.required?Math.min(100,Math.round((days/Math.max(1,req.days.required))*100)):100;
+    const standRowPct=req.standing.required?Math.min(100,Math.round((req.standing.current/Math.max(1,req.standing.required))*100)):100;
+    const rows=[
+      {done:req.xp.complete,t:'Experience required',v:`${n(req.xp.current)} / ${n(req.xp.required)} xp`,pct:xpRowPct},
+      {done:req.days.complete,t:'Days at this level',v:`${days} / ${req.days.required} days`,pct:dayRowPct}
+    ];
+    if(req.standing.required)rows.push({done:req.standing.complete,t:`Standing score ${req.standing.required}`,v:`${Number(req.standing.current).toFixed(1)} / ${req.standing.required}`,pct:standRowPct});
+    const allDone=rows.every(r=>r.done);
+    html+=`<section class="clp-sec clp-req">
+        <div class="clp-head"><span class="clp-idx">01</span><b>Next level</b><span class="clp-chip${allDone?' on':''}">${allDone?'Complete':'In progress'}</span></div>
+        <div class="clp-req-brief"><b>${esc(nxt.display_name)}</b><em>${gate.trim()}</em></div>
+        <div class="clp-req-list">${rows.map(r=>`<div class="clp-req-row${r.done?' done':''}">
+          <span class="clp-req-mark">${r.done?'\u2713':''}</span>
+          <div class="clp-req-body">
+            <div class="clp-req-top"><b>${r.t}</b><em>${r.v}</em></div>
+            <div class="clp-mini"><i style="width:${r.pct}%"></i></div>
+          </div>
+          <span class="clp-req-pct">${r.pct}<small>%</small></span>
+        </div>`).join('')}</div>
+      </section>`;
   }
 
-  // ── 5. XP velocity & projection ──
-  html+=`<div class="climb-velocity">
-    <div class="cv-label">XP velocity</div>
-    <div class="cv-stats">
-      <div><dt>Last 7 days</dt><dd>${n(c.xp_last_7)}</dd></div>
-      <div><dt>Last 30 days</dt><dd>${n(c.xp_last_30)}</dd></div>
-    </div>
-    <div class="cv-projection">
-      <div class="cvp-label">Daily average (7d)</div>
-      <div class="cvp-value">${n(dailyRate7)} <s style="font:500 9px var(--m);color:var(--dim);text-decoration:none">XP/day</s></div>
-      <div class="cvp-sub">30d avg: ${n(dailyRate30)} XP/day${projDays!=null&&nxt?` &middot; ~${projDays} day${projDays!==1?'s':''} to ${esc(nxt.display_name)}`:''}</div>
-    </div>
-  </div>`;
-
-  // ── 6. 14-day XP spark chart ──
-  if(series.length){
-    const maxDay=Math.max(1,...series.map(d=>d.amount));
-    const bars=series.map((d,i)=>{
-      const h=Math.max(2,Math.round((d.amount/maxDay)*100));
-      const isToday=i===series.length-1;
-      const label=new Date(d.date).toLocaleDateString('en-IN',{day:'numeric',month:'short'});
-      return `<div class="spark-bar${isToday?' today':''}" style="height:${h}%" title="${label}: ${d.amount} XP"></div>`;
-    }).join('');
-    const labels=series.map((d,i)=>{
-      if(i%3!==0&&i!==series.length-1)return '<span></span>';
-      return `<span>${new Date(d.date).toLocaleDateString('en-IN',{day:'numeric',month:'short'})}</span>`;
-    }).join('');
-    html+=`<div class="climb-spark">
-      <div class="cs-label">Last 14 days</div>
-      <div class="spark-chart">${bars}</div>
-      <div class="spark-labels">${labels}</div>
-    </div>`;
-  }
-
-  // ── 7. Comfort ladder (enhanced with XP gaps) ──
-  const ladder=(c.ladder||[]).map(l=>{
+  // ── 3. Comfort ladder: a route, not a table ──
+  const ladderHtml=(c.ladder||[]).map(l=>{
     const isCur=l.id===cur.id;
     const isCleared=l.ordinal<(cur.ordinal||0);
-    const isLocked=l.ordinal>(cur.ordinal||0);
-    const cls=isCur?'current':isCleared?'cleared':'locked';
-    const tag=isCur?'YOU':isCleared?'CLEARED':'LOCKED';
-    const tagCls=isCur?'you':isCleared?'cleared':'locked';
+    const state=isCur?'current':isCleared?'cleared':'locked';
+    const tag=isCur?'You':isCleared?'Cleared':'Locked';
     const progPct=isCleared?100:isCur?xpPct:0;
-    const gap=isLocked?Math.max(0,(l.min_xp||0)-xpHave):0;
-    return `<div class="ladder-row ${cls}">
-      <b class="ladder-num">${l.display_number??'0'}</b>
-      <div>
-        <div class="ladder-title">${esc(l.display_name)}</div>
-        <div class="ladder-meta">${n(l.min_xp).toLocaleString('en-IN')} XP${l.min_days_in_previous?` &middot; ${l.min_days_in_previous}d at prev`:' &middot; start'}${isLocked&&gap?` &middot; ${n(gap).toLocaleString('en-IN')} to go`:''}</div>
-        <div class="ladder-prog"><i style="width:${progPct}%"></i></div>
-      </div>
-      <span class="state ${tagCls}">${tag}</span>
-    </div>`;
+    const gap=isCur?Math.max(0,xpToNext):Math.max(0,(l.min_xp||0)-xpHave);
+    const right=isCur?`<b>${n(gap)}</b><em>xp to go</em>`
+      :isCleared?`<b>&#10003;</b><em>cleared</em>`
+      :`<b>${n(gap)}</b><em>xp away</em>`;
+    return `<div class="clp-lrow ${state}">
+          <span class="clp-lnum">${pad(l.display_number)}</span>
+          <span class="clp-lnode"></span>
+          <div class="clp-lbody">
+            <div class="clp-ltop"><b>${esc(l.display_name)}</b><span class="clp-tag ${state}">${tag}</span></div>
+            <div class="clp-lmeta"><span>${n(l.min_xp)} xp entry</span><span>${l.min_days_in_previous?`${l.min_days_in_previous} days at prev`:'entry level'}</span></div>
+            <div class="clp-lbar"><i style="width:${progPct}%"></i></div>
+          </div>
+          <div class="clp-lgap">${right}</div>
+        </div>`;
   }).join('');
-  html+=`<div class="ladder"><div class="ladder-head"><span class="lh-title">Comfort ladder</span><span class="lh-count">${(c.ladder||[]).length} levels</span></div>${ladder}</div>`;
+  html+=`<section class="clp-sec clp-ladder">
+        <div class="clp-head"><span class="clp-idx">02</span><b>Comfort ladder</b><span class="clp-meta">${ladderArr.length} levels</span></div>
+        ${ladderHtml}
+      </section>`;
 
-  // ── 8. XP fuel breakdown (enhanced with proportional bars) ──
-  const src=c.xp_sources||{},rules=c.xp_rules||{};
-  const totalXp=Math.max(1,(src.tasks||0)+(src.orders||0)+(src.games||0)+(src.bonus||0));
-  const srcPct=k=>Math.round(((src[k]||0)/totalXp)*100);
-  html+=`<div class="climb-fuel">
-    <div class="cw-label" style="font-family:var(--m);font-size:7.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)">What fuels your climb</div>
-    <dl class="cf-grid">
-      <div><dt>Missions</dt><dd>${n(src.tasks)}</dd></div>
-      <div><dt>Orders</dt><dd>${n(src.orders)}</dd></div>
-      <div><dt>Arcade</dt><dd>${n(src.games)}</dd></div>
-      <div><dt>Bonus</dt><dd>${n(src.bonus)}</dd></div>
-    </dl>
-    <ul style="margin-top:10px">
-      <li><span>Missions</span><b>${srcPct('tasks')}%</b></li>
-      <li><span>Coupon orders</span><b>${srcPct('orders')}%</b></li>
-      <li><span>Arcade</span><b>${srcPct('games')}%</b></li>
-    </ul>
-    <ul>
-      <li><span>Approved mission</span><b>XP on the mission</b></li>
-      <li><span>Order with your code</span><b>+${n(rules.xp_per_order)} XP + ${n(rules.xp_per_1000_revenue)}/&#8377;1,000</b></li>
-      <li><span>Arcade today</span><b>${n(c.game_xp_today)} / ${n(rules.game_daily_xp_cap)} XP</b></li>
-    </ul>
-  </div>`;
-
-  // ── 9. Level perks ──
-  if(perks&&Array.isArray(perks)&&perks.length){
-    const perkItems=perks.map(p=>`<div class="perk-row"><div class="perk-dot"></div><span>${esc(typeof p==='string'?p:p.text||p.name||'Perk')}</span></div>`).join('');
-    html+=`<div class="climb-perks"><div class="cp-label">${esc(cur.display_name||'Your level')} perks</div>${perkItems}</div>`;
-  }
-
-  // ── 10. Weekly challenge ──
-  if(S.weekly?.challenge){
-    const w=S.weekly.challenge;
-    const entryStatus=S.weekly.entry?esc(S.weekly.entry.status):null;
-    html+=`<div class="climb-weekly">
-      <div class="cw-label">Shared weekly challenge</div>
-      <h3>${esc(w.title)}</h3>
-      <p>${esc(w.description||'')}</p>
-      ${entryStatus?`<div class="cw-status">Entry: ${entryStatus}</div>`:`<button class="cta" id="weeklySubmit" style="margin-top:12px;width:100%">Submit weekly entry</button>`}
-    </div>`;
-  }
-
-  // ── 11. Level movement history (enhanced with from/to names) ──
-  const hist=(c.history||[]).map(x=>{
+  // ── 4. Level movement history ──
+  const histHtml=(c.history||[]).map(x=>{
     const fromName=x.from_level?.display_name||'';
     const toName=x.to_level?.display_name||'';
-    const arrow=x.direction==='UP'?'\u2191':'\u2193';
-    return `<div class="history-row">
-      <span>${new Date(x.occurred_at).toLocaleDateString('en-IN',{day:'numeric',month:'short'})}</span>
-      <div>
-        <b><span class="hr-dir">${arrow} ${esc(x.direction)}</span></b>
-        ${fromName||toName?`<div class="hr-levels">${esc(fromName)} \u2192 ${esc(toName)}</div>`:''}
-      </div>
-      <span>${esc(x.reason_code||'')}</span>
-    </div>`;
+    const up=x.direction==='UP';
+    return `<div class="clp-hrow">
+          <span class="clp-hdate">${new Date(x.occurred_at).toLocaleDateString('en-IN',{day:'numeric',month:'short'})}</span>
+          <div class="clp-hbody"><b><i>${up?'\u2191':'\u2193'}</i>${esc(x.direction||'move')}</b><em>${fromName||toName?`${esc(fromName)} \u2192 ${esc(toName)}`:'&mdash;'}</em></div>
+          <span class="clp-hwhy">${esc((x.reason_code||'').replace(/_/g,' '))}</span>
+        </div>`;
   }).join('');
-  html+=`<div class="climb-history"><div class="chist-label">Level movement</div>${hist||'<div class="empty" style="padding:0">No level movements recorded yet.</div>'}</div>`;
+  html+=`<section class="clp-sec clp-hist">
+        <div class="clp-head"><span class="clp-idx">08</span><b>Level movement</b><span class="clp-meta">${(c.history||[]).length} events</span></div>
+        ${histHtml||`<div class="empty" style="padding:0">No level movements recorded yet.</div>`}
+      </section>
+      </div>
+      <div class="clp-side">`;
+
+  // ── 5. 14-day XP rhythm, as a column chart with a baseline ──
+  if(series.length){
+    const maxDay=Math.max(1,...series.map(d=>Number(d.amount)||0));
+    const total14=series.reduce((a,d)=>a+(Number(d.amount)||0),0);
+    const bars=series.map((d,i)=>{
+      const amt=Number(d.amount)||0;
+      const h=amt?Math.max(8,Math.round((amt/maxDay)*100)):2;
+      const isToday=i===series.length-1;
+      const label=new Date(d.date).toLocaleDateString('en-IN',{day:'numeric',month:'short'});
+      return `<div class="clp-bcol${isToday?' today':''}${amt?'':' zero'}" style="--h:${h}%" title="${label}: ${n(amt)} XP">${amt?`<span class="clp-bval">${n(amt)}</span>`:''}<i style="height:${h}%"></i></div>`;
+    }).join('');
+    const labels=series.map((d,i)=>{
+      if(i%4!==0&&i!==series.length-1)return '<span></span>';
+      return `<span>${new Date(d.date).toLocaleDateString('en-IN',{day:'numeric',month:'short'})}</span>`;
+    }).join('');
+    html+=`<section class="clp-sec clp-spark">
+        <div class="clp-head"><span class="clp-idx">03</span><b>XP rhythm</b><span class="clp-meta">last 14 days</span></div>
+        <div class="clp-chart"><div class="clp-gridlines"><i></i><i></i><i></i></div><div class="clp-bars">${bars}</div></div>
+        <div class="clp-xlab">${labels}</div>
+        <div class="clp-footrow"><span>peak ${n(maxDay)} xp</span><span>${n(total14)} xp in 14 days</span></div>
+      </section>`;
+  }
+
+  // ── 6. Pace: where this velocity lands you ──
+  html+=`<section class="clp-sec clp-pace">
+        <div class="clp-head"><span class="clp-idx">04</span><b>At this pace</b><span class="clp-meta">${n(dailyRate7)} xp / day</span></div>
+        <div class="clp-pace-main"><b>${projDays!=null&&nxt?'~'+n(projDays):'&mdash;'}</b><span>days to ${nxt?esc(nxt.display_name):'the top'}<em>${n(xpToNext)} xp left${daysToNext?` &middot; ${daysToNext} day${daysToNext!==1?'s':''} minimum`:''}</em></span></div>
+        <div class="clp-pace-rows">
+          <div><span>7-day average</span><b>${n(dailyRate7)} xp / day</b></div>
+          <div><span>30-day average</span><b>${n(dailyRate30)} xp / day</b></div>
+        </div>
+      </section>`;
+
+  // ── 7. XP fuel: one stacked bar, one legend ──
+  const src=c.xp_sources||{};
+  const segs=[
+    {k:'tasks',label:'Missions',cls:'s1'},
+    {k:'orders',label:'Coupon orders',cls:'s2'},
+    {k:'games',label:'Arcade',cls:'s3'},
+    {k:'bonus',label:'Bonus',cls:'s4'}
+  ].map(s=>({...s,v:Math.max(0,Number(src[s.k])||0)}));
+  const fuelTotal=Math.max(1,segs.reduce((a,s)=>a+s.v,0));
+  const stack=segs.filter(s=>s.v>0).map(s=>`<i class="${s.cls}" style="width:${(s.v/fuelTotal)*100}%"></i>`).join('');
+  const legend=segs.map(s=>`<div><span class="clp-dot ${s.cls}"></span><b>${s.label}</b><em>${n(s.v)} xp</em><s>${Math.round((s.v/fuelTotal)*100)}%</s></div>`).join('');
+  html+=`<section class="clp-sec clp-fuel">
+        <div class="clp-head"><span class="clp-idx">05</span><b>What fuels the climb</b><span class="clp-meta">${n(fuelTotal)} xp</span></div>
+        <div class="clp-stack">${stack||'<i class="s4" style="width:100%"></i>'}</div>
+        <div class="clp-legend">${legend}</div>
+        <div class="clp-rules">
+          <div><span>Approved mission</span><b>XP on the mission</b></div>
+          <div><span>Order with your code</span><b>+${n(rules.xp_per_order)} xp + ${n(rules.xp_per_1000_revenue)} / &#8377;1,000</b></div>
+          <div><span>Arcade today</span><b>${n(c.game_xp_today)} / ${n(rules.game_daily_xp_cap)} xp</b></div>
+        </div>
+      </section>`;
+
+  // ── 8. Level perks ──
+  if(perks&&Array.isArray(perks)&&perks.length){
+    html+=`<section class="clp-sec clp-perks">
+        <div class="clp-head"><span class="clp-idx">06</span><b>${esc(cur.display_name||'Level')} perks</b><span class="clp-meta">${perks.length}</span></div>
+        <ul class="clp-perklist">${perks.map((p,i)=>`<li><s>${pad(i+1)}</s><span>${esc(typeof p==='string'?p:p.text||p.name||'Perk')}</span></li>`).join('')}</ul>
+      </section>`;
+  }
+
+  // ── 9. Weekly challenge ──
+  if(S.weekly?.challenge){
+    const w=S.weekly.challenge;
+    html+=`<section class="clp-sec clp-weekly">
+        <div class="clp-head"><span class="clp-idx">07</span><b>Weekly challenge</b><span class="clp-meta">shared</span></div>
+        <h3>${esc(w.title)}</h3>
+        <p>${esc(w.description||'')}</p>
+        ${S.weekly.entry?`<span class="clp-status">Entry ${esc(S.weekly.entry.status)}</span>`:`<button class="clp-cta" id="weeklySubmit" type="button">Submit weekly entry</button>`}
+      </section>`;
+  }
+
+  html+=`</div>
+    </div>
+  </div>`;
 
   $('climbContent').innerHTML=html;
   $('weeklySubmit')?.addEventListener('click',submitWeekly);
@@ -2051,12 +2075,10 @@ async function attempt(path){
 function showAuthError(){
   sessionStorage.removeItem('ap_token');S.token=null;raceClose();
   $('loading').hidden=true;$('auth').hidden=false;
-  $('dbgPanel').hidden=false;
   if(typeof resetOtpUI==='function')resetOtpUI();
 }
 
 async function loadPortal(){
-  if($('dbgLog'))$('dbgLog').innerHTML='';
   dbg(`login start · token ${maskToken(S.token)}`);
   dbg(`API base ${API} · online: ${navigator.onLine}`);
   try{
@@ -2072,7 +2094,7 @@ async function loadPortal(){
       $('authError').textContent=
         netFail?'Cannot reach athlete API — check connection, server status or CORS.':
         statuses.includes(404)?'Athlete API routes missing on the server (404) — deployment issue.':
-        allFailed&&statuses.includes(401)?'Token rejected — invalid, revoked or expired. Generate a new one in the admin portal.':
+        allFailed&&statuses.includes(401)?'This portal link is no longer valid — ask the OFFCOMFRT team for a fresh one.':
         `Login failed on: ${failed.map(f=>f.path).join(', ')}`;
       return;
     }
@@ -2155,21 +2177,9 @@ document.addEventListener('DOMContentLoaded',()=>{
     S.gbOpen=new Set(expand?boards.map(b=>b.slug):[]);
     syncBoardsOpen();
   });
-  // ── Login tab switching ──
+  // ── Athlete OTP flow ──
   let otpPhone=null,otpResendTimer=null,otpExpiryTimer=null;
   $('authForm').onsubmit=e=>e.preventDefault();
-  document.querySelectorAll('.login-tabs button').forEach(btn=>{
-    btn.onclick=()=>{
-      document.querySelectorAll('.login-tabs button').forEach(b=>b.classList.remove('active'));
-      document.querySelectorAll('.login-pane').forEach(p=>p.classList.remove('active'));
-      btn.classList.add('active');
-      const tab=btn.dataset.ltab;
-      $(tab==='admin'?'paneAdmin':'paneAthlete').classList.add('active');
-      $('authError').textContent='';
-    };
-  });
-
-  // ── Athlete OTP flow ──
   function resetOtpUI(){
     $('otpStep1').style.display='block';
     $('otpStep2').style.display='none';
@@ -2178,6 +2188,9 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(otpResendTimer)clearInterval(otpResendTimer);
     if(otpExpiryTimer)clearInterval(otpExpiryTimer);
   }
+  // showAuthError() lives at top level and resets the form when a stored or
+  // admin-issued token is rejected.
+  window.resetOtpUI=resetOtpUI;
 
   $('sendOtpBtn').onclick=async()=>{
     $('authError').textContent='';
@@ -2250,7 +2263,6 @@ document.addEventListener('DOMContentLoaded',()=>{
       dbg(`OTP verified — athlete: ${data.data.athlete?.name||'unknown'}`,'ok');
       sessionStorage.setItem('ap_token',S.token);
       $('auth').hidden=true;$('loading').hidden=false;
-      $('dbgPanel').hidden=false;
       loadPortal();
     }catch(e){
       $('authError').textContent=e.message||'Verification failed';
@@ -2260,50 +2272,9 @@ document.addEventListener('DOMContentLoaded',()=>{
     }
   };
 
-  // ── Admin login-as-athlete ──
-  $('adminLoginBtn').onclick=async()=>{
-    $('authError').textContent='';
-    const phone=$('adminPhone').value.trim();
-    const password=$('adminPassword').value;
-    if(!phone||!password){$('authError').textContent='Enter mobile number and admin password';return}
-    const btn=$('adminLoginBtn');
-    btn.disabled=true;btn.textContent='Logging in…';
-    try{
-      const r=await fetch(`${BASE}/api/athlete-admin/login-as-athlete`,{
-        method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({phone,password})
-      });
-      const data=await r.json();
-      if(!r.ok)throw new Error(data.error||'Admin login failed');
-      S.token=data.data.token;
-      dbg(`Admin login as athlete: ${data.data.athlete?.name||'unknown'}`,'ok');
-      sessionStorage.setItem('ap_token',S.token);
-      $('auth').hidden=true;$('loading').hidden=false;
-      $('dbgPanel').hidden=false;
-      loadPortal();
-    }catch(e){
-      $('authError').textContent=e.message||'Admin login failed';
-      dbg(`Admin login failed: ${e.message}`,'err');
-    }finally{
-      btn.disabled=false;btn.textContent='Login as athlete';
-    }
-  };
-  $('dbgRetry').onclick=()=>{
-    if(!S.token){$('authError').textContent='Log in first using the form above.';return}
-    $('auth').hidden=true;$('loading').hidden=false;
-    loadPortal();
-  };
-  $('dbgCopy').onclick=async()=>{
-    const diag=['Athlete portal diagnostics — '+new Date().toISOString(),
-      `API: ${API}`,`Token: ${maskToken(S.token||sessionStorage.getItem('ap_token')||'')}`,
-      `Online: ${navigator.onLine}`,`UA: ${navigator.userAgent}`,'',...DBG.map(d=>d.line)].join('\n');
-    try{await navigator.clipboard.writeText(diag);dbg('diagnostics copied to clipboard','ok')}
-    catch(err){
-      const ta=document.createElement('textarea');ta.value=diag;document.body.appendChild(ta);ta.select();
-      try{document.execCommand('copy');dbg('diagnostics copied','ok')}catch(copyErr){dbg('copy failed — read from panel','err')}
-      ta.remove();
-    }
-  };
+  // Admins do not log in here. The athlete admin console opens an athlete's
+  // portal in a new tab with a ready-made token (#ap_token=…), which the page
+  // adopts on load.
   $('closeSheet').onclick=()=>$('sheet').classList.remove('open');
   $('submitProof').onclick=submitProof;
   $('proofCaption').addEventListener('input',function(){$('captionCount').textContent=Math.min(220,this.value.length)});

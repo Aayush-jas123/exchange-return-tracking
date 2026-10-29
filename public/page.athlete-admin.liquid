@@ -1073,7 +1073,7 @@ function renderAthletes() {
     <td>${statusBadge(a.athlete_status)}</td>
     <td class="mono">${(a.coin_balance||0).toLocaleString()}</td>
     <td class="muted">${a.joined_at ? new Date(a.joined_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}) : '—'}</td>
-    <td><button class="ah-btn ah-btn-sm ah-btn-outline" onclick="event.stopPropagation();openAthleteDrawer(${a.id})">View</button></td>
+    <td><div style="display:flex;gap:.4rem;justify-content:flex-end"><button class="ah-btn ah-btn-sm ah-btn-outline" onclick="event.stopPropagation();openAthleteDrawer(${a.id})">View</button><button class="ah-btn ah-btn-sm" onclick="event.stopPropagation();openAthletePortal(${a.id})">Portal</button></div></td>
   </tr>`).join('');
 }
 
@@ -1585,6 +1585,13 @@ function openAthleteDrawer(id) {
       <div class="ah-detail-row"><span class="label">Level Since</span><span class="value">${a.level_since ? new Date(a.level_since).toLocaleDateString('en-IN') : '—'}</span></div>
     </div>
     <div class="ah-drawer-section">
+      <h4>Portal</h4>
+      <div style="font-size:.7rem;color:var(--muted);margin-bottom:.75rem;line-height:1.5">
+        Open this athlete's live portal in a new tab, signed in as them. Their own session is not disturbed.
+      </div>
+      <button class="ah-btn ah-btn-sm" onclick="openAthletePortal(${a.id})" style="width:100%">Open portal as athlete</button>
+    </div>
+    <div class="ah-drawer-section">
       <h4>Portal Access</h4>
       <div id="tokenSection-${a.id}">
         <div style="font-size:.7rem;color:var(--muted);margin-bottom:.75rem;line-height:1.5">
@@ -1688,6 +1695,31 @@ async function saveSettings() {
   await fetch(API + '/settings', { method: 'PATCH', headers: { 'Authorization': 'Bearer ' + adminToken, 'Content-Type': 'application/json' }, body: JSON.stringify({ settings: updates }) });
   alert('Settings saved');
   await refreshData();
+}
+
+// ── OPEN AN ATHLETE'S PORTAL (admin view) ──
+// Mints an admin-issued PROGRESS token and opens the live portal in a new tab.
+// The athlete's existing token keeps working — nothing is rotated here.
+async function openAthletePortal(athleteId) {
+  // Open the tab synchronously, before the fetch, so popup blockers allow it.
+  const win = window.open('', '_blank');
+  if (win) {
+    win.document.write('<p style="font-family:monospace;font-size:13px;padding:24px;color:#111">Opening athlete portal…</p>');
+    win.document.close();
+  }
+  try {
+    const res = await fetch(`${API}/athletes/${athleteId}/portal-session`, {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + adminToken, 'Content-Type': 'application/json' }
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Could not open the athlete portal');
+    if (win) win.location.replace(data.data.portal_link);
+    else window.location.href = data.data.portal_link;
+  } catch (err) {
+    if (win) win.close();
+    alert(err.message);
+  }
 }
 
 async function generateToken(athleteId, rotate = false) {
