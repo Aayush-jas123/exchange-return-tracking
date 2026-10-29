@@ -13,8 +13,10 @@
   <meta name="format-detection" content="telephone=no">
   {% # theme-check-disable RemoteAsset %}
   <link rel="manifest" href="https://exchange-return-tracking.onrender.com/manifest.json?host={{ request.host }}&amp;path={{ request.path | url_encode }}">
-  <link rel="apple-touch-icon" href="https://exchange-return-tracking.onrender.com/images/app-icon.png">
-  <link rel="icon" type="image/png" href="https://exchange-return-tracking.onrender.com/images/app-icon.png">
+  {% comment %} Icon art is a borderless dark disc with the white brand bar; the ?v=2 busts cached square favicons. {% endcomment %}
+  <link rel="apple-touch-icon" href="https://exchange-return-tracking.onrender.com/images/app-icon.png?v=2">
+  <link rel="icon" type="image/svg+xml" href="https://exchange-return-tracking.onrender.com/images/app-icon.svg?v=2">
+  <link rel="icon" type="image/png" sizes="192x192" href="https://exchange-return-tracking.onrender.com/images/app-icon-192.png?v=2">
   <title>OFFCOMFRT Athlete Program</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -250,25 +252,25 @@
               <div class="gt-top"><span class="gi">01 &middot; Racing</span></div>
               <b>Rooftop Racing</b>
               <em>Race athletes live across the skyline. Invite, join open lobbies &mdash; XP paid by finishing position.</em>
-              <span class="go">Tap to play <i>&rarr;</i></span><span class="gt-lock"><svg class="lk" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>Locked</span><small>Ask your admin to unlock</small></span></a>
+              <span class="go">Tap to play <i>&rarr;</i></span><span class="gt-lock"><svg class="lk" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>Coming soon</span><small>Opens soon</small></span></a>
             <a class="gt" data-game-id="fruit-ninja" href="https://exchange-return-tracking.onrender.com/games/fruit-ninja/index.html">
               <img class="gt-bg" src="https://exchange-return-tracking.onrender.com/images/games/fruit-ninja-thumb.jpg" alt="" loading="lazy" width="1280" height="714">
               <div class="gt-top"><span class="gi">02 &middot; Arcade</span></div>
               <b>Fruit Ninja</b>
               <em>Swipe to slice. Chain combos, dodge the bombs &mdash; three misses ends the run.</em>
-              <span class="go">Tap to play <i>&rarr;</i></span><span class="gt-lock"><svg class="lk" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>Locked</span><small>Ask your admin to unlock</small></span></a>
+              <span class="go">Tap to play <i>&rarr;</i></span><span class="gt-lock"><svg class="lk" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>Coming soon</span><small>Opens soon</small></span></a>
             <a class="gt" data-game-id="ping-pong" href="https://exchange-return-tracking.onrender.com/games/ping-pong/index.html">
               <img class="gt-bg" src="https://exchange-return-tracking.onrender.com/images/games/ping-pong-thumb.jpg" alt="" loading="lazy" width="1280" height="714">
               <div class="gt-top"><span class="gi">03 &middot; Arcade</span></div>
               <b>Ping Pong</b>
               <em>Rally against the AI, a friend, or challenge athletes live. Speed ramps up, 3 misses and you're out.</em>
-              <span class="go">Tap to play <i>&rarr;</i></span><span class="gt-lock"><svg class="lk" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>Locked</span><small>Ask your admin to unlock</small></span></a>
+              <span class="go">Tap to play <i>&rarr;</i></span><span class="gt-lock"><svg class="lk" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>Coming soon</span><small>Opens soon</small></span></a>
             <a class="gt" data-game-id="pac-man" href="https://exchange-return-tracking.onrender.com/games/pac-man/index.html">
               <img class="gt-bg" src="https://exchange-return-tracking.onrender.com/images/games/pac-man-thumb.jpg" alt="" loading="lazy" width="1280" height="714">
               <div class="gt-top"><span class="gi">04 &middot; Arcade</span></div>
               <b>Pac-Man</b>
               <em>Navigate the maze, eat pellets, dodge ghosts. Solo or compete live with up to 4 athletes.</em>
-              <span class="go">Tap to play <i>&rarr;</i></span><span class="gt-lock"><svg class="lk" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>Locked</span><small>Ask your admin to unlock</small></span></a>
+              <span class="go">Tap to play <i>&rarr;</i></span><span class="gt-lock"><svg class="lk" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>Coming soon</span><small>Opens soon</small></span></a>
            </div>
           {% # theme-check-enable RemoteAsset %}
 
@@ -453,6 +455,6 @@
 
   </div></main>
 
-<script src="{{ 'athlete-portal.js' | asset_url }}?v=5" defer></script>
+<script src="{{ 'athlete-portal.js' | asset_url }}?v=6" defer></script>
 </body>
 </html>

@@ -491,12 +491,12 @@ app.use((req, res, next) => {
                     return res.status(403).type('html').send(
                         '<!doctype html><html lang="en"><head><meta charset="utf-8">' +
                         '<meta name="viewport" content="width=device-width,initial-scale=1">' +
-                        '<title>Game locked</title><style>html,body{margin:0;height:100%;background:#0a0a0a;color:#fff;' +
+                        '<title>Coming soon</title><style>html,body{margin:0;height:100%;background:#0a0a0a;color:#fff;' +
                         'font-family:ui-monospace,SFMono-Regular,Menlo,monospace;display:flex;align-items:center;justify-content:center;text-align:center}' +
                         '.box{padding:24px;max-width:340px}.lock{width:34px;height:34px;stroke:#fff;fill:none;stroke-width:1.4;margin:0 auto 14px;display:block}' +
                         'h1{font-size:12px;letter-spacing:.2em;text-transform:uppercase;margin:0 0 8px}p{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.55);margin:0;line-height:1.7}</style></head>' +
                         '<body><div class="box"><svg class="lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>' +
-                        '<h1>Game locked</h1><p>This game is not available right now. Ask your admin to unlock it.</p></div></body></html>'
+                        '<h1>Coming soon</h1><p>This cabinet is not open for athletes yet. Check back soon.</p></div></body></html>'
                     );
                 }
                 next();

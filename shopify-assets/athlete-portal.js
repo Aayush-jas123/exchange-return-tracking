@@ -1981,11 +1981,13 @@ async function loadShop(){
 
 // Arcade runs earn XP: hand the game the session token via the URL hash (never
 // sent to the server), and refresh XP + climb when the athlete comes back.
-// Tiles the admin has locked (unlock flag explicitly false) render a lock
-// overlay and drop their href so they cannot be opened, even by middle-click.
+// Tiles the admin has locked (unlock flag explicitly false) are "coming soon":
+// they drop their href so they cannot be opened (even by middle-click) and sink
+// below the playable cabinets instead of interrupting them mid-grid.
 function linkGames(){
   const hash='#t='+encodeURIComponent(S.token||'')+'&p='+encodeURIComponent(PORTAL_SELF);
-  document.querySelectorAll('#games a.gt').forEach(a=>{
+  const tiles=[...document.querySelectorAll('#games a.gt')];
+  tiles.forEach(a=>{
     if(!a.dataset.gameUrl)a.dataset.gameUrl=a.href.split('#')[0];
     const id=a.dataset.gameId;
     const locked=!!(id&&S.unlocks&&S.unlocks[id]===false);
@@ -1993,11 +1995,24 @@ function linkGames(){
     if(locked){a.removeAttribute('href');}
     else{a.href=a.dataset.gameUrl+hash;}
   });
+  // Playable cabinets first, coming-soon ones last, keeping their relative order.
+  // The tile ordinals are re-stamped so the grid never reads 03, 01, 04, 02.
+  const order=tiles.filter(a=>!a.classList.contains('locked'))
+    .concat(tiles.filter(a=>a.classList.contains('locked')));
+  if(order.length&&order[0].parentElement){
+    const grid=order[0].parentElement;
+    order.forEach(a=>grid.appendChild(a));
+    order.forEach((a,i)=>{
+      const gi=a.querySelector('.gi');
+      const m=gi&&/^\d+\s*\u00b7\s*(.*)$/.exec(gi.textContent.trim());
+      if(m)gi.textContent=String(i+1).padStart(2,'0')+' \u00b7 '+m[1];
+    });
+  }
   if(!linkGames._guard){
     linkGames._guard=true;
     $('games').addEventListener('click',e=>{
       const tile=e.target.closest('a.gt.locked');
-      if(tile){e.preventDefault();toast('Game locked','Ask your admin to unlock');}
+      if(tile){e.preventDefault();toast('Coming soon','This cabinet is not open yet');}
     },true);
   }
 }
