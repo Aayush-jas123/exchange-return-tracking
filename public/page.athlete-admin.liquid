@@ -50,6 +50,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);
   font-size:.65rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;
   font-family:var(--font);cursor:pointer;transition:all var(--transition);width:100%}
 .ah-btn:hover{background:var(--text-2)}
+.ah-btn:disabled{opacity:.45;cursor:not-allowed}
 .ah-btn-sm{padding:.45rem .85rem;font-size:.55rem;width:auto}
 .ah-btn-outline{background:transparent;color:var(--text);border:1px solid var(--border)}
 .ah-btn-outline:hover{border-color:var(--text);background:rgba(255,255,255,.04)}
@@ -853,7 +854,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);
       <button class="ah-drawer-close" onclick="closeTaskModal()">&times;</button>
     </div>
     <div class="ah-modal-body">
-      <form id="taskForm" class="ah-form-grid">
+      <form id="taskForm" class="ah-form-grid" onsubmit="event.preventDefault(); saveTask()">
         <!-- Identity -->
         <div class="ah-form-group">
           <label>Code *</label>
@@ -947,6 +948,10 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);
           <div class="ah-form-check">
             <input type="checkbox" id="taskActive" checked>
             <label for="taskActive">Active (assignable to athletes)</label>
+          </div>
+          <div class="ah-form-check">
+            <input type="checkbox" id="taskPortalPool">
+            <label for="taskPortalPool">Include in athlete daily mission pool (auto-rotation)</label>
           </div>
         </div>
 
@@ -1237,7 +1242,7 @@ function renderTasks() {
         <strong>${esc(t.title)}</strong>
         ${t.brief_md ? `<div class="brief">${esc(t.brief_md)}</div>` : ''}
         <div class="task-meta" style="margin-top:4px">
-          ${trialTag}${gateTag}${proofTag}
+          ${trialTag}${gateTag}${proofTag}${t.is_athlete_portal_task ? '<span class="tag">Pool</span>' : ''}
           ${t.repeatable ? '' : '<span class="tag">One-time</span>'}
           ${t.monthly_cap ? `<span class="tag">${t.monthly_cap}/mo</span>` : ''}
           ${t.cooldown_days ? `<span class="tag">${t.cooldown_days}d cool</span>` : ''}
@@ -1290,7 +1295,7 @@ function openTaskModal(id) {
 
   if (id) {
     const t = tasks.find(x => x.id === id);
-    if (!t) return;
+    if (!t) return showToast('Task not found — refresh and retry', 'error');
     title.textContent = 'Edit Task Template';
     saveBtn.textContent = 'Save Changes';
     document.getElementById('taskCode').value = t.code || '';
@@ -1309,6 +1314,7 @@ function openTaskModal(id) {
     document.getElementById('taskCooldown').value = t.cooldown_days || 0;
     document.getElementById('taskMonthlyCap').value = t.monthly_cap || '';
     document.getElementById('taskLevelGate').value = t.level_gate_id || '';
+    document.getElementById('taskPortalPool').checked = t.is_athlete_portal_task === true;
   } else {
     title.textContent = 'New Task Template';
     saveBtn.textContent = 'Create Task';
@@ -1317,6 +1323,7 @@ function openTaskModal(id) {
     document.getElementById('taskCoins').value = 10;
     document.getElementById('taskDueDays').value = 7;
     document.getElementById('taskCooldown').value = 0;
+    document.getElementById('taskPortalPool').checked = false;
     document.getElementById('taskDisclosure').checked = true;
     document.getElementById('taskRepeatable').checked = true;
     document.getElementById('taskActive').checked = true;
@@ -1331,9 +1338,18 @@ function closeTaskModal() {
 }
 
 async function saveTask() {
-  const code = document.getElementById('taskCode').value.trim().toUpperCase();
+  const form = document.getElementById('taskForm');
+  if (!form.reportValidity()) return;
+
+  const code = document.getElementById('taskCode').value.trim().toUpperCase().replace(/\s+/g, '_');
   const title = document.getElementById('taskTitle').value.trim();
   if (!code || !title) return showToast('Code and Title are required', 'error');
+  if (!/^[A-Z0-9_]+$/.test(code)) return showToast('Code may only contain A-Z, 0-9 and _', 'error');
+  document.getElementById('taskCode').value = code;
+
+  const isEdit = !!editingTaskId;
+  const clash = tasks.find(t => String(t.code || '').toUpperCase() === code && t.id !== editingTaskId);
+  if (clash) return showToast(`Code ${code} already belongs to "${clash.title}"`, 'error');
 
   const body = {
     code,
@@ -1349,30 +1365,49 @@ async function saveTask() {
     repeatable: document.getElementById('taskRepeatable').checked,
     is_trial_task: document.getElementById('taskTrialTask').checked,
     is_active: document.getElementById('taskActive').checked,
+    is_athlete_portal_task: document.getElementById('taskPortalPool').checked,
     cooldown_days: parseInt(document.getElementById('taskCooldown').value) || 0,
     monthly_cap: document.getElementById('taskMonthlyCap').value ? parseInt(document.getElementById('taskMonthlyCap').value) : null,
     level_gate_id: document.getElementById('taskLevelGate').value ? parseInt(document.getElementById('taskLevelGate').value) : null
   };
 
+  const saveBtn = document.getElementById('taskModalSaveBtn');
+  const idleLabel = isEdit ? 'Save Changes' : 'Create Task';
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Saving…';
+
   try {
-    const url = editingTaskId ? `${API}/tasks/${editingTaskId}` : `${API}/tasks`;
-    const method = editingTaskId ? 'PUT' : 'POST';
+    const url = isEdit ? `${API}/tasks/${editingTaskId}` : `${API}/tasks`;
+    const method = isEdit ? 'PUT' : 'POST';
     const res = await fetch(url, {
       method,
       headers: { 'Authorization': 'Bearer ' + adminToken, 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     if (data.success) {
       closeTaskModal();
       await refreshData();
-      showToast(editingTaskId ? 'Task template updated' : 'Task template created', 'success');
+      showToast(isEdit ? 'Task template updated' : 'Task template created', 'success');
     } else {
-      showToast(data.error || 'Failed to save', 'error');
+      showToast(taskSaveError(data.error), 'error');
     }
   } catch (err) {
-    showToast('Network error', 'error');
+    showToast('Network error — could not reach the API', 'error');
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.textContent = idleLabel;
   }
+}
+
+function taskSaveError(msg) {
+  const m = String(msg || '');
+  if (/duplicate key/i.test(m)) return 'That task code already exists. Pick a different Code.';
+  if (/is_athlete_portal_task/i.test(m)) return 'Daily-pool flag rejected — run supabase_migration_seed_athlete_gym_missions.sql first.';
+  if (/invalid input syntax/i.test(m)) return 'A numeric field has an invalid value.';
+  if (/violates check constraint/i.test(m)) return 'Type must be one of the supported task types.';
+  if (/null value/i.test(m)) return 'A required field is missing.';
+  return m || 'Failed to save task template';
 }
 
 // ── ASSIGN MODAL ──
@@ -1513,6 +1548,7 @@ function openTaskDrawer(id) {
       <div class="ah-detail-row"><span class="label">Disclosure Required</span><span class="value">${t.requires_disclosure ? 'Yes' : 'No'}</span></div>
       <div class="ah-detail-row"><span class="label">Repeatable</span><span class="value">${t.repeatable ? 'Yes' : 'No'}</span></div>
       <div class="ah-detail-row"><span class="label">Monthly Cap</span><span class="value">${t.monthly_cap || 'Unlimited'}</span></div>
+      <div class="ah-detail-row"><span class="label">Athlete Daily Pool</span><span class="value">${t.is_athlete_portal_task ? 'Yes' : 'No'}</span></div>
       <div class="ah-detail-row"><span class="label">Trial Task</span><span class="value">${t.is_trial_task ? 'Yes' : 'No'}</span></div>
       <div class="ah-detail-row"><span class="label">Level Gate</span><span class="value">${t.level_gate_name ? t.level_gate_name + ' (CL' + (t.level_gate_ordinal||'?') + ')' : 'None'}</span></div>
       <div class="ah-detail-row"><span class="label">Status</span><span class="value">${t.is_active ? '<span class="ah-badge active">Active</span>' : '<span class="ah-badge discharged">Inactive</span>'}</span></div>
@@ -1573,8 +1609,6 @@ function showToast(msg, type) {
   container.appendChild(toast);
   setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity .3s'; setTimeout(() => toast.remove(), 300); }, 3000);
 }
-
-function openTaskModal() { alert('Task creation modal — coming in next iteration'); }
 
 // ── REVIEW ──
 function renderReview() {
@@ -2689,6 +2723,7 @@ async function overrideXP() {
   const xp = parseInt(document.getElementById('overrideXP').value);
   const reason = document.getElementById('overrideReason').value || 'Admin override';
   
+  if (!Number.isFinite(xp) || xp < 0) { showToast('Enter a valid XP amount', 'error'); return; }
   if (!confirm('Set XP to ' + xp + ' for ' + selectedOverrideAthlete.name + '?')) return;
   
   try {
@@ -2712,6 +2747,7 @@ async function overrideCoins() {
   const coins = parseInt(document.getElementById('overrideCoins').value);
   const reason = document.getElementById('overrideReason').value || 'Admin override';
   
+  if (!Number.isFinite(coins) || coins < 0) { showToast('Enter a valid coin amount', 'error'); return; }
   if (!confirm('Set coins to ' + coins + ' for ' + selectedOverrideAthlete.name + '?')) return;
   
   try {

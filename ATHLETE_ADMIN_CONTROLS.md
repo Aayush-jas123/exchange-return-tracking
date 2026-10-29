@@ -76,7 +76,7 @@ The athlete admin dashboard (`/pages/athlete-admin`) now includes comprehensive 
 2. Click Search to load their current values
 3. Modify any field and click the corresponding Set button
 4. All changes are confirmed with a prompt before execution
-5. XP and coin overrides are logged in the ledger with source ADMIN_OVERRIDE
+5. XP and coin overrides append a ledger row for the difference (`source_type: MANUAL`, `reason_code: ADMIN_ADJUSTMENT`) and store the reason in `ledger_entries.notes`, then set the cached total — the ledger stays the source of truth
 
 ---
 
@@ -160,7 +160,8 @@ Operations ← NEW
 ## Security Notes
 
 - All admin endpoints require the `authAdmin` middleware (Bearer token)
-- Override actions are logged in the ledger with source `ADMIN_OVERRIDE`
+- Override actions are logged in the ledger (`MANUAL` / `ADMIN_ADJUSTMENT`, reason in `notes`)
+- `notes` requires `supabase_migration_ledger_notes.sql`; without it the reason is dropped but overrides still work
 - Product request approvals/rejections are timestamped and attributed to "admin"
 - Configuration changes take effect immediately after save
 - Reset to Defaults cannot be undone — use with caution

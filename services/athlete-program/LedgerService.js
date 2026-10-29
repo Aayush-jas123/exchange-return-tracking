@@ -193,6 +193,97 @@ const LedgerService = {
   },
 
   /**
+   * Admin override — force the balance to an absolute value.
+   * Rule 1 still applies: the balance only moves by appending a ledger row, so
+   * the DIFFERENCE between the current and the requested balance is written as
+   * one signed entry (MANUAL / ADMIN_ADJUSTMENT) before the cached total is set.
+   * A no-op override returns the existing balance without writing anything.
+   *
+   * @param {number} influencerId
+   * @param {'XP'|'COIN'} currency
+   * @param {number} targetBalance — requested absolute balance, >= 0
+   * @param {string} [reason] — free-text audit note stored in ledger_entries.notes
+   * @param {string|null} [actorId] — admin label, never a credential
+   * @returns {Promise<{entry: object|null, isNew: boolean, balance: number, delta: number}>}
+   */
+  async setBalance(influencerId, currency, targetBalance, reason = 'Admin override', actorId = null) {
+    if (!['XP', 'COIN'].includes(currency)) throw new Error(`Invalid currency: ${currency}`);
+
+    const target = Number(targetBalance);
+    if (!Number.isInteger(target) || target < 0) {
+      const err = new Error(`${currency} balance must be a non-negative integer`);
+      err.status = 400;
+      throw err;
+    }
+
+    const balanceCol = currency === 'XP' ? 'xp_total' : 'coin_balance';
+    const { data: influencer, error: infErr } = await supabase
+      .from('influencers')
+      .select(`id, ${balanceCol}`)
+      .eq('id', influencerId)
+      .single();
+
+    if (infErr) {
+      // PostgREST reports a missing row as PGRST116 — surface it as a 404
+      if (infErr.code === 'PGRST116') {
+        const err = new Error(`Influencer ${influencerId} not found`);
+        err.status = 404;
+        throw err;
+      }
+      throw infErr;
+    }
+
+    const before = Number(influencer[balanceCol] || 0);
+    const delta = target - before;
+    if (delta === 0) return { entry: null, isNew: false, balance: before, delta: 0 };
+
+    const row = {
+      influencer_id: influencerId,
+      currency,
+      amount: delta,
+      balance_after: target,
+      source_type: 'MANUAL',
+      source_id: null,
+      reason_code: 'ADMIN_ADJUSTMENT',
+      actor_id: actorId,
+      idempotency_key: `admin-override:${currency}:${influencerId}:${Date.now()}`
+    };
+
+    let { data: entry, error: insertErr } = await supabase
+      .from('ledger_entries')
+      .insert([{ ...row, notes: reason }])
+      .select()
+      .single();
+
+    // `notes` ships with supabase_migration_ledger_notes.sql. Until that has run,
+    // retry without it rather than failing the override outright.
+    const missingNotes = insertErr && (
+      insertErr.code === '42703' ||
+      (/notes/i.test(insertErr.message || '') && /column/i.test(insertErr.message || ''))
+    );
+    if (missingNotes) {
+      ({ data: entry, error: insertErr } = await supabase
+        .from('ledger_entries')
+        .insert([row])
+        .select()
+        .single());
+    }
+
+    if (insertErr) throw insertErr;
+
+    const { error: updateErr } = await supabase
+      .from('influencers')
+      .update({ [balanceCol]: target })
+      .eq('id', influencerId);
+
+    if (updateErr) {
+      console.error(`[LedgerService] Failed to set cached ${currency} balance for influencer ${influencerId}:`, updateErr);
+    }
+
+    return { entry, isNew: true, balance: target, delta };
+  },
+
+  /**
    * Reverse a previous ledger entry.
    * Creates a new entry with negated amount and reverses_entry_id set.
    *

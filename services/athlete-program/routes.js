@@ -1908,32 +1908,24 @@ module.exports = function mountAthleteRoutes(app) {
     try {
       const { id } = req.params;
       const { xp_total, reason } = req.body;
-      if (xp_total === undefined) throw new Error('xp_total is required');
+      if (xp_total === undefined || xp_total === null || xp_total === '') {
+        const err = new Error('xp_total is required');
+        err.status = 400;
+        throw err;
+      }
+
+      // LedgerService writes the delta as a ledger row, then sets the cached total
+      const result = await LedgerService.setBalance(id, 'XP', xp_total, reason || 'Admin override', 'admin');
 
       const { data, error } = await supabase
         .from('influencers')
-        .update({ xp_total: parseInt(xp_total) })
-        .eq('id', id)
         .select()
+        .eq('id', id)
         .single();
       if (error) throw error;
 
-      // Log the override in ledger
-      if (reason) {
-        await LedgerService.log({
-          influencerId: id,
-          currency: 'XP',
-          amount: 0,
-          balance: parseInt(xp_total),
-          source: 'ADMIN_OVERRIDE',
-          reasonCode: 'ADMIN_ADJUSTMENT',
-          idempotencyKey: `admin-override-xp-${id}-${Date.now()}`,
-          meta: { reason, set_to: parseInt(xp_total) }
-        });
-      }
-
-      res.json({ success: true, data });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+      res.json({ success: true, data, delta: result.delta });
+    } catch (err) { res.status(err.status || 500).json({ error: err.message }); }
   });
 
   // ── Override Athlete Coins ──
@@ -1941,32 +1933,23 @@ module.exports = function mountAthleteRoutes(app) {
     try {
       const { id } = req.params;
       const { coin_balance, reason } = req.body;
-      if (coin_balance === undefined) throw new Error('coin_balance is required');
+      if (coin_balance === undefined || coin_balance === null || coin_balance === '') {
+        const err = new Error('coin_balance is required');
+        err.status = 400;
+        throw err;
+      }
+
+      const result = await LedgerService.setBalance(id, 'COIN', coin_balance, reason || 'Admin override', 'admin');
 
       const { data, error } = await supabase
         .from('influencers')
-        .update({ coin_balance: parseInt(coin_balance) })
-        .eq('id', id)
         .select()
+        .eq('id', id)
         .single();
       if (error) throw error;
 
-      // Log the override in ledger
-      if (reason) {
-        await LedgerService.log({
-          influencerId: id,
-          currency: 'COIN',
-          amount: 0,
-          balance: parseInt(coin_balance),
-          source: 'ADMIN_OVERRIDE',
-          reasonCode: 'ADMIN_ADJUSTMENT',
-          idempotencyKey: `admin-override-coins-${id}-${Date.now()}`,
-          meta: { reason, set_to: parseInt(coin_balance) }
-        });
-      }
-
-      res.json({ success: true, data });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+      res.json({ success: true, data, delta: result.delta });
+    } catch (err) { res.status(err.status || 500).json({ error: err.message }); }
   });
 
   // ── Override Athlete Status ──
