@@ -151,7 +151,7 @@
     pointPause = false;
     pointPauseFrames = 0;
     lastTauntIdx = -1;
-    tauntState = { active: false, text: '', icon: '', x: 0, y: 0, alpha: 0, phase: 'idle', framesLeft: 0 };
+    tauntState = { active: false, text: '', icon: '', misser: 0, y: 0, fs: 22, iconSize: 24, textX: 0, iconCx: 0, alpha: 0, phase: 'idle', framesLeft: 0 };
     pointIndicator.classList.remove('visible');
     canvas.parentElement.classList.remove('paused');
     aiReaction = d.aiReaction;
@@ -313,6 +313,11 @@
     }
     p1.y = Math.max(0, Math.min(GH - PADDLE_H, p1.y));
 
+    // Send paddle state in online mode (rate-limited to ~20Hz inside sendState)
+    if (gameMode === 'online' && window.PingPongNet) {
+      window.PingPongNet.sendState(p1.y / GH, rallyCount);
+    }
+
     // Opponent paddle (right) — AI or online opponent
     if (gameMode === 'single') {
       moveAI();
@@ -396,11 +401,6 @@
 
     // Spawn hit particles
     spawnParticles(ball.x, ball.y, ball.vx);
-
-    // Send paddle state in online mode
-    if (gameMode === 'online' && window.PingPongNet) {
-      window.PingPongNet.sendState(p1.y / GH, rallyCount);
-    }
 
     updateHUD();
   }
