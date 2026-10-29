@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+    <title>OFFCOMFRT &mdash; Crossy Road</title>
+    <link rel="stylesheet" href="style.css?v=3" />
+  </head>
+  <body>
+
+    <!-- ═══ Menu Screen ═══ -->
+    <div id="menuScreen" class="screen active">
+      <div class="menu-inner">
+        <div class="brand"><span class="brand-eyebrow">OFFCOMFRT Arcade</span><h1>Crossy Road</h1></div>
+        <div class="mode-btns">
+          <button class="mode-btn" id="btnSolo">
+            <span class="mi">&#128038;</span>
+            <span class="ml">Solo Run<span class="ms">Cross as far as you can</span></span>
+          </button>
+          <button class="mode-btn" id="btnOnline">
+            <span class="mi">&#127760;</span>
+            <span class="ml">Online Race<span class="ms">4 players &middot; highest score wins</span></span>
+          </button>
+        </div>
+        <div class="instructions-toggle" id="instrToggle">How to play <span class="arrow">&#9660;</span></div>
+        <div class="instructions" id="instrPanel" hidden>
+          <p><b>Objective:</b> Cross as many lanes as possible without getting hit by vehicles.</p>
+          <p><b>Controls &mdash; PC:</b> Arrow keys or WASD to hop forward, backward, left, right.</p>
+          <p><b>Controls &mdash; Mobile:</b> Use the D-pad buttons or swipe on the screen.</p>
+          <p><b>Scoring:</b> Each lane crossed forward = 1 point. Trees and billboards block your path &mdash; plan your route. Traffic gets denser and faster the further you go. Standing on grass for more than 5 seconds ends the run.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ Lobby Screen ═══ -->
+    <div id="lobbyScreen" class="screen">
+      <div class="lobby-inner">
+        <div class="brand"><span class="brand-eyebrow">OFFCOMFRT Arcade</span><h1>Crossy Road</h1></div>
+        <div class="lobby-code" id="lobbyCode">----</div>
+        <div class="lobby-sub">Share this code to invite athletes</div>
+        <div class="lobby-players" id="lobbyPlayers"></div>
+        <div class="lobby-actions">
+          <button class="lobby-btn primary" id="btnStartRace" disabled>Start Race</button>
+          <button class="lobby-btn" id="btnInvite">Invite Athletes</button>
+          <button class="lobby-btn" id="btnLeaveLobby">&larr; Back to Menu</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ Game Screen ═══ -->
+    <div id="gameScreen" class="screen">
+      <div id="canvasWrap"></div>
+
+      <!-- HUD: the source #counter -->
+      <div id="counter">0</div>
+
+      <!-- 5 s grass countdown, shown only while standing on grass -->
+      <div id="grassTimer"></div>
+
+      <!-- D-pad: the source #controlls grid -->
+      <div id="controlls">
+        <div>
+          <button id="forward">
+            <svg width="30" height="30" viewBox="0 0 10 10">
+              <g transform="rotate(0, 5,5)">
+                <path d="M5,4 L7,6 L3,6 L5,4" />
+              </g>
+            </svg>
+          </button>
+          <button id="left">
+            <svg width="30" height="30" viewBox="0 0 10 10">
+              <g transform="rotate(-90, 5,5)">
+                <path d="M5,4 L7,6 L3,6 L5,4" />
+              </g>
+            </svg>
+          </button>
+          <button id="backward">
+            <svg width="30" height="30" viewBox="0 0 10 10">
+              <g transform="rotate(180, 5,5)">
+                <path d="M5,4 L7,6 L3,6 L5,4" />
+              </g>
+            </svg>
+          </button>
+          <button id="right">
+            <svg width="30" height="30" viewBox="0 0 10 10">
+              <g transform="rotate(90, 5,5)">
+                <path d="M5,4 L7,6 L3,6 L5,4" />
+              </g>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ Game Over Screen ═══ -->
+    <div id="gameOverScreen" class="screen">
+      <div class="go-inner">
+        <div class="go-label">Game Over</div>
+        <div class="go-score" id="goScore">0</div>
+        <div class="go-sub">lanes crossed</div>
+        <div class="go-stats">
+          <div class="go-stat">
+            <div class="gs-val" id="goXP">--</div>
+            <div class="gs-label">XP Earned</div>
+          </div>
+          <div class="go-stat">
+            <div class="gs-val" id="goRank">--</div>
+            <div class="gs-label">Rank</div>
+          </div>
+        </div>
+        <div class="go-results" id="goResults"></div>
+        <div class="go-btns">
+          <button class="go-btn primary" id="btnRetry">Play Again</button>
+          <button class="go-btn" id="btnBackMenu">&larr; Back to Menu</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ Invite Toast ═══ -->
+    <div id="inviteToast" class="invite-toast hidden"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/99/three.min.js"></script>
+    <!-- portal-back.js goes first: athlete-xp.js wipes the hash it reads -->
+    <script src="../portal-back.js?v=1"></script>
+    <script src="../athlete-xp.js?v=19"></script>
+    <script src="crossy-road-net.js?v=20"></script>
+    <script src="script.js?v=5"></script>
+  </body>
+</html>

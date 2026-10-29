@@ -1,0 +1,380 @@
+/* ══════════════════════════════════════════════════════════
+   Part 1 — original source styles
+   html-css-javascript-games-main/07-Crossy-Road-Game/style.css
+   ══════════════════════════════════════════════════════════ */
+@import url("https://fonts.googleapis.com/css?family=Press+Start+2P");
+
+body {
+  margin: 0;
+  font-family: "Press Start 2P", cursive;
+  font-size: 2em;
+  color: white;
+}
+button {
+  outline: none;
+  cursor: pointer;
+  border: none;
+  box-shadow: 3px 5px 0px 0px rgba(0, 0, 0, 0.75);
+}
+#counter {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+}
+#controlls {
+  position: absolute;
+  min-width: 100%;
+  min-height: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+#controlls div {
+  display: grid;
+  grid-template-columns: 50px 50px 50px;
+  grid-template-rows: auto auto;
+  grid-column-gap: 10px;
+  grid-row-gap: 10px;
+  margin-bottom: 20px;
+}
+#controlls button {
+  width: 100%;
+  background-color: white;
+  border: 1px solid lightgray;
+}
+#controlls button:first-of-type {
+  grid-column: 1/-1;
+}
+
+/* ══════════════════════════════════════════════════════════
+   Part 2 — portal shell (monochrome chrome around the board)
+   Shares the palette of the other cabinets (Ping Pong / Pac-Man)
+   ══════════════════════════════════════════════════════════ */
+:root {
+  --bg: #0a0a0c;
+  --card: #141418;
+  --line: #2a2a32;
+  --text: #f0f0f2;
+  --dim: #8888a0;
+  --f: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+  --m: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+/* Overrides the source body rule (later wins) */
+html, body {
+  height: 100%;
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 400 16px var(--f);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+/* ── Screens ── */
+.screen {
+  position: fixed; inset: 0;
+  display: none;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.screen.active { display: flex; flex-direction: column; }
+#gameScreen { overflow: hidden; }
+#gameScreen.active { display: block; }
+
+#canvasWrap {
+  position: absolute; inset: 0;
+  overflow: hidden;
+}
+#canvasWrap canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Brand ── */
+.brand-eyebrow {
+  font: 700 10px var(--m);
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.brand h1 {
+  font: 800 clamp(28px, 6vw, 48px) var(--f);
+  letter-spacing: -.02em;
+  margin-top: 4px;
+}
+
+/* ── Menu ── */
+#menuScreen { align-items: center; justify-content: center; padding: 24px; }
+.menu-inner { width: 100%; max-width: 420px; text-align: center; }
+.brand { margin-bottom: 32px; }
+
+.mode-btns { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
+.mode-btn {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 16px 20px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: none;
+  color: var(--text);
+  font: 600 15px var(--f);
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.mode-btn:hover, .mode-btn:active { border-color: rgba(255,255,255,.3); background: #1a1a22; }
+.mode-btn .mi { font-size: 22px; width: 36px; text-align: center; flex-shrink: 0; }
+.mode-btn .ml { text-align: left; }
+.mode-btn .ms { display: block; font: 400 11px var(--m); color: var(--dim); margin-top: 2px; }
+
+/* ── Instructions ── */
+.instructions-toggle {
+  font: 600 12px var(--m);
+  color: var(--dim);
+  cursor: pointer;
+  margin-top: 16px;
+  letter-spacing: .04em;
+}
+.instructions-toggle .arrow {
+  display: inline-block;
+  transition: transform .2s;
+  font-size: 10px;
+}
+.instructions-toggle.open .arrow { transform: rotate(180deg); }
+.instructions { margin-top: 12px; text-align: left; }
+.instructions p { font: 400 12px/1.6 var(--f); color: var(--dim); margin-bottom: 8px; }
+.instructions b { color: var(--text); }
+
+/* ── Lobby ── */
+#lobbyScreen { align-items: center; justify-content: center; padding: 24px; }
+.lobby-inner { width: 100%; max-width: 420px; text-align: center; }
+.lobby-code { font: 700 36px var(--m); letter-spacing: .12em; margin: 16px 0 8px; }
+.lobby-sub { font: 400 12px var(--m); color: var(--dim); margin-bottom: 24px; }
+.lobby-players {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 24px;
+  text-align: left;
+}
+.lobby-player {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font: 500 13px var(--f);
+}
+.lobby-player .dot { width: 8px; height: 8px; border-radius: 50%; background: #fff; flex-shrink: 0; }
+.lobby-player .pname { flex: 1; }
+.lobby-player .phost {
+  font: 600 9px var(--m);
+  color: var(--dim);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+.lobby-actions { display: flex; flex-direction: column; gap: 10px; }
+.lobby-btn {
+  padding: 14px 20px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  box-shadow: none;
+  color: var(--text);
+  font: 600 14px var(--f);
+  cursor: pointer;
+  transition: border-color .15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.lobby-btn:hover { border-color: rgba(255,255,255,.3); }
+.lobby-btn.primary { background: #fff; color: #000; border-color: #fff; }
+.lobby-btn.primary:hover { background: #ddd; }
+.lobby-btn:disabled { opacity: .35; cursor: not-allowed; }
+
+/* ── HUD: the source #counter, portal styling ── */
+#counter {
+  z-index: 10;
+  font: 700 28px var(--m);
+  color: #fff;
+  text-shadow: 0 1px 4px rgba(0,0,0,.6);
+  pointer-events: none;
+}
+#counter::before {
+  content: 'lanes';
+  display: block;
+  font: 600 9px var(--m);
+  color: rgba(255,255,255,.5);
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  text-align: right;
+  margin-bottom: 2px;
+}
+
+/* ── Grass timer: 5 s per lane, only visible on grass ── */
+#grassTimer {
+  position: absolute;
+  top: 64px;
+  right: 20px;
+  z-index: 10;
+  display: block;
+  font: 700 18px var(--m);
+  color: #0a0a0a;
+  background: #fff;
+  border-radius: 6px;
+  padding: 4px 9px;
+  text-align: right;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .12s linear;
+}
+#grassTimer::before {
+  content: 'grass';
+  display: block;
+  font: 600 8px var(--m);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  margin-bottom: 1px;
+}
+#grassTimer.on { opacity: 1; }
+#grassTimer.danger { background: #0a0a0a; color: #fff; }
+
+/* ── D-pad: the source #controlls grid, portal styling ── */
+#controlls { z-index: 10; }
+#controlls div {
+  grid-template-columns: 52px 52px 52px;
+  grid-template-rows: 52px 52px;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+#controlls button {
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,.12);
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 12px;
+  box-shadow: none;
+  color: #fff;
+  -webkit-tap-highlight-color: transparent;
+  transition: background .1s;
+}
+#controlls button:active { background: rgba(255,255,255,.25); }
+#controlls svg { width: 24px; height: 24px; }
+#controlls svg path { fill: currentColor; }
+
+/* ── Game over ── */
+#gameOverScreen {
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(10,10,12,.85);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.go-inner { width: 100%; max-width: 380px; text-align: center; }
+.go-label {
+  font: 700 10px var(--m);
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin-bottom: 8px;
+}
+.go-score {
+  font: 800 clamp(48px, 12vw, 72px) var(--f);
+  letter-spacing: -.03em;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.go-sub { font: 400 12px var(--m); color: var(--dim); margin-bottom: 24px; }
+.go-stats { display: flex; gap: 12px; justify-content: center; margin-bottom: 28px; }
+.go-stat {
+  padding: 10px 18px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  text-align: center;
+}
+.go-stat .gs-val { font: 700 18px var(--m); }
+.go-stat .gs-label {
+  font: 500 9px var(--m);
+  color: var(--dim);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  margin-top: 2px;
+}
+.go-results { margin-bottom: 20px; text-align: left; }
+.go-result-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  font: 500 13px var(--f);
+}
+.go-result-row:last-child { border-bottom: none; }
+.go-result-row .rr-rank { font: 700 12px var(--m); color: var(--dim); width: 24px; text-align: center; }
+.go-result-row .rr-name { flex: 1; }
+.go-result-row .rr-score { font: 600 13px var(--m); }
+.go-btns { display: flex; flex-direction: column; gap: 10px; }
+.go-btn {
+  padding: 14px 20px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  box-shadow: none;
+  color: var(--text);
+  font: 600 14px var(--f);
+  cursor: pointer;
+  transition: border-color .15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.go-btn:hover { border-color: rgba(255,255,255,.3); }
+.go-btn.primary { background: #fff; color: #000; border-color: #fff; }
+.go-btn.primary:hover { background: #ddd; }
+
+/* ── Invite toast ── */
+.invite-toast {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  background: rgba(10,10,12,.92);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 999px;
+  padding: 9px 16px;
+  font: 600 13px/1.2 var(--f);
+  letter-spacing: .02em;
+  pointer-events: none;
+  transition: opacity .3s;
+  opacity: 0;
+}
+.invite-toast.show { opacity: 1; }
+.invite-toast.hidden { display: none; }
+
+/* ── Responsive ── */
+@media (max-width: 480px) {
+  #controlls div {
+    grid-template-columns: 48px 48px 48px;
+    grid-template-rows: 48px 48px;
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+  #controlls button { height: 48px; }
+  #counter { font-size: 22px; top: 12px; right: 14px; }
+  #grassTimer { top: 52px; right: 14px; font-size: 15px; }
+}
