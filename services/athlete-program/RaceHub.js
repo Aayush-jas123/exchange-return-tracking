@@ -452,7 +452,20 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
     const m = rm.members.get(ws.athlete.id);
     if (!m || !m.inRace) return;
     // Relay normalized Y and rally count to the other player
-    const payload = JSON.stringify({ t: 'ps', p: [[m.id, 0, Math.round((msg.y || 0) * 100), 0, 0, msg.r || 0, 1]] });
+    const relay = { t: 'ps', p: [[m.id, 0, Math.round((msg.y || 0) * 100), 0, 0, msg.r || 0, 1]] };
+    // Ping-Pong is host-authoritative: the room creator owns the ball, the serve
+    // and both scores, and the guest mirrors them. Without this each client rolled
+    // its own ball, so the two screens played two unrelated rallies.
+    const b = msg.pp;
+    if (m.id === rm.hostId && b && typeof b === 'object') {
+      relay.pp = {
+        x: num(b.x, 0, 1), y: num(b.y, 0, 1),
+        vx: num(b.vx, -0.2, 0.2), vy: num(b.vy, -0.2, 0.2),
+        s1: Math.floor(num(b.s1, 0, 99)), s2: Math.floor(num(b.s2, 0, 99)),
+        r: Math.floor(num(b.r, 0, 9999))
+      };
+    }
+    const payload = JSON.stringify(relay);
     for (const other of rm.members.values()) {
       if (other.id !== m.id && other.ws) send(other.ws, payload);
     }

@@ -91,12 +91,16 @@
       renderLobby();
     },
 
-    sendState(normalizedY, rally) {
+    sendState(normalizedY, rally, pp) {
       if (!inGame || !ready) return;
       const now = Date.now();
       if (now - lastStateSend < STATE_RATE) return;
       lastStateSend = now;
-      send({ t: 'pp_state', y: Math.round(normalizedY * 1000) / 1000, r: rally });
+      const msg = { t: 'pp_state', y: Math.round(normalizedY * 1000) / 1000, r: rally };
+      // Only the room creator carries the ball: the hub forwards this frame to the
+      // guest, which draws the same rally instead of simulating a private one.
+      if (pp) msg.pp = pp;
+      send(msg);
     },
 
     endGame(winner, s1, s2) {
@@ -229,6 +233,10 @@
         if (!room || (m.room && m.room !== room.r)) break;
         raceId = m.race || null;
         inGame = true;
+        // The room creator owns the ball and the scoreboard for this match; the
+        // guest mirrors what it streams. Roles are re-read on every start because
+        // the hub hands the host seat to whoever is left when the creator leaves.
+        if (window.setNetRole) window.setNetRole(String(room.host) === myId);
         const roster = m.roster || [];
         const opp = roster.find(p => String(p.id) !== myId);
         opponentName = opp ? opp.n : 'Opponent';
@@ -254,6 +262,8 @@
             }
           }
         }
+        // The host's frame also carries the ball and both scores.
+        if (m.pp && window.applyHostBall) window.applyHostBall(m.pp);
         break;
 
       case 'res':

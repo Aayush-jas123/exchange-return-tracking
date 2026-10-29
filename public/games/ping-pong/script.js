@@ -53,6 +53,11 @@
   // ── State ──
   let mode = 'menu';       // menu | lobby | countdown | playing | paused | gameover
   let gameMode = 'single'; // single | online
+  // Online Pong is host-authoritative: the room creator simulates the ball, the
+  // serve and both scores and streams them; the guest mirrors that rally. Two
+  // independent simulations were the whole reason online matches disagreed.
+  let netIsHost = true;
+  const mirrorGuest = () => gameMode === 'online' && !netIsHost;
   let difficulty = 'medium'; // low | medium | high
   let animId = null;
   let lastTime = 0;
@@ -165,7 +170,13 @@
     courtArea.classList.remove('paused');
     aiReaction = d.aiReaction;
     curDiff = d;
-    resetBall();
+    if (mirrorGuest()) {
+      // The guest waits for the host's serve rather than rolling its own ball.
+      ball = { x: courtLen / 2, y: courtSpan / 2, vx: 0, vy: 0 };
+      trail = [];
+    } else {
+      resetBall();
+    }
   }
 
   // ─ Canvas sizing ──
@@ -271,7 +282,9 @@
 
   function beginPlay() {
     mode = 'playing';
-    $('pauseBtn').hidden = false;
+    // A live opponent cannot be paused from one side — the other screen keeps
+    // playing and the mirrored ball would freeze mid-rally.
+    $('pauseBtn').hidden = gameMode === 'online';
     showHint();
     updateHUD();
     if (animId) cancelAnimationFrame(animId);
@@ -343,15 +356,15 @@
   document.addEventListener('mouseup', () => { mouseActive = false; });
 
   function handleMouse(e) {
-    if (gameMode !== 'single') return;
+    if (gameMode !== 'single' && gameMode !== 'online') return;
     touchP1 = axisNorm(e.clientX, e.clientY);
   }
 
   // ── Paddle movement ──
   function movePaddles() {
     // Player paddle (own goal end)
-    if (keys['ArrowUp']) { p1.y -= PADDLE_SPEED; }
-    if (keys['ArrowDown']) { p1.y += PADDLE_SPEED; }
+    if (keys['ArrowUp'] || keys['w'] || keys['W']) { p1.y -= PADDLE_SPEED; }
+    if (keys['ArrowDown'] || keys['s'] || keys['S']) { p1.y += PADDLE_SPEED; }
     if (touchP1 !== null) {
       p1.y = touchP1 * courtSpan - PADDLE_H / 2;
     }
@@ -361,7 +374,7 @@
     // The fraction is of the paddle axis, so a portrait phone and a landscape
     // desktop read each other's paddle correctly.
     if (gameMode === 'online' && window.PingPongNet) {
-      window.PingPongNet.sendState(p1.y / courtSpan, rallyCount);
+      window.PingPongNet.sendState(p1.y / courtSpan, rallyCount, netIsHost && ball ? hostBallPayload() : null);
     }
 
     // Opponent paddle (far end) — AI or online opponent
@@ -472,7 +485,7 @@
     lastScorer = scorer;
     pointPause = true;
     pointPauseFrames = POINT_PAUSE_FRAMES;
-    pointLabel.textContent = scorer === 1 ? 'YOUR POINT' : 'AI POINT';
+    pointLabel.textContent = scorer === 1 ? 'YOUR POINT' : (gameMode === 'online' ? 'THEIR POINT' : 'AI POINT');
     pointIndicator.classList.add('visible');
     courtArea.classList.add('paused');
     updateHUD();
@@ -1043,16 +1056,13 @@
     if (mode !== 'playing') return;
     lastTime = timestamp;
     movePaddles();
+    // The guest never steps the ball on its own: it extrapolates the host's last
+    // frame and re-anchors on the next one.
+    if (mirrorGuest()) guestStep();
     if (pointPause) {
       pointPauseFrames--;
-      if (pointPauseFrames <= 0) {
-        pointPause = false;
-        pointIndicator.classList.remove('visible');
-        courtArea.classList.remove('paused');
-        resetBall(lastScorer === 1 ? -1 : 1);
-        scheduleTaunt(lastScorer);
-      }
-    } else {
+      if (pointPauseFrames <= 0) endPointPause();
+    } else if (!mirrorGuest()) {
       updateBall();
     }
     updateParticles();
@@ -1060,8 +1070,18 @@
     animId = requestAnimationFrame(gameLoop);
   }
 
+  function endPointPause() {
+    pointPause = false;
+    pointIndicator.classList.remove('visible');
+    courtArea.classList.remove('paused');
+    // The host serves; the guest picks the new ball up from the next frame.
+    if (!mirrorGuest()) resetBall(lastScorer === 1 ? -1 : 1);
+    scheduleTaunt(lastScorer);
+  }
+
   // ── Pause ──
   function togglePause() {
+    if (gameMode === 'online') return; // pausing one side of a live match is not a thing
     if (mode === 'playing') {
       mode = 'paused';
       if (animId) { cancelAnimationFrame(animId); animId = null; }
@@ -1133,6 +1153,8 @@
   });
 
   // ── Online game start callback (called by ping-pong-net.js) ──
+  window.setNetRole = function(host) { netIsHost = !!host; };
+
   window.openOnlineLobby = function() {
     gameMode = 'online';
     showScreen('lobbyScreen');
@@ -1157,6 +1179,61 @@
       p2.y = normalizedY * courtSpan - PADDLE_H / 2;
     }
   };
+
+  // ── Host ball stream ──
+  // Court-normalised so a landscape desktop and an upright phone describe the same
+  // rally: courtLen changes with orientation, courtSpan never does.
+  function hostBallPayload() {
+    return {
+      x: ball.x / courtLen, y: ball.y / courtSpan,
+      vx: ball.vx / courtLen, vy: ball.vy / courtSpan,
+      s1: p1.score, s2: p2.score, r: rallyCount
+    };
+  }
+
+  // The guest's view of the host's court is mirrored along the travel axis — both
+  // screens put their own paddle on the left — so x and vx flip on the way in.
+  window.applyHostBall = function(st) {
+    if (!mirrorGuest() || !ball || !p1 || !st) return;
+    const nx = (1 - st.x) * courtLen;
+    const ny = st.y * courtSpan;
+    // A serve or a lag spike should not drag a trail across the court.
+    if (Math.abs(nx - ball.x) + Math.abs(ny - ball.y) > 40) trail = [];
+    ball.x = nx; ball.y = ny;
+    ball.vx = -st.vx * courtLen;
+    ball.vy = st.vy * courtSpan;
+
+    const mine = st.s2 | 0, theirs = st.s1 | 0;
+    if (mine === p1.score && theirs === p2.score) return;
+    // The host runs the point pause and the taunt; the guest repeats them off the
+    // score change so both screens hold the same beat between rallies.
+    const scorer = mine > p1.score ? 1 : 2;
+    p1.score = mine; p2.score = theirs;
+    if (scorer === 1) { p1.consecMiss = 0; p2.consecMiss++; }
+    else { p2.consecMiss = 0; p1.consecMiss++; }
+    borderFlash = BORDER_FLASH_FRAMES;
+    lastScorer = scorer;
+    pointPause = true;
+    pointPauseFrames = POINT_PAUSE_FRAMES;
+    pointLabel.textContent = scorer === 1 ? 'YOUR POINT' : 'THEIR POINT';
+    pointIndicator.classList.add('visible');
+    courtArea.classList.add('paused');
+    updateHUD();
+  };
+
+  // Dead reckoning between host frames: same wall bounce, no paddle collision and
+  // no scoring — the host owns both.
+  function guestStep() {
+    if (!ball || pointPause) return;
+    if (!ball.vx && !ball.vy) return;
+    ball.x += ball.vx;
+    ball.y += ball.vy;
+    if (ball.y - BALL_R < 0) { ball.y = BALL_R; ball.vy = Math.abs(ball.vy); }
+    if (ball.y + BALL_R > courtSpan) { ball.y = courtSpan - BALL_R; ball.vy = -Math.abs(ball.vy); }
+    if (ball.x < -BALL_R * 2 || ball.x > courtLen + BALL_R * 2) { ball.vx = 0; ball.vy = 0; return; }
+    trail.push({ x: ball.x, y: ball.y });
+    if (trail.length > TRAIL_LENGTH) trail.shift();
+  }
 
   // ── Online game end callback ──
   // The hub pays an online match server-side and answers a moment after the local
