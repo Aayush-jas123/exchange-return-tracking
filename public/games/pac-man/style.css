@@ -503,6 +503,36 @@ html, body {
   font-variant-numeric: tabular-nums;
 }
 
+/* The chip carries the same monochrome glyph as the rival's sprite, so a name
+   on the HUD maps to one archetype on the board:
+   0 saw disc · 1 crown · 2 eye · 3 drone hull. */
+.opp-score-row span[data-skin]::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 5px;
+  vertical-align: -1px;
+  background: #d8d8d8;
+  clip-path: polygon(50% 0, 64% 36%, 100% 50%, 64% 64%, 50% 100%, 36% 64%, 0 50%, 36% 36%);
+}
+.opp-score-row span[data-skin="1"]::before {
+  clip-path: polygon(0 100%, 0 26%, 26% 64%, 50% 0, 74% 64%, 100% 26%, 100% 100%);
+}
+.opp-score-row span[data-skin="2"]::before {
+  background: radial-gradient(circle at 50% 50%, #d8d8d8 0 1.4px, transparent 1.5px);
+  border: 1.3px solid #d8d8d8;
+  border-radius: 50%;
+  clip-path: none;
+}
+.opp-score-row span[data-skin="3"]::before {
+  background:
+    linear-gradient(#d8d8d8, #d8d8d8) left center / 2px 7px no-repeat,
+    linear-gradient(#d8d8d8, #d8d8d8) right center / 2px 7px no-repeat,
+    linear-gradient(#d8d8d8, #d8d8d8) center center / 2px 8px no-repeat;
+  clip-path: none;
+}
+
 /* ── Pause ── */
 .hud-pause {
   width: 38px; height: 38px;

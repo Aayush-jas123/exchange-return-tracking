@@ -120,6 +120,7 @@
   let onlinePlayers = [];      // [{id, name, x, y, dir, lives, score, alive}]
   let onlineGhosts = [];       // [{x, y, state: 0 hunt / 1 frightened / 2 eyes}]
   let onlineNames = {};        // id -> athlete name from the match roster
+  let onlineSkins = {};        // id -> rival skin (the corner the hub handed out)
   let onlineSpawn = { x: 1, y: 29 };
   let onlineRound = 0;
   let onlineResult = null;     // { rank, total, won } once the hub ends the match
@@ -914,8 +915,532 @@
     drawPopups();
   }
 
-  // Opponents get their own colour so a shared board stays readable.
-  const OTHER_COLORS = ['#ffd166', '#8be9fd', '#ff79c6', '#50fa7b'];
+  // ── Rivals: monochrome designs, never colour ─────────────────
+  // The board carries no hue anywhere — Pac-Man is white, the ghosts are grey —
+  // so a rival wearing one reads as a different game. All four rival skins stay
+  // inside the same black/white/grey range and separate by silhouette, surface
+  // detail and trim instead. The hub already hands every athlete its own corner
+  // index, so a rival keeps the same design for the whole match.
+  const OPP_SKINS = 4;
+  // Four archetypes, one per corner. Silhouette differs first and surface detail
+  // second: at one tile per athlete a rival has to be readable by outline alone
+  // before any of the trim is legible.
+  //   0 SAWBLADE — toothed cutting disc, bright edge
+  //   1 MONARCH  — swept cape, sash, upright crown
+  //   2 ORACLE   — one great eye, rim studs, orbiting satellite
+  //   3 DRONE    — black hull, sensor visor, twin antennae
+  const SKIN_SAW = 0, SKIN_MONARCH = 1, SKIN_ORACLE = 2, SKIN_DRONE = 3;
+
+  function skinIndex(p, fallback) {
+    const c = onlineSkins[p.id];
+    return (typeof c === 'number' ? c : fallback) % OPP_SKINS;
+  }
+
+  // Bite silhouette in the local frame, mouth pointing down +x; every pattern
+  // below clips to this path so nothing spills outside the body.
+  function oppBodyPath(r, mouth) {
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.arc(0, 0, r, mouth, Math.PI * 2 - mouth);
+    ctx.closePath();
+  }
+
+  function oppRim(r, mouth, color, width) {
+    oppBodyPath(r, mouth);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.stroke();
+  }
+
+  // 0 · SAWBLADE — a ring of cutting teeth, machined hatch, rivets, hot edge.
+  function oppSaw(r, mouth) {
+    // Teeth first so the hull overlaps their roots. None may sit in the bite.
+    ctx.strokeStyle = '#0a0a0a';
+    ctx.lineWidth = 0.7;
+    for (let k = 0; k < 12; k++) {
+      const a = (k / 12) * Math.PI * 2;
+      if (Math.abs(Math.atan2(Math.sin(a), Math.cos(a))) < mouth + 0.34) continue;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a - 0.2) * r * 0.88, Math.sin(a - 0.2) * r * 0.88);
+      ctx.lineTo(Math.cos(a + 0.06) * r * 1.3, Math.sin(a + 0.06) * r * 1.3);
+      ctx.lineTo(Math.cos(a + 0.2) * r * 0.88, Math.sin(a + 0.2) * r * 0.88);
+      ctx.closePath();
+      ctx.fillStyle = '#cfcfcf';
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    oppBodyPath(r, mouth);
+    ctx.fillStyle = '#f4f4f4';
+    ctx.fill();
+
+    ctx.save();
+    oppBodyPath(r, mouth);
+    ctx.clip();
+    // Machined hatch.
+    ctx.strokeStyle = 'rgba(10,10,10,0.16)';
+    ctx.lineWidth = 1;
+    for (let x = -r * 2; x <= r * 2; x += 3) {
+      ctx.beginPath();
+      ctx.moveTo(x, -r * 2);
+      ctx.lineTo(x + r * 2, r * 2);
+      ctx.stroke();
+    }
+    // Three cooling slots fanned across the tail.
+    ctx.fillStyle = 'rgba(10,10,10,0.5)';
+    for (let k = -1; k <= 1; k++) {
+      ctx.save();
+      ctx.rotate(k * 0.34);
+      ctx.fillRect(-r * 0.95, -r * 0.06, r * 0.44, r * 0.12);
+      ctx.restore();
+    }
+    // Rivet ring.
+    ctx.fillStyle = 'rgba(10,10,10,0.45)';
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * Math.PI * 2;
+      if (Math.abs(Math.atan2(Math.sin(a), Math.cos(a))) < mouth + 0.2) continue;
+      ctx.beginPath();
+      ctx.arc(Math.cos(a) * r * 0.72, Math.sin(a) * r * 0.72, 0.8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Shaded tail.
+    ctx.strokeStyle = 'rgba(10,10,10,0.28)';
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.arc(0, 0, r - 1.5, Math.PI * 1.1, Math.PI * 1.9);
+    ctx.stroke();
+    ctx.restore();
+
+    // Hot cutting edges flanking the bite — the brightest thing on the sprite.
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.arc(0, 0, r - 1, mouth + 0.08, mouth + 1.45);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, 0, r - 1, Math.PI * 2 - mouth - 1.45, Math.PI * 2 - mouth - 0.08);
+    ctx.stroke();
+
+    oppRim(r, mouth, '#ffffff', 1);
+  }
+
+  // 2 · ORACLE — one enormous almond eye under a heavy brow, with a lid that
+  // blinks. No tick marks anywhere: the round shell is plain, so nothing here
+  // can be read as a clock face.
+  function oppOracle(r, mouth, idx) {
+    oppBodyPath(r, mouth);
+    ctx.fillStyle = '#e8e8e8';
+    ctx.fill();
+
+    ctx.save();
+    oppBodyPath(r, mouth);
+    ctx.clip();
+
+    const ex = r * 0.24, ey = 0, rx = r * 0.6, ry = r * 0.46;
+
+    // Dark socket first, so the white of the eye never floats on the shell.
+    ctx.fillStyle = 'rgba(10,10,10,0.55)';
+    ctx.beginPath();
+    ctx.ellipse(ex, ey, rx + 1.6, ry + 1.6, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Sclera.
+    ctx.fillStyle = '#fdfdfd';
+    ctx.beginPath();
+    ctx.ellipse(ex, ey, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(10,10,10,0.8)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Iris, pupil and specular glint, all pushed forward so the gaze leads.
+    ctx.fillStyle = '#1c1c1c';
+    ctx.beginPath();
+    ctx.arc(ex + rx * 0.3, ey, ry * 0.62, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#0a0a0a';
+    ctx.beginPath();
+    ctx.arc(ex + rx * 0.36, ey, ry * 0.28, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(ex + rx * 0.18, ey - ry * 0.36, r * 0.1, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Brow ridge — the expression, and the second thing that says "eye".
+    ctx.strokeStyle = 'rgba(10,10,10,0.85)';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(ex - rx * 0.6, ey - ry * 1.42);
+    ctx.quadraticCurveTo(ex + rx * 0.3, ey - ry * 2.05, ex + rx * 1.05, ey - ry * 1.1);
+    ctx.stroke();
+
+    // The blink: a lid wipes down and back up every few seconds.
+    const cycle = (gameTime + idx * 0.7) % 4;
+    if (cycle < 0.24) {
+      const lid = Math.sin((cycle / 0.24) * Math.PI);
+      const top = ey - ry - 1;
+      ctx.fillStyle = '#e8e8e8';
+      ctx.fillRect(ex - rx - 2, top, (rx + 2) * 2, (ry * 2 + 2) * lid);
+      ctx.strokeStyle = 'rgba(10,10,10,0.8)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(ex - rx, top + (ry * 2 + 2) * lid);
+      ctx.lineTo(ex + rx, top + (ry * 2 + 2) * lid);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // Halo: one continuous ring, open across the bite, so it never reads as a dial.
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(0, 0, r + 2.8, mouth + 0.5, Math.PI * 2 - mouth - 0.5);
+    ctx.stroke();
+    oppRim(r, mouth, 'rgba(255,255,255,0.9)', 1);
+
+    // A single satellite in orbit — the only moving part besides the lid.
+    const sa = gameTime * 1.15 + idx * 1.7;
+    const sx = Math.cos(sa) * (r + 2.8), sy = Math.sin(sa) * (r + 2.8);
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(sx, sy, 1.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.arc(sx, sy, 2.9, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // 1 · MONARCH — a scalloped cape, a dark shoulder mantle trimmed with pearls,
+  // and an upright crown. Nothing cuts diagonally across the shell, so it can
+  // never be mistaken for a beak or a scythe.
+  function oppMonarch(r, mouth) {
+    // Cape: two swept wings with a scalloped hem, and a bright leading edge so
+    // they read as cloth rather than as a second body.
+    for (let s = -1; s <= 1; s += 2) {
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.1, s * r * 0.9);
+      ctx.quadraticCurveTo(-r * 1.32, s * r * 1.3, -r * 1.78, s * r * 0.18);
+      ctx.quadraticCurveTo(-r * 1.5, s * r * 0.38, -r * 1.2, s * r * 0.24);
+      ctx.quadraticCurveTo(-r * 0.98, s * r * 0.42, -r * 0.72, s * r * 0.26);
+      ctx.quadraticCurveTo(-r * 0.5, s * r * 0.4, -r * 0.1, s * r * 0.3);
+      ctx.closePath();
+      ctx.fillStyle = '#b9b9b9';
+      ctx.fill();
+      ctx.strokeStyle = '#0a0a0a';
+      ctx.lineWidth = 0.7;
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+      ctx.lineWidth = 0.9;
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.1, s * r * 0.9);
+      ctx.quadraticCurveTo(-r * 1.32, s * r * 1.3, -r * 1.78, s * r * 0.18);
+      ctx.stroke();
+    }
+
+    oppBodyPath(r, mouth);
+    ctx.fillStyle = '#fbfbfb';
+    ctx.fill();
+
+    ctx.save();
+    oppBodyPath(r, mouth);
+    ctx.clip();
+    // Shoulder mantle: the rear third of the shell hung in dark cloth, with a
+    // bright inner trim and a row of pearls along it.
+    const m0 = Math.PI * 0.62, m1 = Math.PI * 1.38;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, m0, m1);
+    ctx.arc(0, 0, r * 0.42, m1, m0, true);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(10,10,10,0.5)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+    ctx.lineWidth = 0.9;
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.42, m0, m1);
+    ctx.stroke();
+    ctx.fillStyle = '#ffffff';
+    for (let k = 0; k <= 5; k++) {
+      const a = m0 + (k / 5) * (m1 - m0);
+      ctx.beginPath();
+      ctx.arc(Math.cos(a) * r * 0.42, Math.sin(a) * r * 0.42, r * 0.055, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Cape clasp closing the mantle at the back.
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(-r * 0.68, 0, r * 0.13, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#0a0a0a';
+    ctx.beginPath();
+    ctx.arc(-r * 0.68, 0, r * 0.055, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Double rim: dark outline, then a bright inner ring.
+    oppRim(r, mouth, 'rgba(10,10,10,0.75)', 1.2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+    ctx.lineWidth = 0.9;
+    ctx.beginPath();
+    ctx.arc(0, 0, r - 1.9, mouth + 0.22, Math.PI * 2 - mouth - 0.22);
+    ctx.stroke();
+  }
+
+  // Drawn outside the rotation, so the crown always sits upright on the head.
+  function oppCrownGlyph(cx, cy, s) {
+    ctx.beginPath();
+    ctx.moveTo(cx - s, cy + s * 0.55);
+    ctx.lineTo(cx - s, cy - s * 0.15);
+    ctx.lineTo(cx - s * 0.52, cy + s * 0.28);
+    ctx.lineTo(cx, cy - s * 0.95);
+    ctx.lineTo(cx + s * 0.52, cy + s * 0.28);
+    ctx.lineTo(cx + s, cy - s * 0.15);
+    ctx.lineTo(cx + s, cy + s * 0.55);
+    ctx.closePath();
+    ctx.fillStyle = '#f4f4f4';
+    ctx.fill();
+    ctx.strokeStyle = '#0a0a0a';
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+    // Base band with three gems.
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(cx - s, cy + s * 0.2, s * 2, s * 0.14);
+    ctx.fillStyle = '#f4f4f4';
+    for (let k = -1; k <= 1; k++) {
+      ctx.beginPath();
+      ctx.arc(cx + k * s * 0.52, cy + s * 0.27, s * 0.1, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Finials on the three points glint on a slow cycle.
+    const glint = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(gameTime * 3));
+    ctx.fillStyle = 'rgba(255,255,255,' + glint + ')';
+    for (let k = -1; k <= 1; k++) {
+      ctx.beginPath();
+      ctx.arc(cx + k * s, cy - (k === 0 ? s * 0.95 : s * 0.15), s * 0.12, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // 3 · DRONE — flat-backed hexagonal armour with a bright sensor band across
+  // the middle. The band is perpendicular to travel, so the bite wedge can never
+  // slice it into crescents the way a forward-facing visor was.
+  function oppDronePath(r, mouth) {
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.arc(0, 0, r, mouth, Math.PI * 2 - mouth);
+    ctx.lineTo(r * 0.34, -r * 1.0);
+    ctx.lineTo(-r * 0.66, -r * 0.94);
+    ctx.lineTo(-r * 1.02, 0);
+    ctx.lineTo(-r * 0.66, r * 0.94);
+    ctx.lineTo(r * 0.34, r * 1.0);
+    ctx.lineTo(Math.cos(mouth) * r, Math.sin(mouth) * r);
+    ctx.closePath();
+  }
+
+  function oppDrone(r, mouth) {
+    // Thrust rails behind the hull.
+    ctx.strokeStyle = '#d8d8d8';
+    ctx.lineWidth = 1.8;
+    ctx.lineCap = 'round';
+    for (let s = -1; s <= 1; s += 2) {
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.62, s * r * 0.56);
+      ctx.lineTo(-r * 1.5, s * r * 0.56);
+      ctx.stroke();
+    }
+    // Antennae with blinking tips.
+    const blink = 0.3 + 0.7 * (0.5 + 0.5 * Math.sin(gameTime * 5));
+    ctx.lineWidth = 1;
+    for (let s = -1; s <= 1; s += 2) {
+      ctx.strokeStyle = 'rgba(216,216,216,0.8)';
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.2, s * r * 0.72);
+      ctx.lineTo(-r * 0.66, s * r * 1.18);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,' + blink + ')';
+      ctx.beginPath();
+      ctx.arc(-r * 0.66, s * r * 1.18, 1.3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.lineCap = 'butt';
+
+    oppDronePath(r, mouth);
+    ctx.fillStyle = '#141414';
+    ctx.fill();
+
+    ctx.save();
+    oppDronePath(r, mouth);
+    ctx.clip();
+    // Plate seams following the chamfered edges.
+    ctx.strokeStyle = 'rgba(240,240,240,0.16)';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(r * 0.12, -r * 0.84);
+    ctx.lineTo(-r * 0.6, -r * 0.79);
+    ctx.moveTo(r * 0.12, r * 0.84);
+    ctx.lineTo(-r * 0.6, r * 0.79);
+    ctx.stroke();
+
+    // Sensor band: a bright slab straight across the body, dark-framed.
+    const bx = -r * 0.2, bw = r * 0.34;
+    ctx.fillStyle = '#ededed';
+    ctx.fillRect(bx, -r, bw, r * 2);
+    ctx.strokeStyle = 'rgba(10,10,10,0.7)';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(bx, -r);
+    ctx.lineTo(bx, r);
+    ctx.moveTo(bx + bw, -r);
+    ctx.lineTo(bx + bw, r);
+    ctx.stroke();
+    // Lens in the middle of the band, with a glint and a dark bezel.
+    ctx.fillStyle = '#0a0a0a';
+    ctx.beginPath();
+    ctx.arc(bx + bw / 2, 0, r * 0.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.arc(bx + bw / 2, 0, r * 0.28, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    ctx.beginPath();
+    ctx.arc(bx + bw / 2 - r * 0.06, -r * 0.06, r * 0.06, 0, Math.PI * 2);
+    ctx.fill();
+    // Rear vents: three short slots in the armour.
+    ctx.strokeStyle = 'rgba(240,240,240,0.5)';
+    ctx.lineWidth = 0.9;
+    for (let k = -1; k <= 1; k++) {
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.44, k * r * 0.3);
+      ctx.lineTo(-r * 0.78, k * r * 0.3);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // The bright rim is what keeps a black hull visible on a black board.
+    oppDronePath(r, mouth);
+    ctx.strokeStyle = '#f2f2f2';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(242,242,242,0.3)';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.arc(0, 0, r - 2.2, mouth + 0.25, Math.PI * 2 - mouth - 0.25);
+    ctx.stroke();
+  }
+
+  function oppTagPath(x, y, w, h) {
+    const rr = h / 2;
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.lineTo(x + w - rr, y);
+    ctx.arcTo(x + w, y, x + w, y + rr, rr);
+    ctx.lineTo(x + w, y + h - rr);
+    ctx.arcTo(x + w, y + h, x + w - rr, y + h, rr);
+    ctx.lineTo(x + rr, y + h);
+    ctx.arcTo(x, y + h, x, y + h - rr, rr);
+    ctx.lineTo(x, y + rr);
+    ctx.arcTo(x, y, x + rr, y, rr);
+    ctx.closePath();
+  }
+
+  // Miniature of the skin, reused by the HUD chips so a name maps to a shape.
+  function oppGlyph(cx, cy, skin, color) {
+    const s = 2.6;
+    ctx.fillStyle = color;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 0.9;
+    if (skin === SKIN_SAW) {
+      // Eight-point saw disc.
+      ctx.beginPath();
+      for (let k = 0; k < 16; k++) {
+        const a = (k / 16) * Math.PI * 2;
+        const d = k % 2 ? s * 0.62 : s;
+        const x = cx + Math.cos(a) * d, y = cy + Math.sin(a) * d;
+        if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.fill();
+    } else if (skin === SKIN_MONARCH) {
+      // Crown.
+      ctx.beginPath();
+      ctx.moveTo(cx - s, cy + s * 0.75);
+      ctx.lineTo(cx - s, cy - s * 0.1);
+      ctx.lineTo(cx - s * 0.5, cy + s * 0.3);
+      ctx.lineTo(cx, cy - s * 0.9);
+      ctx.lineTo(cx + s * 0.5, cy + s * 0.3);
+      ctx.lineTo(cx + s, cy - s * 0.1);
+      ctx.lineTo(cx + s, cy + s * 0.75);
+      ctx.closePath();
+      ctx.fill();
+    } else if (skin === SKIN_ORACLE) {
+      // Eye: a wide almond with its pupil.
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, s, s * 0.62, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx + s * 0.22, cy, s * 0.3, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      // Drone: hexagonal hull slit by its sensor band.
+      ctx.beginPath();
+      for (let k = 0; k < 6; k++) {
+        const a = (k / 6) * Math.PI * 2 + Math.PI / 6;
+        const x = cx + Math.cos(a) * s, y = cy + Math.sin(a) * s;
+        if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fillRect(cx - s * 0.22, cy - s, s * 0.44, s * 2);
+    }
+  }
+
+  // Name plate: the sprite is monochrome, so the plate is what tells you who is
+  // who — dark chip, light text, the skin's glyph, and a leader tick that ties
+  // the name to the sprite even when four athletes share one corridor.
+  function drawOppTag(p, px, py, r, skin) {
+    const name = String(p.name || 'RIVAL').slice(0, 9).toUpperCase();
+    ctx.font = 'bold 7.5px -apple-system, system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    const tw = ctx.measureText(name).width;
+    const w = tw + 16;
+    const h = 10;
+    const x = px - w / 2;
+    // A crowned rival carries its crown above the head, so the plate clears it
+    // entirely and the leader tick is dropped rather than drawn through it.
+    const crowned = skin === SKIN_MONARCH;
+    const top = py - r - (crowned ? 13 : 0) - 7;
+    const above = top >= 9;   // on the top row the plate has to hang below
+    const y = above ? top : py + r + 9;
+
+    if (!crowned) {
+      ctx.strokeStyle = 'rgba(240,240,240,0.32)';
+      ctx.lineWidth = 0.7;
+      ctx.beginPath();
+      ctx.moveTo(px, py + (above ? -r * 0.92 : r * 0.92));
+      ctx.lineTo(px, above ? y + h / 2 : y - h / 2);
+      ctx.stroke();
+    }
+
+    oppTagPath(x, y - h / 2, w, h);
+    ctx.fillStyle = 'rgba(10,10,10,0.85)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(240,240,240,0.45)';
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+
+    oppGlyph(x + 6, y, skin, '#f0f0f0');
+    ctx.fillStyle = '#f0f0f0';
+    ctx.fillText(name, x + 10.5, y + 0.4);
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+  }
 
   function drawPacman() {
     const px = pacman.x * CONFIG.TILE + CONFIG.TILE / 2;
@@ -936,32 +1461,53 @@
     ctx.arc(px, py, CONFIG.TILE * 0.6, angleOffset + mouthOpen, angleOffset + Math.PI * 2 - mouthOpen);
     ctx.closePath();
     ctx.fill();
+
+    // Online the plain white Pac-Man is you — every rival wears a skin, so the
+    // only unmarked body on the board is the one you drive. Say it out loud.
+    if (gameMode === 'online') {
+      ctx.font = 'bold 8px -apple-system, system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(240,240,240,0.65)';
+      const ly = py > CONFIG.GH - 26 ? py - CONFIG.TILE * 0.85 : py + CONFIG.TILE * 0.95;
+      ctx.fillText('YOU', px, ly);
+    }
   }
 
   function drawOtherPacman(p, idx) {
     const px = p.x * CONFIG.TILE + CONFIG.TILE / 2;
     const py = p.y * CONFIG.TILE + CONFIG.TILE / 2;
-    const tint = OTHER_COLORS[idx % OTHER_COLORS.length];
+    const skin = skinIndex(p, idx);
     const angle =
       p.dir === 0 ? 0 :
       p.dir === 1 ? Math.PI :
       p.dir === 2 ? -Math.PI / 2 :
       p.dir === 3 ? Math.PI / 2 : 0;
-    const mouth = 0.1 + 0.25 * (0.5 + 0.5 * Math.sin(gameTime * 16 + idx));
+    // Every rival chews at its own cadence, so a cluster never moves in lockstep.
+    const mouth = 0.1 + 0.25 * (0.5 + 0.5 * Math.sin(gameTime * (15 + skin * 2) + idx));
+    const r = CONFIG.TILE * 0.57;
 
-    ctx.fillStyle = tint;
+    // Lift-off glow: a rival has to read against a black maze, and the black
+    // drone needs the strongest halo of the four.
+    ctx.fillStyle = skin === SKIN_DRONE ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.07)';
     ctx.beginPath();
-    ctx.moveTo(px, py);
-    ctx.arc(px, py, CONFIG.TILE * 0.55, angle + mouth, angle + Math.PI * 2 - mouth);
-    ctx.closePath();
+    ctx.arc(px, py, r + 3.5, 0, Math.PI * 2);
     ctx.fill();
 
-    // Name tag above the body so the room is readable at a glance
-    ctx.fillStyle = 'rgba(0,0,0,0.55)';
-    ctx.font = 'bold 9px sans-serif';
-    ctx.textAlign = 'center';
-    const tag = (p.name || '?').slice(0, 8);
-    ctx.fillText(tag, px, py - CONFIG.TILE * 0.8);
+    // Body, cape, teeth and patterns are drawn in a frame rotated to the facing,
+    // so every skin turns correctly and the bite always leads the way.
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(angle);
+    if (skin === SKIN_SAW) oppSaw(r, mouth);
+    else if (skin === SKIN_MONARCH) oppMonarch(r, mouth);
+    else if (skin === SKIN_ORACLE) oppOracle(r, mouth, idx);
+    else oppDrone(r, mouth);
+    ctx.restore();
+
+    // The crown is upright in screen space, whatever way the rival faces.
+    if (skin === SKIN_MONARCH) oppCrownGlyph(px, py - r - 3, r * 0.62);
+
+    drawOppTag(p, px, py, r, skin);
   }
 
   function drawGhost(ghost) {
@@ -1271,7 +1817,17 @@
         const nameEl = $('oppName' + i);
         const p = onlinePlayers[i];
         if (scoreEl) scoreEl.textContent = p ? (p.alive ? p.score : 'OUT') : '';
-        if (nameEl) nameEl.textContent = p ? (p.name || 'Athlete') : '';
+        if (nameEl) {
+          nameEl.textContent = p ? (p.name || 'Athlete') : '';
+          // The chip carries the rival's skin glyph, so a name on the HUD maps
+          // to one monochrome design on the board.
+          if (!p) {
+            if (nameEl.dataset.skin) delete nameEl.dataset.skin;
+          } else {
+            const s = String(skinIndex(p, i));
+            if (nameEl.dataset.skin !== s) nameEl.dataset.skin = s;
+          }
+        }
       }
     }
   }
@@ -1497,6 +2053,7 @@
     const list = roster || [];
 
     onlineNames = {};
+    onlineSkins = {};
     onlinePlayers = [];
     onlineGhosts = [];
     onlineRound = 0;
@@ -1506,8 +2063,13 @@
 
     let spawn = 0;
     for (const p of list) {
-      onlineNames[String(p.id)] = p.n || 'Athlete';
-      if (String(p.id) === myId) spawn = Number(p.c) || 0;
+      const id = String(p.id);
+      const corner = Number(p.c) || 0;
+      onlineNames[id] = p.n || 'Athlete';
+      // One skin per corner, handed out by the hub, so nobody on the board
+      // ends up wearing the same design as another rival.
+      onlineSkins[id] = corner % OPP_SKINS;
+      if (id === myId) spawn = corner;
     }
     // Every athlete owns a corner, so nobody starts on top of anybody else.
     const spawns = window.PacmanSim ? window.PacmanSim.SPAWNS : [{ x: 1, y: 29 }];
