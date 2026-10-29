@@ -2074,6 +2074,14 @@ async function attempt(path){
 
 function showAuthError(){
   sessionStorage.removeItem('ap_token');S.token=null;raceClose();
+  // Signing out (or a rejected token) must leave nothing of the portal behind.
+  // The desktop sidebar and its slide-in panels are siblings of the login
+  // overlay, so dropping .ready — the only thing that shows .portal — is what
+  // actually hides them; the panels are also closed so they don't reappear
+  // mid-slide on the next login.
+  $('portal').classList.remove('ready');
+  ['sidebarAcctSub','sidebarAcctHead','sidebarAcctMenu','sheet','avSheet'].forEach(id=>$(id)?.classList.remove('open'));
+  $('avScrim')?.classList.remove('on');
   $('loading').hidden=true;$('auth').hidden=false;
   if(typeof resetOtpUI==='function')resetOtpUI();
 }
