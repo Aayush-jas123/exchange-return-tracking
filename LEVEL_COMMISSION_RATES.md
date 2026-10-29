@@ -1,8 +1,9 @@
 # Level-Based Athlete Commission
 
-Commission is no longer one flat rate for every athlete. Each comfort level carries
-its own rate, so climbing the ladder raises what an athlete earns on every order they
-bring in. Rates are edited in the athlete admin console, not in code.
+Commission is no longer one flat rate for every athlete. It is a **step ladder**: a
+rate is set on an anchor level and holds on every rung below it until the next
+anchor, so a promotion is worth waiting for. Rates are edited in the athlete admin
+console, not in code.
 
 ## 1. Run the migration
 
@@ -14,22 +15,17 @@ bring in. Rates are edited in the athlete admin console, not in code.
 - adds a 0–60 % range check;
 - inserts `commission.default_pct = 7` as the fallback for athletes with no level.
 
-Only the three levels named in the change request get a new rate. The untouched
-rungs inherit the percentage already published in their `perks` JSONB, so their
-commission does not move.
+Only empty rows, and rows still holding a value an earlier draft of this file wrote,
+are seeded — a ladder an operator edited in the admin console keeps its numbers.
 
-| Level | Code | Commission | |
-|---|---|---|---|
-| Comfort Level - 5 | CL5 | 5 % | set |
-| Comfort Level - 4 | CL4 | 7 % | unchanged |
-| Comfort Level - 3 | CL3 | 10 % | set |
-| Comfort Level - 2 | CL2 | 15 % | unchanged |
-| Comfort Level - 1 | CL1 | 18 % | unchanged |
-| Zero Comfort | ZERO | 15 % | set (was 20 %) |
+| Anchor | Rate | Rungs that earn it |
+|---|---|---|
+| Comfort Level - 5 (CL5) | 5 % | CL5, CL4 |
+| Comfort Level - 3 (CL3) | 10 % | CL3, CL2, CL1 |
+| Zero Comfort (ZERO) | 15 % | Zero Comfort |
 
-Note: with the requested numbers Comfort Level - 1 (18 %) pays more than Zero
-Comfort (15 %), so the top rung is no longer the highest rate. Change either row
-in the admin console if the ladder should keep rising to the end.
+So the paid ladder reads 5 / 5 / 10 / 10 / 10 / 15 from CL5 up to Zero Comfort: the
+rate holds on a rung until the next anchor changes it.
 
 ## 2. Configure it in the admin console
 

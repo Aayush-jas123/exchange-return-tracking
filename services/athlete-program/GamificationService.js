@@ -1169,12 +1169,20 @@ const GamificationService = {
     const daysToNext = next ? Math.max(0, (next.min_days_in_previous || 0) - daysInCurrentLevel) : 0;
 
     // ── Commission ladder: what every rung pays, so the climb has a price ──
+    // A level keeps the rate of the anchor below it, so the next *raise* can sit
+    // two or three rungs up; next_change_pct names the rung that pays more.
     const topLevel = ladder.length ? ladder[ladder.length - 1] : null;
+    const currentPct = CommissionService.pctOf(current);
+    const raise = current
+      ? ladder.find(l => l.ordinal > current.ordinal && l.commission_pct != null && l.commission_pct !== currentPct) || null
+      : null;
     const commission = {
-      current_pct: CommissionService.pctOf(current),
+      current_pct: currentPct,
       current_level_name: current?.display_name || null,
       next_pct: CommissionService.pctOf(next),
       next_level_name: next?.display_name || null,
+      next_change_pct: raise ? raise.commission_pct : null,
+      next_change_level_name: raise?.display_name || null,
       top_pct: CommissionService.pctOf(topLevel),
       top_level_name: topLevel?.display_name || null,
       ladder: ladder.map(level => ({

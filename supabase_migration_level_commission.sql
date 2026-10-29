@@ -2,20 +2,17 @@
 -- LEVEL-BASED ATHLETE COMMISSION
 -- ----------------------------------------------------------------------------
 -- Commission stops being a flat rate and becomes a property of the comfort
--- level: the entry level earns least, every promotion raises the rate paid on
--- every order the athlete brings in.
+-- level, as a step ladder: a rate is set on an anchor level and holds on every
+-- rung below it until the next anchor, so a raise is worth waiting for.
 --
--- Only the three levels named in the change request carry a new rate. Every
--- other rung keeps the percentage its perks JSONB already publishes:
---   Comfort Level - 5   5%   (set)
---   Comfort Level - 4   7%   (unchanged)
---   Comfort Level - 3  10%   (set)
---   Comfort Level - 2  15%   (unchanged)
---   Comfort Level - 1  18%   (unchanged)
---   Zero Comfort       15%   (set, was 20%)
+--   anchor  Comfort Level - 5   5%   ->  CL5, CL4 both earn 5%
+--   anchor  Comfort Level - 3  10%   ->  CL3, CL2, CL1 all earn 10%
+--   anchor  Zero Comfort       15%   ->  top rung earns 15%
 --
--- Safe to re-run: existing commission_pct values are never overwritten, and
--- the older perks JSONB is kept in agreement with the column.
+-- Safe to re-run: only empty rows and rows still holding a value an earlier
+-- draft wrote are re-asserted, so a diverged ladder converges back to the step
+-- ladder while clearly edited rungs stay put. The older perks JSONB is kept in
+-- agreement with the column.
 -- ============================================================================
 
 ALTER TABLE comfort_levels
@@ -24,31 +21,26 @@ ALTER TABLE comfort_levels
 COMMENT ON COLUMN comfort_levels.commission_pct IS
   'Commission % paid to an athlete at this level, applied to attributed order net value. Editable in athlete admin > Configuration > Comfort Levels. The rate an order was placed at stays frozen on attributed_orders.commission_rate.';
 
--- Only these three rungs get an explicit rate, and only when empty, so admin
--- edits survive a re-run.
+-- Seed the step ladder. A row is only written when it is empty or still holds
+-- one of the values an earlier draft of this file (or the old perks JSONB) used.
 UPDATE comfort_levels
 SET commission_pct = CASE code
   WHEN 'CL5'  THEN 5
+  WHEN 'CL4'  THEN 5
   WHEN 'CL3'  THEN 10
+  WHEN 'CL2'  THEN 10
+  WHEN 'CL1'  THEN 10
   WHEN 'ZERO' THEN 15
 END,
 updated_at = NOW()
-WHERE commission_pct IS NULL
-  AND code IN ('CL5', 'CL3', 'ZERO');
-
--- The rungs that were not part of the request inherit the rate already
--- published in perks, so their commission does not move.
-UPDATE comfort_levels
-SET commission_pct = (perks ->> 'commission_pct')::numeric,
-    updated_at = NOW()
-WHERE commission_pct IS NULL
-  AND COALESCE(perks ->> 'commission_pct', '') ~ '^[0-9]+(\.[0-9]+)?$';
-
--- Already ran an earlier draft of this file (it seeded CL2 = 12 and CL1 = 14)?
--- Those two rungs are not part of the change; restore the published rates in
--- the admin console (Configuration > Comfort Levels) or uncomment:
---   UPDATE comfort_levels SET commission_pct = 15 WHERE code = 'CL2';
---   UPDATE comfort_levels SET commission_pct = 18 WHERE code = 'CL1';
+WHERE code IN ('CL5', 'CL4', 'CL3', 'CL2', 'CL1', 'ZERO')
+  AND (
+    commission_pct IS NULL
+    OR (code = 'CL4'  AND commission_pct = 7)
+    OR (code = 'CL2'  AND commission_pct IN (12, 15))
+    OR (code = 'CL1'  AND commission_pct IN (14, 18))
+    OR (code = 'ZERO' AND commission_pct = 20)
+  );
 
 -- Keep the legacy perks JSONB identical to the column so both readers agree.
 -- Compared numerically: NUMERIC(5,2) renders 5 as "5.00", so a text compare

@@ -73,6 +73,10 @@ const CommissionService = {
    * Rate for one athlete: their level's rate plus the next and top rungs, so a
    * caller can render "you are at 5%, 7% at the next level" without extra reads.
    *
+   * Rates hold across rungs (a level keeps the rate of the anchor below it),
+   * so next_rate is the rung right above while next_change_rate is the next rung
+   * that actually pays differently — the one a raise is worth waiting for.
+   *
    * @param {number} influencerId
    * @param {{fallback?: number|null}} options — rate to use when the athlete has no level
    */
@@ -90,6 +94,9 @@ const CommissionService = {
     const top = ladder.length ? ladder[ladder.length - 1] : null;
 
     const rate = this.pctOf(current) ?? fallback ?? await this.getDefaultRate();
+    const raise = current
+      ? ladder.find(l => l.ordinal > current.ordinal && this.pctOf(l) != null && this.pctOf(l) !== rate) || null
+      : null;
 
     return {
       rate,
@@ -98,6 +105,8 @@ const CommissionService = {
       level_display_number: current?.display_number ?? null,
       next_rate: this.pctOf(next),
       next_level_name: next?.display_name ?? null,
+      next_change_rate: this.pctOf(raise),
+      next_change_level_name: raise?.display_name ?? null,
       top_rate: this.pctOf(top),
       top_level_name: top?.display_name ?? null
     };

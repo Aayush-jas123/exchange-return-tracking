@@ -1007,7 +1007,15 @@ function renderClimb(){
   const cm=c.commission||null;
   // Rate formatting: whole percentages stay whole, halves keep one decimal.
   const pctTxt=v=>v==null?'\u2014':`${Math.round(Number(v)*100)/100}%`;
-  const rateGap=Math.round(Number((cm?.next_pct??cm?.current_pct??0)-(cm?.current_pct??0))*100)/100;
+  // A rung keeps the rate of the anchor below it, so the next raise can be several
+  // levels away — point at the rung that actually pays more, not the next rung.
+  const raisePct=cm?(cm.next_change_pct??cm.next_pct):null;
+  const raiseName=cm?(cm.next_change_level_name||cm.next_level_name):null;
+  // When the raise is the top rung itself, the top cell would just repeat it,
+  // so it counts the promotions left instead.
+  const curRow=(cm?.ladder||[]).findIndex(l=>l.display_name===cm?.current_level_name);
+  const toTop=curRow>=0?(cm.ladder.length-1-curRow):null;
+  const rateGap=Math.round(Number((raisePct??cm?.current_pct??0)-(cm?.current_pct??0))*100)/100;
   const rateGapTop=Math.round(Number((cm?.top_pct??cm?.current_pct??0)-(cm?.current_pct??0))*100)/100;
   const rupees=v=>'\u20B9'+Math.round(v).toLocaleString('en-IN');
 
@@ -1054,10 +1062,12 @@ function renderClimb(){
       <div class="clp-pay-head"><span class="clp-kick">Commission on every order</span><span class="clp-pay-flag">Climb = earn more</span></div>
       <div class="clp-pay-grid">
         <div class="clp-pay-cell now"><s>You earn now</s><b>${pctTxt(cm.current_pct)}</b><em>${esc(cm.current_level_name||'current level')}</em></div>
-        <div class="clp-pay-cell next"><s>Next level</s><b>${pctTxt(cm.next_pct)}</b><em>${esc(cm.next_level_name||'locked')}</em>${rateGap>0?`<i>+${rateGap} pts per order</i>`:''}</div>
-        <div class="clp-pay-cell top"><s>Top of the ladder</s><b>${pctTxt(cm.top_pct)}</b><em>${esc(cm.top_level_name||'Zero Comfort')}</em>${rateGapTop>0?`<i>+${rateGapTop} pts per order</i>`:''}</div>
+        <div class="clp-pay-cell next"><s>${raisePct==null?'You are at the top':'Next raise'}</s><b>${pctTxt(raisePct==null?cm.current_pct:raisePct)}</b><em>${esc(raisePct==null?'highest rate':(raiseName||'locked'))}</em>${rateGap>0?`<i>+${rateGap} pts per order</i>`:''}</div>
+        <div class="clp-pay-cell top">${raisePct!=null&&raisePct===cm.top_pct&&toTop>0
+          ?`<s>To the top</s><b>${toTop}</b><em>${toTop===1?'promotion':'promotions'}</em>`
+          :`<s>Top of the ladder</s><b>${pctTxt(cm.top_pct)}</b><em>${esc(cm.top_level_name||'Zero Comfort')}</em>${rateGapTop>0?`<i>+${rateGapTop} pts per order</i>`:''}`}</div>
       </div>
-      <p class="clp-pay-note"><b>Your commission is set by your level.</b>${rateGap>0?` One level up is worth ${rupees(10000*rateGap/100)} extra on every \u20B910,000 of orders.`:' It updates the moment your level changes.'}</p>
+      <p class="clp-pay-note"><b>Your commission is set by your level.</b>${rateGap>0?` The climb to ${esc(raiseName||'the next raise')} is worth ${rupees(10000*rateGap/100)} extra on every \u20B910,000 of orders.`:' It updates the moment your level changes.'}</p>
     </section>`:''}
 
     <section class="clp-journey">
@@ -1779,7 +1789,7 @@ function renderLog(){
   let html=`<div class="comm-hero">
     <div class="cm-top"><span class="cm-label">Total commission earned</span><span class="cm-live"><i></i>Live</span></div>
     <div class="cm-earned">${logFmt(s.total_commission)}</div>
-    <div class="cm-sub">${s.total_orders||0} orders &middot; ${logFmt(s.total_revenue)} attributed &middot; ${rate}% on net${s.next_rate?` &middot; ${s.next_rate}% at the next level`:''}</div>
+    <div class="cm-sub">${s.total_orders||0} orders &middot; ${logFmt(s.total_revenue)} attributed &middot; ${rate}% on net${s.next_change_rate?` &middot; ${s.next_change_rate}% at ${esc(s.next_change_level_name||'the next raise')}`:''}</div>
     <dl class="cm-stats four">
       <div><dt>Earned</dt><dd>${logFmt(s.earned)}</dd></div>
       <div><dt>Pending</dt><dd>${logFmt(s.pending)}</dd></div>

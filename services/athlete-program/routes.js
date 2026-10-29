@@ -1590,6 +1590,8 @@ module.exports = function mountAthleteRoutes(app) {
         level_name: rates.level_name,
         next_rate: rates.next_rate,
         next_level_name: rates.next_level_name,
+        next_change_rate: rates.next_change_rate,
+        next_change_level_name: rates.next_change_level_name,
         top_rate: rates.top_rate,
         top_level_name: rates.top_level_name
       };
