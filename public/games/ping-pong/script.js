@@ -30,11 +30,10 @@
   const PADDLE_CURVE = 12;  // how far the arc bows outward (px)
   const BALL_R = 8;
   const MAX_SCORE = 5;
-  const BASE_SPEED = 4.5;
-  const MAX_SPEED = 11;
-  const SPEED_INCREMENT = 0.04;   // per paddle hit
-  const POINT_SPEED_BONUS = 0.15; // per total point scored
-  const PADDLE_SPEED = 10;
+  // Every speed here is court units per SECOND, never per frame: the ball has to
+  // cross the court at the same pace on a 60Hz laptop and a 120Hz phone, and the
+  // old per-frame step is also why each screen saw a different ball speed.
+  const PADDLE_SPEED = 600;       // units/s for keyboard steering
   const TRAIL_LENGTH = 8;
   const PARTICLE_COUNT = 7;
   const PARTICLE_LIFE = 15;
@@ -45,19 +44,20 @@
 
   // ── Difficulty table ──
   const DIFFICULTIES = {
-    low:    { label: 'Low',    aiReaction: 0.02, aiError: 50, aiImprove: 0.001, aiMax: 0.05, xpMult: 1, baseSpeed: 3.5, maxSpeed: 8,  speedIncrement: 0.03, pointSpeedBonus: 0.10 },
-    medium: { label: 'Medium', aiReaction: 0.06, aiError: 18, aiImprove: 0.003, aiMax: 0.14, xpMult: 2, baseSpeed: 4.5, maxSpeed: 11, speedIncrement: 0.04, pointSpeedBonus: 0.15 },
-    high:   { label: 'High',   aiReaction: 0.11, aiError: 4,  aiImprove: 0.006, aiMax: 0.22, xpMult: 3, baseSpeed: 5.5, maxSpeed: 14, speedIncrement: 0.06, pointSpeedBonus: 0.20 },
+    low:    { label: 'Low',    aiReaction: 0.02, aiError: 50, aiImprove: 0.001, aiMax: 0.05, xpMult: 1, baseSpeed: 300, maxSpeed: 560, speedIncrement: 0.03, pointSpeedBonus: 6 },
+    medium: { label: 'Medium', aiReaction: 0.06, aiError: 18, aiImprove: 0.003, aiMax: 0.14, xpMult: 2, baseSpeed: 400, maxSpeed: 800, speedIncrement: 0.04, pointSpeedBonus: 9 },
+    high:   { label: 'High',   aiReaction: 0.11, aiError: 4,  aiImprove: 0.006, aiMax: 0.22, xpMult: 3, baseSpeed: 500, maxSpeed: 950, speedIncrement: 0.06, pointSpeedBonus: 12 },
   };
 
   // ── State ──
   let mode = 'menu';       // menu | lobby | countdown | playing | paused | gameover
   let gameMode = 'single'; // single | online
-  // Online Pong is host-authoritative: the room creator simulates the ball, the
-  // serve and both scores and streams them; the guest mirrors that rally. Two
-  // independent simulations were the whole reason online matches disagreed.
+  // Online Pong is peer-simulated: both clients run the rally continuously, and
+  // the player who touches the ball is the authority for the leg that follows (see
+  // netBall). Handing the whole ball to one seat left the other playing catch-up
+  // against a paddle position a full round-trip stale, so the ball drew straight
+  // through the guest's paddle. netIsHost now only mirrors the opening serve.
   let netIsHost = true;
-  const mirrorGuest = () => gameMode === 'online' && !netIsHost;
   let difficulty = 'medium'; // low | medium | high
   let animId = null;
   let lastTime = 0;
@@ -73,9 +73,10 @@
   let squashTimer = 0;
   let borderFlash = 0;
   let pointPause = false;
-  let pointPauseFrames = 0;
+  let pauseUntil = 0;  // performance.now() deadline — a frame count stretched to
+                       // 4s on a 30Hz screen and put the two servers out of step
   let lastScorer = 0; // 1 = player, 2 = AI/bot
-  const POINT_PAUSE_FRAMES = 120; // 2 seconds at 60fps
+  const POINT_PAUSE_MS = 2000;
 
   // ── Taunt Bank ──
   const TAUNT_TIER1 = [
@@ -152,6 +153,25 @@
     trail = [];
   }
 
+  // The opening serve must be the same ball on both screens, and neither client can
+  // wait for the other to send one — the hub is still running its own countdown when
+  // local play begins. Deriving it from the match id gives both seats the same serve
+  // with no message to race: the creator's copy travels +x, and the guest, whose goal
+  // is drawn on the other end, mirrors it.
+  function openServeBall() {
+    const seed = String((window.PingPongNet && window.PingPongNet.raceId) || 'pp');
+    let h = 2166136261;
+    for (let i = 0; i < seed.length; i++) { h ^= seed.charCodeAt(i); h = Math.imul(h, 16777619); }
+    const angle = ((h >>> 0) % 1000) / 1000 * 0.8 - 0.4;
+    const spd = curDiff.baseSpeed * speedScale;
+    trail = [];
+    return {
+      x: courtLen / 2, y: courtSpan / 2,
+      vx: Math.cos(angle) * spd * (netIsHost ? 1 : -1),
+      vy: Math.sin(angle) * spd
+    };
+  }
+
   function initGame() {
     const d = DIFFICULTIES[difficulty];
     p1 = { y: courtSpan / 2 - PADDLE_H / 2, score: 0, misses: 0, hitFlash: 0, consecMiss: 0 };
@@ -163,17 +183,15 @@
     squashTimer = 0;
     borderFlash = 0;
     pointPause = false;
-    pointPauseFrames = 0;
+    pauseUntil = 0;
     lastTauntIdx = -1;
     tauntState = { active: false, text: '', icon: '', misser: 0, y: 0, fs: 22, iconSize: 24, textX: 0, iconCx: 0, alpha: 0, phase: 'idle', framesLeft: 0 };
     pointIndicator.classList.remove('visible');
     courtArea.classList.remove('paused');
     aiReaction = d.aiReaction;
     curDiff = d;
-    if (mirrorGuest()) {
-      // The guest waits for the host's serve rather than rolling its own ball.
-      ball = { x: courtLen / 2, y: courtSpan / 2, vx: 0, vy: 0 };
-      trail = [];
+    if (gameMode === 'online') {
+      ball = openServeBall();
     } else {
       resetBall();
     }
@@ -361,10 +379,12 @@
   }
 
   // ── Paddle movement ──
-  function movePaddles() {
-    // Player paddle (own goal end)
-    if (keys['ArrowUp'] || keys['w'] || keys['W']) { p1.y -= PADDLE_SPEED; }
-    if (keys['ArrowDown'] || keys['s'] || keys['S']) { p1.y += PADDLE_SPEED; }
+  function movePaddles(dt) {
+    // Player paddle (own goal end). Steering is per second like the ball, so a
+    // 120Hz phone cannot out-paddle a 60Hz laptop.
+    const step = PADDLE_SPEED * dt;
+    if (keys['ArrowUp'] || keys['w'] || keys['W']) { p1.y -= step; }
+    if (keys['ArrowDown'] || keys['s'] || keys['S']) { p1.y += step; }
     if (touchP1 !== null) {
       p1.y = touchP1 * courtSpan - PADDLE_H / 2;
     }
@@ -374,7 +394,7 @@
     // The fraction is of the paddle axis, so a portrait phone and a landscape
     // desktop read each other's paddle correctly.
     if (gameMode === 'online' && window.PingPongNet) {
-      window.PingPongNet.sendState(p1.y / courtSpan, rallyCount, netIsHost && ball ? hostBallPayload() : null);
+      window.PingPongNet.sendState(p1.y / courtSpan, rallyCount);
     }
 
     // Opponent paddle (far end) — AI or online opponent
@@ -397,10 +417,10 @@
   }
 
   // ── Ball physics ─
-  function updateBall() {
+  function updateBall(dt) {
     const prevX = ball.x;
-    ball.x += ball.vx;
-    ball.y += ball.vy;
+    ball.x += ball.vx * dt;
+    ball.y += ball.vy * dt;
 
     // Side walls (the paddle axis) bounce
     if (ball.y - BALL_R < 0) { ball.y = BALL_R; ball.vy = Math.abs(ball.vy); }
@@ -412,12 +432,18 @@
 
     // Paddles — test the crossing of the return plane, not just the arrival point,
     // so a hot ball on a long upright court can never skip through a paddle.
+    //
+    // Both paddles bounce locally, but only the near one is mine to call: p1 is the
+    // paddle I hold, so my return is instant and it is the state I broadcast. The
+    // far bounce is a prediction against the opponent's relayed position — their own
+    // screen owns that call and corrects me within a frame or two.
     const leftPlane = PADDLE_W + BALL_R;
     if (ball.vx < 0 && prevX >= leftPlane && ball.x <= leftPlane &&
         ball.y >= p1.y && ball.y <= p1.y + PADDLE_H) {
       ball.x = leftPlane;
       ball.vx = Math.abs(ball.vx);
       onPaddleHit(1);
+      netBall('hit');
     }
 
     const rightPlane = courtLen - PADDLE_W - BALL_R;
@@ -428,17 +454,27 @@
       onPaddleHit(2);
     }
 
-    // Score
+    // My goal is the only goal I can call, because I am the one who conceded it: I
+    // score the opponent, roll the next serve and announce both. The far goal
+    // belongs to the opponent's own call, so the ball is parked there until their
+    // message lands — that is what keeps one point on both scoreboards instead of
+    // two clients each counting a point of their own.
     if (ball.x < -BALL_R * 2) {
       p2.score++;
       totalPoints++;
       p1.consecMiss++;
       onPointScored(2);
     } else if (ball.x > courtLen + BALL_R * 2) {
-      p1.score++;
-      totalPoints++;
-      p2.consecMiss++;
-      onPointScored(1);
+      if (gameMode === 'online') {
+        ball.x = courtLen + BALL_R * 2;
+        ball.vx = 0;
+        ball.vy = 0;
+      } else {
+        p1.score++;
+        totalPoints++;
+        p2.consecMiss++;
+        onPointScored(1);
+      }
     }
   }
 
@@ -476,19 +512,29 @@
 
     // Border flash on score
     borderFlash = BORDER_FLASH_FRAMES;
+    lastScorer = scorer;
 
     // Check win by score
-    if (p1.score >= MAX_SCORE) { endGame(1, 'score'); return; }
-    if (p2.score >= MAX_SCORE) { endGame(2, 'score'); return; }
+    if (p1.score >= MAX_SCORE || p2.score >= MAX_SCORE) {
+      // The conceding side reached the end of the match, so it also tells the
+      // opponent: both screens raise the same result and report their own total.
+      updateHUD();          // the deciding point must land on the scoreboard too
+      netBall('pt');
+      endGame(p1.score >= MAX_SCORE ? 1 : 2, 'score');
+      return;
+    }
 
-    // Pause 2 seconds, show scorer, then serve from scorer's side
-    lastScorer = scorer;
+    // Pause 2 seconds, show scorer, then serve from the scorer's side. The serve is
+    // rolled here — by the side that conceded — and it travels with the point
+    // message, so the opponent never rolls a ball of their own.
+    resetBall(scorer === 1 ? -1 : 1);
     pointPause = true;
-    pointPauseFrames = POINT_PAUSE_FRAMES;
+    pauseUntil = performance.now() + POINT_PAUSE_MS;
     pointLabel.textContent = scorer === 1 ? 'YOUR POINT' : (gameMode === 'online' ? 'THEIR POINT' : 'AI POINT');
     pointIndicator.classList.add('visible');
     courtArea.classList.add('paused');
     updateHUD();
+    netBall('pt');
   }
 
   // Measure once; shrink font + icon until icon+gap+text fits one half-court
@@ -1054,16 +1100,15 @@
   // ── Game loop ──
   function gameLoop(timestamp) {
     if (mode !== 'playing') return;
+    // Seconds, and capped at 50ms so a hidden tab or a dropped frame cannot fling
+    // the ball through a paddle on the way back.
+    const dt = Math.min(0.05, Math.max(0, (timestamp - lastTime) / 1000));
     lastTime = timestamp;
-    movePaddles();
-    // The guest never steps the ball on its own: it extrapolates the host's last
-    // frame and re-anchors on the next one.
-    if (mirrorGuest()) guestStep();
+    movePaddles(dt);
     if (pointPause) {
-      pointPauseFrames--;
-      if (pointPauseFrames <= 0) endPointPause();
-    } else if (!mirrorGuest()) {
-      updateBall();
+      if (performance.now() >= pauseUntil) endPointPause();
+    } else {
+      updateBall(dt);
     }
     updateParticles();
     render();
@@ -1074,8 +1119,9 @@
     pointPause = false;
     pointIndicator.classList.remove('visible');
     courtArea.classList.remove('paused');
-    // The host serves; the guest picks the new ball up from the next frame.
-    if (!mirrorGuest()) resetBall(lastScorer === 1 ? -1 : 1);
+    // The ball is already sitting on the centre mark with its serve velocity: the
+    // side that conceded rolled it and sent it with the point, so each screen just
+    // releases its own copy when its own pause runs out.
     scheduleTaunt(lastScorer);
   }
 
@@ -1180,60 +1226,65 @@
     }
   };
 
-  // ── Host ball stream ──
-  // Court-normalised so a landscape desktop and an upright phone describe the same
-  // rally: courtLen changes with orientation, courtSpan never does.
-  function hostBallPayload() {
-    return {
+  // ── Ball events ──
+  // Normalised by the current court metrics so a landscape desktop and an upright
+  // phone describe the same rally. Every value is in the SENDER's frame, where x = 0
+  // is the sender's own goal, and the receiver's goal is x = 0 too — so the receiver
+  // always reads it mirrored, whoever sent it.
+  //
+  // Only three things are authoritative enough to send: my return, the point I
+  // conceded (which carries the next serve) and the final score. Everything else is
+  // simulated locally on both sides, which is what makes each paddle respond to the
+  // ball immediately instead of after a round trip.
+  function netBall(kind) {
+    if (gameMode !== 'online' || !ball) return;
+    if (!window.PingPongNet || !window.PingPongNet.sendBall) return;
+    window.PingPongNet.sendBall({
+      k: kind,
       x: ball.x / courtLen, y: ball.y / courtSpan,
       vx: ball.vx / courtLen, vy: ball.vy / courtSpan,
-      s1: p1.score, s2: p2.score, r: rallyCount
-    };
+      a: p1.score, b: p2.score,
+      r: rallyCount
+    });
   }
 
-  // The guest's view of the host's court is mirrored along the travel axis — both
-  // screens put their own paddle on the left — so x and vx flip on the way in.
-  window.applyHostBall = function(st) {
-    if (!mirrorGuest() || !ball || !p1 || !st) return;
-    const nx = (1 - st.x) * courtLen;
-    const ny = st.y * courtSpan;
-    // A serve or a lag spike should not drag a trail across the court.
+  window.applyNetBall = function(st) {
+    if (gameMode !== 'online' || mode === 'gameover' || !ball || !st) return;
+    const nx = (1 - (Number(st.x) || 0)) * courtLen;
+    const ny = (Number(st.y) || 0) * courtSpan;
+    // A serve from the centre, or a lag spike, should not drag a trail across the
+    // court behind the jump.
     if (Math.abs(nx - ball.x) + Math.abs(ny - ball.y) > 40) trail = [];
-    ball.x = nx; ball.y = ny;
-    ball.vx = -st.vx * courtLen;
-    ball.vy = st.vy * courtSpan;
+    ball.x = nx;
+    ball.y = ny;
+    ball.vx = -(Number(st.vx) || 0) * courtLen;
+    ball.vy = (Number(st.vy) || 0) * courtSpan;
+    if (typeof st.r === 'number') rallyCount = st.r;
 
-    const mine = st.s2 | 0, theirs = st.s1 | 0;
-    if (mine === p1.score && theirs === p2.score) return;
-    // The host runs the point pause and the taunt; the guest repeats them off the
-    // score change so both screens hold the same beat between rallies.
+    if (st.k !== 'pt') { updateHUD(); return; }
+
+    // The opponent conceded this point to me, and rolled the next serve with it.
+    const mine = st.b | 0;
+    const theirs = st.a | 0;
     const scorer = mine > p1.score ? 1 : 2;
-    p1.score = mine; p2.score = theirs;
+    p1.score = mine;
+    p2.score = theirs;
     if (scorer === 1) { p1.consecMiss = 0; p2.consecMiss++; }
     else { p2.consecMiss = 0; p1.consecMiss++; }
     borderFlash = BORDER_FLASH_FRAMES;
     lastScorer = scorer;
+    updateHUD();
+
+    if (p1.score >= MAX_SCORE || p2.score >= MAX_SCORE) {
+      endGame(p1.score >= MAX_SCORE ? 1 : 2, 'score');
+      return;
+    }
     pointPause = true;
-    pointPauseFrames = POINT_PAUSE_FRAMES;
+    pauseUntil = performance.now() + POINT_PAUSE_MS;
     pointLabel.textContent = scorer === 1 ? 'YOUR POINT' : 'THEIR POINT';
     pointIndicator.classList.add('visible');
     courtArea.classList.add('paused');
-    updateHUD();
   };
-
-  // Dead reckoning between host frames: same wall bounce, no paddle collision and
-  // no scoring — the host owns both.
-  function guestStep() {
-    if (!ball || pointPause) return;
-    if (!ball.vx && !ball.vy) return;
-    ball.x += ball.vx;
-    ball.y += ball.vy;
-    if (ball.y - BALL_R < 0) { ball.y = BALL_R; ball.vy = Math.abs(ball.vy); }
-    if (ball.y + BALL_R > courtSpan) { ball.y = courtSpan - BALL_R; ball.vy = -Math.abs(ball.vy); }
-    if (ball.x < -BALL_R * 2 || ball.x > courtLen + BALL_R * 2) { ball.vx = 0; ball.vy = 0; return; }
-    trail.push({ x: ball.x, y: ball.y });
-    if (trail.length > TRAIL_LENGTH) trail.shift();
-  }
 
   // ── Online game end callback ──
   // The hub pays an online match server-side and answers a moment after the local

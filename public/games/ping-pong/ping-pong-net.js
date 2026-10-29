@@ -36,12 +36,14 @@
   let opponentY = null;
   let opponentName = '';
   let lastStateSend = 0;
+  let lastNormY = 0.5;      // stamped onto ball events so a hit also refreshes my paddle
   const STATE_RATE = 50; // ms between state sends (~20Hz)
 
   // ─ Public API ──
   const Net = {
     opponentY: null,
     opponentName: '',
+    raceId: null,       // the match id, which both seats derive the opening serve from
 
     connect() {
       if (ws || stopped) return;
@@ -91,16 +93,23 @@
       renderLobby();
     },
 
-    sendState(normalizedY, rally, pp) {
+    sendState(normalizedY, rally) {
       if (!inGame || !ready) return;
+      lastNormY = normalizedY;
       const now = Date.now();
       if (now - lastStateSend < STATE_RATE) return;
       lastStateSend = now;
-      const msg = { t: 'pp_state', y: Math.round(normalizedY * 1000) / 1000, r: rally };
-      // Only the room creator carries the ball: the hub forwards this frame to the
-      // guest, which draws the same rally instead of simulating a private one.
-      if (pp) msg.pp = pp;
-      send(msg);
+      send({ t: 'pp_state', y: Math.round(normalizedY * 1000) / 1000, r: rally });
+    },
+
+    // Ball events — my return, the point I conceded, the final score — are the only
+    // authoritative statements in a rally, so they go out immediately instead of
+    // waiting behind the 20Hz paddle queue. The paddle fraction rides along so one
+    // message still refreshes both.
+    sendBall(pp) {
+      if (!inGame || !ready || !pp) return;
+      lastStateSend = Date.now();
+      send({ t: 'pp_state', y: Math.round(lastNormY * 1000) / 1000, r: pp.r || 0, pp });
     },
 
     endGame(winner, s1, s2) {
@@ -232,10 +241,10 @@
         // The hub names the room the match belongs to; `race` is the match id.
         if (!room || (m.room && m.room !== room.r)) break;
         raceId = m.race || null;
+        Net.raceId = raceId;
         inGame = true;
-        // The room creator owns the ball and the scoreboard for this match; the
-        // guest mirrors what it streams. Roles are re-read on every start because
-        // the hub hands the host seat to whoever is left when the creator leaves.
+        // Both clients simulate the rally; the creator seat only decides which way
+        // the opening serve is mirrored, so both screens start on the same ball.
         if (window.setNetRole) window.setNetRole(String(room.host) === myId);
         const roster = m.roster || [];
         const opp = roster.find(p => String(p.id) !== myId);
@@ -262,8 +271,8 @@
             }
           }
         }
-        // The host's frame also carries the ball and both scores.
-        if (m.pp && window.applyHostBall) window.applyHostBall(m.pp);
+        // A ball event: the opponent's return, or a point they conceded.
+        if (m.pp && window.applyNetBall) window.applyNetBall(m.pp);
         break;
 
       case 'res':

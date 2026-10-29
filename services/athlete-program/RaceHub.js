@@ -441,27 +441,35 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
   }
 
   // ── Ping Pong state relay (lightweight, no simulation) ──
-  const ppRateLimit = new Map(); // ws -> lastSendMs
+  // Both players simulate the rally and the player who touches the ball is the
+  // authority for the next leg, so the ball blob is relayed from whichever seat sent
+  // it — never only from the host.
+  const ppRateLimit = new Map(); // ws -> { p: lastPaddleMs, b: lastBallMs }
   function onPPState(ws, msg) {
     const rm = ws.room && rooms.get(ws.room);
     if (!rm || rm.game !== 'ping-pong' || rm.status !== 'playing') return;
     const nowMs = now();
-    const last = ppRateLimit.get(ws) || 0;
-    if (nowMs - last < 40) return; // 25Hz cap
-    ppRateLimit.set(ws, nowMs);
+    const gate = ppRateLimit.get(ws) || { p: 0, b: 0 };
+    const isBall = !!msg.pp;
+    // A ball event is an authoritative hit/concede/serve: it must never be dropped
+    // for landing inside the 25Hz paddle window, or the other screen keeps playing a
+    // rally that already ended.
+    if (nowMs - (isBall ? gate.b : gate.p) < (isBall ? 20 : 40)) return;
+    if (isBall) gate.b = nowMs; else gate.p = nowMs;
+    ppRateLimit.set(ws, gate);
     const m = rm.members.get(ws.athlete.id);
     if (!m || !m.inRace) return;
     // Relay normalized Y and rally count to the other player
     const relay = { t: 'ps', p: [[m.id, 0, Math.round((msg.y || 0) * 100), 0, 0, msg.r || 0, 1]] };
-    // Ping-Pong is host-authoritative: the room creator owns the ball, the serve
-    // and both scores, and the guest mirrors them. Without this each client rolled
-    // its own ball, so the two screens played two unrelated rallies.
     const b = msg.pp;
-    if (m.id === rm.hostId && b && typeof b === 'object') {
+    if (b && typeof b === 'object') {
       relay.pp = {
+        k: b.k === 'pt' ? 'pt' : b.k === 'srv' ? 'srv' : 'hit',
         x: num(b.x, 0, 1), y: num(b.y, 0, 1),
-        vx: num(b.vx, -0.2, 0.2), vy: num(b.vy, -0.2, 0.2),
-        s1: Math.floor(num(b.s1, 0, 99)), s2: Math.floor(num(b.s2, 0, 99)),
+        // Court fractions per SECOND: a hot rally ball reaches ~2.3 court lengths a
+        // second, so the old per-frame bound would have flattened every shot.
+        vx: num(b.vx, -6, 6), vy: num(b.vy, -6, 6),
+        a: Math.floor(num(b.a, 0, 99)), b: Math.floor(num(b.b, 0, 99)),
         r: Math.floor(num(b.r, 0, 9999))
       };
     }
