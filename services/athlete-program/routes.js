@@ -11,7 +11,7 @@ const otpService = require('../../config/otp-service');
 const {
   LedgerService, LevelEngine, TransitionService,
   TokenService, StandingService, AttributionService, PayoutService,
-  GamificationService
+  GamificationService, CommissionService
 } = require('./index');
 
 module.exports = function mountAthleteRoutes(app) {
@@ -79,23 +79,26 @@ module.exports = function mountAthleteRoutes(app) {
 
       if (error) throw error;
 
-      // Enrich with level info
+      // Enrich with level info — the level's commission rate is the rate the
+      // athlete earns today, so the console can show it without a second call.
       const levelIds = [...new Set(data.map(a => a.level_id).filter(Boolean))];
       let levelsMap = {};
       if (levelIds.length > 0) {
         const { data: levels } = await supabase
           .from('comfort_levels')
-          .select('id, display_name, ordinal, dial_segments_lit')
+          .select('id, display_name, ordinal, dial_segments_lit, commission_pct, perks')
           .in('id', levelIds);
         levels.forEach(l => levelsMap[l.id] = l);
       }
+      const defaultRate = await CommissionService.getDefaultRate();
 
       const enriched = (data || []).map(a => ({
         ...a,
         level: levelsMap[a.level_id] || null,
         level_name: levelsMap[a.level_id]?.display_name || 'Unranked',
         level_ordinal: levelsMap[a.level_id]?.ordinal || 0,
-        level_dial: levelsMap[a.level_id]?.dial_segments_lit || 0
+        level_dial: levelsMap[a.level_id]?.dial_segments_lit || 0,
+        level_commission_pct: CommissionService.pctOf(levelsMap[a.level_id]) ?? defaultRate
       }));
 
       res.json({ success: true, data: enriched });
@@ -581,8 +584,18 @@ module.exports = function mountAthleteRoutes(app) {
     try {
       const { data, error } = await supabase.from('comfort_levels').select('*').order('ordinal');
       if (error) throw error;
-      res.json({ success: true, data: data || [] });
+      res.json({ success: true, data: (data || []).map(l => ({ ...l, commission_pct: CommissionService.pctOf(l) })) });
     } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // ── Level Commission Ladder ──
+  // The commission % paid on every attributed order, one rate per comfort level.
+  // Athletes see these rates in the portal Climb tab, so this is the source of truth.
+  app.post('/api/athlete-admin/levels/commission', authAdmin, async (req, res) => {
+    try {
+      const updated = await CommissionService.setLevelRates(req.body.levels);
+      res.json({ success: true, data: updated });
+    } catch (err) { res.status(400).json({ error: err.message }); }
   });
 
   // ── Ledger ──
@@ -896,8 +909,9 @@ module.exports = function mountAthleteRoutes(app) {
         avatar_mark: athlete.avatar_mark,
         avatar_ground: athlete.avatar_ground,
         avatar_frame: athlete.avatar_frame,
-        level: level ? { display_name: level.display_name, ordinal: level.ordinal, display_number: level.display_number, dial_segments_lit: level.dial_segments_lit, min_xp: level.min_xp } : null,
-        next_level: nextLevel ? { display_name: nextLevel.display_name, min_xp: nextLevel.min_xp } : null,
+        level: level ? { display_name: level.display_name, ordinal: level.ordinal, display_number: level.display_number, dial_segments_lit: level.dial_segments_lit, min_xp: level.min_xp, commission_pct: CommissionService.pctOf(level) } : null,
+        next_level: nextLevel ? { display_name: nextLevel.display_name, min_xp: nextLevel.min_xp, commission_pct: CommissionService.pctOf(nextLevel) } : null,
+        commission_rate: CommissionService.pctOf(level) ?? await CommissionService.getDefaultRate(),
         discount_code: discountCode,
         month_orders: monthOrders || 0
       }});
@@ -1541,7 +1555,11 @@ module.exports = function mountAthleteRoutes(app) {
       const { influencerId, scope } = req.athleteScope;
       if (scope !== 'PROGRESS') return res.status(403).json({ error: 'Wrong scope' });
 
-      const COMMISSION_RATE = 7; // 7% flat rate on every order
+      // Commission is a property of the athlete's comfort level: the same rate
+      // applies to every order, and the next/top rungs are returned so the Log
+      // panel can say what the next promotion is worth.
+      const rates = await CommissionService.getForAthlete(influencerId);
+      const COMMISSION_RATE = rates.rate;
 
       const { data: orders, error } = await supabase
         .from('attributed_orders')
@@ -1550,7 +1568,7 @@ module.exports = function mountAthleteRoutes(app) {
         .order('placed_at', { ascending: false });
       if (error) throw error;
 
-      // Calculate commission at 7% on each order's net_value
+      // Calculate commission at the athlete's level rate on each order's net_value
       const effectiveOrders = (orders || []).map(o => {
         const netVal = parseFloat(o.net_value) || 0;
         const commission = Math.round(netVal * COMMISSION_RATE / 100 * 100) / 100;
@@ -1568,7 +1586,12 @@ module.exports = function mountAthleteRoutes(app) {
         pending: effectiveOrders.filter(o => o.effective_status === 'PENDING').reduce((s, o) => s + o.commission_7pct, 0),
         paid: effectiveOrders.filter(o => o.effective_status === 'PAID').reduce((s, o) => s + o.commission_7pct, 0),
         reversed: effectiveOrders.filter(o => o.effective_status === 'REVERSED').reduce((s, o) => s + o.commission_7pct, 0),
-        commission_rate: COMMISSION_RATE
+        commission_rate: COMMISSION_RATE,
+        level_name: rates.level_name,
+        next_rate: rates.next_rate,
+        next_level_name: rates.next_level_name,
+        top_rate: rates.top_rate,
+        top_level_name: rates.top_level_name
       };
 
       // Monthly breakdown
@@ -2012,7 +2035,7 @@ module.exports = function mountAthleteRoutes(app) {
         data: {
           program_settings: settings.data || [],
           game_settings: gameSettings,
-          levels: levels.data || [],
+          levels: (levels.data || []).map(l => ({ ...l, commission_pct: CommissionService.pctOf(l) })),
           badges: badges.data || []
         }
       });

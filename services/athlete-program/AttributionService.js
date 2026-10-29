@@ -8,6 +8,7 @@
 
 const supabase = require('../../config/supabase');
 const LedgerService = require('./LedgerService');
+const CommissionService = require('./CommissionService');
 
 // Shopify financial statuses that mean the order no longer earns anything.
 const VOID_FINANCIAL_STATUSES = ['refunded', 'voided', 'expired'];
@@ -79,24 +80,13 @@ const AttributionService = {
       return { order: null, attributed: false, xpAwarded: false };
     }
 
-    // Fetch athlete's current level commission rate
-    // We use the level's commission_pct from perks, or the discount rate as fallback
-    const { data: athlete } = await supabase
-      .from('influencers')
-      .select('level_id')
-      .eq('id', influencerId)
-      .single();
-
-    if (athlete?.level_id) {
-      const { data: level } = await supabase
-        .from('comfort_levels')
-        .select('perks')
-        .eq('id', athlete.level_id)
-        .single();
-
-      if (level?.perks?.commission_pct) {
-        commissionRate = level.perks.commission_pct;
-      }
+    // Freeze the athlete's current level commission rate on the order. The rate
+    // comes from the comfort level ladder (admin-editable), never recomputed later.
+    try {
+      const rates = await CommissionService.getForAthlete(influencerId, { fallback: commissionRate });
+      commissionRate = rates.rate;
+    } catch (err) {
+      console.error(`[Attribution] Commission rate lookup failed for athlete ${influencerId}, using ${commissionRate}%:`, err.message);
     }
 
     const netValue = parseFloat(net_value) || 0;

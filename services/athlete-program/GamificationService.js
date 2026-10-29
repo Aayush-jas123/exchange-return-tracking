@@ -10,6 +10,7 @@
 
 const supabase = require('../../config/supabase');
 const LedgerService = require('./LedgerService');
+const CommissionService = require('./CommissionService');
 
 // Arcade scoring: how many score units equal 1 XP / 1 coin for each mini-game.
 const GAME_RULES = {
@@ -1088,14 +1089,16 @@ const GamificationService = {
   async getClimb(influencerId) {
     const [{ data: athlete, error: athleteError }, { data: levels, error: levelsError }, { data: history, error: historyError }] = await Promise.all([
       supabase.from('influencers').select('id, xp_total, standing_score, level_id, level_since, joined_at').eq('id', influencerId).single(),
-      supabase.from('comfort_levels').select('id, ordinal, code, display_name, display_number, min_xp, min_standing, min_days_in_previous, requires_manual_approval, dial_segments_lit, perks').order('ordinal'),
+      supabase.from('comfort_levels').select('*').order('ordinal'),
       supabase.from('level_history').select('id, direction, reason_code, occurred_at, from_level_id, to_level_id').eq('influencer_id', influencerId).order('occurred_at', { ascending: false }).limit(20)
     ]);
     if (athleteError) throw athleteError;
     if (levelsError) throw levelsError;
     if (historyError) throw historyError;
 
-    const ladder = levels || [];
+    // Commission is a property of the level, resolved once per row here so the
+    // portal can show every rung of the pay ladder without extra calls.
+    const ladder = (levels || []).map(level => ({ ...level, commission_pct: CommissionService.pctOf(level) }));
     const current = ladder.find(level => level.id === athlete.level_id) || ladder[0] || null;
     const next = current ? ladder.find(level => level.ordinal === current.ordinal + 1) || null : null;
     const prev = current ? ladder.find(level => level.ordinal === current.ordinal - 1) || null : null;
@@ -1165,6 +1168,25 @@ const GamificationService = {
     const xpToNext = next ? Math.max(0, (next.min_xp || 0) - (athlete.xp_total || 0)) : 0;
     const daysToNext = next ? Math.max(0, (next.min_days_in_previous || 0) - daysInCurrentLevel) : 0;
 
+    // ── Commission ladder: what every rung pays, so the climb has a price ──
+    const topLevel = ladder.length ? ladder[ladder.length - 1] : null;
+    const commission = {
+      current_pct: CommissionService.pctOf(current),
+      current_level_name: current?.display_name || null,
+      next_pct: CommissionService.pctOf(next),
+      next_level_name: next?.display_name || null,
+      top_pct: CommissionService.pctOf(topLevel),
+      top_level_name: topLevel?.display_name || null,
+      ladder: ladder.map(level => ({
+        code: level.code,
+        ordinal: level.ordinal,
+        display_name: level.display_name,
+        display_number: level.display_number,
+        commission_pct: level.commission_pct
+      }))
+    };
+    if (commission.current_pct === null) commission.current_pct = await CommissionService.getDefaultRate();
+
     return {
       current_level: current,
       next_level: next,
@@ -1189,7 +1211,8 @@ const GamificationService = {
       daily_xp_series: dailyXpSeries,
       streak: streak || { current_streak: 0, longest_streak: 0, total_active_days: 0 },
       missions_completed: missionsCompleted || 0,
-      current_perks: current?.perks || null
+      current_perks: current?.perks || null,
+      commission
     };
   },
 

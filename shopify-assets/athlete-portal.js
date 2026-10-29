@@ -68,6 +68,9 @@ const AV_SLOTS=[
   {k:'frame',n:'Frame',lv:5,set:AV_FRAME}
 ];
 function avPieceLv(slot,key){if(slot.k==='frame')return(AV_FRAME[key]||AV_FRAME.plain).lv;return slot.lv}
+// Compact level tag for the locked slot tabs, where there is no room for
+// "Comfort Level - 1". Same ladder as the full label.
+const AV_LVSHORT={1:'CL-5',2:'CL-4',3:'CL-3',4:'CL-2',5:'CL-1',6:'ZERO'};
 function avBuild(cfg,SZ){
   var F=AV_FRAME[cfg.frame]||AV_FRAME.plain,ink=F.inv?AV_DK:'#fff',bg=F.inv?'#fff':AV_DK,B=AV_BASE[cfg.base]||AV_BASE.walk,hx=B.h[0],hy=B.h[1];
   var cid='cl'+(++AV_UID);
@@ -237,15 +240,15 @@ function renderAvAvatar(){
   }
   
   function paintSlots(){
+    // Locked slots stay tappable on purpose: the athlete should be able to walk
+    // the whole ladder and see what each level is holding for them.
     $('avSlots').innerHTML=AV_SLOTS.map(sl=>{
       const locked=sl.lv>myLv;
-      return `<button type="button" data-s="${sl.k}"${locked?' class="lk"':''} aria-pressed="${sl.k===selSlot&&!locked}">${sl.n}</button>`;
+      return `<button type="button" data-s="${sl.k}"${locked?' class="lk"':''} aria-pressed="${sl.k===selSlot}">${sl.n}${locked?'<s>'+AV_LVSHORT[sl.lv]+'</s>':''}</button>`;
     }).join('');
     $('avSlots').querySelectorAll('button').forEach(b=>{
       b.onclick=()=>{
-        const sl=AV_SLOTS.find(x=>x.k===b.dataset.s);
-        if(sl.lv>myLv){toast('Opens at '+LVNAME[sl.lv]);return}
-        selSlot=sl.k;
+        selSlot=b.dataset.s;
         paintSlots();
         paintOpts();
       };
@@ -254,17 +257,15 @@ function renderAvAvatar(){
   
   function paintOpts(){
     const sl=AV_SLOTS.find(x=>x.k===selSlot);
-    if(!sl||sl.lv>myLv){
-      $('avOpts').innerHTML='<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--dim);font-size:10px">Select a slot to edit</div>';
-      return;
-    }
+    if(!sl)return;
+    const slotLocked=sl.lv>myLv;
     $('avOpts').innerHTML=Object.keys(sl.set).map(k=>{
       const plv=avPieceLv(sl,k);
-      const locked=plv>myLv;
+      const locked=slotLocked||plv>myLv;
       const prev={...cfg};
       prev[sl.k]=k;
-      return `<button class="avop" type="button" data-k="${k}"${locked?' disabled':''} aria-pressed="${cfg[sl.k]===k}" style="${locked?'opacity:.3':''}">${avBuild(prev,40)}<span>${locked?LVNAME[plv]||'Locked':sl.set[k].n}</span></button>`;
-    }).join('');
+      return `<button class="avop${locked?' lk':''}" type="button" data-k="${k}"${locked?' disabled':''} aria-pressed="${!locked&&cfg[sl.k]===k}">${avBuild(prev,40)}<span>${sl.set[k].n}</span>${locked?'<u>'+LVNAME[plv]+'</u>':''}</button>`;
+    }).join('')+(slotLocked?`<p class="avopnote"><b>${sl.n}</b> opens at ${LVNAME[sl.lv]}. You are at ${LVNAME[myLv]||'level '+myLv} — everything below unlocks with it.</p>`:'');
     $('avOpts').querySelectorAll('.avop').forEach(b=>{
       if(b.disabled)return;
       b.onclick=()=>{
@@ -501,15 +502,15 @@ function sbRenderAvatar(){
     $('sbAvPreview').innerHTML=avBuild(cfg,100);
   }
   function paintSlots(){
+    // Same contract as the mobile builder: locked slots open, the pieces inside
+    // are shown greyed out with the level that unlocks them.
     $('sbAvSlots').innerHTML=AV_SLOTS.map(sl=>{
       const locked=sl.lv>myLv;
-      return `<button type="button" data-s="${sl.k}"${locked?' class="lk"':''} aria-pressed="${sl.k===selSlot&&!locked}">${sl.n}</button>`;
+      return `<button type="button" data-s="${sl.k}"${locked?' class="lk"':''} aria-pressed="${sl.k===selSlot}">${sl.n}${locked?'<s>'+AV_LVSHORT[sl.lv]+'</s>':''}</button>`;
     }).join('');
     $('sbAvSlots').querySelectorAll('button').forEach(b=>{
       b.onclick=()=>{
-        const sl=AV_SLOTS.find(x=>x.k===b.dataset.s);
-        if(sl.lv>myLv){toast('Opens at '+LVNAME[sl.lv]);return}
-        selSlot=sl.k;
+        selSlot=b.dataset.s;
         paintSlots();
         paintOpts();
       };
@@ -517,17 +518,15 @@ function sbRenderAvatar(){
   }
   function paintOpts(){
     const sl=AV_SLOTS.find(x=>x.k===selSlot);
-    if(!sl||sl.lv>myLv){
-      $('sbAvOpts').innerHTML='<div style="grid-column:1/-1;text-align:center;padding:16px;color:var(--dim);font-size:9px">Select a slot to edit</div>';
-      return;
-    }
+    if(!sl)return;
+    const slotLocked=sl.lv>myLv;
     $('sbAvOpts').innerHTML=Object.keys(sl.set).map(k=>{
       const plv=avPieceLv(sl,k);
-      const locked=plv>myLv;
+      const locked=slotLocked||plv>myLv;
       const prev={...cfg};
       prev[sl.k]=k;
-      return `<button class="avop" type="button" data-k="${k}"${locked?' disabled':''} aria-pressed="${cfg[sl.k]===k}" style="${locked?'opacity:.3':''}">${avBuild(prev,36)}<span>${locked?LVNAME[plv]||'Locked':sl.set[k].n}</span></button>`;
-    }).join('');
+      return `<button class="avop${locked?' lk':''}" type="button" data-k="${k}"${locked?' disabled':''} aria-pressed="${!locked&&cfg[sl.k]===k}">${avBuild(prev,36)}<span>${sl.set[k].n}</span>${locked?'<u>'+LVNAME[plv]+'</u>':''}</button>`;
+    }).join('')+(slotLocked?`<p class="avopnote"><b>${sl.n}</b> opens at ${LVNAME[sl.lv]}. You are at ${LVNAME[myLv]||'level '+myLv} — everything below unlocks with it.</p>`:'');
     $('sbAvOpts').querySelectorAll('.avop').forEach(b=>{
       if(b.disabled)return;
       b.onclick=()=>{
@@ -1005,6 +1004,12 @@ function renderClimb(){
   const projDays=c.projected_days;
   const perks=c.current_perks;
   const series=c.daily_xp_series||[];
+  const cm=c.commission||null;
+  // Rate formatting: whole percentages stay whole, halves keep one decimal.
+  const pctTxt=v=>v==null?'\u2014':`${Math.round(Number(v)*100)/100}%`;
+  const rateGap=Math.round(Number((cm?.next_pct??cm?.current_pct??0)-(cm?.current_pct??0))*100)/100;
+  const rateGapTop=Math.round(Number((cm?.top_pct??cm?.current_pct??0)-(cm?.current_pct??0))*100)/100;
+  const rupees=v=>'\u20B9'+Math.round(v).toLocaleString('en-IN');
 
   let gate=' Final level reached.';
   if(nxt&&req){
@@ -1045,6 +1050,15 @@ function renderClimb(){
       <div class="clp-hero-bar"><i style="width:${xpPct}%"></i></div>
       <div class="clp-hero-foot"><span>${xpPct}% to ${nxt?esc(nxt.display_name):'the top'}</span><span>${gate.trim()}</span></div>
     </section>
+    ${cm?`<section class="clp-pay">
+      <div class="clp-pay-head"><span class="clp-kick">Commission on every order</span><span class="clp-pay-flag">Climb = earn more</span></div>
+      <div class="clp-pay-grid">
+        <div class="clp-pay-cell now"><s>You earn now</s><b>${pctTxt(cm.current_pct)}</b><em>${esc(cm.current_level_name||'current level')}</em></div>
+        <div class="clp-pay-cell next"><s>Next level</s><b>${pctTxt(cm.next_pct)}</b><em>${esc(cm.next_level_name||'locked')}</em>${rateGap>0?`<i>+${rateGap} pts per order</i>`:''}</div>
+        <div class="clp-pay-cell top"><s>Top of the ladder</s><b>${pctTxt(cm.top_pct)}</b><em>${esc(cm.top_level_name||'Zero Comfort')}</em>${rateGapTop>0?`<i>+${rateGapTop} pts per order</i>`:''}</div>
+      </div>
+      <p class="clp-pay-note"><b>Your commission is set by your level.</b>${rateGap>0?` One level up is worth ${rupees(10000*rateGap/100)} extra on every \u20B910,000 of orders.`:' It updates the moment your level changes.'}</p>
+    </section>`:''}
 
     <section class="clp-journey">
       <div class="clp-journey-top"><span class="clp-kick">Journey to ${esc(maxLvl?.display_name||'the top')}</span><b>${overallPct}<small>%</small></b></div>
@@ -1109,7 +1123,7 @@ function renderClimb(){
           <span class="clp-lnode"></span>
           <div class="clp-lbody">
             <div class="clp-ltop"><b>${esc(l.display_name)}</b><span class="clp-tag ${state}">${tag}</span></div>
-            <div class="clp-lmeta"><span>${n(l.min_xp)} xp entry</span><span>${l.min_days_in_previous?`${l.min_days_in_previous} days at prev`:'entry level'}</span></div>
+            <div class="clp-lmeta"><span>${n(l.min_xp)} xp entry</span><span>${l.min_days_in_previous?`${l.min_days_in_previous} days at prev`:'entry level'}</span>${l.commission_pct!=null?`<span class="clp-lrate">${pctTxt(l.commission_pct)} commission</span>`:''}</div>
             <div class="clp-lbar"><i style="width:${progPct}%"></i></div>
           </div>
           <div class="clp-lgap">${right}</div>
@@ -1765,7 +1779,7 @@ function renderLog(){
   let html=`<div class="comm-hero">
     <div class="cm-top"><span class="cm-label">Total commission earned</span><span class="cm-live"><i></i>Live</span></div>
     <div class="cm-earned">${logFmt(s.total_commission)}</div>
-    <div class="cm-sub">${s.total_orders||0} orders &middot; ${logFmt(s.total_revenue)} attributed &middot; ${rate}% on net</div>
+    <div class="cm-sub">${s.total_orders||0} orders &middot; ${logFmt(s.total_revenue)} attributed &middot; ${rate}% on net${s.next_rate?` &middot; ${s.next_rate}% at the next level`:''}</div>
     <dl class="cm-stats four">
       <div><dt>Earned</dt><dd>${logFmt(s.earned)}</dd></div>
       <div><dt>Pending</dt><dd>${logFmt(s.pending)}</dd></div>

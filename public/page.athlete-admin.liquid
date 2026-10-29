@@ -172,7 +172,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);
 /* LEVEL LADDER */
 .ah-ladder{display:flex;flex-direction:column;gap:1px;background:var(--border);
   border:1px solid var(--border);margin-bottom:2rem}
-.ah-ladder-row{display:grid;grid-template-columns:60px 1fr 100px 100px 100px 80px;
+.ah-ladder-row{display:grid;grid-template-columns:60px 1fr 90px 100px 100px 100px 80px;
   gap:1rem;align-items:center;padding:1rem 1.25rem;background:var(--surface);
   transition:background var(--transition)}
 .ah-ladder-row:hover{background:var(--surface-2)}
@@ -305,7 +305,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);
   .ah-sidebar{width:180px}
   .ah-main{margin-left:180px}
   .ah-stats{grid-template-columns:repeat(2,1fr)}
-  .ah-ladder-row{grid-template-columns:50px 1fr 80px 80px}
+  .ah-ladder-row{grid-template-columns:50px 1fr 70px 80px}
   .ah-ladder-row > :nth-child(n+5){display:none}
   .ah-task-stats{grid-template-columns:repeat(2,1fr)}
   .ah-form-grid{grid-template-columns:1fr}
@@ -805,11 +805,19 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);
         </div>
         <div style="margin-bottom:1.5rem">
           <h3 style="font-size:.6rem;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:.75rem">Comfort Levels</h3>
+          <p style="font-size:.62rem;color:var(--muted);line-height:1.55;margin:0 0 .85rem;max-width:70ch">
+            <span style="font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--text)">Commission ladder.</span>
+            The commission % is paid on the net value of every attributed order and is set per level, so athletes push ranks for money and not just status.
+            Athletes see these rates in the portal Climb tab. The rate an order was placed at stays frozen on that order.
+          </p>
           <div class="ah-table-wrap">
             <table class="ah-table">
-              <thead><tr><th>Sort</th><th>Code</th><th>Name</th><th>XP Required</th><th>Perks</th></tr></thead>
+              <thead><tr><th>Sort</th><th>Code</th><th>Name</th><th>XP Required</th><th>Commission %</th><th>Perks</th></tr></thead>
               <tbody id="configLevelsTable"></tbody>
             </table>
+          </div>
+          <div style="margin-top:.85rem">
+            <span style="font-size:.6rem;color:var(--muted)">Blank or out-of-range values block the save. Saved with Save All Changes; new rates apply to orders attributed from then on.</span>
           </div>
         </div>
         <div>
@@ -1601,10 +1609,11 @@ function renderReview() {
 function renderLadder() {
   const sorted = [...levels].sort((a,b) => a.ordinal - b.ordinal);
   document.getElementById('ladderView').innerHTML = `
-    <div class="ah-ladder-row header"><div>Ordinal</div><div>Level</div><div>Min XP</div><div>Min Standing</div><div>Min Days</div><div>Trial</div></div>
+    <div class="ah-ladder-row header"><div>Ordinal</div><div>Level</div><div>Commission</div><div>Min XP</div><div>Min Standing</div><div>Min Days</div><div>Trial</div></div>
     ${sorted.map(l => `<div class="ah-ladder-row">
       <div class="ah-ladder-ordinal">${l.ordinal}</div>
       <div class="ah-ladder-name">${l.display_name}<div class="sub">${l.code} · ${l.seat_cap || '∞'} seats</div></div>
+      <div class="mono" style="font-weight:700">${l.commission_pct != null ? l.commission_pct + '%' : '—'}</div>
       <div class="mono">${l.min_xp.toLocaleString()}</div>
       <div class="mono">${l.min_standing || '—'}</div>
       <div class="mono">${l.min_days_in_previous || '—'}</div>
@@ -1672,6 +1681,7 @@ function openAthleteDrawer(id) {
       <div class="ah-detail-row"><span class="label">XP Total</span><span class="value">${(a.xp_total||0).toLocaleString()}</span></div>
       <div class="ah-detail-row"><span class="label">Standing</span><span class="value">${parseFloat(a.standing_score||0).toFixed(1)}</span></div>
       <div class="ah-detail-row"><span class="label">Coin Balance</span><span class="value">${(a.coin_balance||0).toLocaleString()}</span></div>
+      <div class="ah-detail-row"><span class="label">Commission</span><span class="value">${a.level_commission_pct != null ? a.level_commission_pct + '% per order' : '—'}</span></div>
       <div class="ah-detail-row"><span class="label">Level Since</span><span class="value">${a.level_since ? new Date(a.level_since).toLocaleDateString('en-IN') : '—'}</span></div>
     </div>
     <div class="ah-drawer-section">
@@ -2836,14 +2846,43 @@ function renderConfigGameSettings(settings) {
 
 function renderConfigLevels(levels) {
   const tbody = document.getElementById('configLevelsTable');
+  // comfort_levels keys: ordinal / display_name / min_xp (the old sort_order,
+  // name and xp_required names never existed and rendered as em dashes).
   tbody.innerHTML = levels.map(l => `
     <tr>
-      <td class="mono">${l.sort_order}</td>
+      <td class="mono">${l.ordinal ?? l.sort_order ?? '—'}</td>
       <td class="mono" style="font-weight:700">${l.code}</td>
-      <td><strong>${esc(l.name)}</strong></td>
-      <td class="mono">${l.xp_required?.toLocaleString() || '—'}</td>
-      <td style="font-size:.65rem;max-width:300px">${l.perks ? JSON.stringify(l.perks).slice(0, 100) : '—'}</td>
+      <td><strong>${esc(l.display_name || l.name || '—')}</strong></td>
+      <td class="mono">${(l.min_xp ?? l.xp_required)?.toLocaleString() || '—'}</td>
+      <td><input type="number" class="ah-input" data-level-commission="${l.id}" min="0" max="60" step="0.5"
+            value="${l.commission_pct ?? ''}" placeholder="—"
+            style="margin:0;width:92px;padding:.4rem .55rem;font-family:var(--mono);font-size:.72rem"></td>
+      <td style="font-size:.65rem;max-width:260px">${l.perks ? JSON.stringify(l.perks).slice(0, 100) : '—'}</td>
     </tr>`).join('');
+}
+
+// Reads the per-level commission inputs; empty or out-of-range values block the save
+// so a half-written ladder can never reach the API.
+async function saveLevelCommissions() {
+  const inputs = Array.from(document.querySelectorAll('[data-level-commission]'));
+  if (!inputs.length) return { success: false, error: 'No level rows loaded' };
+
+  const levels = [];
+  for (const input of inputs) {
+    const raw = input.value.trim();
+    const pct = Number(raw);
+    if (raw === '' || !Number.isFinite(pct) || pct < 0 || pct > 60) {
+      return { success: false, error: 'Each level needs a commission between 0 and 60%' };
+    }
+    levels.push({ id: Number(input.dataset.levelCommission), commission_pct: pct });
+  }
+
+  const res = await fetch(API + '/levels/commission', {
+    method: 'POST',
+    headers: { ...ah(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ levels })
+  });
+  return res.json();
 }
 
 function renderConfigBadges(badges) {
@@ -2874,7 +2913,7 @@ async function saveBulkConfig() {
   }));
 
   try {
-    const [progRes, gameRes] = await Promise.allSettled([
+    const [progRes, gameRes, commissionRes] = await Promise.allSettled([
       fetch(API + '/config/bulk-update', {
         method: 'POST',
         headers: { ...ah(), 'Content-Type': 'application/json' },
@@ -2884,11 +2923,22 @@ async function saveBulkConfig() {
         method: 'PATCH',
         headers: { ...ah(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ settings: gameSettings })
-      }).then(r => r.json())
+      }).then(r => r.json()),
+      document.querySelector('[data-level-commission]')
+        ? saveLevelCommissions()
+        : Promise.resolve({ success: true, skipped: true })
     ]);
 
+    // A rejected or error-returning commission save must stop the whole save:
+    // a half-written ladder would show athletes the wrong money.
+    const commissionResult = commissionRes.value || {};
+    if (commissionRes.status === 'rejected' || commissionResult.error) {
+      showToast(commissionResult.error || 'Commission ladder not saved', 'error');
+      return;
+    }
+
     if (progRes.value?.success && gameRes.value?.success) {
-      showToast('All configuration saved!', 'success');
+      showToast('All configuration saved, commission ladder included!', 'success');
       loadAllConfig();
     } else {
       showToast('Some settings failed to save', 'error');
