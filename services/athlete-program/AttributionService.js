@@ -9,6 +9,7 @@
 const supabase = require('../../config/supabase');
 const LedgerService = require('./LedgerService');
 const CommissionService = require('./CommissionService');
+const DiscountCodeService = require('./DiscountCodeService');
 
 // Shopify financial statuses that mean the order no longer earns anything.
 const VOID_FINANCIAL_STATUSES = ['refunded', 'voided', 'expired'];
@@ -58,14 +59,10 @@ const AttributionService = {
     let commissionRate = 7; // Flat fallback, matches the portal commissions view
 
     if (!influencerId && code_used) {
-      const { data: discount } = await supabase
-        .from('discount_codes')
-        .select('influencer_id, percent')
-        .ilike('code', code_used)
-        .eq('is_active', true)
-        .maybeSingle();
-
-      if (discount) {
+      // resolveByCode falls back to influencers.referral_code, so codes added
+      // after the athlete-program migration still attribute their orders.
+      const discount = await DiscountCodeService.resolveByCode(code_used);
+      if (discount && discount.is_active) {
         influencerId = discount.influencer_id;
         commissionRate = parseFloat(discount.percent) || 0;
       }

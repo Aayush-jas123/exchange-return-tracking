@@ -11,6 +11,7 @@ const AttributionService = require('./AttributionService');
 const PayoutService = require('./PayoutService');
 const GamificationService = require('./GamificationService');
 const CommissionService = require('./CommissionService');
+const DiscountCodeService = require('./DiscountCodeService');
 
 module.exports = {
   LedgerService,
@@ -21,5 +22,6 @@ module.exports = {
   AttributionService,
   PayoutService,
   GamificationService,
-  CommissionService
+  CommissionService,
+  DiscountCodeService
 };

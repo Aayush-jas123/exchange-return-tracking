@@ -11,7 +11,7 @@ const otpService = require('../../config/otp-service');
 const {
   LedgerService, LevelEngine, TransitionService,
   TokenService, StandingService, AttributionService, PayoutService,
-  GamificationService, CommissionService
+  GamificationService, CommissionService, DiscountCodeService
 } = require('./index');
 
 module.exports = function mountAthleteRoutes(app) {
@@ -866,14 +866,11 @@ module.exports = function mountAthleteRoutes(app) {
         nextLevel = next;
       }
 
-      // Get discount code
-      let discountCode = null;
-      const { data: dc } = await supabase
-        .from('discount_codes')
-        .select('code, percent, is_active')
-        .eq('influencer_id', influencerId)
-        .maybeSingle();
-      if (dc) discountCode = { code: dc.code, percent: dc.percent, is_active: dc.is_active };
+      // Get discount code. Resolved through DiscountCodeService so athletes
+      // whose code only lives on the legacy influencers.referral_code columns
+      // (added after the one-shot athlete-program migration) still get it.
+      const dc = await DiscountCodeService.getForAthlete(influencerId);
+      const discountCode = dc ? { code: dc.code, percent: dc.percent, is_active: dc.is_active } : null;
 
       // Count coupon orders this month (cancelled/refunded ones don't count)
       const now = new Date();
