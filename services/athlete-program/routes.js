@@ -1658,6 +1658,12 @@ module.exports = function mountAthleteRoutes(app) {
         avatar_ground: ['none', 'line', 'mat', 'blocks', 'water'],
         avatar_frame: ['plain', 'ring', 'invert', 'cut', 'halo']
       };
+      const AVATAR_NEUTRAL = {
+        avatar_head: 'none',
+        avatar_mark: 'none',
+        avatar_ground: 'none',
+        avatar_frame: 'plain'
+      };
       
       // Get athlete's current level ordinal
       const { data: athlete, error: athleteErr } = await supabase
@@ -1683,14 +1689,18 @@ module.exports = function mountAthleteRoutes(app) {
         const requiredOrdinal = AVATAR_SLOTS[field];
         if (!requiredOrdinal) continue;
         
-        // Check if athlete has unlocked this slot
-        if (athleteOrdinal > requiredOrdinal) {
-          return res.status(403).json({ error: `Avatar slot ${field} requires level ordinal ${requiredOrdinal} or lower` });
-        }
-        
         // Check if value is valid for this slot
         if (!AVATAR_OPTIONS[field].includes(value)) {
           return res.status(400).json({ error: `Invalid value '${value}' for ${field}` });
+        }
+        
+        // Ordinals ascend with rank (1 = Comfort Level - 5 … 6 = Zero Comfort), so a slot
+        // unlocks once the athlete's ordinal reaches its unlock level. The neutral value is
+        // always accepted: the portal sends all five fields on every save and fills locked
+        // slots with their empty piece, which is what a locked slot renders as anyway.
+        const neutral = AVATAR_NEUTRAL[field];
+        if (athleteOrdinal < requiredOrdinal && value !== neutral) {
+          return res.status(403).json({ error: `Avatar slot ${field} requires Comfort Level ${requiredOrdinal} or higher` });
         }
         
         // Special case: halo is only for Zero Comfort (ordinal 6)
