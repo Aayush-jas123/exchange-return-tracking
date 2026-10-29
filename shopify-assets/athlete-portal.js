@@ -1939,14 +1939,38 @@ async function refreshBoard(){try{const board=await api('/leaderboard');if(JSON.
 function enterPortal(){$('loading').hidden=true;$('portal').classList.add('ready');show('tasks');linkGames();loadUnlocks();raceConnect();if(!reduce)setInterval(refreshBoard,30000)}
 
 // ── Coin shop: spend-only currency earned from the arcade and level-ups. Coins
-// never feed XP, level or rank. Products land later — for now the screen shows
-// the balance, where coins come from and the level-up bonus ladder. ──
-const COIN_REASONS={GAME_COINS:'Arcade run',LEVEL_UP_BONUS:'Level-up bonus',TASK_COINS:'Mission approved',WEEKLY_CHALLENGE_WIN:'Weekly challenge'};
+// never feed XP, level or rank. Drops (photo + coin price) are listed by the
+// admin; the whole screen stays behind its veil until 'shop.unlocked' is true.
+// Getting a drop is a request: coins are held at once and handed back if the
+// team rejects it, so the admin queue sees every claim. ──
+const COIN_REASONS={GAME_COINS:'Arcade run',LEVEL_UP_BONUS:'Level-up bonus',TASK_COINS:'Mission approved',WEEKLY_CHALLENGE_WIN:'Weekly challenge',SHOP_REDEMPTION:'Shop drop',SHOP_REFUND:'Drop refund'};
+const SHOP_STATE={REQUESTED:'Awaiting approval',APPROVED:'Approved',REJECTED:'Rejected',FULFILLED:'Sent',CANCELLED:'Cancelled'};
 function coinBalance(){return Number(S.shop?.balance??S.athlete?.coin_balance??0)}
+function shopOpen(){return !!S.shop?.unlocked}
 function updateTabCoinBadge(){const el=$('tabCoin');if(!el)return;const b=coinBalance();el.textContent=b>0?b.toLocaleString('en-IN'):''}
+function dropCard(p){
+  const price=Number(p.coin_price||0),bal=coinBalance(),short=bal<price;
+  return `<article class="drop" data-pid="${p.id}">
+    <div class="drop-img">${p.image_url?`<img src="${esc(p.image_url)}" alt="${esc(p.name)}" loading="lazy" width="600" height="800"/>`:'<span class="drop-none">No image</span>'}</div>
+    <div class="drop-body">
+      <b class="drop-name">${esc(p.name)}</b>
+      <span class="drop-meta"><b>${price.toLocaleString('en-IN')}</b> coins</span>
+      <button class="drop-get${short?' cant':''}" type="button" data-get="${p.id}">${short?`Need ${(price-bal).toLocaleString('en-IN')} more`:'Get'}</button>
+    </div>
+  </article>`;
+}
 function renderShop(){
   const el=$('shopContent');if(!el)return;
   const sh=S.shop,src=sh?.sources||{},rules=sh?.rules||{};
+  const open=shopOpen(),drops=open?(sh?.products||[]):[],reqs=sh?.redemptions||[];
+  $('shop')?.classList.toggle('locked',!open);
+  // Veil copy while the admin keeps the shop closed: pre-launch reads as a
+  // teaser, a shop that already has drops reads as closed for now.
+  if(!open){
+    const tag=$('shopLockTag'),line=$('shopLockLine');
+    if(tag)tag.textContent='Coming soon';
+    if(line)line.textContent='The coin shop is closed right now. Coins you bank stay in your balance.';
+  }
   const n=v=>Number(v||0).toLocaleString('en-IN');
   const earned=Object.values(src).reduce((sum,v)=>sum+Number(v||0),0);
   let html=`<div class="climb-hero">
@@ -1962,10 +1986,26 @@ function renderShop(){
   </div>`;
 
   html+=`<div class="shop-drops">
-    <div class="ladder-head"><span class="lh-title">Drops</span><span class="lh-count">Coming soon</span></div>
-    <div class="shop-tiles"><div>Soon</div><div>Soon</div><div>Soon</div></div>
-    <p class="shop-note">Gear and rewards land here soon. Bank your coins now so you can grab the first drop the day it opens.</p>
+    <div class="ladder-head"><span class="lh-title">Drops</span><span class="lh-count">${drops.length?`${drops.length} live`:'Coming soon'}</span></div>
+    ${drops.length
+      ?`<div class="shop-grid">${drops.map(dropCard).join('')}</div>`
+      :'<div class="shop-tiles"><div>Soon</div><div>Soon</div><div>Soon</div></div>'}
+    <p class="shop-note">${drops.length
+      ?'Tap Get to claim a drop. Coins are held while the team approves it, and returned in full if it is turned down.'
+      :'Gear and rewards land here soon. Bank your coins now so you can grab the first drop the day it opens.'}</p>
   </div>`;
+
+  // The athlete watches the same request the admin will approve or decline.
+  if(reqs.length){
+    html+=`<div class="shop-reqs">
+      <div class="ladder-head" style="padding:0 0 10px"><span class="lh-title">My requests</span><span class="lh-count">${reqs.length}</span></div>
+      ${reqs.map(r=>{
+        const when=new Date(r.created_at).toLocaleDateString('en-IN',{day:'2-digit',month:'short'});
+        const meta=[when,`${n(r.coin_price)} coins`,r.admin_notes].filter(Boolean).map(esc).join(' \u00b7 ');
+        return `<div class="req-row"><span class="req-name"><b>${esc(r.product_name)}</b><i>${meta}</i></span><span class="req-state ${String(r.status||'').toLowerCase()}">${SHOP_STATE[r.status]||r.status}</span></div>`;
+      }).join('')}
+    </div>`;
+  }
 
   if(sh){
     html+=`<div class="climb-fuel">
@@ -1998,6 +2038,36 @@ function renderShop(){
     html+=`<div class="climb-history"><div class="chist-label">Coin activity</div>${recent.length?recent.map(e=>`<div class="history-row"><span>${new Date(e.created_at).toLocaleDateString('en-IN',{day:'2-digit',month:'short'})}</span><b>${esc(COIN_REASONS[e.reason_code]||String(e.reason_code||'').replace(/_/g,' ').toLowerCase())}</b><span>${e.amount>0?'+':''}${n(e.amount)}</span></div>`).join(''):'<div class="history-row"><span>&mdash;</span><b>No coins yet</b><span>Play a mini-game</span></div>'}</div>`;
   }
   el.innerHTML=html;
+  el.querySelectorAll('[data-get]').forEach(b=>{b.onclick=()=>redeemDrop(b)});
+}
+
+// Two taps: the first arms the button and shows the price, so a stray tap can
+// never spend a coin balance.
+async function redeemDrop(btn){
+  const id=Number(btn.dataset.get);
+  const drop=(S.shop?.products||[]).find(p=>Number(p.id)===id);
+  if(!drop)return;
+  const price=Number(drop.coin_price||0);
+  if(coinBalance()<price)return toast('Not enough coins',`Need ${(price-coinBalance()).toLocaleString('en-IN')} more`);
+
+  if(btn.dataset.armed!=='1'){
+    btn.dataset.armed='1';
+    btn.textContent=`Confirm ${price.toLocaleString('en-IN')} coins`;
+    setTimeout(()=>{if(btn.isConnected&&btn.dataset.armed==='1'){btn.dataset.armed='';btn.textContent='Get'}},4500);
+    return;
+  }
+
+  btn.disabled=true;btn.textContent='Sending\u2026';
+  try{
+    const out=await api('/shop/redeem',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({product_id:id})});
+    if(out&&out.balance!==undefined&&S.shop)S.shop.balance=out.balance;
+    toast('Request sent \u00b7 waiting on approval',drop.name);
+    flash(2);
+    await loadShop();
+  }catch(e){
+    btn.disabled=false;btn.dataset.armed='';btn.textContent='Get';
+    toast(e.message||'Could not send the request');
+  }
 }
 async function loadShop(){
   try{S.shop=await api('/shop');renderShop();updateSidebarAcct();updateTabCoinBadge()}catch(e){}

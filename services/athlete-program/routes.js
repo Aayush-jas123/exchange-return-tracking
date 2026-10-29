@@ -1179,6 +1179,127 @@ module.exports = function mountAthleteRoutes(app) {
     } catch (err) { res.status(err.status || 500).json({ error: err.message }); }
   });
 
+  // ── Coin Shop / Drops (Admin) ──
+  // The shop opens only when 'shop.unlocked' is true; until then the portal
+  // keeps its "Coming soon" veil. Products are priced in coins, never rupees.
+  app.get('/api/athlete-admin/shop/settings', authAdmin, async (req, res) => {
+    try {
+      res.json({ success: true, data: { unlocked: await GamificationService.isShopUnlocked() } });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.patch('/api/athlete-admin/shop/settings', authAdmin, async (req, res) => {
+    try {
+      const { unlocked } = req.body;
+      if (typeof unlocked !== 'boolean') return res.status(400).json({ error: 'unlocked boolean required' });
+      res.json({ success: true, data: await GamificationService.setShopUnlocked(unlocked, req.adminToken) });
+    } catch (err) { res.status(err.status || 500).json({ error: err.message }); }
+  });
+
+  app.get('/api/athlete-admin/shop/products', authAdmin, async (req, res) => {
+    try {
+      res.json({ success: true, data: await GamificationService.getShopProducts() });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.post('/api/athlete-admin/shop/products', authAdmin, async (req, res) => {
+    try {
+      res.json({ success: true, data: await GamificationService.createShopProduct(req.body || {}) });
+    } catch (err) { res.status(err.status || 500).json({ error: err.message }); }
+  });
+
+  app.patch('/api/athlete-admin/shop/products/:id', authAdmin, async (req, res) => {
+    try {
+      res.json({ success: true, data: await GamificationService.updateShopProduct(req.params.id, req.body || {}) });
+    } catch (err) { res.status(err.status || 500).json({ error: err.message }); }
+  });
+
+  app.delete('/api/athlete-admin/shop/products/:id', authAdmin, async (req, res) => {
+    try {
+      res.json({ success: true, data: await GamificationService.deleteShopProduct(req.params.id) });
+    } catch (err) { res.status(err.status || 500).json({ error: err.message }); }
+  });
+
+  // Drop image upload — multipart goes straight to Cloudinary so the admin page
+  // can attach a product photo without a separate media pipeline.
+  const shopImageUpload = (() => {
+    try {
+      const multer = require('multer');
+      return multer({
+        storage: multer.memoryStorage(),
+        limits: { fileSize: 8 * 1024 * 1024, files: 1 }
+      }).single('image');
+    } catch (err) {
+      console.error('[shop] image upload unavailable:', err.message);
+      return null;
+    }
+  })();
+
+  app.post('/api/athlete-admin/shop/upload-image',
+    (req, res, next) => {
+      if (!shopImageUpload) return res.status(503).json({ error: 'Uploads are not configured on this server' });
+      shopImageUpload(req, res, (err) => {
+        if (err) return res.status(400).json({ error: err.message || 'Upload failed' });
+        next();
+      });
+    },
+    authAdmin,
+    async (req, res) => {
+      try {
+        if (!req.file) return res.status(400).json({ error: 'image file is required' });
+        if (!/^image\//.test(req.file.mimetype || '')) return res.status(400).json({ error: 'Only image files are allowed' });
+
+        const pkg = require('cloudinary');
+        const cloudinary = pkg.v2 || pkg;
+        cloudinary.config({
+          cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+          api_key: process.env.CLOUDINARY_API_KEY,
+          api_secret: process.env.CLOUDINARY_API_SECRET
+        });
+
+        const dataUri = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+        const uploaded = await cloudinary.uploader.upload(dataUri, {
+          folder: 'shop',
+          resource_type: 'image',
+          allowed_formats: ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif']
+        });
+
+        res.json({ success: true, url: uploaded.secure_url });
+      } catch (err) {
+        console.error('[shop] image upload failed:', err.message);
+        res.status(500).json({ error: err.message || 'Upload failed' });
+      }
+    }
+  );
+
+  app.get('/api/athlete-admin/shop/redemptions', authAdmin, async (req, res) => {
+    try {
+      const { status, athlete_id, limit } = req.query;
+      res.json({
+        success: true,
+        data: await GamificationService.getAllShopRedemptions({
+          status,
+          athleteId: athlete_id,
+          limit: limit ? parseInt(limit, 10) : 200
+        })
+      });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.post('/api/athlete-admin/shop/redemptions/:id/approve', authAdmin, async (req, res) => {
+    try {
+      const { notes } = req.body || {};
+      res.json({ success: true, data: await GamificationService.approveShopRedemption(req.params.id, { notes, actor: 'admin' }) });
+    } catch (err) { res.status(err.status || 500).json({ error: err.message }); }
+  });
+
+  app.post('/api/athlete-admin/shop/redemptions/:id/reject', authAdmin, async (req, res) => {
+    try {
+      const { reason } = req.body || {};
+      res.json({ success: true, data: await GamificationService.rejectShopRedemption(req.params.id, { reason, actor: 'admin' }) });
+    } catch (err) { res.status(err.status || 500).json({ error: err.message }); }
+  });
+
   // ── Streaks (Admin) ──
   app.get('/api/athlete-admin/streaks', authAdmin, async (req, res) => {
     try {
@@ -1352,13 +1473,27 @@ module.exports = function mountAthleteRoutes(app) {
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
 
-  // ── Coin Shop (balance, coin sources, level-up bonuses; products land later) ──
+  // ── Coin Shop (balance, coin sources, open drops, this athlete's requests) ──
   app.get('/api/athlete/:token/shop', authAthlete, async (req, res) => {
     try {
       const { influencerId, scope } = req.athleteScope;
       if (scope !== 'PROGRESS') return res.status(403).json({ error: 'Wrong scope' });
       res.json({ success: true, data: await GamificationService.getCoinSummary(influencerId) });
     } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // ── Coin Shop: request a drop. Coins are held immediately and refunded if
+  // the admin rejects the request, so a balance can never be spent twice. ──
+  app.post('/api/athlete/:token/shop/redeem', authAthlete, async (req, res) => {
+    try {
+      const { influencerId, scope } = req.athleteScope;
+      if (scope !== 'PROGRESS') return res.status(403).json({ error: 'Wrong scope' });
+
+      const { product_id, size, note } = req.body || {};
+      if (!product_id) return res.status(400).json({ error: 'product_id is required' });
+
+      res.json({ success: true, data: await GamificationService.redeemShopProduct(influencerId, product_id, { size, note }) });
+    } catch (err) { res.status(err.status || 500).json({ error: err.message }); }
   });
 
   // ── Personal Ranks / History ──

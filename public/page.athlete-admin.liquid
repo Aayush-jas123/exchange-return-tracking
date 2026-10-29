@@ -380,6 +380,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);
       </div>
       <div class="ah-nav-group">
         <div class="ah-nav-group-label">Operations</div>
+        <div class="ah-nav-item" data-section="shop">Coin Shop <span class="count" id="navShopCount">0</span></div>
         <div class="ah-nav-item" data-section="product-requests">Product Requests <span class="count" id="navProductCount">0</span></div>
         <div class="ah-nav-item" data-section="overrides">Override Controls</div>
         <div class="ah-nav-item" data-section="config">Configuration</div>
@@ -635,6 +636,88 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);
               <tbody id="gameLedgerTable"></tbody>
             </table>
           </div>
+        </div>
+      </div>
+
+      <!-- COIN SHOP -->
+      <div class="ah-section" id="sec-shop">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap;gap:.75rem">
+          <h2 style="font-size:.65rem;letter-spacing:.18em;text-transform:uppercase;font-weight:700">Coin Shop</h2>
+          <button class="ah-btn ah-btn-sm ah-btn-outline" onclick="loadShopAdmin()">Refresh</button>
+        </div>
+
+        <!-- Master switch: athletes only see the drops once this is on -->
+        <div id="shopLockPanel" style="border:1px solid var(--border);padding:1rem 1.25rem;margin-bottom:1.5rem;display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap">
+          <div>
+            <div style="font-size:.8rem;font-weight:700" id="shopLockTitle">Shop is locked</div>
+            <p style="font-size:.7rem;color:var(--muted);margin:.25rem 0 0;line-height:1.5">While locked, athletes see a &ldquo;Coming soon&rdquo; veil over the Shop screen. Drops and coin balances are unaffected.</p>
+          </div>
+          <button class="ah-btn ah-btn-sm" id="shopLockBtn" onclick="toggleShopLock()">Unlock shop</button>
+        </div>
+
+        <!-- Create / edit a drop -->
+        <h3 style="font-size:.6rem;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:.75rem" id="shopFormTitle">Add a drop</h3>
+        <div style="background:var(--surface-2);border:1px solid var(--border);padding:1.25rem;margin-bottom:1.75rem">
+          <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:1rem">
+            <div>
+              <label style="font-size:.6rem;color:var(--muted);display:block;margin-bottom:.35rem">Drop name</label>
+              <input type="text" class="ah-input" style="margin:0;padding:.45rem .75rem;font-size:.7rem" id="shopName" placeholder="Heavyweight hoodie">
+            </div>
+            <div>
+              <label style="font-size:.6rem;color:var(--muted);display:block;margin-bottom:.35rem">Price in coins</label>
+              <input type="number" min="1" step="1" class="ah-input" style="margin:0;padding:.45rem .75rem;font-size:.7rem" id="shopPrice" placeholder="1200">
+            </div>
+            <div>
+              <label style="font-size:.6rem;color:var(--muted);display:block;margin-bottom:.35rem">Product image</label>
+              <input type="text" class="ah-input" style="margin:0;padding:.45rem .75rem;font-size:.7rem" id="shopImageUrl" placeholder="https://... (or upload below)" oninput="renderShopImagePreview()">
+              <div style="display:flex;gap:.5rem;align-items:center;margin-top:.5rem">
+                <input type="file" id="shopImageFile" accept="image/*" style="display:none" onchange="uploadShopImage(this)">
+                <button class="ah-btn ah-btn-sm ah-btn-outline" onclick="document.getElementById('shopImageFile').click()">Upload image</button>
+                <span id="shopImageStatus" style="font-size:.6rem;color:var(--muted)"></span>
+              </div>
+            </div>
+            <div>
+              <label style="font-size:.6rem;color:var(--muted);display:block;margin-bottom:.35rem">Stock</label>
+              <input type="number" min="0" step="1" class="ah-input" style="margin:0;padding:.45rem .75rem;font-size:.7rem" id="shopStock" placeholder="Blank = unlimited">
+            </div>
+          </div>
+          <div style="margin-top:1rem">
+            <label style="font-size:.6rem;color:var(--muted);display:block;margin-bottom:.35rem">Description (optional)</label>
+            <textarea class="ah-input" rows="2" style="margin:0;padding:.45rem .75rem;font-size:.7rem;resize:vertical" id="shopDesc" placeholder="What the athlete gets"></textarea>
+          </div>
+          <div style="display:flex;align-items:center;gap:1rem;margin-top:1rem;flex-wrap:wrap">
+            <label style="font-size:.7rem;display:flex;align-items:center;gap:.4rem"><input type="checkbox" id="shopActive" checked> Visible to athletes</label>
+            <div id="shopImagePreview" style="width:44px;height:56px;border:1px solid var(--border);display:none;overflow:hidden"></div>
+            <div style="flex:1"></div>
+            <button class="ah-btn ah-btn-sm ah-btn-outline" id="shopCancelEdit" style="display:none" onclick="cancelShopEdit()">Cancel edit</button>
+            <button class="ah-btn ah-btn-sm" id="shopSaveBtn" onclick="saveShopProduct()">Add drop</button>
+          </div>
+        </div>
+
+        <!-- Catalog -->
+        <h3 style="font-size:.6rem;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:.75rem">Drops</h3>
+        <div class="ah-table-wrap" style="margin-bottom:2rem">
+          <table class="ah-table">
+            <thead><tr><th></th><th>Drop</th><th>Coins</th><th>Stock</th><th>Visible</th><th>Requests</th><th>Actions</th></tr></thead>
+            <tbody id="shopProductsTable"></tbody>
+          </table>
+        </div>
+
+        <!-- Requests waiting for a decision -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;flex-wrap:wrap;gap:.5rem">
+          <h3 style="font-size:.6rem;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);font-weight:700">Redemption requests</h3>
+          <select class="ah-input" style="margin:0;width:150px;padding:.45rem .75rem;font-size:.7rem" id="shopReqFilter" onchange="loadShopRedemptions()">
+            <option value="">All status</option>
+            <option value="REQUESTED" selected>Awaiting approval</option>
+            <option value="APPROVED">Approved</option>
+            <option value="REJECTED">Rejected</option>
+          </select>
+        </div>
+        <div class="ah-table-wrap">
+          <table class="ah-table">
+            <thead><tr><th>Requested</th><th>Athlete</th><th>Drop</th><th>Coins</th><th>Detail</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="shopRedemptionsTable"></tbody>
+          </table>
         </div>
       </div>
 
@@ -946,6 +1029,10 @@ const API = 'https://exchange-return-tracking.onrender.com/api/athlete-admin';
 let adminToken = null;
 let athletes = [], applications = [], tasks = [], reviewItems = [], levels = [], settings = [], payouts = [];
 let productRequests = [], allConfig = {};
+let shopSettings = { unlocked: false };
+let shopProducts = [];
+let shopRedemptions = [];
+let shopEditingId = null;
 
 // ── INIT ──
 document.addEventListener('DOMContentLoaded', () => {
@@ -986,7 +1073,7 @@ async function initShell() {
 
 async function loadAll() {
   const headers = { 'Authorization': 'Bearer ' + adminToken };
-  const [athRes, appRes, taskRes, revRes, lvlRes, setRes, payRes, prRes] = await Promise.allSettled([
+  const [athRes, appRes, taskRes, revRes, lvlRes, setRes, payRes, prRes, shopRes] = await Promise.allSettled([
     fetch(API + '/athletes', { headers }).then(r => r.json()),
     fetch(API + '/applications', { headers }).then(r => r.json()),
     fetch(API + '/tasks', { headers }).then(r => r.json()),
@@ -994,7 +1081,8 @@ async function loadAll() {
     fetch(API + '/levels', { headers }).then(r => r.json()),
     fetch(API + '/settings', { headers }).then(r => r.json()),
     fetch(API + '/payouts', { headers }).then(r => r.json()),
-    fetch(API + '/product-requests', { headers }).then(r => r.json())
+    fetch(API + '/product-requests', { headers }).then(r => r.json()),
+    fetch(API + '/shop/redemptions?status=REQUESTED', { headers }).then(r => r.json())
   ]);
   athletes = athRes.value?.data || [];
   applications = appRes.value?.data || [];
@@ -1004,6 +1092,7 @@ async function loadAll() {
   settings = setRes.value?.data || [];
   payouts = payRes.value?.data || [];
   productRequests = prRes.value?.data || [];
+  shopRedemptions = shopRes.value?.data || shopRedemptions;
 }
 
 function renderAll() {
@@ -1020,6 +1109,7 @@ function renderAll() {
   document.getElementById('navAppCount').textContent = applications.filter(a => a.status === 'APPLIED').length;
   document.getElementById('navReviewCount').textContent = reviewItems.length;
   document.getElementById('navProductCount').textContent = productRequests.filter(pr => pr.status === 'REQUESTED').length;
+  document.getElementById('navShopCount').textContent = shopRedemptions.filter(r => r.status === 'REQUESTED').length;
 }
 
 async function refreshData() { await loadAll(); renderAll(); }
@@ -2123,6 +2213,292 @@ function openAwardBadgeModal() {
   }).catch(() => showToast('Network error', 'error'));
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// COIN SHOP — drops priced in coins, plus the redemption approval queue
+// ══════════════════════════════════════════════════════════════════════════
+async function loadShopAdmin() {
+  try {
+    const [setRes, prodRes] = await Promise.allSettled([
+      fetch(API + '/shop/settings', { headers: ah() }).then(r => r.json()),
+      fetch(API + '/shop/products', { headers: ah() }).then(r => r.json())
+    ]);
+    if (setRes.value?.success) shopSettings = setRes.value.data || { unlocked: false };
+    if (prodRes.value?.success) shopProducts = prodRes.value.data || [];
+    renderShopLock();
+    renderShopProducts();
+    await loadShopRedemptions();
+  } catch (err) { console.error('Shop admin load:', err); }
+}
+
+function renderShopLock() {
+  const on = !!shopSettings.unlocked;
+  const title = document.getElementById('shopLockTitle');
+  const btn = document.getElementById('shopLockBtn');
+  const panel = document.getElementById('shopLockPanel');
+  if (!title || !btn) return;
+  title.textContent = on ? 'Shop is open to athletes' : 'Shop is locked';
+  title.style.color = on ? 'var(--success)' : '';
+  btn.textContent = on ? 'Lock shop' : 'Unlock shop';
+  btn.className = 'ah-btn ah-btn-sm' + (on ? ' ah-btn-outline' : '');
+  if (panel) panel.style.borderColor = on ? 'var(--success)' : 'var(--border)';
+}
+
+async function toggleShopLock() {
+  const next = !shopSettings.unlocked;
+  try {
+    const res = await fetch(API + '/shop/settings', {
+      method: 'PATCH', headers: { ...ah(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ unlocked: next })
+    });
+    const data = await res.json();
+    if (!data.success) return showToast(data.error || 'Failed to update shop', 'error');
+    shopSettings = data.data || { unlocked: next };
+    renderShopLock();
+    showToast(next ? 'Coin shop unlocked for athletes' : 'Coin shop locked', 'success');
+  } catch (err) { showToast('Network error', 'error'); }
+}
+
+function renderShopImagePreview() {
+  const url = (document.getElementById('shopImageUrl')?.value || '').trim();
+  const box = document.getElementById('shopImagePreview');
+  if (!box) return;
+  if (!url) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  box.style.display = 'block';
+  box.innerHTML = `<img src="${esc(url)}" alt="" style="width:100%;height:100%;object-fit:cover">`;
+}
+
+async function uploadShopImage(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const status = document.getElementById('shopImageStatus');
+  if (status) status.textContent = 'Uploading...';
+
+  try {
+    const body = new FormData();
+    body.append('image', file);
+    const res = await fetch(API + '/shop/upload-image', {
+      method: 'POST', headers: ah(), body
+    });
+    const data = await res.json();
+    if (!data.success || !data.url) throw new Error(data.error || 'Upload failed');
+    document.getElementById('shopImageUrl').value = data.url;
+    renderShopImagePreview();
+    if (status) status.textContent = 'Uploaded';
+  } catch (err) {
+    if (status) status.textContent = '';
+    showToast(err.message || 'Upload failed', 'error');
+  } finally {
+    input.value = '';
+  }
+}
+
+function renderShopProducts() {
+  const tbody = document.getElementById('shopProductsTable');
+  if (!tbody) return;
+  if (!shopProducts.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--muted)">No drops yet — add the first one above</td></tr>';
+    return;
+  }
+
+  const requestsFor = id => shopRedemptions.filter(r => r.product_id === id && r.status === 'REQUESTED').length;
+
+  tbody.innerHTML = shopProducts.map(p => {
+    const thumb = p.image_url
+      ? `<img src="${esc(p.image_url)}" alt="" style="width:36px;height:46px;object-fit:cover;border:1px solid var(--border)">`
+      : '<div style="width:36px;height:46px;border:1px dashed var(--border)"></div>';
+    const stock = (p.stock === null || p.stock === undefined)
+      ? '<span class="muted">Unlimited</span>'
+      : `<span class="mono" style="font-weight:700;${Number(p.stock) === 0 ? 'color:var(--danger)' : ''}">${p.stock}</span>`;
+    const pending = requestsFor(p.id);
+
+    return `<tr>
+      <td>${thumb}</td>
+      <td><strong>${esc(p.name)}</strong>${p.description ? `<div class="muted" style="font-size:.6rem;max-width:240px">${esc(p.description)}</div>` : ''}</td>
+      <td class="mono" style="font-weight:700">${Number(p.coin_price || 0).toLocaleString('en-IN')}</td>
+      <td>${stock}</td>
+      <td>${p.is_active ? '<span style="font-size:.55rem;padding:2px 6px;border:1px solid var(--success);color:var(--success)">LIVE</span>' : '<span style="font-size:.55rem;padding:2px 6px;border:1px solid var(--border);color:var(--muted)">HIDDEN</span>'}</td>
+      <td class="mono">${pending || '<span class="muted">—</span>'}</td>
+      <td>
+        <div style="display:flex;gap:.25rem;justify-content:flex-end;flex-wrap:wrap">
+          <button class="ah-btn ah-btn-sm ah-btn-outline" style="padding:.3rem .55rem;font-size:.5rem" onclick="editShopProduct(${p.id})">Edit</button>
+          <button class="ah-btn ah-btn-sm ah-btn-outline" style="padding:.3rem .55rem;font-size:.5rem" onclick="toggleShopProduct(${p.id}, ${!p.is_active})">${p.is_active ? 'Hide' : 'Show'}</button>
+          <button class="ah-btn ah-btn-sm ah-btn-danger" style="padding:.3rem .55rem;font-size:.5rem" onclick="deleteShopProduct(${p.id})">Delete</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function resetShopForm() {
+  shopEditingId = null;
+  ['shopName', 'shopPrice', 'shopImageUrl', 'shopStock', 'shopDesc'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  const active = document.getElementById('shopActive');
+  if (active) active.checked = true;
+  const status = document.getElementById('shopImageStatus');
+  if (status) status.textContent = '';
+  renderShopImagePreview();
+  document.getElementById('shopFormTitle').textContent = 'Add a drop';
+  document.getElementById('shopSaveBtn').textContent = 'Add drop';
+  document.getElementById('shopCancelEdit').style.display = 'none';
+}
+
+function cancelShopEdit() { resetShopForm(); }
+
+function editShopProduct(id) {
+  const p = shopProducts.find(x => x.id === id);
+  if (!p) return;
+  shopEditingId = id;
+  document.getElementById('shopName').value = p.name || '';
+  document.getElementById('shopPrice').value = p.coin_price || '';
+  document.getElementById('shopImageUrl').value = p.image_url || '';
+  document.getElementById('shopStock').value = (p.stock === null || p.stock === undefined) ? '' : p.stock;
+  document.getElementById('shopDesc').value = p.description || '';
+  document.getElementById('shopActive').checked = !!p.is_active;
+  renderShopImagePreview();
+  document.getElementById('shopFormTitle').textContent = 'Edit drop';
+  document.getElementById('shopSaveBtn').textContent = 'Save drop';
+  document.getElementById('shopCancelEdit').style.display = 'inline-block';
+  document.getElementById('shopName').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+async function saveShopProduct() {
+  const name = (document.getElementById('shopName').value || '').trim();
+  const price = parseInt(document.getElementById('shopPrice').value, 10);
+  const stockRaw = document.getElementById('shopStock').value;
+  if (!name) return showToast('Drop name is required', 'error');
+  if (!price || price < 1) return showToast('Price must be at least 1 coin', 'error');
+
+  const payload = {
+    name,
+    coin_price: price,
+    image_url: (document.getElementById('shopImageUrl').value || '').trim() || null,
+    stock: stockRaw === '' ? null : Math.max(0, parseInt(stockRaw, 10) || 0),
+    description: (document.getElementById('shopDesc').value || '').trim() || null,
+    is_active: document.getElementById('shopActive').checked
+  };
+
+  const editing = shopEditingId;
+  const btn = document.getElementById('shopSaveBtn');
+  btn.disabled = true;
+
+  try {
+    const res = await fetch(API + '/shop/products' + (editing ? '/' + editing : ''), {
+      method: editing ? 'PATCH' : 'POST',
+      headers: { ...ah(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Failed to save drop');
+    showToast(editing ? 'Drop updated' : 'Drop added to the shop', 'success');
+    resetShopForm();
+    await loadShopAdmin();
+  } catch (err) {
+    showToast(err.message || 'Failed to save drop', 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function toggleShopProduct(id, isActive) {
+  try {
+    const res = await fetch(API + '/shop/products/' + id, {
+      method: 'PATCH', headers: { ...ah(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_active: isActive })
+    });
+    const data = await res.json();
+    if (!data.success) return showToast(data.error || 'Failed', 'error');
+    await loadShopAdmin();
+  } catch (err) { showToast('Network error', 'error'); }
+}
+
+async function deleteShopProduct(id) {
+  const p = shopProducts.find(x => x.id === id);
+  if (!confirm(`Delete "${p ? p.name : 'this drop'}"? Pending requests keep their own name and price snapshot.`)) return;
+  try {
+    const res = await fetch(API + '/shop/products/' + id, { method: 'DELETE', headers: ah() });
+    const data = await res.json();
+    if (!data.success) return showToast(data.error || 'Failed', 'error');
+    showToast('Drop deleted', 'success');
+    await loadShopAdmin();
+  } catch (err) { showToast('Network error', 'error'); }
+}
+
+async function loadShopRedemptions() {
+  const filter = document.getElementById('shopReqFilter');
+  const status = filter ? filter.value : 'REQUESTED';
+  try {
+    const res = await fetch(API + '/shop/redemptions' + (status ? '?status=' + status : ''), { headers: ah() });
+    const data = await res.json();
+    shopRedemptions = data.data || shopRedemptions;
+    renderShopRedemptions();
+    const badge = document.getElementById('navShopCount');
+    if (badge) badge.textContent = shopRedemptions.filter(r => r.status === 'REQUESTED').length;
+    // Keep the per-drop pending counters in step with the queue.
+    renderShopProducts();
+  } catch (err) { console.error('Shop redemptions load:', err); }
+}
+
+function renderShopRedemptions() {
+  const tbody = document.getElementById('shopRedemptionsTable');
+  if (!tbody) return;
+  if (!shopRedemptions.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--muted)">No redemption requests</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = shopRedemptions.map(r => {
+    const athlete = r.influencers || {};
+    const detail = [r.size ? 'Size ' + r.size : null, r.shipping_address, r.note]
+      .filter(Boolean).map(esc).join(' · ');
+    const actions = r.status === 'REQUESTED'
+      ? `<button class="ah-btn ah-btn-sm" style="padding:.3rem .6rem;font-size:.5rem;margin-right:.25rem" onclick="approveShopRedemption(${r.id})">Approve</button>
+         <button class="ah-btn ah-btn-sm ah-btn-danger" style="padding:.3rem .6rem;font-size:.5rem" onclick="rejectShopRedemption(${r.id})">Reject</button>`
+      : '<span class="muted" style="font-size:.6rem">—</span>';
+
+    return `<tr>
+      <td class="muted">${new Date(r.created_at).toLocaleDateString('en-IN',{day:'numeric',month:'short'})}</td>
+      <td><strong>${esc(athlete.name || 'Athlete')}</strong><div class="muted mono" style="font-size:.6rem">${esc(athlete.athlete_no || '')}${athlete.instagram_handle ? ' · @' + esc(athlete.instagram_handle) : ''}</div></td>
+      <td>${esc(r.product_name)}<div class="muted mono" style="font-size:.6rem">#${r.id}</div></td>
+      <td class="mono" style="font-weight:700">${Number(r.coin_price || 0).toLocaleString('en-IN')}</td>
+      <td style="max-width:220px;font-size:.62rem;color:var(--muted)">${detail || '—'}</td>
+      <td>${statusBadge(r.status)}${r.admin_notes ? `<div class="muted" style="font-size:.55rem;max-width:160px">${esc(r.admin_notes)}</div>` : ''}</td>
+      <td>${actions}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function approveShopRedemption(id) {
+  const notes = prompt('Approval note (optional) — e.g. size confirmed, dispatching today:') || '';
+  try {
+    const res = await fetch(API + '/shop/redemptions/' + id + '/approve', {
+      method: 'POST', headers: { ...ah(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notes })
+    });
+    const data = await res.json();
+    if (!data.success) return showToast(data.error || 'Failed to approve', 'error');
+    showToast('Redemption approved — coins stay spent', 'success');
+    await loadShopAdmin();
+  } catch (err) { showToast('Network error', 'error'); }
+}
+
+async function rejectShopRedemption(id) {
+  const reason = prompt('Rejection reason (the athlete sees this, coins are refunded):');
+  if (reason === null) return;
+  try {
+    const res = await fetch(API + '/shop/redemptions/' + id + '/reject', {
+      method: 'POST', headers: { ...ah(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason })
+    });
+    const data = await res.json();
+    if (!data.success) return showToast(data.error || 'Failed to reject', 'error');
+    showToast('Request rejected — coins refunded', 'success');
+    await loadShopAdmin();
+  } catch (err) { showToast('Network error', 'error'); }
+}
+
 // ── Load gamification data on nav ──
 document.querySelectorAll('.ah-nav-item').forEach(item => {
   item.addEventListener('click', () => {
@@ -2134,6 +2510,7 @@ document.querySelectorAll('.ah-nav-item').forEach(item => {
     if (sec === 'streaks-badges') { loadStreaks(); loadBadges(); }
     if (sec === 'game-results') loadGameResults();
     if (sec === 'product-requests') loadProductRequests();
+    if (sec === 'shop') loadShopAdmin();
     if (sec === 'config') loadAllConfig();
   });
 });

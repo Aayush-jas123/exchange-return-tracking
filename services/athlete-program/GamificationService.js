@@ -66,6 +66,9 @@ const COIN_SOURCE_BY_REASON = {
   WEEKLY_CHALLENGE_WIN: 'challenges'
 };
 
+// Master switch for the portal's Shop screen (seeded false by the shop migration).
+const SHOP_UNLOCK_KEY = 'shop.unlocked';
+
 // Coins paid once per level reached — overridable via program_settings coin.level_up_bonus.<CODE>.
 const LEVEL_UP_COIN_BONUS = { CL4: 100, CL3: 200, CL2: 300, CL1: 500, ZERO: 1000 };
 
@@ -1440,6 +1443,19 @@ const GamificationService = {
       Promise.all(ladder.map(level => this.levelUpCoinBonus(level.code)))
     ]);
 
+    // Catalog + this athlete's requests. Both tables ship with the shop
+    // migration; if it has not been run yet the screen still renders, empty.
+    let products = [];
+    let redemptions = [];
+    let unlocked = false;
+    try {
+      unlocked = await this.isShopUnlocked();
+      if (unlocked) products = await this.getShopProductsForAthlete();
+      redemptions = await this.getShopRedemptions(influencerId);
+    } catch (shopErr) {
+      console.warn('[shop] catalog unavailable:', shopErr.message);
+    }
+
     return {
       balance: athlete.coin_balance || 0,
       sources,
@@ -1458,8 +1474,340 @@ const GamificationService = {
         }))
         .filter(level => level.coins > 0),
       recent: recent || [],
-      products: []
+      products,
+      redemptions,
+      unlocked
     };
+  },
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // COIN SHOP — admin-curated drops, athlete requests, admin approval
+  // ══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Master switch. Only an explicit true opens the shop, so a missing setting
+   * (migration not run) leaves the portal's "Coming soon" veil in place.
+   */
+  async isShopUnlocked() {
+    const { data, error } = await supabase
+      .from('program_settings')
+      .select('value')
+      .eq('key', SHOP_UNLOCK_KEY)
+      .maybeSingle();
+    if (error) throw error;
+    return String(data?.value).toLowerCase() === 'true';
+  },
+
+  async setShopUnlocked(unlocked, actorId = null) {
+    const { error } = await supabase
+      .from('program_settings')
+      .upsert({
+        key: SHOP_UNLOCK_KEY,
+        value: String(!!unlocked),
+        description: 'Whether the athlete coin shop is open to athletes (true/false)',
+        updated_at: new Date().toISOString(),
+        updated_by: actorId
+      }, { onConflict: 'key' });
+    if (error) throw error;
+    return { unlocked: !!unlocked };
+  },
+
+  /** Admin view of the catalog — inactive and sold-out drops included. */
+  async getShopProducts({ includeInactive = true } = {}) {
+    let query = supabase
+      .from('shop_products')
+      .select('*')
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: false });
+    if (!includeInactive) query = query.eq('is_active', true);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  },
+
+  async createShopProduct(body = {}) {
+    const row = this._shopProductRow(body);
+    if (!row.name) throw this._shopError('Product name is required');
+    if (!(row.coin_price > 0)) throw this._shopError('Coin price must be at least 1');
+
+    const { data, error } = await supabase.from('shop_products').insert([row]).select().single();
+    if (error) throw error;
+    return data;
+  },
+
+  async updateShopProduct(id, body = {}) {
+    const row = this._shopProductRow(body, true);
+    if (row.name !== undefined && !row.name) throw this._shopError('Product name cannot be empty');
+    if (row.coin_price !== undefined && !(row.coin_price > 0)) throw this._shopError('Coin price must be at least 1');
+    row.updated_at = new Date().toISOString();
+
+    const { data, error } = await supabase
+      .from('shop_products')
+      .update(row)
+      .eq('id', parseInt(id, 10))
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  /** Hard delete: redemptions keep their own product_name/price snapshot. */
+  async deleteShopProduct(id) {
+    const { error } = await supabase.from('shop_products').delete().eq('id', parseInt(id, 10));
+    if (error) throw error;
+    return { deleted: parseInt(id, 10) };
+  },
+
+  /** What the athlete sees on the Shop screen — live drops only, cheapest last. */
+  async getShopProductsForAthlete() {
+    const { data, error } = await supabase
+      .from('shop_products')
+      .select('id, name, description, image_url, coin_price, category, stock, sort_order')
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true })
+      .order('coin_price', { ascending: true });
+    if (error) throw error;
+
+    return (data || [])
+      .filter(p => p.stock === null || p.stock === undefined || p.stock > 0)
+      .map(p => ({
+        id: p.id,
+        name: p.name,
+        description: p.description,
+        image_url: p.image_url,
+        coin_price: p.coin_price,
+        category: p.category,
+        stock: p.stock,
+        in_stock: true
+      }));
+  },
+
+  /** This athlete's own requests, newest first. */
+  async getShopRedemptions(influencerId, { limit = 20 } = {}) {
+    const { data, error } = await supabase
+      .from('shop_redemptions')
+      .select('id, product_id, product_name, image_url, coin_price, size, status, admin_notes, created_at, decided_at')
+      .eq('influencer_id', influencerId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    return data || [];
+  },
+
+  /**
+   * Athlete taps "Get" on a drop.
+   * The price is held straight away (one negative COIN ledger row) so the same
+   * balance cannot be promised to two different drops while an admin reviews;
+   * a rejection reverses that row, an approval consumes it.
+   */
+  async redeemShopProduct(influencerId, productId, { size = null, note = null } = {}) {
+    if (!(await this.isShopUnlocked())) throw this._shopError('The coin shop is not open yet', 403);
+
+    const id = parseInt(productId, 10);
+    if (!id) throw this._shopError('product_id is required');
+
+    const { data: product, error: productErr } = await supabase
+      .from('shop_products')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    if (productErr) throw productErr;
+    if (!product || !product.is_active) throw this._shopError('That drop is no longer available');
+    if (product.stock !== null && product.stock !== undefined && product.stock <= 0) {
+      throw this._shopError('That drop is out of stock', 409);
+    }
+
+    // One open request per drop, otherwise an athlete can queue the same item twice.
+    const { data: open, error: openErr } = await supabase
+      .from('shop_redemptions')
+      .select('id')
+      .eq('influencer_id', influencerId)
+      .eq('product_id', id)
+      .in('status', ['REQUESTED', 'APPROVED'])
+      .limit(1);
+    if (openErr) throw openErr;
+    if (open && open.length) throw this._shopError('You already have a request open for this drop', 409);
+
+    const { data: athlete, error: athleteErr } = await supabase
+      .from('influencers')
+      .select('id, coin_balance, shipping_address, shipping_city, shipping_state, shipping_pin, shipping_landmark')
+      .eq('id', influencerId)
+      .single();
+    if (athleteErr) throw athleteErr;
+    if (Number(athlete.coin_balance || 0) < product.coin_price) {
+      throw this._shopError(`Not enough coins — ${product.coin_price} needed`, 400);
+    }
+
+    const shipping = [athlete.shipping_address, athlete.shipping_landmark, athlete.shipping_city, athlete.shipping_state, athlete.shipping_pin]
+      .filter(Boolean).join(', ') || null;
+
+    const { data: redemption, error: insertErr } = await supabase
+      .from('shop_redemptions')
+      .insert([{
+        influencer_id: influencerId,
+        product_id: product.id,
+        product_name: product.name,
+        image_url: product.image_url,
+        coin_price: product.coin_price,
+        size: size ? String(size).trim().slice(0, 20) : null,
+        shipping_address: shipping,
+        note: note ? String(note).trim().slice(0, 500) : null,
+        status: 'REQUESTED'
+      }])
+      .select()
+      .single();
+    if (insertErr) throw insertErr;
+
+    try {
+      const { entry, balance } = await LedgerService.spend(
+        influencerId, 'COIN', product.coin_price, 'REDEMPTION', redemption.id,
+        `shop:${redemption.id}`, 'SHOP_REDEMPTION'
+      );
+      const { data: saved } = await supabase
+        .from('shop_redemptions')
+        .update({ ledger_entry_id: entry?.id ?? null })
+        .eq('id', redemption.id)
+        .select()
+        .single();
+      return { redemption: saved || redemption, balance };
+    } catch (spendErr) {
+      // Nothing was held — drop the half-made request so it never reaches the admin.
+      await supabase.from('shop_redemptions').delete().eq('id', redemption.id);
+      throw spendErr;
+    }
+  },
+
+  /** Admin queue: every request with the athlete attached. */
+  async getAllShopRedemptions({ status = null, athleteId = null, limit = 200 } = {}) {
+    let query = supabase
+      .from('shop_redemptions')
+      .select('*, influencers(name, athlete_no, instagram_handle, phone, coin_balance)')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (status) query = query.eq('status', String(status).toUpperCase());
+    if (athleteId) query = query.eq('influencer_id', parseInt(athleteId, 10));
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  },
+
+  /** Approve: the held coins stay spent and one unit leaves the shelf. */
+  async approveShopRedemption(id, { notes = null, actor = 'admin' } = {}) {
+    const redemption = await this._openRedemption(id);
+
+    const { data, error } = await supabase
+      .from('shop_redemptions')
+      .update({
+        status: 'APPROVED',
+        decided_at: new Date().toISOString(),
+        decided_by: actor,
+        admin_notes: notes || null
+      })
+      .eq('id', redemption.id)
+      .select()
+      .single();
+    if (error) throw error;
+
+    if (redemption.product_id) await this._decrementShopStock(redemption.product_id, 1);
+    return data;
+  },
+
+  /** Reject: the held coins come back as a reversal row (the ledger is append-only). */
+  async rejectShopRedemption(id, { reason = null, actor = 'admin' } = {}) {
+    const redemption = await this._openRedemption(id);
+
+    const { data, error } = await supabase
+      .from('shop_redemptions')
+      .update({
+        status: 'REJECTED',
+        decided_at: new Date().toISOString(),
+        decided_by: actor,
+        admin_notes: reason || null
+      })
+      .eq('id', redemption.id)
+      .select()
+      .single();
+    if (error) throw error;
+
+    try {
+      let entryId = redemption.ledger_entry_id;
+      if (!entryId) {
+        const { data: hold } = await supabase
+          .from('ledger_entries')
+          .select('id')
+          .eq('idempotency_key', `shop:${redemption.id}`)
+          .maybeSingle();
+        entryId = hold?.id || null;
+      }
+      if (entryId) await LedgerService.reverse(entryId, 'SHOP_REFUND', actor);
+    } catch (refundErr) {
+      console.error(`[shop] refund failed for redemption ${redemption.id}:`, refundErr.message);
+    }
+
+    return data;
+  },
+
+  /** @private — fetch a redemption that is still waiting for a decision */
+  async _openRedemption(id) {
+    const { data, error } = await supabase
+      .from('shop_redemptions')
+      .select('*')
+      .eq('id', parseInt(id, 10))
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) throw this._shopError('Request not found', 404);
+    if (data.status !== 'REQUESTED') throw this._shopError(`Request already ${String(data.status).toLowerCase()}`, 409);
+    return data;
+  },
+
+  /** @private — stock NULL means unlimited, so only a real number is decremented */
+  async _decrementShopStock(productId, qty = 1) {
+    const { data: product, error } = await supabase
+      .from('shop_products')
+      .select('id, stock')
+      .eq('id', productId)
+      .maybeSingle();
+    if (error || !product) return;
+    if (product.stock === null || product.stock === undefined) return;
+
+    await supabase
+      .from('shop_products')
+      .update({ stock: Math.max(0, Number(product.stock) - qty), updated_at: new Date().toISOString() })
+      .eq('id', productId);
+  },
+
+  /** @private — normalise an admin product form body into a shop_products row */
+  _shopProductRow(body = {}, partial = false) {
+    const has = key => body[key] !== undefined;
+    const row = {};
+    const text = v => (v === null || v === undefined || String(v).trim() === '' ? null : String(v).trim());
+
+    if (!partial || has('name')) row.name = String(body.name || '').trim();
+    if (!partial || has('description')) row.description = text(body.description);
+    if (!partial || has('image_url')) row.image_url = text(body.image_url);
+    if (!partial || has('category')) row.category = text(body.category);
+    if (!partial || has('coin_price')) row.coin_price = Math.max(0, Math.floor(Number(body.coin_price) || 0));
+    if (!partial || has('stock')) {
+      row.stock = body.stock === null || body.stock === undefined || body.stock === ''
+        ? null
+        : Math.max(0, Math.floor(Number(body.stock) || 0));
+    }
+    if (!partial || has('is_active')) {
+      row.is_active = body.is_active === undefined
+        ? true
+        : (body.is_active === true || body.is_active === 'true' || body.is_active === 1);
+    }
+    if (!partial || has('sort_order')) row.sort_order = Math.floor(Number(body.sort_order) || 0);
+    return row;
+  },
+
+  /** @private — error carrying an HTTP status so routes can pass it straight through */
+  _shopError(message, status = 400) {
+    const err = new Error(message);
+    err.status = status;
+    return err;
   },
 
   async captureRankSnapshots() {

@@ -101,6 +101,98 @@ const LedgerService = {
   },
 
   /**
+   * Debit XP or coins from an athlete — the mirror image of award().
+   * Inserts a NEGATIVE ledger row and lowers the cached balance in the same
+   * sequence, so a spend is still just an append: nothing is edited.
+   * Reject the spend with err.code = 'INSUFFICIENT_BALANCE' when the athlete
+   * cannot cover it, and refund it later with reverse(entry.id).
+   *
+   * @param {number} influencerId
+   * @param {'XP'|'COIN'} currency
+   * @param {number} amount — positive integer; written as a negative entry
+   * @param {'ASSIGNMENT'|'ORDER'|'REFERRAL'|'MANUAL'|'REVERSAL'|'EXPIRY'|'REDEMPTION'} sourceType
+   * @param {number|null} sourceId — redemption_id, etc.
+   * @param {string} idempotencyKey — unique key (e.g. "shop:42")
+   * @param {string} reasonCode — e.g. SHOP_REDEMPTION
+   * @param {string|null} actorId — null = system, admin email for manual debits
+   * @returns {Promise<{entry: object, isNew: boolean, balance: number}>}
+   */
+  async spend(influencerId, currency, amount, sourceType, sourceId, idempotencyKey, reasonCode = 'REDEMPTION', actorId = null) {
+    if (!['XP', 'COIN'].includes(currency)) throw new Error(`Invalid currency: ${currency}`);
+    if (!Number.isInteger(amount) || amount <= 0) throw new Error('Amount must be a positive integer');
+
+    // Check idempotency — if key exists, the spend already happened (no-op)
+    const { data: existing, error: lookupErr } = await supabase
+      .from('ledger_entries')
+      .select('*')
+      .eq('idempotency_key', idempotencyKey)
+      .maybeSingle();
+
+    if (lookupErr) throw lookupErr;
+    if (existing) return { entry: existing, isNew: false, balance: existing.balance_after };
+
+    const { data: influencer, error: infErr } = await supabase
+      .from('influencers')
+      .select('id, xp_total, coin_balance')
+      .eq('id', influencerId)
+      .single();
+
+    if (infErr) throw infErr;
+    if (!influencer) throw new Error(`Influencer ${influencerId} not found`);
+
+    const balanceCol = currency === 'XP' ? 'xp_total' : 'coin_balance';
+    const currentBalance = Number(influencer[balanceCol] || 0);
+    if (currentBalance < amount) {
+      const err = new Error(`Insufficient ${currency === 'COIN' ? 'coins' : 'XP'}: ${currentBalance} available, ${amount} needed`);
+      err.code = 'INSUFFICIENT_BALANCE';
+      err.status = 400;
+      throw err;
+    }
+
+    const balanceAfter = currentBalance - amount;
+
+    const { data: entry, error: insertErr } = await supabase
+      .from('ledger_entries')
+      .insert([{
+        influencer_id: influencerId,
+        currency,
+        amount: -amount,
+        balance_after: balanceAfter,
+        source_type: sourceType,
+        source_id: sourceId,
+        reason_code: reasonCode,
+        actor_id: actorId,
+        idempotency_key: idempotencyKey
+      }])
+      .select()
+      .single();
+
+    if (insertErr) {
+      // Handle race condition on idempotency key
+      if (insertErr.code === '23505') {
+        const { data: race } = await supabase
+          .from('ledger_entries')
+          .select('*')
+          .eq('idempotency_key', idempotencyKey)
+          .single();
+        return { entry: race, isNew: false, balance: race?.balance_after ?? balanceAfter };
+      }
+      throw insertErr;
+    }
+
+    const { error: updateErr } = await supabase
+      .from('influencers')
+      .update({ [balanceCol]: balanceAfter })
+      .eq('id', influencerId);
+
+    if (updateErr) {
+      console.error(`[LedgerService] Failed to update cached ${currency} balance for influencer ${influencerId}:`, updateErr);
+    }
+
+    return { entry, isNew: true, balance: balanceAfter };
+  },
+
+  /**
    * Reverse a previous ledger entry.
    * Creates a new entry with negated amount and reverses_entry_id set.
    *

@@ -23,7 +23,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
   {% # theme-check-enable RemoteAsset %}
   {% comment %} Styles and behaviour live in theme assets, not inline (this template was over Shopify's 256 KB limit). Upload the repo files shopify-assets/athlete-portal.css and shopify-assets/athlete-portal.js to Online Store > Themes > Edit code > Assets (keeping those filenames) BEFORE saving this template, otherwise the page loads unstyled and inert. {% endcomment %}
-  <link rel="stylesheet" href="{{ 'athlete-portal.css' | asset_url }}?v=9">
+  <link rel="stylesheet" href="{{ 'athlete-portal.css' | asset_url }}?v=10">
 </head>
 <body>
   <div class="loading" id="loading"><p>Loading athlete portal</p></div>
@@ -334,8 +334,8 @@
         <div id="shopContent"></div>
       </div>
       <div class="soon-veil" role="status" aria-live="polite">
-        <span class="soon-tag">Coming soon</span>
-        <p class="soon-line">The coin shop opens shortly. Coins you bank now stay in your balance.</p>
+        <span class="soon-tag" id="shopLockTag">Coming soon</span>
+        <p class="soon-line" id="shopLockLine">The coin shop opens shortly. Coins you bank now stay in your balance.</p>
       </div>
     </section>
     </div>
@@ -434,6 +434,6 @@
 
   </div></main>
 
-<script src="{{ 'athlete-portal.js' | asset_url }}?v=11" defer></script>
+<script src="{{ 'athlete-portal.js' | asset_url }}?v=12" defer></script>
 </body>
 </html>
