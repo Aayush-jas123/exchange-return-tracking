@@ -94,6 +94,7 @@ html, body {
   text-align: center;
   flex-shrink: 0;
 }
+.mode-icon svg { display: block; width: 1em; height: 1em; margin: 0 auto; }
 .mode-label {
   font: 700 15px var(--f);
   display: block;

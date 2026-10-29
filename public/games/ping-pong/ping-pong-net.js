@@ -325,7 +325,7 @@
 
     if (!room) {
       rc.innerHTML = '<div class="lab">Live match</div>' +
-        '<p>Create a room, invite an athlete, or join an open lobby. First to 10 wins \u2014 3 misses and you\u2019re out.</p>' +
+        '<p>Create a room, invite an athlete, or join an open lobby. First to 5 wins \u2014 3 misses and you\u2019re out.</p>' +
         '<div class="btn-row"><button class="btn-p" data-act="create">Create room</button></div>';
       return;
     }
