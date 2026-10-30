@@ -8,16 +8,34 @@ const $=id=>document.getElementById(id);
 const esc=v=>{const e=document.createElement('div');e.textContent=v||'';return e.innerHTML};
 const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+// Where the portal token lives. sessionStorage is the default — the login dies
+// with the tab, which is why an athlete used to need a fresh OTP every session.
+// An athlete who answers "Keep me signed in" after the code gets the same token
+// in localStorage instead, so tomorrow's visit opens straight into the portal.
+const AUTH_KEY='ap_token',STAY_KEY='ap_token_stay';
+function readToken(){try{return localStorage.getItem(STAY_KEY)||sessionStorage.getItem(AUTH_KEY)}catch(e){return null}}
+function stayRemembered(){try{return !!localStorage.getItem(STAY_KEY)}catch(e){return false}}
+function clearToken(){try{localStorage.removeItem(STAY_KEY)}catch(e){}try{sessionStorage.removeItem(AUTH_KEY)}catch(e){}}
+// True only when the token really landed in localStorage: private mode and a
+// full quota fall back to the tab-only session instead of losing the login.
+function saveToken(token,remember){
+  clearToken();
+  if(remember){try{localStorage.setItem(STAY_KEY,token);return true}catch(e){}}
+  try{sessionStorage.setItem(AUTH_KEY,token)}catch(e){}
+  return false;
+}
+
 // Admin deep links hand the athlete page a ready-made portal token in the hash
 // (…/pages/athlete-portal#ap_token=<token>) so the console can open any athlete
-// in a new tab. Stored in sessionStorage like an OTP login, then stripped from
-// the address bar so the token is not left in history or shared links.
+// in a new tab. Stored exactly like an OTP login (remembered device stays
+// remembered), then stripped from the address bar so the token is not left in
+// history or shared links.
 (function adoptUrlToken(){
   const fromHash=new URLSearchParams((location.hash||'').replace(/^#/,'')).get('ap_token');
   const fromQuery=new URLSearchParams(location.search||'').get('ap_token');
   const tok=fromHash||fromQuery;
   if(!tok)return;
-  sessionStorage.setItem('ap_token',tok);
+  saveToken(tok,stayRemembered());
   history.replaceState(null,'',location.pathname);
 })();
 
@@ -394,7 +412,7 @@ function renderAvSettings(){
     <div><div class="setrow"><div><b>Show me on the leaderboard</b><em>Off means you still earn, you just stop appearing</em></div><button class="sw" type="button" aria-pressed="${a.leaderboard_opt_out?'false':'true'}" aria-label="Leaderboard"></button></div><div class="setrow"><div><b>WhatsApp nudges</b><em>Deadlines and approvals only. Never marketing.</em></div><button class="sw" type="button" aria-pressed="true" aria-label="Nudges"></button></div></div>
     <div class="rule"></div>
     <div class="kick">Session</div>
-    <div><div class="shiprow"><div><b>This device</b><em>Active now</em></div><span class="chipk go">current</span></div></div>
+    <div><div class="shiprow"><div><b>This device</b><em>${stayRemembered()?'Stays signed in':'Ends when you close the portal'}</em></div><span class="chipk go">current</span></div></div>
     <button class="dangerbtn" type="button" id="signoutAll">Sign out everywhere</button>
     <p style="font-size:10.5px;color:var(--dim);margin:0;line-height:1.45;flex:none">Use this if you have lost a phone. Every session ends, including this one, and you sign in again with a fresh code.</p>`;
   $('avSaveProfile').onclick=saveProfile;
@@ -405,7 +423,7 @@ function renderAvSettings(){
       toast(on?'Turned off':'Turned on','');
     };
   });
-  $('signoutAll').onclick=()=>{closeAvSheet();sessionStorage.removeItem('ap_token');S.token=null;showAuthError();toast('Signed out','everywhere')};
+  $('signoutAll').onclick=()=>{closeAvSheet();signOut();toast('Signed out','everywhere')};
 }
 
 // ── Sidebar account ──
@@ -633,8 +651,8 @@ function sbRenderSettings(){
     <div class="sb-shiprow" style="padding:10px 0;border-bottom:1px solid var(--line)"><div><b>Show on leaderboard</b><em>Off means you still earn, just hidden</em></div><button class="sb-chip" type="button" onclick="this.textContent=this.textContent==='On'?'Off':'On';toast(this.textContent==='On'?'Visible':'Hidden','')">${a.leaderboard_opt_out?'Off':'On'}</button></div>
     <div class="sb-shiprow" style="padding:10px 0"><div><b>WhatsApp nudges</b><em>Deadlines and approvals only</em></div><span class="sb-chip go">On</span></div>
     <div class="sb-kick" style="margin-top:14px">Session</div>
-    <div class="sb-shiprow" style="padding:10px 0"><div><b>This device</b><em>Active now</em></div><span class="sb-chip go">current</span></div>
-    <button class="sb-danger" type="button" onclick="sessionStorage.removeItem('ap_token');S.token=null;showAuthError();toast('Signed out','everywhere')">Sign out everywhere</button>
+    <div class="sb-shiprow" style="padding:10px 0"><div><b>This device</b><em>${stayRemembered()?'Stays signed in':'Ends when you close the portal'}</em></div><span class="sb-chip go">current</span></div>
+    <button class="sb-danger" type="button" onclick="signOut();toast('Signed out','everywhere')">Sign out everywhere</button>
     <p class="sb-note">Use this if you have lost a phone. Every session ends, including this one.</p>`;
   $('sbSaveProfile').onclick=saveProfile;
 }
@@ -2190,8 +2208,11 @@ async function attempt(path){
   }
 }
 
-function showAuthError(){
-  sessionStorage.removeItem('ap_token');S.token=null;raceClose();
+// keepToken: an unreachable API or a 5xx leaves the saved login in place so the
+// next load can retry it; only a token the server actually rejected is deleted.
+function showAuthError(keepToken){
+  if(!keepToken)clearToken();
+  S.token=null;raceClose();
   // Signing out (or a rejected token) must leave nothing of the portal behind.
   // The desktop sidebar and its slide-in panels are siblings of the login
   // overlay, so dropping .ready — the only thing that shows .portal — is what
@@ -2203,6 +2224,12 @@ function showAuthError(){
   $('loading').hidden=true;$('auth').hidden=false;
   if(typeof resetOtpUI==='function')resetOtpUI();
 }
+// Every sign-out in the portal goes through here so both stores are emptied and
+// a remembered device cannot silently sign itself back in.
+function signOut(){
+  S.token=null;
+  showAuthError();
+}
 
 async function loadPortal(){
   dbg(`login start · token ${maskToken(S.token)}`);
@@ -2211,16 +2238,16 @@ async function loadPortal(){
     const results=await Promise.all(ENDPOINTS.map(attempt));
     const failed=results.filter(r=>!r.ok);
     if(failed.length){
-      showAuthError();
       const okN=results.length-failed.length;
       dbg(`login failed — ${okN}/${results.length} endpoints OK · failed: ${failed.map(f=>f.path).join(', ')}`,'err');
       const netFail=failed.some(f=>f.error.network);
       const statuses=[...new Set(failed.map(f=>f.error.status).filter(Boolean))];
       const allFailed=failed.length===results.length;
+      showAuthError(netFail||!statuses.includes(401));
       $('authError').textContent=
         netFail?'Cannot reach athlete API — check connection, server status or CORS.':
         statuses.includes(404)?'Athlete API routes missing on the server (404) — deployment issue.':
-        allFailed&&statuses.includes(401)?'This portal link is no longer valid — ask the OFFCOMFRT team for a fresh one.':
+        allFailed&&statuses.includes(401)?'Your session has ended — enter your number to get a fresh code.':
         `Login failed on: ${failed.map(f=>f.path).join(', ')}`;
       return;
     }
@@ -2234,7 +2261,7 @@ async function loadPortal(){
     // Shop loads outside ENDPOINTS so a missing /shop route never blocks login.
     loadShop();
   }catch(e){
-    showAuthError();
+    showAuthError(true);
     dbg(`login crashed: ${e.message}`,'err');
     $('authError').textContent=e.message||'Login failed — see diagnostics below';
   }
@@ -2304,13 +2331,18 @@ document.addEventListener('DOMContentLoaded',()=>{
     syncBoardsOpen();
   });
   // ── Athlete OTP flow ──
-  let otpPhone=null,otpResendTimer=null,otpExpiryTimer=null;
+  let otpPhone=null,otpResendTimer=null,otpExpiryTimer=null,pendingToken=null;
   $('authForm').onsubmit=e=>e.preventDefault();
   function resetOtpUI(){
     $('otpStep1').style.display='block';
     $('otpStep2').style.display='none';
     $('otpTimer').textContent='';
     otpPhone=null;
+    pendingToken=null;
+    // Guarded: a theme still on the previous template has no stay card, and a
+    // half-finished upload must not break the rest of the login screen.
+    if($('stayCard'))$('stayCard').hidden=true;
+    $('authForm').hidden=false;
     if(otpResendTimer)clearInterval(otpResendTimer);
     if(otpExpiryTimer)clearInterval(otpExpiryTimer);
   }
@@ -2385,11 +2417,8 @@ document.addEventListener('DOMContentLoaded',()=>{
       });
       const data=await r.json();
       if(!r.ok)throw new Error(data.error||'Verification failed');
-      S.token=data.data.token;
       dbg(`OTP verified — athlete: ${data.data.athlete?.name||'unknown'}`,'ok');
-      sessionStorage.setItem('ap_token',S.token);
-      $('auth').hidden=true;$('loading').hidden=false;
-      loadPortal();
+      askStay(data.data.token);
     }catch(e){
       $('authError').textContent=e.message||'Verification failed';
       dbg(`OTP verify failed: ${e.message}`,'err');
@@ -2397,6 +2426,32 @@ document.addEventListener('DOMContentLoaded',()=>{
       btn.disabled=false;btn.textContent='Verify & enter portal';
     }
   };
+
+  // The code is good — the last step is one question: keep this device signed
+  // in, or fall back to the tab-only session the portal always had. Nothing is
+  // stored until the athlete picks, so the login still suits a borrowed phone.
+  function askStay(token){
+    // No card in the deployed template yet: keep the old behaviour (straight in,
+    // tab-only session) instead of stalling on a prompt that cannot render.
+    if(!$('stayCard')){saveToken(token,false);S.token=token;$('auth').hidden=true;$('loading').hidden=false;loadPortal();return}
+    pendingToken=token;
+    $('authForm').hidden=true;
+    $('stayCard').hidden=false;
+    $('stayYes').focus();
+  }
+  function finishLogin(remember){
+    const token=pendingToken;
+    pendingToken=null;
+    $('stayCard').hidden=true;
+    if(!token){$('authForm').hidden=false;return}
+    const kept=saveToken(token,remember);
+    S.token=token;
+    dbg(kept?'token saved on this device — the next visit skips the OTP':'token kept for this tab only','ok');
+    $('auth').hidden=true;$('loading').hidden=false;
+    loadPortal();
+  }
+  $('stayYes').onclick=()=>finishLogin(true);
+  $('stayNo').onclick=()=>finishLogin(false);
 
   // Admins do not log in here. The athlete admin console opens an athlete's
   // portal in a new tab with a ready-made token (#ap_token=…), which the page
@@ -2425,7 +2480,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   }
 
   dbg('portal page loaded');
-  const saved=sessionStorage.getItem('ap_token');
-  if(saved){dbg(`saved token found · ${maskToken(saved)}`);S.token=saved;loadPortal()}
+  const saved=readToken();
+  if(saved){dbg(`saved token found · ${maskToken(saved)}${stayRemembered()?' · remembered device':''}`);S.token=saved;loadPortal()}
   else{$('loading').hidden=true;$('auth').hidden=false;dbg('no saved token — auth screen')}
 });

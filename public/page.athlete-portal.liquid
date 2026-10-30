@@ -23,7 +23,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
   {% # theme-check-enable RemoteAsset %}
   {% comment %} Styles and behaviour live in theme assets, not inline (this template was over Shopify's 256 KB limit). Upload the repo files shopify-assets/athlete-portal.css and shopify-assets/athlete-portal.js to Online Store > Themes > Edit code > Assets (keeping those filenames) BEFORE saving this template, otherwise the page loads unstyled and inert. {% endcomment %}
-  <link rel="stylesheet" href="{{ 'athlete-portal.css' | asset_url }}?v=13">
+  <link rel="stylesheet" href="{{ 'athlete-portal.css' | asset_url }}?v=14">
 </head>
 <body>
   <div class="loading" id="loading"><p>Loading athlete portal</p></div>
@@ -52,6 +52,15 @@
 
       <p id="authError"></p>
     </form>
+
+    {% comment %} Asked once, right after the OTP checks out: staying signed in moves the portal token out of the tab and onto the device, so the next visit skips the SMS. "No" keeps the tab-only session the portal always had, which is what a borrowed phone wants. {% endcomment %}
+    <div class="auth-card stay-card" id="stayCard" role="dialog" aria-labelledby="stayTitle" hidden>
+      <h1 id="stayTitle">Stay signed in?</h1>
+      <p class="auth-sub">Skip the code next time</p>
+      <p class="stay-copy">Keep this device signed in and the portal opens straight to your missions. Choose this only on a phone you keep to yourself.</p>
+      <button type="button" id="stayYes">Keep me signed in</button>
+      <button type="button" class="ghost" id="stayNo">No, ask me next time</button>
+    </div>
   </div>
 
   <main class="portal" id="portal">
@@ -440,6 +449,6 @@
 
   </div></main>
 
-<script src="{{ 'athlete-portal.js' | asset_url }}?v=16" defer></script>
+<script src="{{ 'athlete-portal.js' | asset_url }}?v=17" defer></script>
 </body>
 </html>

@@ -32,6 +32,15 @@
     .auth-card #authError{color:#fff;font:600 11px/1.5 var(--f);letter-spacing:.01em;text-transform:none;margin:14px 0 0;padding:10px 12px;border-left:2px solid #fff;background:rgba(255,255,255,.06)}
     .auth-card .auth-sub{margin:6px 0 0}
 
+    /* Post-OTP "stay signed in" prompt. Same card, same field rhythm as the
+       login form so the decision reads as the last step of signing in, not as
+       an ad or a browser dialog. */
+    .stay-card{display:block}
+    .stay-card[hidden]{display:none}
+    .stay-card h1{font-size:23px;letter-spacing:.08em}
+    .stay-card .stay-copy{margin:14px 0 0;font:400 13px/1.55 var(--f);letter-spacing:0;text-transform:none;color:var(--sdim)}
+    .stay-card button{margin-top:12px}
+
     .login-pane{display:none}
     .login-pane.active{display:block}
     .login-pane label{display:block;font:600 10px var(--m);letter-spacing:.1em;text-transform:uppercase;color:var(--sdim);margin-top:18px}
