@@ -34,6 +34,10 @@
 
   // Online run
   let inGame = false;
+  // A runner reports their own end and drops out of the live feed before the hub
+  // settles the room, so the results handler cannot tell from `inGame` alone
+  // whether this athlete actually raced. Keep that fact until the payout arrives.
+  let endedRun = false;
   let players = [];       // [{ id, name, color, lane, column, score, alive }]
   let lastSent = { l: -1, c: -1, at: 0 }; // last cell pushed to the hub
   let pendingState = false;               // a hop landed inside the rate window
@@ -158,6 +162,7 @@
     sendEnd(score) {
       if (!inGame) return;
       inGame = false;
+      endedRun = true;
       send({ t: 'cr_end', scores: [{ id: myId, score: score }] });
     }
   };
@@ -285,6 +290,7 @@
         if (!room || (m.room && m.room !== room.r)) break;
         raceId = m.race || null;
         inGame = true;
+        endedRun = false;
         lastSent = { l: -1, c: -1, at: 0 };
         pendingState = false;
         const roster = m.roster || [];
@@ -357,8 +363,9 @@
         if (!forRoom) break;
         const rows = m.rows || [];
         const mine = rows.find(r => String(r.id) === myId);
-        const wasInGame = inGame;
+        const wasInGame = inGame || endedRun;
         inGame = false;
+        endedRun = false;
         players = [];
         Net.players = [];
         if (window.CrossyRoad && window.CrossyRoad.clearRemotePlayers) window.CrossyRoad.clearRemotePlayers();
@@ -366,8 +373,9 @@
         const reward = mine
           ? { xp: mine.xp || 0, coins: mine.coins || 0, today: mine.today, cap: mine.cap, why: mine.why }
           : null;
-        // A paid race speaks up once; a duplicate report of the same race is silent.
-        if (wasInGame && reward && (reward.xp > 0 || reward.coins > 0 || reward.why === 'daily_cap')) {
+        // A paid race speaks up once; a duplicate report of the same race is silent
+        // because `endedRun` was already consumed by the first result.
+        if (wasInGame && reward && (reward.xp > 0 || reward.coins > 0 || reward.why)) {
           if (window.AthleteXP && window.AthleteXP.announce) {
             window.AthleteXP.announce({
               awarded: reward.xp, coins_awarded: reward.coins,
@@ -401,7 +409,7 @@
     const goRank = $('goRank');
     const goResults = $('goResults');
     if (goScore) goScore.textContent = mine ? (mine.sc || 0) : 0;
-    if (goXP) goXP.textContent = mine && mine.xp > 0 ? '+' + mine.xp : '--';
+    if (goXP) goXP.textContent = mine ? '+' + Math.max(0, Number(mine.xp) || 0) : '--';
     if (goRank) goRank.textContent = mine && mine.rank > 0 ? '#' + mine.rank : '--';
     if (goResults) {
       goResults.innerHTML = rows.map(r =>

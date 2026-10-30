@@ -126,6 +126,14 @@
   // An online race is paid by the RaceHub on the lanes each runner reports, so the
   // local portal report must stay off for it — otherwise the run pays twice.
   let onlineRun = false;
+  // Why a finished solo run paid nothing. The toast carrying the same wording fades
+  // after three seconds, so the results card repeats it instead of leaving "0 XP".
+  const XP_NOTE = {
+    cooldown: 'Next run pays in a moment',
+    score_too_low: 'Cross more lanes to earn XP',
+    daily_cap: 'Daily arcade cap reached, resets at midnight IST',
+    duplicate: 'Run already counted'
+  };
 
   // ── Grass is not a safe haven: 5 s standing still ends the run ──
   const GRASS_LIMIT = 5000;
@@ -905,7 +913,16 @@
     if (!onlineRun && typeof AthleteXP !== 'undefined' && AthleteXP.report) {
       const paid = AthleteXP.report('crossy-road', finalScore);
       if (paid && paid.then) {
-        paid.then(r => { if (r && r.awarded > 0 && goXP) goXP.textContent = '+' + r.awarded; });
+        paid.then(r => {
+          if (!r) return;
+          const xp = Math.max(0, Number(r.awarded) || 0);
+          if (goXP) goXP.textContent = '+' + xp;
+          const note = xp > 0 ? null : XP_NOTE[r.reason];
+          if (note && goResults) {
+            const death = goResults.textContent ? goResults.textContent + ' ' : '';
+            goResults.textContent = death + note + '.';
+          }
+        });
       }
     }
     if (onlineRun && typeof Net !== 'undefined' && Net.sendEnd) {

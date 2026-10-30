@@ -25,7 +25,7 @@ const GAME_RULES = {
 
 // Cabinet order for the Games tab: every playable tile gets its own ladder, even
 // before anyone has run it, so the sideways track never shifts between periods.
-const ARCADE_CABINETS = ['rooftop-racing', 'fruit-ninja', 'ping-pong', 'pac-man'];
+const ARCADE_CABINETS = ['rooftop-racing', 'fruit-ninja', 'ping-pong', 'pac-man', 'crossy-road'];
 
 // Arcade ledger rows carry the game and the run inside their idempotency key:
 //   game:<athlete>:<game>:<runId>[:coins]   ·   race:<raceId>:<athlete>
