@@ -233,6 +233,17 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
     if (!rm) return;
     const m = rm.members.get(ws.athlete.id);
     if (!m || m.ws !== ws) return;
+    // Crossy Road has no single finish line: a runner either reports their own end
+    // or leaves, and the race closes when nobody is left running. A dropped tab
+    // must not hold the room hostage, so the seat is closed out here.
+    if (rm.game === 'crossy-road' && m.inRace && (rm.status === 'playing' || rm.status === 'countdown')) {
+      m.inRace = false; m.alive = false; m.crDone = true;
+      if (dropped) { m.ws = null; m.droppedAt = now(); } // seat kept briefly for a reconnect
+      else rm.members.delete(m.id);
+      pushRoom(rm);
+      checkAllCRDone(rm);
+      return;
+    }
     if (dropped && m.inRace && (rm.status === 'racing' || rm.status === 'countdown')) {
       m.ws = null; m.droppedAt = now(); // seat kept briefly for a reconnect
       pushRoom(rm);
@@ -278,14 +289,16 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
     if (rm.hostId !== ws.athlete.id) return send(ws, { t: 'err', m: 'Only the host can start' });
     if (rm.status !== 'lobby') return;
     rm.raceId = crypto.randomUUID();
-    rm.seed = crypto.randomBytes(4).readUInt32LE(0);
+    // Crossy Road builds its map from this number, and 0 means "unseeded" to the
+    // cabinets — so never hand out a zero.
+    do { rm.seed = crypto.randomBytes(4).readUInt32LE(0); } while (!rm.seed);
     rm.startAt = now() + COUNTDOWN_MS;
     rm.status = 'countdown';
 
     if (isArcade(rm.game)) {
       // Lightweight start — no simulation replay needed
       for (const m of rm.members.values()) {
-        Object.assign(m, { inRace: !!m.ws, waiting: !m.ws, alive: !!m.ws, dnf: false, sc: 0 });
+        Object.assign(m, { inRace: !!m.ws, waiting: !m.ws, alive: !!m.ws, dnf: false, sc: 0, crScore: 0, crDone: false });
       }
       // Pac-Man plays one shared board: the hub owns its pellets, ghosts and
       // kills, so every athlete in the room sees the same maze and the same
@@ -306,6 +319,9 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
         rm.guard = setTimeout(() => {
           if (!rooms.has(rm.code)) return;
           if (rm.game === 'pac-man') return finishPM(rm);
+          // Crossy Road ends per runner, so the cap pays the lanes each seat had
+          // reported instead of dropping everyone back with nothing.
+          if (rm.game === 'crossy-road') return finishCR(rm);
           if (rm.status !== 'playing') return;
           rm.status = 'lobby';
           for (const m of rm.members.values()) { m.inRace = false; m.alive = false; }
@@ -528,6 +544,8 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
   // ── Pac-Man — one shared board per room, simulated here ──
   const pmRateLimit = new Map(); // ws -> lastSendMs
   const crRateLimit = new Map(); // ws -> lastSendMs
+  const crPushLimit = new Map(); // ws -> lastShoveMs
+  const CR_PUSH_MS = 280; // a runner cannot spam shoves faster than this
   function onPMState(ws, msg) {
     const rm = ws.room && rooms.get(ws.room);
     if (!rm || rm.game !== 'pac-man' || !rm.pm) return;
@@ -606,15 +624,24 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
     if (PM.over(rm.pm)) finishPM(rm);
   }
 
+  // ── Crossy Road — one seeded map, lanes relayed live, each runner ends alone ──
+  // Every seat builds the same lanes and traffic from the room seed, so the hub
+  // relays positions and shoves on one shared board — but there is still no single
+  // finish line, so it keeps one score per seat and closes the race when the last
+  // runner is out (or the match guard expires).
   function onCRState(ws, msg) {
     const rm = ws.room && rooms.get(ws.room);
-    if (!rm || rm.game !== 'crossy-road' || rm.status !== 'playing') return;
+    if (!rm || rm.game !== 'crossy-road') return;
+    if (rm.status !== 'playing' && rm.status !== 'countdown') return;
     const nowMs = now();
     const last = crRateLimit.get(ws) || 0;
     if (nowMs - last < 100) return; // 10Hz cap
     crRateLimit.set(ws, nowMs);
     const m = rm.members.get(ws.athlete.id);
     if (!m || !m.inRace) return;
+    // The furthest lane seen is what this runner is paid on, even if their end
+    // report never arrives.
+    if (!m.crDone) m.crScore = Math.max(m.crScore || 0, Math.max(0, Math.floor(Number(msg.s) || 0)));
     // Relay lane + column + score to all other players
     const payload = JSON.stringify({ t: 'ps', p: [[m.id, msg.l || 0, msg.c || 0, msg.s || 0]] });
     for (const other of rm.members.values()) {
@@ -622,18 +649,40 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
     }
   }
 
-  async function onCREnd(ws, msg) {
+  function onCREnd(ws, msg) {
     const rm = ws.room && rooms.get(ws.room);
     if (!rm || rm.game !== 'crossy-road') return;
+    if (rm.status !== 'playing' && rm.status !== 'countdown') return;
+    const m = rm.members.get(ws.athlete.id);
+    if (!m || !m.inRace || m.crDone) return;
     const scores = Array.isArray(msg.scores) ? msg.scores : [];
-    const members = [...rm.members.values()];
-    const scoreOf = new Map(scores.map(s => [String(s.id), Math.max(0, Math.floor(Number(s.score) || 0))]));
-    // Each runner is paid on their own lanes crossed, on the Crossy Road ladder.
-    const rows = members.map(m => ({
-      id: m.id, n: m.name, c: m.c, sc: scoreOf.get(String(m.id)) || 0, rank: 0, xp: 0, coins: 0, why: null
+    const own = scores.find(s => String(s.id) === String(m.id));
+    const reported = Math.max(0, Math.floor(Number(own && own.score) || 0));
+    m.crScore = Math.max(m.crScore || 0, reported);
+    m.crDone = true;
+    m.alive = false;
+    checkAllCRDone(rm);
+  }
+
+  function checkAllCRDone(rm) {
+    if (rm.status !== 'playing' && rm.status !== 'countdown') return;
+    if ([...rm.members.values()].some(m => m.inRace && !m.crDone)) return;
+    finishCR(rm);
+  }
+
+  async function finishCR(rm) {
+    if (rm.status !== 'playing' && rm.status !== 'countdown') return;
+    clearTimeout(rm.timer);
+    clearTimeout(rm.guard);
+    rm.status = 'results';
+    const racers = [...rm.members.values()].filter(m => m.inRace || m.crDone);
+    for (const m of rm.members.values()) m.inRace = false;
+    const rows = racers.map(m => ({
+      id: m.id, n: m.name, c: m.c, sc: Math.max(0, Math.floor(m.crScore || 0)), rank: 0, xp: 0, coins: 0, why: null
     }));
     rows.sort((a, b) => b.sc - a.sc);
     rows.forEach((r, i) => { r.rank = i + 1; });
+    // Each runner is paid on their own lanes crossed, on the Crossy Road ladder.
     for (const row of rows) {
       if (row.sc <= 0) continue;
       try {
@@ -644,20 +693,43 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
         row.why = r.reason || null;
       } catch (e) { console.error('[RaceHub] crossy-road XP award failed:', e.message); row.why = 'error'; }
     }
-    broadcastRoom(rm, { t: 'res', race: rm.raceId, rows });
-    // Cleanup room
-    rm.status = 'results';
-    for (const m of members) { m.inRace = false; m.alive = false; }
-    clearTimeout(rm.timer);
-    clearTimeout(rm.guard);
-    setTimeout(() => {
-      if (rooms.has(rm.code)) {
-        rm.status = 'lobby';
-        for (const m of [...rm.members.values()]) { if (!m.ws) rm.members.delete(m.id); }
-        if (!rm.members.size) { rooms.delete(rm.code); schedulePresence(); return; }
-        afterMemberGone(rm);
-      }
-    }, 2000);
+    if (!rooms.has(rm.code)) return;
+    broadcastRoom(rm, { t: 'res', race: rm.raceId, room: rm.code, rows });
+    for (const m of [...rm.members.values()]) { if (!m.ws) rm.members.delete(m.id); }
+    // The run is over, the athletes are not — straight back to the lobby.
+    rm.status = 'lobby';
+    if (!rm.members.size) { rooms.delete(rm.code); schedulePresence(); return; }
+    afterMemberGone(rm);
+  }
+
+  // ── Crossy Road shoves ──
+  // The pusher's cabinet owns the (shared) map, so it decides and proves the cell;
+  // the hub only checks who may shove whom and relays it. Every screen — the
+  // victim's included — then applies the same displacement, so nobody sees a
+  // different world.
+  function onCRPush(ws, msg) {
+    const rm = ws.room && rooms.get(ws.room);
+    if (!rm || rm.game !== 'crossy-road') return;
+    if (rm.status !== 'playing' && rm.status !== 'countdown') return;
+    const me = rm.members.get(ws.athlete.id);
+    if (!me || !me.inRace || me.crDone) return;
+    const other = memberOf(rm, msg.to);
+    if (!other || other.id === me.id || !other.inRace || other.crDone) return;
+    const lane = Math.floor(Number(msg.l));
+    const column = Math.floor(Number(msg.c));
+    if (!Number.isFinite(lane) || !Number.isFinite(column)) return;
+    if (lane < 0 || lane > 500 || column < 0 || column > 16) return;
+    const at = now();
+    if (at - (crPushLimit.get(ws) || 0) < CR_PUSH_MS) return;
+    crPushLimit.set(ws, at);
+    const payload = JSON.stringify({ t: 'cr_push', f: me.id, to: other.id, l: lane, c: column });
+    for (const m of rm.members.values()) if (m.ws) send(m.ws, payload);
+  }
+
+  // Seat keys carry the database id, which may arrive as text from a client.
+  function memberOf(rm, id) {
+    if (id == null) return null;
+    return rm.members.get(id) || rm.members.get(String(id)) || rm.members.get(Number(id)) || null;
   }
 
   function invite(ws, to, gameType) {
@@ -730,6 +802,7 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
       if (msg.t === 'pm_end') return onPMEnd(ws, msg);
       if (msg.t === 'cr_state') return onCRState(ws, msg);
       if (msg.t === 'cr_end') return onCREnd(ws, msg);
+      if (msg.t === 'cr_push') return onCRPush(ws, msg);
       if (msg.t === 'join') {
         const rm = rooms.get(String(msg.r || '').toUpperCase());
         if (!rm) return send(ws, { t: 'err', m: 'That lobby has closed' });

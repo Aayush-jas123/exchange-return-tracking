@@ -156,10 +156,20 @@ html, body {
 .instructions b { color: var(--text); }
 
 /* ── Lobby ── */
-#lobbyScreen { align-items: center; justify-content: center; padding: 24px; }
-.lobby-inner { width: 100%; max-width: 420px; text-align: center; }
+#lobbyScreen { align-items: center; justify-content: center; padding: 32px 24px 40px; }
+/* Auto margins keep the tall lobby (roster + invitees + lobbies) scrollable
+   instead of clipping its top edge under flex centering. */
+.lobby-inner { width: 100%; max-width: 420px; text-align: center; margin: auto 0; }
 .lobby-code { font: 700 36px var(--m); letter-spacing: .12em; margin: 16px 0 8px; }
 .lobby-sub { font: 400 12px var(--m); color: var(--dim); margin-bottom: 24px; }
+/* The one line that explains the shared map and the shove. */
+.lobby-hint {
+  font: 700 10px var(--m);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin: -10px 0 20px;
+}
 .lobby-players {
   display: flex;
   flex-direction: column;
@@ -178,7 +188,20 @@ html, body {
   font: 500 13px var(--f);
 }
 .lobby-player .dot { width: 8px; height: 8px; border-radius: 50%; background: #fff; flex-shrink: 0; }
-.lobby-player .pname { flex: 1; }
+.lobby-player .dot.off { background: var(--dim); }
+.lobby-player .pname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lobby-player .pmeta {
+  font: 500 10px var(--m);
+  color: var(--dim);
+  text-align: right;
+  flex-shrink: 0;
+}
+.lobby-player .pyou {
+  font: 600 9px var(--m);
+  color: var(--dim);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
 .lobby-player .phost {
   font: 600 9px var(--m);
   color: var(--dim);
@@ -186,6 +209,56 @@ html, body {
   letter-spacing: .08em;
 }
 .lobby-actions { display: flex; flex-direction: column; gap: 10px; }
+
+/* Join by code, live athletes and open lobbies */
+.lobby-form { display: flex; gap: 8px; margin-top: 18px; }
+.lobby-input {
+  flex: 1;
+  min-width: 0;
+  padding: 13px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--text);
+  font: 700 14px var(--m);
+  letter-spacing: .18em;
+  text-align: center;
+  text-transform: uppercase;
+  box-shadow: none;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.lobby-input::placeholder {
+  color: var(--dim);
+  font: 500 12px var(--f);
+  letter-spacing: .02em;
+  text-transform: none;
+}
+.lobby-input:focus { outline: none; border-color: rgba(255,255,255,.45); }
+.lobby-sec { margin-top: 26px; }
+.lobby-label {
+  font: 700 10px var(--m);
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--dim);
+  text-align: left;
+  margin-bottom: 8px;
+}
+.lobby-sec .lobby-players { margin-bottom: 0; }
+.lobby-mini {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+  font: 600 11px var(--f);
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.lobby-mini:hover:not(:disabled) { border-color: rgba(255,255,255,.4); }
+.lobby-mini:disabled { opacity: .4; cursor: not-allowed; }
 .lobby-btn {
   padding: 14px 20px;
   border-radius: 12px;
@@ -352,6 +425,10 @@ html, body {
   left: 50%;
   transform: translateX(-50%);
   z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100vw - 32px);
   background: rgba(10,10,12,.92);
   color: #fff;
   border: 1px solid rgba(255,255,255,.18);
@@ -363,8 +440,32 @@ html, body {
   transition: opacity .3s;
   opacity: 0;
 }
-.invite-toast.show { opacity: 1; }
+/* Only a shown toast carries controls, so it must accept the tap. */
+.invite-toast.show { opacity: 1; pointer-events: auto; }
 .invite-toast.hidden { display: none; }
+.invite-toast span { flex: 1; min-width: 0; }
+.invite-toast b { font-weight: 700; }
+.inv-btn {
+  flex-shrink: 0;
+  padding: 5px 13px;
+  border-radius: 999px;
+  border: 1px solid #fff;
+  background: #fff;
+  color: #000;
+  font: 700 11px var(--f);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.inv-dismiss {
+  flex-shrink: 0;
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: var(--dim);
+  font: 400 18px/1 var(--f);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
 
 /* ── Responsive ── */
 @media (max-width: 480px) {

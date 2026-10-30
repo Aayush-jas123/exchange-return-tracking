@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
     <title>OFFCOMFRT &mdash; Crossy Road</title>
-    <link rel="stylesheet" href="style.css?v=3" />
+    <link rel="stylesheet" href="style.css?v=5" />
   </head>
   <body>
 
@@ -19,7 +19,7 @@
           </button>
           <button class="mode-btn" id="btnOnline">
             <span class="mi">&#127760;</span>
-            <span class="ml">Online Race<span class="ms">4 players &middot; highest score wins</span></span>
+            <span class="ml">Online Race<span class="ms">4 players &middot; one map &middot; highest score wins</span></span>
           </button>
         </div>
         <div class="instructions-toggle" id="instrToggle">How to play <span class="arrow">&#9660;</span></div>
@@ -37,12 +37,31 @@
       <div class="lobby-inner">
         <div class="brand"><span class="brand-eyebrow">OFFCOMFRT Arcade</span><h1>Crossy Road</h1></div>
         <div class="lobby-code" id="lobbyCode">----</div>
-        <div class="lobby-sub">Share this code to invite athletes</div>
+        <div class="lobby-sub" id="lobbySub">Share this code to invite athletes</div>
         <div class="lobby-players" id="lobbyPlayers"></div>
+        <div class="lobby-hint">One shared map &middot; hop into a runner to shove them</div>
         <div class="lobby-actions">
           <button class="lobby-btn primary" id="btnStartRace" disabled>Start Race</button>
           <button class="lobby-btn" id="btnInvite">Invite Athletes</button>
           <button class="lobby-btn" id="btnLeaveLobby">&larr; Back to Menu</button>
+        </div>
+
+        <!-- Join a room by the code a friend shared -->
+        <div class="lobby-form">
+          <input class="lobby-input" id="joinCode" type="text" maxlength="6" inputmode="text"
+            autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false"
+            placeholder="Room code" aria-label="Room code" />
+          <button class="lobby-btn" id="btnJoinCode" type="button">Join</button>
+        </div>
+
+        <div class="lobby-sec">
+          <div class="lobby-label">Athletes online</div>
+          <div class="lobby-players" id="inviteList"></div>
+        </div>
+
+        <div class="lobby-sec">
+          <div class="lobby-label">Open lobbies</div>
+          <div class="lobby-players" id="roomList"></div>
         </div>
       </div>
     </div>
@@ -123,7 +142,7 @@
     <!-- portal-back.js goes first: athlete-xp.js wipes the hash it reads -->
     <script src="../portal-back.js?v=1"></script>
     <script src="../athlete-xp.js?v=19"></script>
-    <script src="crossy-road-net.js?v=20"></script>
-    <script src="script.js?v=5"></script>
+    <script src="crossy-road-net.js?v=23"></script>
+    <script src="script.js?v=8"></script>
   </body>
 </html>
