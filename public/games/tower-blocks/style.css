@@ -1,0 +1,296 @@
+/* ══════════════════════════════════════════════════════════
+   Part 1 — original source styles
+   html-css-javascript-games-main/13-Tower-Blocks/style.css
+   (the source @import's Comfortaa; the portal font stack wins
+   instead, so no external font request is made)
+   ══════════════════════════════════════════════════════════ */
+html,
+body {
+  margin: 0;
+  overflow: hidden;
+  height: 100%;
+  width: 100%;
+  position: relative;
+}
+
+#container {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+#container #score {
+  position: absolute;
+  top: 20px;
+  width: 100%;
+  text-align: center;
+  font-size: 10vh;
+  transition: transform 0.5s ease;
+  color: #334;
+  transform: translateY(-200px) scale(1);
+}
+
+#container #game {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+}
+
+#container #game canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+#container #instructions {
+  position: absolute;
+  width: 100%;
+  top: 16vh;
+  left: 0;
+  text-align: center;
+  transition: opacity 0.5s ease, transform 0.5s ease;
+  opacity: 0;
+}
+
+#container #instructions.hide {
+  opacity: 0 !important;
+}
+
+#container.playing #score,
+#container.resetting #score {
+  transform: translateY(0px) scale(1);
+}
+
+#container.playing #instructions {
+  opacity: 1;
+}
+
+#container.ended #score {
+  transform: translateY(6vh) scale(1.5);
+}
+
+/* ══════════════════════════════════════════════════════════
+   Part 2 — portal shell (monochrome chrome around the tower)
+   Shares the palette of the other cabinets (Crossy Road / Pac-Man)
+   ══════════════════════════════════════════════════════════ */
+:root {
+  --bg: #0a0a0c;
+  --card: #141418;
+  --line: #2a2a32;
+  --text: #f0f0f2;
+  --dim: #8888a0;
+  --f: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+  --m: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+/* Overrides the source body rules (later wins) */
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font: 400 16px var(--f);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+/* ── Screens ── */
+.screen {
+  position: fixed; inset: 0;
+  display: none;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.screen.active { display: flex; flex-direction: column; }
+#gameScreen { overflow: hidden; }
+#gameScreen.active { display: block; }
+
+/* ── Brand ── */
+.brand-eyebrow {
+  font: 700 10px var(--m);
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.brand h1 {
+  font: 800 clamp(28px, 6vw, 48px) var(--f);
+  letter-spacing: -.02em;
+  margin-top: 4px;
+}
+
+/* ── Menu ── */
+#menuScreen { align-items: center; justify-content: center; padding: 24px; }
+.menu-inner { width: 100%; max-width: 420px; text-align: center; }
+.brand { margin-bottom: 32px; }
+
+.mode-btns { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
+.mode-btn {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 16px 20px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: none;
+  color: var(--text);
+  font: 600 15px var(--f);
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.mode-btn:hover, .mode-btn:active { border-color: rgba(255,255,255,.3); background: #1a1a22; }
+.mode-btn .mi { flex-shrink: 0; width: 36px; }
+.mode-btn .ml { text-align: left; }
+.mode-btn .ms { display: block; font: 400 11px var(--m); color: var(--dim); margin-top: 2px; }
+
+/* ── Instructions ── */
+.instructions-toggle {
+  font: 600 12px var(--m);
+  color: var(--dim);
+  cursor: pointer;
+  margin-top: 16px;
+  letter-spacing: .04em;
+}
+.instructions-toggle .arrow {
+  display: inline-block;
+  transition: transform .2s;
+  font-size: 10px;
+}
+.instructions-toggle.open .arrow { transform: rotate(180deg); }
+.instructions { margin-top: 12px; text-align: left; }
+.instructions p { font: 400 12px/1.6 var(--f); color: var(--dim); margin: 0 0 8px; }
+.instructions b { color: var(--text); }
+
+/* ── HUD: the source #score, portal styling ── */
+/* The board is pale grey, so the score is bare dark lettering — no chip. */
+#hud {
+  position: absolute;
+  top: 20px;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+}
+#container #score {
+  position: static;
+  width: auto;
+  z-index: 10;
+  font: 800 10vh/1 var(--f);
+  letter-spacing: -.03em;
+  color: #1a1a1a;
+  pointer-events: none;
+}
+#container #score::before {
+  content: 'blocks';
+  display: block;
+  font: 700 9px var(--m);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: rgba(20,20,20,.55);
+  margin-bottom: 2px;
+}
+
+/* ── Comfort-zone line: caps, bold, white behind-glow, never boxed ── */
+#quote {
+  margin-top: 12px;
+  max-width: min(560px, 84vw);
+  font: 800 clamp(12px, 2.1vh, 16px)/1.55 var(--f);
+  text-transform: uppercase;
+  letter-spacing: .09em;
+  color: #101010;
+  text-align: center;
+  opacity: 0;
+  transition: opacity .3s ease;
+  text-shadow:
+    0 0 6px rgba(255, 255, 255, .95),
+    0 0 14px rgba(255, 255, 255, .8),
+    0 0 26px rgba(255, 255, 255, .55);
+}
+#container.playing #quote { opacity: 1; }
+
+/* ── In-game hint: the source #instructions ── */
+#container #instructions {
+  z-index: 10;
+  top: 24vh;
+  font: 600 11px var(--m);
+  letter-spacing: .06em;
+  color: rgba(20,20,20,.6);
+  padding: 0 20px;
+  pointer-events: none;
+}
+
+/* ── Game over ── */
+#gameOverScreen {
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(10,10,12,.85);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.go-inner { width: 100%; max-width: 380px; text-align: center; }
+.go-label {
+  font: 700 10px var(--m);
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin-bottom: 8px;
+}
+.go-score {
+  font: 800 clamp(48px, 12vw, 72px) var(--f);
+  letter-spacing: -.03em;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.go-sub { font: 400 12px var(--m); color: var(--dim); margin-bottom: 24px; }
+.go-stats { display: flex; gap: 12px; justify-content: center; margin-bottom: 28px; }
+.go-stat {
+  padding: 10px 18px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  text-align: center;
+}
+.go-stat .gs-val { font: 700 18px var(--m); }
+.go-stat .gs-label {
+  font: 500 9px var(--m);
+  color: var(--dim);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  margin-top: 2px;
+}
+.go-results { margin-bottom: 20px; text-align: left; }
+.go-btns { display: flex; flex-direction: column; gap: 10px; }
+.go-btn {
+  padding: 14px 20px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  box-shadow: none;
+  color: var(--text);
+  font: 600 14px var(--f);
+  cursor: pointer;
+  transition: border-color .15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.go-btn:hover { border-color: rgba(255,255,255,.3); }
+.go-btn.primary { background: #fff; color: #000; border-color: #fff; }
+.go-btn.primary:hover { background: #ddd; }
+
+/* ── Responsive ── */
+@media (max-width: 480px) {
+  #hud { top: 12px; }
+  #container #score { font-size: 9vh; }
+  #quote { font-size: 11px; letter-spacing: .07em; max-width: 90vw; }
+  #container #instructions { top: 21vh; font-size: 10px; }
+}

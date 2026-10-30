@@ -473,7 +473,8 @@ const GAME_ENTRY_PATHS = [
     { match: '/games/fruit-ninja', gameId: 'fruit-ninja' },
     { match: '/games/ping-pong', gameId: 'ping-pong' },
     { match: '/games/pac-man', gameId: 'pac-man' },
-    { match: '/games/crossy-road', gameId: 'crossy-road' }
+    { match: '/games/crossy-road', gameId: 'crossy-road' },
+    { match: '/games/tower-blocks', gameId: 'tower-blocks' }
 ];
 app.use((req, res, next) => {
     try {

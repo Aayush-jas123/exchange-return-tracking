@@ -20,12 +20,13 @@ const GAME_RULES = {
   'fruit-ninja': { label: 'Fruit Ninja', unit: 'fruits', unitsPerXp: 8, unitsPerCoin: 12 },            // fruits sliced
   'ping-pong': { label: 'Ping Pong', unit: 'points', unitsPerXp: 2, unitsPerCoin: 3 },                  // points scored
   'pac-man': { label: 'Pac-Man', unit: 'score', unitsPerXp: 50, unitsPerCoin: 80 },                      // score points
-  'crossy-road': { label: 'Crossy Road', unit: 'lanes', unitsPerXp: 5, unitsPerCoin: 8 }                  // lanes crossed
+  'crossy-road': { label: 'Crossy Road', unit: 'lanes', unitsPerXp: 5, unitsPerCoin: 8 },              // lanes crossed
+  'tower-blocks': { label: 'Tower Blocks', unit: 'blocks', unitsPerXp: 2, unitsPerCoin: 4 }               // blocks stacked
 };
 
 // Cabinet order for the Games tab: every playable tile gets its own ladder, even
 // before anyone has run it, so the sideways track never shifts between periods.
-const ARCADE_CABINETS = ['rooftop-racing', 'fruit-ninja', 'ping-pong', 'pac-man', 'crossy-road'];
+const ARCADE_CABINETS = ['rooftop-racing', 'fruit-ninja', 'ping-pong', 'pac-man', 'crossy-road', 'tower-blocks'];
 
 // Arcade ledger rows carry the game and the run inside their idempotency key:
 //   game:<athlete>:<game>:<runId>[:coins]   ·   race:<raceId>:<athlete>
