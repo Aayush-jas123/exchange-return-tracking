@@ -5139,6 +5139,10 @@ async function notifyZohoExchange(requestDetails, items) {
             ),
             sku: i.replacementSku || '',
             quantity: parseInt(i.quantity || 1),
+            // What the replacement is billed at on its own Zoho invoice. The
+            // middleware falls back to the amount paid for the replaced item
+            // when this is 0, so a same-price swap never moves money.
+            price: parseFloat(i.replacementPrice || 0) || 0,
             variant
         });
     }
