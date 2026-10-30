@@ -277,6 +277,7 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&a
 const SIM = window.RooftopSim;
 const { U, DEATH_Y, FLIP_T, RUN, AIR, SLIDE, WALL, CLIMB, TUN, DEAD, FLIP, ZONE_U, PW_T, IN_JUMP, IN_RELEASE, IN_SLIDE } = SIM;
 const VIEW_H = 250, VIEW_W_MIN = 400;       // world units always visible
+const PHONE_MAX_W = 820, PHONE_ZOOM = 1.15; // portrait phones sit a touch closer to the runner
 const TPMS = 60 / 1000;                     // sim ticks per millisecond (wall-clock locked)
 const XP_TABLE = [20, 14, 10, 7, 5];
 
@@ -317,7 +318,10 @@ function resize() {
   let d = Math.min(devicePixelRatio || 1, 2);
   if (cw * ch * d * d > 2.4e6) d = Math.sqrt(2.4e6 / (cw * ch));
   DPR = d; W = C.width = Math.round(cw * d); H = C.height = Math.round(ch * d);
-  Z = Math.min(H / VIEW_H, W / VIEW_W_MIN); VW = W / Z; VH = H / Z;
+  Z = Math.min(H / VIEW_H, W / VIEW_W_MIN);
+  // Portrait phones are width-bound, so the runner reads small — pull the camera in a little there only
+  if (cw <= PHONE_MAX_W && ch > cw) Z *= PHONE_ZOOM;
+  VW = W / Z; VH = H / Z;
   skyGrad.clear(); hazeGrad.clear(); bandCache.clear(); winPats.clear(); tagCache.clear();
 }
 
