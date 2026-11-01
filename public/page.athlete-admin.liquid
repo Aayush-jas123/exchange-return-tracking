@@ -301,6 +301,72 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);
 .ah-toast.success{border-color:var(--success)}
 .ah-toast.error{border-color:var(--danger)}
 
+/* LIVE ACTIVITY */
+.ah-live-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem}
+.ah-live-header h2{font-size:.65rem;letter-spacing:.18em;text-transform:uppercase;font-weight:700}
+.ah-live-controls{display:flex;gap:.75rem;align-items:center}
+.ah-live-indicator{display:flex;align-items:center;gap:.4rem;font-size:.6rem;color:var(--muted);font-family:var(--mono)}
+.ah-live-dot{width:8px;height:8px;border-radius:50%;background:var(--success);animation:livePulse 2s ease-in-out infinite}
+@keyframes livePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.3)}}
+.ah-live-layout{display:grid;grid-template-columns:280px 1fr;gap:1.5rem}
+.ah-online-panel{background:var(--surface);border:1px solid var(--border);padding:1.25rem;height:fit-content;position:sticky;top:68px}
+.ah-online-panel h3{font-size:.55rem;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:1rem;display:flex;justify-content:space-between;align-items:center}
+.ah-online-panel h3 .count{font-family:var(--mono);font-size:.65rem;color:var(--success);background:rgba(34,197,94,.1);padding:2px 8px;border:1px solid rgba(34,197,94,.3)}
+.ah-online-list{display:flex;flex-direction:column;gap:.5rem;max-height:400px;overflow-y:auto}
+.ah-online-item{display:flex;align-items:center;gap:.65rem;padding:.5rem;background:var(--surface-2);border:1px solid var(--border);transition:border-color var(--transition)}
+.ah-online-item:hover{border-color:var(--border-hover)}
+.ah-online-avatar{width:32px;height:32px;border-radius:50%;background:var(--surface-3);display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:700;color:var(--muted);flex-shrink:0;position:relative}
+.ah-online-avatar .status-dot{position:absolute;bottom:-1px;right:-1px;width:10px;height:10px;border-radius:50%;background:var(--success);border:2px solid var(--surface)}
+.ah-online-info{flex:1;min-width:0}
+.ah-online-info .name{font-size:.7rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ah-online-info .meta{font-size:.55rem;color:var(--muted);font-family:var(--mono);margin-top:1px}
+.ah-feed-panel{display:flex;flex-direction:column;gap:1rem}
+.ah-feed-tabs{display:flex;gap:1px;background:var(--border);border:1px solid var(--border)}
+.ah-feed-tab{flex:1;padding:.65rem 1rem;font-size:.6rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);background:var(--surface);cursor:pointer;transition:all var(--transition);text-align:center;border:none;font-family:var(--font)}
+.ah-feed-tab:hover{color:var(--text-2);background:var(--surface-2)}
+.ah-feed-tab.active{color:var(--text);background:var(--surface-3)}
+.ah-feed-content{background:var(--surface);border:1px solid var(--border);min-height:400px}
+.ah-feed-empty{padding:3rem;text-align:center;color:var(--muted);font-size:.75rem}
+.ah-event-item{display:flex;gap:1rem;padding:1rem 1.25rem;border-bottom:1px solid var(--border);transition:background var(--transition);cursor:pointer}
+.ah-event-item:hover{background:var(--surface-2)}
+.ah-event-item:last-child{border-bottom:none}
+.ah-event-icon{width:36px;height:36px;border-radius:50%;background:var(--surface-3);display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0}
+.ah-event-body{flex:1;min-width:0}
+.ah-event-title{font-size:.75rem;font-weight:600;margin-bottom:.2rem}
+.ah-event-detail{font-size:.65rem;color:var(--muted);margin-bottom:.3rem}
+.ah-event-meta{display:flex;gap:.75rem;align-items:center;font-size:.55rem;color:var(--muted);font-family:var(--mono)}
+.ah-event-meta .time{color:var(--faint)}
+.ah-event-actions{display:flex;gap:.35rem;align-items:center}
+.ah-event-badge{font-size:.45rem;padding:2px 6px;border:1px solid var(--border);font-family:var(--mono);font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+.ah-event-badge.pick{color:var(--info);border-color:var(--info)}
+.ah-event-badge.submit{color:var(--warning);border-color:var(--warning)}
+.ah-event-badge.approve{color:var(--success);border-color:var(--success)}
+.ah-event-badge.reject{color:var(--danger);border-color:var(--danger)}
+.ah-event-badge.game{color:#a855f7;border-color:#a855f7}
+.ah-event-badge.level{color:#f59e0b;border-color:#f59e0b}
+.ah-event-badge.badge{color:#06b6d4;border-color:#06b6d4}
+
+/* COMPLETED TASKS TABLE */
+.ah-completed-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem}
+.ah-completed-filters{display:flex;gap:.5rem;align-items:center}
+.ah-completed-filters select.ah-input{margin:0;padding:.4rem .65rem;font-size:.65rem;width:auto}
+.ah-completed-filters .ah-btn{padding:.4rem .75rem;font-size:.55rem}
+.ah-completion-row{display:flex;align-items:center;gap:.75rem}
+.ah-completion-row .task-info{flex:1}
+.ah-completion-row .task-info strong{display:block;font-size:.75rem;margin-bottom:2px}
+.ah-completion-row .task-info .meta{font-size:.55rem;color:var(--muted)}
+.ah-completion-row .athlete-info{display:flex;align-items:center;gap:.5rem}
+.ah-completion-row .athlete-info .avatar-sm{width:24px;height:24px;border-radius:50%;background:var(--surface-3);display:flex;align-items:center;justify-content:center;font-size:.5rem;font-weight:700;color:var(--muted)}
+.ah-completion-row .reward{font-family:var(--mono);font-size:.65rem;font-weight:600}
+.ah-completion-row .reward .xp{color:var(--info)}
+.ah-completion-row .reward .coins{color:var(--warning)}
+.ah-pagination{display:flex;justify-content:center;gap:.5rem;margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border)}
+.ah-pagination button{padding:.35rem .65rem;font-size:.6rem;font-family:var(--mono);background:var(--surface-2);border:1px solid var(--border);color:var(--muted);cursor:pointer;transition:all var(--transition)}
+.ah-pagination button:hover{color:var(--text);border-color:var(--border-hover)}
+.ah-pagination button.active{color:var(--text);border-color:var(--text)}
+.ah-pagination button:disabled{opacity:.3;cursor:not-allowed}
+.ah-pagination .info{font-size:.6rem;color:var(--muted);font-family:var(--mono);display:flex;align-items:center;padding:0 .5rem}
+
 /* RESPONSIVE */
 @media(max-width:1024px){
   .ah-sidebar{width:180px}
@@ -310,6 +376,8 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);
   .ah-ladder-row > :nth-child(n+5){display:none}
   .ah-task-stats{grid-template-columns:repeat(2,1fr)}
   .ah-form-grid{grid-template-columns:1fr}
+  .ah-live-layout{grid-template-columns:1fr}
+  .ah-online-panel{position:static}
 }
 @media(max-width:768px){
   .ah-sidebar{display:none}
@@ -319,6 +387,9 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);
   .ah-filter-bar{flex-direction:column;align-items:stretch}
   .ah-filter-bar .ah-input,.ah-filter-bar select.ah-input{width:100%}
   .ah-modal{max-width:100%;margin:0}
+  .ah-live-layout{grid-template-columns:1fr}
+  .ah-online-panel{position:static}
+  .ah-completed-filters{flex-direction:column;align-items:stretch}
 }
 </style>
 </head>
@@ -352,6 +423,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);
       <div class="ah-nav-group">
         <div class="ah-nav-group-label">Overview</div>
         <div class="ah-nav-item active" data-section="dashboard">Dashboard</div>
+        <div class="ah-nav-item" data-section="live-activity">Live Activity <span class="count" id="navLiveCount">0</span></div>
       </div>
       <div class="ah-nav-group">
         <div class="ah-nav-group-label">Athletes</div>
@@ -362,6 +434,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);
         <div class="ah-nav-group-label">Work</div>
         <div class="ah-nav-item" data-section="tasks">Task Templates</div>
         <div class="ah-nav-item" data-section="review">Review Queue <span class="count" id="navReviewCount">0</span></div>
+        <div class="ah-nav-item" data-section="completed-tasks">Completed Tasks <span class="count" id="navCompletedCount">0</span></div>
       </div>
       <div class="ah-nav-group">
         <div class="ah-nav-group-label">System</div>
@@ -415,6 +488,76 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);
             <tbody id="dashRecentAthletes"></tbody>
           </table>
         </div>
+      </div>
+
+      <!-- LIVE ACTIVITY -->
+      <div class="ah-section" id="sec-live-activity">
+        <div class="ah-live-header">
+          <h2>Live Activity</h2>
+          <div class="ah-live-controls">
+            <div class="ah-live-indicator"><div class="ah-live-dot"></div><span id="liveOnlineLabel">0 online</span></div>
+            <select class="ah-input" style="margin:0;padding:.4rem .65rem;font-size:.65rem;width:auto" id="livePeriodFilter">
+              <option value="1">Last hour</option>
+              <option value="6">Last 6 hours</option>
+              <option value="24" selected>Last 24 hours</option>
+              <option value="72">Last 3 days</option>
+              <option value="168">Last week</option>
+            </select>
+            <button class="ah-btn ah-btn-sm ah-btn-outline" onclick="loadLiveActivity()">Refresh</button>
+          </div>
+        </div>
+        <div class="ah-live-layout">
+          <div class="ah-online-panel">
+            <h3>Online Now <span class="count" id="onlineCountBadge">0</span></h3>
+            <div class="ah-online-list" id="onlineAthletesList">
+              <div class="ah-feed-empty" style="padding:1.5rem">No athletes online</div>
+            </div>
+          </div>
+          <div class="ah-feed-panel">
+            <div class="ah-feed-tabs">
+              <button class="ah-feed-tab active" data-feed-tab="all" onclick="switchFeedTab('all')">All Activity</button>
+              <button class="ah-feed-tab" data-feed-tab="tasks" onclick="switchFeedTab('tasks')">Tasks</button>
+              <button class="ah-feed-tab" data-feed-tab="games" onclick="switchFeedTab('games')">Games</button>
+              <button class="ah-feed-tab" data-feed-tab="milestones" onclick="switchFeedTab('milestones')">Milestones</button>
+              <button class="ah-feed-tab" data-feed-tab="actionable" onclick="switchFeedTab('actionable')">Needs Review</button>
+            </div>
+            <div class="ah-feed-content" id="liveFeedContent">
+              <div class="ah-feed-empty">Loading activity feed...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- COMPLETED TASKS -->
+      <div class="ah-section" id="sec-completed-tasks">
+        <div class="ah-completed-header">
+          <h2 style="font-size:.65rem;letter-spacing:.18em;text-transform:uppercase;font-weight:700">Completed Tasks</h2>
+          <div class="ah-completed-filters">
+            <select class="ah-input" id="completedPeriodFilter">
+              <option value="7">Last 7 days</option>
+              <option value="30" selected>Last 30 days</option>
+              <option value="90">Last 90 days</option>
+              <option value="365">All time</option>
+            </select>
+            <select class="ah-input" id="completedAthleteFilter">
+              <option value="">All Athletes</option>
+            </select>
+            <button class="ah-btn ah-btn-sm ah-btn-outline" onclick="loadCompletedTasks()">Filter</button>
+          </div>
+        </div>
+        <div class="ah-stats" style="margin-bottom:1.25rem">
+          <div class="ah-stat"><div class="ah-stat-label">Total Completed</div><div class="ah-stat-value" id="completedTotal">0</div><div class="ah-stat-sub" id="completedPeriodLabel">Last 30 days</div></div>
+          <div class="ah-stat"><div class="ah-stat-label">Total XP Awarded</div><div class="ah-stat-value" id="completedXpTotal">0</div><div class="ah-stat-sub">Across all completions</div></div>
+          <div class="ah-stat"><div class="ah-stat-label">Total Coins Awarded</div><div class="ah-stat-value" id="completedCoinsTotal">0</div><div class="ah-stat-sub">Across all completions</div></div>
+          <div class="ah-stat"><div class="ah-stat-label">On-Time Rate</div><div class="ah-stat-value" id="completedOnTimeRate">0%</div><div class="ah-stat-sub">Submitted before due date</div></div>
+        </div>
+        <div class="ah-table-wrap">
+          <table class="ah-table">
+            <thead><tr><th>Athlete</th><th>Task</th><th>Type</th><th>Status</th><th>XP / Coins</th><th>On Time</th><th>Completed</th><th>Actions</th></tr></thead>
+            <tbody id="completedTasksTable"></tbody>
+          </table>
+        </div>
+        <div class="ah-pagination" id="completedPagination"></div>
       </div>
 
       <!-- ATHLETES -->
@@ -1046,6 +1189,12 @@ let shopSettings = { unlocked: false };
 let shopProducts = [];
 let shopRedemptions = [];
 let shopEditingId = null;
+let liveActivityEvents = [];
+let liveOnlineAthletes = [];
+let liveFeedFilter = 'all';
+let liveRefreshTimer = null;
+let completedTasks = [];
+let completedPagination = { page: 1, per_page: 50, total: 0, total_pages: 0 };
 
 // ── INIT ──
 document.addEventListener('DOMContentLoaded', () => {
@@ -1117,12 +1266,16 @@ function renderAll() {
   renderLadder();
   renderSettings();
   renderPayouts();
+  renderLiveActivity();
+  renderCompletedTasks();
   // Nav counts
   document.getElementById('navAthleteCount').textContent = athletes.length;
   document.getElementById('navAppCount').textContent = applications.filter(a => a.status === 'APPLIED').length;
   document.getElementById('navReviewCount').textContent = reviewItems.length;
   document.getElementById('navProductCount').textContent = productRequests.filter(pr => pr.status === 'REQUESTED').length;
   document.getElementById('navShopCount').textContent = shopRedemptions.filter(r => r.status === 'REQUESTED').length;
+  document.getElementById('navLiveCount').textContent = liveOnlineAthletes.length;
+  document.getElementById('navCompletedCount').textContent = completedPagination.total;
 }
 
 async function refreshData() { await loadAll(); renderAll(); }
@@ -2999,6 +3152,313 @@ async function resetGamificationDefaults() {
     }
   } catch (err) { showToast('Network error', 'error'); }
 }
+
+// ══════════════════════════════════════════════════════════════════════════
+// LIVE ACTIVITY & COMPLETED TASKS
+// ══════════════════════════════════════════════════════════════════════════
+
+async function loadLiveActivity() {
+  try {
+    const periodHours = parseInt(document.getElementById('livePeriodFilter')?.value || '24');
+    const since = new Date(Date.now() - periodHours * 3600000).getTime();
+    const [activityRes, onlineRes] = await Promise.allSettled([
+      fetch(API + '/live-activity?limit=100&since=' + since, { headers: ah() }).then(r => r.json()),
+      fetch(API + '/online-athletes', { headers: ah() }).then(r => r.json())
+    ]);
+
+    if (activityRes.value?.success) {
+      liveActivityEvents = activityRes.value.data.events || [];
+      document.getElementById('liveOnlineLabel').textContent = (activityRes.value.data.online_count || 0) + ' online';
+    }
+    if (onlineRes.value?.success) {
+      liveOnlineAthletes = onlineRes.value.data || [];
+      document.getElementById('onlineCountBadge').textContent = liveOnlineAthletes.length;
+      document.getElementById('navLiveCount').textContent = liveOnlineAthletes.length;
+    }
+    renderLiveActivity();
+  } catch (err) {
+    console.error('Live activity load error:', err);
+  }
+}
+
+function renderLiveActivity() {
+  const onlineList = document.getElementById('onlineAthletesList');
+  if (liveOnlineAthletes.length === 0) {
+    onlineList.innerHTML = '<div class="ah-feed-empty" style="padding:1.5rem;font-size:.65rem">No athletes online</div>';
+  } else {
+    onlineList.innerHTML = liveOnlineAthletes.map(a => {
+      const initials = (a.name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+      const ago = timeAgo(a.last_seen);
+      return '<div class="ah-online-item" onclick="openAthleteDrawer(' + a.id + ')" style="cursor:pointer">' +
+        '<div class="ah-online-avatar">' + initials + '<div class="status-dot"></div></div>' +
+        '<div class="ah-online-info">' +
+          '<div class="name">' + esc(a.name) + '</div>' +
+          '<div class="meta">' + (a.athlete_no || '') + ' · ' + ago + '</div>' +
+        '</div></div>';
+    }).join('');
+  }
+
+  let filtered = liveActivityEvents;
+  if (liveFeedFilter === 'tasks') {
+    filtered = filtered.filter(e => ['TASK_PICKED', 'TASK_SUBMITTED', 'TASK_APPROVED', 'TASK_REJECTED'].includes(e.type));
+  } else if (liveFeedFilter === 'games') {
+    filtered = filtered.filter(e => ['GAME_XP', 'GAME_COINS'].includes(e.type));
+  } else if (liveFeedFilter === 'milestones') {
+    filtered = filtered.filter(e => ['LEVEL_UP', 'BADGE_EARNED'].includes(e.type));
+  } else if (liveFeedFilter === 'actionable') {
+    filtered = filtered.filter(e => e.actionable);
+  }
+
+  const feedContent = document.getElementById('liveFeedContent');
+  if (filtered.length === 0) {
+    feedContent.innerHTML = '<div class="ah-feed-empty">No activity in this period</div>';
+    return;
+  }
+
+  feedContent.innerHTML = filtered.map(ev => {
+    const athleteName = ev.athlete?.name || 'Unknown';
+    const athleteNo = ev.athlete?.athlete_no || '';
+    const taskTitle = ev.task?.title || '';
+    const taskType = ev.task?.type || '';
+    const time = timeAgo(new Date(ev.timestamp).getTime());
+    const badgeMap = { 'TASK_PICKED':'pick','TASK_SUBMITTED':'submit','TASK_APPROVED':'approve','TASK_REJECTED':'reject','GAME_XP':'game','GAME_COINS':'game','LEVEL_UP':'level','BADGE_EARNED':'badge' };
+    const labelMap = { 'TASK_PICKED':'PICKED','TASK_SUBMITTED':'SUBMITTED','TASK_APPROVED':'APPROVED','TASK_REJECTED':'REJECTED','GAME_XP':'GAME XP','GAME_COINS':'GAME COINS','LEVEL_UP':'LEVEL UP','BADGE_EARNED':'BADGE' };
+    const badgeClass = badgeMap[ev.type] || '';
+    const badgeLabel = labelMap[ev.type] || ev.type.replace(/_/g, ' ');
+
+    let actionsHtml = '';
+    if (ev.actionable && ev.assignment_id) {
+      actionsHtml = '<div class="ah-event-actions">' +
+        '<button class="ah-btn ah-btn-sm" style="padding:3px 8px;font-size:.5rem" onclick="event.stopPropagation();quickApprove(' + ev.assignment_id + ')">Approve</button>' +
+        '<button class="ah-btn ah-btn-sm ah-btn-danger" style="padding:3px 8px;font-size:.5rem" onclick="event.stopPropagation();quickReject(' + ev.assignment_id + ')">Reject</button>' +
+        '</div>';
+    }
+
+    const clickAttr = (ev.actionable && ev.assignment_id) ? ' onclick="openAssignmentDetail(' + ev.assignment_id + ')"' : '';
+    return '<div class="ah-event-item"' + clickAttr + '>' +
+      '<div class="ah-event-icon">' + (ev.icon || '•') + '</div>' +
+      '<div class="ah-event-body">' +
+        '<div class="ah-event-title">' + esc(athleteName) + ' <span style="font-size:.55rem;color:var(--muted);font-weight:400">' + esc(athleteNo) + '</span></div>' +
+        '<div class="ah-event-detail">' + esc(ev.detail) + (taskTitle ? ' — <strong>' + esc(taskTitle) + '</strong>' : '') + '</div>' +
+        '<div class="ah-event-meta">' +
+          '<span class="ah-event-badge ' + badgeClass + '">' + badgeLabel + '</span>' +
+          (taskType ? '<span>' + esc(taskType) + '</span>' : '') +
+          '<span class="time">' + time + '</span>' +
+        '</div>' +
+      '</div>' +
+      actionsHtml +
+    '</div>';
+  }).join('');
+}
+
+function switchFeedTab(tab) {
+  liveFeedFilter = tab;
+  document.querySelectorAll('.ah-feed-tab').forEach(t => t.classList.remove('active'));
+  const target = document.querySelector('[data-feed-tab="' + tab + '"]');
+  if (target) target.classList.add('active');
+  renderLiveActivity();
+}
+
+async function quickApprove(assignmentId) {
+  if (!confirm('Approve this task submission?')) return;
+  try {
+    const res = await fetch(API + '/assignments/bulk-approve', {
+      method: 'POST',
+      headers: { ...ah(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ assignment_ids: [assignmentId], status: 'APPROVED', reason: 'Approved via live activity feed' })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('Task approved successfully!', 'success');
+      loadLiveActivity();
+      refreshData();
+    } else {
+      showToast(data.error || 'Failed to approve', 'error');
+    }
+  } catch (err) { showToast('Network error', 'error'); }
+}
+
+async function quickReject(assignmentId) {
+  const reason = prompt('Reason for rejection (optional):');
+  if (reason === null) return;
+  try {
+    const res = await fetch(API + '/assignments/bulk-approve', {
+      method: 'POST',
+      headers: { ...ah(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ assignment_ids: [assignmentId], status: 'REJECTED', reason: reason || 'Rejected via live activity feed' })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('Task rejected', 'success');
+      loadLiveActivity();
+      refreshData();
+    } else {
+      showToast(data.error || 'Failed to reject', 'error');
+    }
+  } catch (err) { showToast('Network error', 'error'); }
+}
+
+function openAssignmentDetail(assignmentId) {
+  document.querySelectorAll('.ah-nav-item').forEach(i => i.classList.remove('active'));
+  document.querySelectorAll('.ah-section').forEach(s => s.classList.remove('active'));
+  const reviewNav = document.querySelector('[data-section="review"]');
+  if (reviewNav) reviewNav.classList.add('active');
+  const reviewSec = document.getElementById('sec-review');
+  if (reviewSec) reviewSec.classList.add('active');
+  document.getElementById('topbarTitle').textContent = 'Review Queue';
+}
+
+function startLiveRefresh() {
+  if (liveRefreshTimer) clearInterval(liveRefreshTimer);
+  liveRefreshTimer = setInterval(() => {
+    if (document.getElementById('sec-live-activity')?.classList.contains('active')) {
+      loadLiveActivity();
+    }
+  }, 15000);
+}
+
+function stopLiveRefresh() {
+  if (liveRefreshTimer) { clearInterval(liveRefreshTimer); liveRefreshTimer = null; }
+}
+
+// ── COMPLETED TASKS ──
+
+async function loadCompletedTasks(page) {
+  page = page || 1;
+  try {
+    const period = document.getElementById('completedPeriodFilter')?.value || '30';
+    const athleteId = document.getElementById('completedAthleteFilter')?.value || '';
+    let url = API + '/completed-tasks?period=' + period + '&page=' + page + '&per_page=50';
+    if (athleteId) url += '&athlete_id=' + athleteId;
+
+    const res = await fetch(url, { headers: ah() });
+    const data = await res.json();
+    if (data.success) {
+      completedTasks = data.data || [];
+      completedPagination = data.pagination || { page: 1, per_page: 50, total: 0, total_pages: 0 };
+      document.getElementById('navCompletedCount').textContent = completedPagination.total;
+      renderCompletedTasks();
+    }
+  } catch (err) {
+    console.error('Completed tasks load error:', err);
+  }
+}
+
+function renderCompletedTasks() {
+  const totalXp = completedTasks.reduce((s, t) => s + (t.xp_awarded || 0), 0);
+  const totalCoins = completedTasks.reduce((s, t) => s + (t.coin_awarded || 0), 0);
+  const onTimeCount = completedTasks.filter(t => t.was_on_time).length;
+  const onTimeRate = completedTasks.length > 0 ? Math.round((onTimeCount / completedTasks.length) * 100) : 0;
+
+  document.getElementById('completedTotal').textContent = completedPagination.total;
+  document.getElementById('completedXpTotal').textContent = totalXp.toLocaleString();
+  document.getElementById('completedCoinsTotal').textContent = totalCoins.toLocaleString();
+  document.getElementById('completedOnTimeRate').textContent = onTimeRate + '%';
+
+  const period = document.getElementById('completedPeriodFilter')?.value || '30';
+  const periodLabels = { '7': 'Last 7 days', '30': 'Last 30 days', '90': 'Last 90 days', '365': 'All time' };
+  document.getElementById('completedPeriodLabel').textContent = periodLabels[period] || 'Last 30 days';
+
+  const athleteFilter = document.getElementById('completedAthleteFilter');
+  if (athleteFilter && athleteFilter.options.length <= 1 && athletes.length > 0) {
+    athletes.forEach(a => {
+      const opt = document.createElement('option');
+      opt.value = a.id;
+      opt.textContent = a.name + ' (' + (a.athlete_no || '') + ')';
+      athleteFilter.appendChild(opt);
+    });
+  }
+
+  const tbody = document.getElementById('completedTasksTable');
+  if (completedTasks.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--muted)">No completed tasks in this period</td></tr>';
+    document.getElementById('completedPagination').innerHTML = '';
+    return;
+  }
+
+  tbody.innerHTML = completedTasks.map(t => {
+    const athleteName = t.influencers?.name || ('Athlete #' + (t.influencer_id || '?'));
+    const athleteNo = t.influencers?.athlete_no || '';
+    const taskTitle = t.task_templates?.title || ('Task #' + (t.task_template_id || '?'));
+    const taskType = t.task_templates?.type || '—';
+    const statusClass = (t.status === 'APPROVED' || t.status === 'VERIFIED_LIVE') ? 'active' : 'reserve';
+    const initials = (athleteName || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+    const completedDate = t.reviewed_at ? new Date(t.reviewed_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+
+    return '<tr>' +
+      '<td><div class="ah-completion-row"><div class="athlete-info"><div class="avatar-sm">' + initials + '</div><div><strong style="font-size:.7rem">' + esc(athleteName) + '</strong><div class="meta" style="font-size:.55rem;color:var(--muted)">' + esc(athleteNo) + '</div></div></div></div></td>' +
+      '<td><div class="task-info"><strong>' + esc(taskTitle) + '</strong></div></td>' +
+      '<td><span style="font-size:.55rem;padding:2px 6px;border:1px solid var(--border);font-family:var(--mono)">' + esc(taskType) + '</span></td>' +
+      '<td><span class="ah-badge ' + statusClass + '">' + esc(t.status.replace(/_/g, ' ')) + '</span></td>' +
+      '<td><div class="reward"><span class="xp">+' + (t.xp_awarded || 0) + ' XP</span> · <span class="coins">+' + (t.coin_awarded || 0) + '</span></div></td>' +
+      '<td>' + (t.was_on_time ? '<span style="color:var(--success);font-size:.65rem">✓ On time</span>' : '<span style="color:var(--warning);font-size:.65rem">Late</span>') + '</td>' +
+      '<td class="muted" style="font-size:.65rem">' + completedDate + '</td>' +
+      '<td><button class="ah-btn ah-btn-sm ah-btn-outline" style="padding:3px 8px;font-size:.5rem" onclick="viewCompletedDetail(' + t.id + ')">View</button></td>' +
+    '</tr>';
+  }).join('');
+
+  renderCompletedPagination();
+}
+
+function renderCompletedPagination() {
+  const container = document.getElementById('completedPagination');
+  if (completedPagination.total_pages <= 1) {
+    container.innerHTML = '<div class="info">Showing ' + completedTasks.length + ' of ' + completedPagination.total + ' tasks</div>';
+    return;
+  }
+
+  let html = '';
+  html += '<button ' + (completedPagination.page <= 1 ? 'disabled' : '') + ' onclick="loadCompletedTasks(' + (completedPagination.page - 1) + ')">Prev</button>';
+
+  const maxVisible = 5;
+  let startPage = Math.max(1, completedPagination.page - Math.floor(maxVisible / 2));
+  let endPage = Math.min(completedPagination.total_pages, startPage + maxVisible - 1);
+  if (endPage - startPage < maxVisible - 1) startPage = Math.max(1, endPage - maxVisible + 1);
+
+  for (let p = startPage; p <= endPage; p++) {
+    html += '<button class="' + (p === completedPagination.page ? 'active' : '') + '" onclick="loadCompletedTasks(' + p + ')">' + p + '</button>';
+  }
+
+  html += '<button ' + (completedPagination.page >= completedPagination.total_pages ? 'disabled' : '') + ' onclick="loadCompletedTasks(' + (completedPagination.page + 1) + ')">Next</button>';
+  html += '<div class="info">' + completedPagination.total + ' total</div>';
+
+  container.innerHTML = html;
+}
+
+function viewCompletedDetail(assignmentId) {
+  openAthleteDrawer(assignmentId);
+}
+
+function timeAgo(timestamp) {
+  const seconds = Math.floor((Date.now() - timestamp) / 1000);
+  if (seconds < 60) return 'Just now';
+  if (seconds < 3600) return Math.floor(seconds / 60) + 'm ago';
+  if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ago';
+  if (seconds < 604800) return Math.floor(seconds / 86400) + 'd ago';
+  return new Date(timestamp).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+}
+
+// Wire up live-activity auto-refresh and filter changes on nav clicks
+(function() {
+  const _origSetupNav = setupNav;
+  setupNav = function() {
+    _origSetupNav();
+    document.querySelectorAll('.ah-nav-item').forEach(item => {
+      item.addEventListener('click', () => {
+        if (item.dataset.section === 'live-activity') {
+          loadLiveActivity();
+          startLiveRefresh();
+        } else if (item.dataset.section === 'completed-tasks') {
+          loadCompletedTasks();
+        } else {
+          stopLiveRefresh();
+        }
+      });
+    });
+    document.getElementById('livePeriodFilter')?.addEventListener('change', () => loadLiveActivity());
+    document.getElementById('completedPeriodFilter')?.addEventListener('change', () => loadCompletedTasks());
+  };
+})();
 </script>
 </body>
 </html>

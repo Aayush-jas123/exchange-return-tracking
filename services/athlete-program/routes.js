@@ -2123,4 +2123,452 @@ module.exports = function mountAthleteRoutes(app) {
       res.json({ success: true, results });
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // ADMIN — LIVE ACTIVITY & COMPLETED TASKS
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // ── Online Athletes ──
+  // Returns athletes currently active on the portal (seen within last 90s)
+  app.get('/api/athlete-admin/online-athletes', authAdmin, async (req, res) => {
+    try {
+      const LIVE_MS = 90 * 1000; // 90 seconds — same threshold as portal lobby
+      const now = Date.now();
+      const onlineIds = [];
+      for (const [id, ts] of portalPresence.entries()) {
+        if (now - ts < LIVE_MS) onlineIds.push(id);
+      }
+
+      // Also check RaceHub for game-socket presence
+      try {
+        const hub = require('./RaceHub').getHub();
+        if (hub) {
+          for (const id of onlineIds) {
+            if (!portalPresence.has(id) && hub.isOnline(id)) onlineIds.push(id);
+          }
+          // Add any hub-online athletes not yet in portalPresence
+          const hubOnline = hub.getOnlineIds ? hub.getOnlineIds() : [];
+          for (const id of hubOnline) {
+            if (!onlineIds.includes(id)) onlineIds.push(id);
+          }
+        }
+      } catch (_) { /* RaceHub optional */ }
+
+      if (onlineIds.length === 0) {
+        return res.json({ success: true, data: [], count: 0 });
+      }
+
+      const { data: athletes, error } = await supabase
+        .from('influencers')
+        .select('id, name, athlete_no, athlete_status, level_id, xp_total')
+        .in('id', onlineIds);
+
+      if (error) throw error;
+
+      // Enrich with level names and last-seen timestamps
+      const levelIds = [...new Set((athletes || []).map(a => a.level_id).filter(Boolean))];
+      let levelsMap = {};
+      if (levelIds.length > 0) {
+        const { data: levels } = await supabase.from('comfort_levels').select('id, display_name').in('id', levelIds);
+        (levels || []).forEach(l => levelsMap[l.id] = l);
+      }
+
+      const enriched = (athletes || []).map(a => ({
+        ...a,
+        level_name: levelsMap[a.level_id]?.display_name || 'Unranked',
+        last_seen: portalPresence.get(a.id) || now
+      }));
+
+      res.json({ success: true, data: enriched, count: enriched.length });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // ── Live Activity Feed ──
+  // Aggregated recent events: task picks, submissions, approvals, game XP, level-ups
+  app.get('/api/athlete-admin/live-activity', authAdmin, async (req, res) => {
+    try {
+      const { limit = 50, since } = req.query;
+      const cap = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
+
+      // Time window: last 24 hours by default, or since a specific timestamp
+      const sinceDate = since
+        ? new Date(parseInt(since) || since).toISOString()
+        : new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+      // Parallel fetch all activity sources
+      const [recentPicks, recentSubmissions, recentApprovals, recentGameXp, recentLevelUps, recentBadges] = await Promise.all([
+        // Recent task picks (last 24h)
+        supabase
+          .from('daily_task_picks')
+          .select('id, influencer_id, task_template_id, pool_date, status, created_at')
+          .gte('created_at', sinceDate)
+          .order('created_at', { ascending: false })
+          .limit(cap),
+
+        // Recent submissions (tasks turned in by athletes)
+        supabase
+          .from('assignments')
+          .select('id, influencer_id, task_template_id, status, submitted_at, reviewed_at, xp_awarded, coin_awarded, attempt_no, created_at')
+          .in('status', ['SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'REJECTED', 'CHANGES_REQUESTED'])
+          .gte('created_at', sinceDate)
+          .order('submitted_at', { ascending: false })
+          .limit(cap),
+
+        // Recently approved tasks (last 24h)
+        supabase
+          .from('assignments')
+          .select('id, influencer_id, task_template_id, status, reviewed_at, xp_awarded, coin_awarded, was_on_time')
+          .eq('status', 'APPROVED')
+          .gte('reviewed_at', sinceDate)
+          .order('reviewed_at', { ascending: false })
+          .limit(cap),
+
+        // Recent game XP awards
+        supabase
+          .from('ledger_entries')
+          .select('id, influencer_id, currency, amount, reason_code, idempotency_key, created_at')
+          .in('reason_code', ['GAME_XP', 'GAME_COINS', 'RACE_XP'])
+          .gte('created_at', sinceDate)
+          .order('created_at', { ascending: false })
+          .limit(cap),
+
+        // Recent level-ups
+        supabase
+          .from('level_history')
+          .select('id, influencer_id, direction, reason_code, from_level_id, to_level_id, occurred_at')
+          .gte('occurred_at', sinceDate)
+          .order('occurred_at', { ascending: false })
+          .limit(cap),
+
+        // Recent badges earned
+        supabase
+          .from('athlete_badges')
+          .select('id, influencer_id, badge_code, badge_name, earned_at')
+          .gte('earned_at', sinceDate)
+          .order('earned_at', { ascending: false })
+          .limit(20)
+      ]);
+
+      // Fetch athlete names for all involved influencer_ids
+      const allIds = new Set();
+      [recentPicks.data, recentSubmissions.data, recentApprovals.data, recentGameXp.data, recentLevelUps.data, recentBadges.data].forEach(rows => {
+        (rows || []).forEach(r => allIds.add(r.influencer_id));
+      });
+
+      let athletesMap = {};
+      if (allIds.size > 0) {
+        const { data: athleteRows } = await supabase
+          .from('influencers')
+          .select('id, name, athlete_no, athlete_status')
+          .in('id', [...allIds]);
+        (athleteRows || []).forEach(a => athletesMap[a.id] = a);
+      }
+
+      // Fetch task template titles
+      const allTaskIds = new Set();
+      [recentPicks.data, recentSubmissions.data, recentApprovals.data].forEach(rows => {
+        (rows || []).forEach(r => { if (r.task_template_id) allTaskIds.add(r.task_template_id); });
+      });
+
+      let tasksMap = {};
+      if (allTaskIds.size > 0) {
+        const { data: taskRows } = await supabase
+          .from('task_templates')
+          .select('id, code, title, type, xp_value, coin_value')
+          .in('id', [...allTaskIds]);
+        (taskRows || []).forEach(t => tasksMap[t.id] = t);
+      }
+
+      // Fetch level names for level-ups
+      const allLevelIds = new Set();
+      (recentLevelUps.data || []).forEach(l => {
+        if (l.from_level_id) allLevelIds.add(l.from_level_id);
+        if (l.to_level_id) allLevelIds.add(l.to_level_id);
+      });
+
+      let levelsMap = {};
+      if (allLevelIds.size > 0) {
+        const { data: levelRows } = await supabase
+          .from('comfort_levels')
+          .select('id, display_name, ordinal')
+          .in('id', [...allLevelIds]);
+        (levelRows || []).forEach(l => levelsMap[l.id] = l);
+      }
+
+      // Build unified event stream
+      const events = [];
+
+      // Task picked events
+      (recentPicks.data || []).forEach(p => {
+        events.push({
+          id: `pick-${p.id}`,
+          type: 'TASK_PICKED',
+          athlete: athletesMap[p.influencer_id] || null,
+          task: tasksMap[p.task_template_id] || null,
+          detail: `Picked task from ${p.pool_date} pool`,
+          timestamp: p.created_at,
+          icon: '📋'
+        });
+      });
+
+      // Submission events
+      (recentSubmissions.data || []).forEach(s => {
+        if (s.status === 'SUBMITTED' || s.status === 'UNDER_REVIEW') {
+          events.push({
+            id: `submit-${s.id}`,
+            type: 'TASK_SUBMITTED',
+            athlete: athletesMap[s.influencer_id] || null,
+            task: tasksMap[s.task_template_id] || null,
+            detail: `Submitted for review (attempt #${s.attempt_no || 1})`,
+            status: s.status,
+            assignment_id: s.id,
+            timestamp: s.submitted_at || s.created_at,
+            icon: '📤',
+            actionable: true
+          });
+        }
+        if (s.status === 'APPROVED' && s.reviewed_at) {
+          events.push({
+            id: `approved-${s.id}`,
+            type: 'TASK_APPROVED',
+            athlete: athletesMap[s.influencer_id] || null,
+            task: tasksMap[s.task_template_id] || null,
+            detail: `Approved — +${s.xp_awarded || 0} XP, +${s.coin_awarded || 0} coins`,
+            xp_awarded: s.xp_awarded,
+            coin_awarded: s.coin_awarded,
+            timestamp: s.reviewed_at,
+            icon: '✅'
+          });
+        }
+        if (s.status === 'REJECTED') {
+          events.push({
+            id: `rejected-${s.id}`,
+            type: 'TASK_REJECTED',
+            athlete: athletesMap[s.influencer_id] || null,
+            task: tasksMap[s.task_template_id] || null,
+            detail: 'Rejected',
+            timestamp: s.reviewed_at || s.created_at,
+            icon: '❌'
+          });
+        }
+      });
+
+      // Game XP events
+      (recentGameXp.data || []).forEach(g => {
+        const game = g.idempotency_key?.split(':')[0] || 'unknown';
+        events.push({
+          id: `game-${g.id}`,
+          type: g.reason_code === 'GAME_COINS' ? 'GAME_COINS' : 'GAME_XP',
+          athlete: athletesMap[g.influencer_id] || null,
+          detail: `${g.reason_code === 'GAME_COINS' ? '+' + g.amount + ' coins' : '+' + g.amount + ' XP'} in ${game}`,
+          amount: g.amount,
+          currency: g.currency,
+          timestamp: g.created_at,
+          icon: '🎮'
+        });
+      });
+
+      // Level-up events
+      (recentLevelUps.data || []).forEach(l => {
+        const fromName = levelsMap[l.from_level_id]?.display_name || '—';
+        const toName = levelsMap[l.to_level_id]?.display_name || '—';
+        events.push({
+          id: `levelup-${l.id}`,
+          type: 'LEVEL_UP',
+          athlete: athletesMap[l.influencer_id] || null,
+          detail: `Leveled up: ${fromName} → ${toName}`,
+          from_level: fromName,
+          to_level: toName,
+          timestamp: l.occurred_at,
+          icon: '⬆️'
+        });
+      });
+
+      // Badge events
+      (recentBadges.data || []).forEach(b => {
+        events.push({
+          id: `badge-${b.id}`,
+          type: 'BADGE_EARNED',
+          athlete: athletesMap[b.influencer_id] || null,
+          detail: `Earned badge: ${b.badge_name || b.badge_code}`,
+          badge: b.badge_name || b.badge_code,
+          timestamp: b.earned_at,
+          icon: '🏅'
+        });
+      });
+
+      // Sort by timestamp descending and cap
+      events.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+      // Online athletes
+      const LIVE_MS = 90 * 1000;
+      const now = Date.now();
+      const onlineIds = [];
+      for (const [id, ts] of portalPresence.entries()) {
+        if (now - ts < LIVE_MS) onlineIds.push(id);
+      }
+      try {
+        const hub = require('./RaceHub').getHub();
+        if (hub) {
+          const hubOnline = hub.getOnlineIds ? hub.getOnlineIds() : [];
+          for (const id of hubOnline) {
+            if (!onlineIds.includes(id)) onlineIds.push(id);
+          }
+        }
+      } catch (_) { /* RaceHub optional */ }
+
+      res.json({
+        success: true,
+        data: {
+          events: events.slice(0, cap),
+          online_count: onlineIds.length,
+          online_ids: onlineIds,
+          since: sinceDate,
+          total_events: events.length
+        }
+      });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // ── Completed Tasks ──
+  // All approved/verified/completed assignments with full details
+  app.get('/api/athlete-admin/completed-tasks', authAdmin, async (req, res) => {
+    try {
+      const { athlete_id, task_type, period = '30', page = 1, per_page = 50 } = req.query;
+      const pageNum = Math.max(1, parseInt(page) || 1);
+      const perPage = Math.min(100, Math.max(1, parseInt(per_page) || 50));
+      const offset = (pageNum - 1) * perPage;
+
+      // Calculate period start
+      const periodDays = parseInt(period) || 30;
+      const periodStart = new Date(Date.now() - periodDays * 86400000).toISOString();
+
+      let query = supabase
+        .from('assignments')
+        .select(`
+          id, influencer_id, task_template_id, status, submitted_at, reviewed_at,
+          xp_awarded, coin_awarded, was_on_time, attempt_no, created_at,
+          task_templates(title, code, type, platform, xp_value, coin_value, brief_md),
+          influencers(name, athlete_no, athlete_status)
+        `, { count: 'exact' })
+        .in('status', ['APPROVED', 'VERIFIED_LIVE', 'COMPLETED'])
+        .gte('reviewed_at', periodStart)
+        .order('reviewed_at', { ascending: false })
+        .range(offset, offset + perPage - 1);
+
+      if (athlete_id) query = query.eq('influencer_id', parseInt(athlete_id));
+
+      const { data, error, count } = await query;
+      if (error) {
+        // Fallback without joins
+        let fallbackQ = supabase
+          .from('assignments')
+          .select('id, influencer_id, task_template_id, status, submitted_at, reviewed_at, xp_awarded, coin_awarded, was_on_time, attempt_no, created_at', { count: 'exact' })
+          .in('status', ['APPROVED', 'VERIFIED_LIVE', 'COMPLETED'])
+          .gte('reviewed_at', periodStart)
+          .order('reviewed_at', { ascending: false })
+          .range(offset, offset + perPage - 1);
+
+        if (athlete_id) fallbackQ = fallbackQ.eq('influencer_id', parseInt(athlete_id));
+
+        const { data: fallback, error: fbErr, count: fbCount } = await fallbackQ;
+        if (fbErr) throw fbErr;
+
+        // Enrich manually
+        const taskIds = [...new Set((fallback || []).map(a => a.task_template_id))];
+        const athleteIds = [...new Set((fallback || []).map(a => a.influencer_id))];
+
+        let tasksMap = {}, athletesMap = {};
+        if (taskIds.length > 0) {
+          const { data: tasks } = await supabase.from('task_templates').select('id, title, code, type, platform, xp_value, coin_value').in('id', taskIds);
+          (tasks || []).forEach(t => tasksMap[t.id] = t);
+        }
+        if (athleteIds.length > 0) {
+          const { data: athletes } = await supabase.from('influencers').select('id, name, athlete_no, athlete_status').in('id', athleteIds);
+          (athletes || []).forEach(a => athletesMap[a.id] = a);
+        }
+
+        const enriched = (fallback || []).map(a => ({
+          ...a,
+          task_templates: tasksMap[a.task_template_id] || null,
+          influencers: athletesMap[a.influencer_id] || null
+        }));
+
+        return res.json({
+          success: true,
+          data: enriched,
+          pagination: { page: pageNum, per_page: perPage, total: fbCount || 0, total_pages: Math.ceil((fbCount || 0) / perPage) }
+        });
+      }
+
+      res.json({
+        success: true,
+        data: data || [],
+        pagination: { page: pageNum, per_page: perPage, total: count || 0, total_pages: Math.ceil((count || 0) / perPage) }
+      });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // ── Quick Approve/Reject from Activity Feed ──
+  // Simplified approve endpoint that also accepts a batch of assignment IDs
+  app.post('/api/athlete-admin/assignments/bulk-approve', authAdmin, async (req, res) => {
+    try {
+      const { assignment_ids, status, reason } = req.body;
+      if (!assignment_ids || !Array.isArray(assignment_ids) || assignment_ids.length === 0) {
+        return res.status(400).json({ error: 'assignment_ids array is required' });
+      }
+      if (!['APPROVED', 'REJECTED', 'CHANGES_REQUESTED'].includes(status)) {
+        return res.status(400).json({ error: 'status must be APPROVED, REJECTED, or CHANGES_REQUESTED' });
+      }
+
+      const results = [];
+      for (const id of assignment_ids) {
+        try {
+          const result = await TransitionService.move('assignment', parseInt(id), status, req.adminToken, reason);
+          
+          // If approved, award XP/coins
+          if (status === 'APPROVED') {
+            const { data: assignment } = await supabase.from('assignments').select('*').eq('id', id).single();
+            const { data: task } = await supabase.from('task_templates').select('*').eq('id', assignment.task_template_id).single();
+
+            if (task) {
+              let xpValue = task.xp_value || 0;
+              const isOnTime = !assignment.due_at || new Date(assignment.submitted_at || Date.now()) <= new Date(assignment.due_at);
+              if (isOnTime) {
+                xpValue = Math.round(xpValue * 1.2); // 20% on-time bonus
+              } else {
+                xpValue = Math.round(xpValue * 0.75); // 25% late penalty
+              }
+
+              if (xpValue > 0) {
+                await LedgerService.award(assignment.influencer_id, 'XP', xpValue, 'ASSIGNMENT', id,
+                  `assignment:${id}:approved`, 'TASK_APPROVED');
+              }
+              if (task.coin_value > 0) {
+                await LedgerService.award(assignment.influencer_id, 'COIN', task.coin_value, 'ASSIGNMENT', id,
+                  `assignment:${id}:coins`, 'TASK_COINS');
+              }
+
+              await supabase.from('assignments').update({
+                xp_awarded: xpValue,
+                coin_awarded: task.coin_value,
+                was_on_time: isOnTime,
+                reviewed_at: new Date().toISOString(),
+                reviewer_id: req.adminToken
+              }).eq('id', id);
+
+              await StandingService.recompute(assignment.influencer_id);
+              await LevelEngine.evaluate(assignment.influencer_id);
+            }
+          }
+
+          results.push({ id, success: true, data: result });
+        } catch (err) {
+          results.push({ id, success: false, error: err.message });
+        }
+      }
+
+      res.json({ success: true, results });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
 };
