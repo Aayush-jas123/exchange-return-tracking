@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
   <title>OFFCOMFRT &mdash; Counter Strike</title>
-  <link rel="stylesheet" href="style.css?v=3" />
+  <link rel="stylesheet" href="style.css?v=6" />
 </head>
 <body>
 
@@ -20,6 +20,10 @@
         <span class="mi">🎯</span>
         <span class="ml">Deploy<span class="ms">Eliminate all terrorists &mdash; survive every round</span></span>
       </button>
+      <button class="mode-btn" id="btnMultiplayer">
+        <span class="mi">👥</span>
+        <span class="ml">Multiplayer<span class="ms">Team up with other athletes against terrorists</span></span>
+      </button>
       <div class="instructions-toggle" id="instrToggle">How to play <span class="arrow">&#9660;</span></div>
       <div class="instructions" id="instrPanel" hidden>
         <p><b>Objective:</b> You are a Counter-Terrorist. Eliminate every bot before the round timer expires. Each round spawns more enemies. Your total kills before elimination is your score.</p>
@@ -27,6 +31,24 @@
         <p><b>Mobile Controls:</b> Left joystick to move, right side of screen to aim, fire button to shoot, weapon switch buttons for guns, jump/crouch buttons for movement.</p>
         <p><b>Scoring:</b> Every kill counts. Headshots are one-hit kills. Walk or crouch for tighter accuracy. The deeper you push into rounds, the tougher the bots become.</p>
       </div>
+    </div>
+  </div>
+
+  <!-- ═══ Multiplayer Lobby Screen ═══ -->
+  <div id="lobbyScreen" class="screen">
+    <div class="lobby-inner">
+      <div class="brand">
+        <div class="brand-logo">OC</div>
+        <span class="brand-eyebrow">OFFCOMFRT Arcade</span>
+        <h1>Counter Strike — Multiplayer</h1>
+      </div>
+      <div id="csLobby" class="lobby-container">
+        <div class="lobby-status">Connecting...</div>
+      </div>
+      <button class="mode-btn small" id="btnBackFromLobby">
+        <span class="mi">←</span>
+        <span class="ml">Back to Menu</span>
+      </button>
     </div>
   </div>
 
@@ -123,7 +145,9 @@
   <!-- Portal bridge scripts load first as regular (synchronous) scripts -->
   <script src="../portal-back.js?v=1"></script>
   <script src="../athlete-xp.js?v=19"></script>
+  <!-- Network client for multiplayer -->
+  <script src="counter-strike-net.js?v=1"></script>
   <!-- Game engine loads as ES module (deferred by spec) -->
-  <script type="module" src="script.js?v=6"></script>
+  <script type="module" src="script.js?v=9"></script>
 </body>
 </html>

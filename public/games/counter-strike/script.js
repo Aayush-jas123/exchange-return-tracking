@@ -9,10 +9,11 @@ import * as THREE from 'three';
 const menuScreen = document.getElementById('menuScreen');
 const gameScreen = document.getElementById('gameScreen');
 const gameOverScreen = document.getElementById('gameOverScreen');
+const lobbyScreen = document.getElementById('lobbyScreen');
 const pauseOverlay = document.getElementById('pauseOverlay');
 
 function showScreen(el) {
-  [menuScreen, gameScreen, gameOverScreen].forEach(s => s.classList.remove('active'));
+  [menuScreen, gameScreen, gameOverScreen, lobbyScreen].forEach(s => s.classList.remove('active'));
   if (el) el.classList.add('active');
 }
 
@@ -1247,6 +1248,30 @@ btnPlay.addEventListener('click', () => {
   startNewGame();
 });
 
+// Menu → Multiplayer button
+const btnMultiplayer = document.getElementById('btnMultiplayer');
+const btnBackFromLobby = document.getElementById('btnBackFromLobby');
+
+if (btnMultiplayer) {
+  btnMultiplayer.addEventListener('click', () => {
+    audio().resume();
+    showScreen(lobbyScreen);
+    // Connect to multiplayer if not already
+    if (typeof CSNet !== 'undefined' && !CSNet.connected) {
+      CSNet.connect();
+    }
+  });
+}
+
+if (btnBackFromLobby) {
+  btnBackFromLobby.addEventListener('click', () => {
+    if (typeof CSNet !== 'undefined') {
+      CSNet.leaveRoom();
+    }
+    showScreen(menuScreen);
+  });
+}
+
 // Game over → Redeploy
 btnRetry.addEventListener('click', () => {
   startNewGame();
@@ -1409,10 +1434,18 @@ function frame() {
   if (isTouchDevice) applyTouchLook(dt);
 
   if (isGameActive()) {
-    game.timeLeft -= dt;
-    if (game.timeLeft <= 0) endRound('T');
-    updatePlayer(dt);
-    for (const b of bots) b.update(dt);
+    if (!isOnline) {
+      // Single-player: local simulation
+      game.timeLeft -= dt;
+      if (game.timeLeft <= 0) endRound('T');
+      updatePlayer(dt);
+      for (const b of bots) b.update(dt);
+    } else {
+      // Online: server owns bots, we just render and send state
+      updatePlayer(dt);
+      updateOnlinePlayers(dt);
+      sendPlayerState();
+    }
     updateWeapon(dt);
     updateEffects(dt);
     updateHud(dt);
@@ -1420,7 +1453,7 @@ function frame() {
     game.endTimer -= dt;
     updateEffects(dt);
     updateHud(dt);
-    if (game.endTimer <= 0) startRound();
+    if (game.endTimer <= 0 && !isOnline) startRound();
   } else if (game.state === 'menu') {
     // Slow fly-over behind the menu
     const t = performance.now() * 0.00005;
@@ -1435,3 +1468,310 @@ function frame() {
 }
 
 frame();
+
+// ════════════════════════════════════════════════════════════
+//  ONLINE MULTIPLAYER MODE
+// ════════════════════════════════════════════════════════════
+
+// ── Online State ──
+let isOnline = false;
+let onlinePlayers = new Map(); // id -> { model, data, targetPos, targetYaw }
+let onlineBots = new Map(); // id -> { model, data, targetPos }
+let lastSnapshot = null;
+let snapshotBuffer = [];
+const SNAPSHOT_INTERP_MS = 100;
+
+// ── CT Player Materials (Monochrome Team) ──
+const ctMats = {
+  skin: new THREE.MeshStandardMaterial({ color: 0xd8d8d8, roughness: 0.9 }),
+  helmet: new THREE.MeshStandardMaterial({ color: 0x3a3a3e, roughness: 0.7 }),
+  vest: new THREE.MeshStandardMaterial({ color: 0x5a5a5e, roughness: 0.8 }),
+  shirt: new THREE.MeshStandardMaterial({ color: 0xe8e8e8, roughness: 0.9 }),
+  pants: new THREE.MeshStandardMaterial({ color: 0x9a9a9e, roughness: 0.9 }),
+  weapon: new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.4, metalness: 0.6 }),
+  glove: new THREE.MeshStandardMaterial({ color: 0x2a2a2e, roughness: 0.8 }),
+};
+
+// ── Remote Player Model (Detailed Articulated) ──
+class RemotePlayerModel {
+  constructor(id, name) {
+    this.id = id;
+    this.name = name;
+    this.pos = new THREE.Vector3();
+    this.yaw = 0;
+    this.walkPhase = 0;
+    this.health = 100;
+    this.alive = true;
+    this.weapon = 'rifle';
+    this.parts = [];
+
+    const g = this.group = new THREE.Group();
+    const part = (geo, mat, x, y, z, partName, parent = g) => {
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(x, y, z); m.castShadow = true;
+      m.userData = { playerId: id, part: partName };
+      parent.add(m); if (partName) this.parts.push(m); return m;
+    };
+
+    // Legs (two-part with boots)
+    this.legL = new THREE.Group(); this.legL.position.set(-0.14, 0.85, 0); g.add(this.legL);
+    this.legR = new THREE.Group(); this.legR.position.set(0.14, 0.85, 0); g.add(this.legR);
+    part(new THREE.BoxGeometry(0.22, 0.45, 0.24), ctMats.pants, 0, -0.225, 0, 'legs', this.legL);
+    part(new THREE.BoxGeometry(0.22, 0.4, 0.24), ctMats.helmet, 0, -0.65, 0, 'legs', this.legL); // boot
+    part(new THREE.BoxGeometry(0.22, 0.45, 0.24), ctMats.pants, 0, -0.225, 0, 'legs', this.legR);
+    part(new THREE.BoxGeometry(0.22, 0.4, 0.24), ctMats.helmet, 0, -0.65, 0, 'legs', this.legR); // boot
+
+    // Torso with vest
+    part(new THREE.BoxGeometry(0.58, 0.68, 0.32), ctMats.shirt, 0, 1.2, 0, 'body');
+    part(new THREE.BoxGeometry(0.6, 0.45, 0.36), ctMats.vest, 0, 1.25, 0, 'body'); // vest
+    part(new THREE.BoxGeometry(0.15, 0.15, 0.08), ctMats.skin, 0, 1.5, 0.18, 'body'); // team indicator
+
+    // Head with helmet
+    part(new THREE.BoxGeometry(0.3, 0.32, 0.3), ctMats.skin, 0, 1.74, 0, 'head');
+    part(new THREE.BoxGeometry(0.32, 0.18, 0.32), ctMats.helmet, 0, 1.88, 0, 'head'); // helmet
+    part(new THREE.BoxGeometry(0.28, 0.08, 0.02), ctMats.helmet, 0, 1.77, 0.16, 'head'); // mask
+
+    // Arms with gloves
+    part(new THREE.BoxGeometry(0.16, 0.35, 0.16), ctMats.shirt, -0.38, 1.35, 0, 'body');
+    part(new THREE.BoxGeometry(0.14, 0.2, 0.14), ctMats.glove, -0.38, 1.1, 0.1, 'body'); // glove
+    part(new THREE.BoxGeometry(0.16, 0.35, 0.16), ctMats.shirt, 0.38, 1.35, 0, 'body');
+    part(new THREE.BoxGeometry(0.14, 0.2, 0.14), ctMats.glove, 0.38, 1.1, 0.1, 'body'); // glove
+
+    // Weapon
+    part(new THREE.BoxGeometry(0.08, 0.1, 0.75), ctMats.weapon, 0.05, 1.36, 0.55, null);
+
+    // Name tag (canvas texture)
+    this.nameTag = this.createNameTag(name);
+    this.nameTag.position.set(0, 2.3, 0);
+    g.add(this.nameTag);
+
+    // Health bar
+    this.healthBar = this.createHealthBar();
+    this.healthBar.position.set(0, 2.15, 0);
+    g.add(this.healthBar);
+
+    g.position.copy(this.pos);
+    scene.add(g);
+  }
+
+  createNameTag(name) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256; canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = 'rgba(42, 42, 46, 0.85)';
+    ctx.fillRect(0, 0, 256, 64);
+    ctx.fillStyle = '#f0f0f2';
+    ctx.font = 'bold 28px -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(name, 128, 32);
+    const tex = new THREE.CanvasTexture(canvas);
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
+    const sprite = new THREE.Sprite(mat);
+    sprite.scale.set(2, 0.5, 1);
+    return sprite;
+  }
+
+  createHealthBar() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 128; canvas.height = 16;
+    const tex = new THREE.CanvasTexture(canvas);
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
+    const sprite = new THREE.Sprite(mat);
+    sprite.scale.set(1.2, 0.15, 1);
+    sprite.userData.canvas = canvas;
+    sprite.userData.texture = tex;
+    return sprite;
+  }
+
+  updateHealth(health) {
+    this.health = health;
+    const canvas = this.healthBar.userData.canvas;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, 128, 16);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.fillRect(0, 0, 128, 16);
+    const pct = Math.max(0, health / 100);
+    const color = pct > 0.6 ? '#4ade80' : pct > 0.3 ? '#fbbf24' : '#ef4444';
+    ctx.fillStyle = color;
+    ctx.fillRect(2, 2, 124 * pct, 12);
+    this.healthBar.userData.texture.needsUpdate = true;
+  }
+
+  update(dt, targetPos, targetYaw, walkPhase, speed) {
+    // Interpolate position
+    this.pos.lerp(targetPos, Math.min(1, dt * 10));
+    this.group.position.copy(this.pos);
+
+    // Interpolate rotation
+    let yawDiff = targetYaw - this.yaw;
+    yawDiff = Math.atan2(Math.sin(yawDiff), Math.cos(yawDiff));
+    this.yaw += yawDiff * Math.min(1, dt * 10);
+    this.group.rotation.y = this.yaw;
+
+    // Walk animation
+    this.walkPhase = walkPhase;
+    const swing = Math.sin(this.walkPhase) * Math.min(1, speed / 2) * 0.6;
+    this.legL.rotation.x = swing;
+    this.legR.rotation.x = -swing;
+
+    // Name tag always faces camera
+    this.nameTag.lookAt(camera.position);
+    this.healthBar.lookAt(camera.position);
+  }
+
+  dispose() {
+    scene.remove(this.group);
+    this.parts.forEach(p => {
+      p.geometry.dispose();
+      p.material.dispose();
+    });
+  }
+}
+
+// ── Online Snapshot Handling ──
+function applySnapshot(snapshot) {
+  if (!snapshot || !isOnline) return;
+  lastSnapshot = snapshot;
+
+  // Update game state from snapshot
+  game.round = snapshot.round;
+  game.timeLeft = snapshot.timeLeft;
+  game.state = snapshot.state;
+  game.ct = snapshot.scoreCT;
+  game.t = snapshot.scoreT;
+
+  // Update HUD
+  hud.round.textContent = game.round;
+  hud.scoreCT.textContent = game.ct;
+  hud.scoreT.textContent = game.t;
+  const t = Math.max(0, Math.ceil(game.timeLeft));
+  hud.timer.textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+
+  // Update remote players
+  const currentIds = new Set();
+  for (const pData of snapshot.players) {
+    if (pData.id === CSNet?.myId) continue; // Skip self
+    currentIds.add(pData.id);
+    let rp = onlinePlayers.get(pData.id);
+    if (!rp) {
+      rp = new RemotePlayerModel(pData.id, pData.name || 'Player');
+      onlinePlayers.set(pData.id, rp);
+    }
+    rp.targetPos = new THREE.Vector3(pData.pos.x, pData.pos.y || 0, pData.pos.z);
+    rp.targetYaw = pData.yaw;
+    rp.alive = pData.alive;
+    rp.group.visible = pData.alive;
+    rp.updateHealth(pData.health);
+    rp.weapon = pData.weapon;
+  }
+
+  // Remove disconnected players
+  for (const [id, rp] of onlinePlayers) {
+    if (!currentIds.has(id)) {
+      rp.dispose();
+      onlinePlayers.delete(id);
+    }
+  }
+
+  // Update bots
+  const botIds = new Set();
+  for (const bData of snapshot.bots) {
+    botIds.add(bData.id);
+    let bot = onlineBots.get(bData.id);
+    if (!bot) {
+      bot = new RemotePlayerModel(bData.id, bData.name || 'Bot');
+      onlineBots.set(bData.id, bot);
+    }
+    bot.targetPos = new THREE.Vector3(bData.pos.x, bData.pos.y || 0, bData.pos.z);
+    bot.targetYaw = bData.yaw;
+    bot.alive = bData.alive;
+    bot.group.visible = bData.alive;
+    bot.updateHealth(bData.health);
+  }
+
+  // Remove dead bots
+  for (const [id, bot] of onlineBots) {
+    if (!botIds.has(id)) {
+      bot.dispose();
+      onlineBots.delete(id);
+    }
+  }
+}
+
+function updateOnlinePlayers(dt) {
+  for (const [id, rp] of onlinePlayers) {
+    if (rp.targetPos) {
+      rp.update(dt, rp.targetPos, rp.targetYaw, rp.walkPhase || 0, rp.speed || 0);
+    }
+  }
+  for (const [id, bot] of onlineBots) {
+    if (bot.targetPos) {
+      bot.update(dt, bot.targetPos, bot.targetYaw, bot.walkPhase || 0, bot.speed || 0);
+    }
+  }
+}
+
+function sendPlayerState() {
+  if (!isOnline || !CSNet || !CSNet.connected) return;
+  const shoot = mouseDown || (isTouchDevice && touch.fire);
+  const reload = keys.KeyR || false;
+  CSNet.sendState(
+    player.pos,
+    player.yaw,
+    player.pitch,
+    player.speed,
+    player.eye < 1.4,
+    player.onGround,
+    current === inventory.rifle ? 'rifle' : 'pistol',
+    reload,
+    shoot,
+    null // hitRay - server validates
+  );
+}
+
+// ── Online Mode Initialization ──
+function initOnlineMode() {
+  if (typeof CSNet === 'undefined') return;
+
+  CSNet.onSnapshot = applySnapshot;
+  CSNet.onMatchEnd = (results) => {
+    isOnline = false;
+    // Show results
+    if (results && results.length > 0) {
+      const myResult = results.find(r => r.id === CSNet.myId);
+      if (myResult) {
+        goScore.textContent = myResult.sc || 0;
+        goXP.textContent = myResult.xp ? `+${myResult.xp} XP` : '--';
+      }
+    }
+    triggerGameOver();
+  };
+
+  console.log('[CS] Online mode initialized');
+}
+
+// Check if we're starting an online game
+window.startOnlineGame = function(roster) {
+  isOnline = true;
+  game.state = 'playing';
+  game.round = 0;
+  game.ct = 0;
+  game.t = 0;
+  game.kills = 0;
+  game.timeLeft = 115;
+
+  // Clear local bots - server owns them
+  clearBots();
+
+  // Reset local player
+  resetPlayer();
+
+  showScreen(gameScreen);
+  if (!isTouchDevice) renderer.domElement.requestPointerLock();
+
+  console.log('[CS] Online game started with', roster.length, 'players');
+};
+
+// Initialize online mode if net module is loaded
+initOnlineMode();

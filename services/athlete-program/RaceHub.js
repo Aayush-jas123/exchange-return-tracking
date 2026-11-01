@@ -16,6 +16,7 @@ const { WebSocketServer } = require('ws');
 const crypto = require('crypto');
 const Sim = require('../../public/games/rooftop-sim');
 const PM = require('../../public/games/pacman-sim');
+const CS = require('../../public/games/cs-sim');
 
 const PATH = '/ws/race';
 const MAX_ROOM = 6;
@@ -26,12 +27,13 @@ const GAME_LABELS = {
   'fruit-ninja': 'Fruit Ninja',
   'ping-pong': 'Ping Pong',
   'pac-man': 'Pac-Man',
-  'crossy-road': 'Crossy Road'
+  'crossy-road': 'Crossy Road',
+  'counter-strike': 'Counter Strike'
 };
-const ROOM_MAX = { 'ping-pong': 2, 'pac-man': 4, 'crossy-road': 4 };
+const ROOM_MAX = { 'ping-pong': 2, 'pac-man': 4, 'crossy-road': 4, 'counter-strike': 4 };
 const PLAY_MS = 10 * 60 * 1000;   // a match nobody reports an end for still hands the lobby back
 function normalizeGame(v) { return Object.prototype.hasOwnProperty.call(GAME_LABELS, v) ? v : 'rooftop-racing'; }
-function isArcade(game) { return game === 'ping-pong' || game === 'pac-man' || game === 'crossy-road'; }
+function isArcade(game) { return game === 'ping-pong' || game === 'pac-man' || game === 'crossy-road' || game === 'counter-strike'; }
 const COUNTDOWN_MS = 3500;
 const RACE_MS = 180000;          // hard cap so infinite runs still finish
 const GRACE_MS = 4000;           // late "end" reports after the cap
@@ -257,6 +259,12 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
       if (wp) { wp.alive = false; wp.lives = 0; }
       rm.members.delete(m.id);
     }
+    else if (m.inRace && rm.game === 'counter-strike' && rm.cs) {
+      // Remove player from the match — mark them as dead so bots stop targeting
+      const wp = rm.cs.players[String(m.id)];
+      if (wp) { wp.alive = false; wp.health = 0; }
+      rm.members.delete(m.id);
+    }
     else rm.members.delete(m.id);
     afterMemberGone(rm);
   }
@@ -306,6 +314,15 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
       if (rm.game === 'pac-man') {
         rm.pm = PM.createWorld([...rm.members.values()].filter(m => m.inRace).map(m => ({ id: m.id, spawn: m.c })));
       }
+      // Counter Strike: team-based coop vs bots — hub owns all bot AI and round state
+      if (rm.game === 'counter-strike') {
+        rm.cs = CS.createWorld([...rm.members.values()].filter(m => m.inRace).map(m => String(m.id)));
+        // Set player names
+        for (const m of rm.members.values()) {
+          if (m.inRace) CS.setPlayerName(rm.cs, String(m.id), m.name);
+        }
+        CS.startRound(rm.cs);
+      }
       broadcastRoom(rm, { t: 'go', race: rm.raceId, room: rm.code, game: rm.game, seed: rm.seed, in: COUNTDOWN_MS, dur: 0,
         roster: [...rm.members.values()].filter(m => m.inRace).map(m => ({ id: m.id, n: m.name, c: m.c })) });
       pushRoom(rm);
@@ -319,6 +336,7 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
         rm.guard = setTimeout(() => {
           if (!rooms.has(rm.code)) return;
           if (rm.game === 'pac-man') return finishPM(rm);
+          if (rm.game === 'counter-strike') return finishCS(rm);
           // Crossy Road ends per runner, so the cap pays the lanes each seat had
           // reported instead of dropping everyone back with nothing.
           if (rm.game === 'crossy-road') return finishCR(rm);
@@ -613,6 +631,86 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
     afterMemberGone(rm);
   }
 
+  // ── Counter Strike — team coop vs bots, hub-authoritative ──
+  const csRateLimit = new WeakMap();
+  function onCSState(ws, msg) {
+    const rm = ws.room && rooms.get(ws.room);
+    if (!rm || rm.game !== 'counter-strike' || !rm.cs) return;
+    if (rm.status !== 'playing') return;
+    const nowMs = now();
+    const last = csRateLimit.get(ws) || 0;
+    if (nowMs - last < 60) return; // clients stream at 10Hz
+    csRateLimit.set(ws, nowMs);
+    const m = rm.members.get(ws.athlete.id);
+    if (!m || !m.inRace) return;
+    // Forward player input to the simulator
+    CS.playerInput(rm.cs, String(m.id), {
+      pos: msg.pos || { x: 0, z: 0 },
+      yaw: msg.yaw || 0,
+      pitch: msg.pitch || 0,
+      speed: msg.speed || 0,
+      crouching: msg.crouching || false,
+      onGround: msg.onGround !== false,
+      weapon: msg.weapon || 'rifle',
+      reload: msg.reload || false,
+      shoot: msg.shoot || false,
+      hitRay: msg.hitRay || null
+    });
+  }
+
+  // 10Hz world tick: step bots, resolve rounds, broadcast snapshot
+  function csTick(rm) {
+    if (rm.status !== 'playing' || !rm.cs) return;
+    CS.step(rm.cs, TICK_MS / 1000);
+    broadcastRoom(rm, CS.snapshot(rm.cs));
+    // Check if match should end (all players dead or round limit reached)
+    const alivePlayers = Object.values(rm.cs.players).filter(p => p.alive);
+    if (alivePlayers.length === 0 || rm.cs.round > 16) {
+      finishCS(rm);
+    }
+  }
+
+  async function finishCS(rm) {
+    if (rm.status !== 'playing' && rm.status !== 'countdown') return;
+    clearTimeout(rm.timer);
+    clearTimeout(rm.guard);
+    rm.status = 'results';
+    const world = rm.cs;
+    rm.cs = null;
+    const racers = [...rm.members.values()].filter(m => m.inRace);
+    // Score is total kills across all rounds
+    const scores = racers.map(m => ({
+      id: m.id,
+      score: world && world.players[String(m.id)] ? Math.floor(world.players[String(m.id)].kills) : 0
+    }));
+    const rows = racers.map(m => {
+      const s = scores.find(x => x.id === m.id);
+      return { id: m.id, n: m.name, c: m.c, sc: s ? s.score : 0, rank: 0, xp: 0, coins: 0, why: null };
+    });
+    rows.sort((a, b) => b.sc - a.sc);
+    rows.forEach((r, i) => { r.rank = i + 1; });
+    // Sequential XP award
+    for (const row of rows) {
+      if (row.sc <= 0) continue;
+      try {
+        const r = await awardRun(row.id, row.sc, 'cs_' + rm.raceId + '_' + row.id, 'counter-strike');
+        row.xp = r.awarded || 0;
+        row.coins = r.coins_awarded || 0;
+        row.today = r.earned_today; row.cap = r.daily_cap;
+        row.why = r.reason || null;
+      } catch (e) { console.error('[RaceHub] counter-strike XP award failed:', e.message); row.why = 'error'; }
+    }
+    if (!rooms.has(rm.code)) return;
+    broadcastRoom(rm, { t: 'res', race: rm.raceId, rows });
+    for (const m of [...rm.members.values()]) {
+      if (!m.ws) { rm.members.delete(m.id); continue; }
+      Object.assign(m, { inRace: false, waiting: false, alive: false, dnf: false });
+    }
+    rm.status = 'lobby';
+    if (!rm.members.size) { rooms.delete(rm.code); schedulePresence(); return; }
+    afterMemberGone(rm);
+  }
+
   // Leaving mid-match (tab closed, forfeit) takes the athlete off the board.
   function onPMEnd(ws) {
     const rm = ws.room && rooms.get(ws.room);
@@ -800,6 +898,8 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
       if (msg.t === 'pp_end') return onPPEnd(ws, msg);
       if (msg.t === 'pm_state') return onPMState(ws, msg);
       if (msg.t === 'pm_end') return onPMEnd(ws, msg);
+      if (msg.t === 'cs_state') return onCSState(ws, msg);
+      if (msg.t === 'cs_end') return finishCS(ws.room && rooms.get(ws.room));
       if (msg.t === 'cr_state') return onCRState(ws, msg);
       if (msg.t === 'cr_end') return onCREnd(ws, msg);
       if (msg.t === 'cr_push') return onCRPush(ws, msg);
@@ -826,6 +926,7 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
     for (const ws of solos) if (forceLagging(ws.solo) && runOver(ws.solo)) endSolo(ws);
     for (const rm of rooms.values()) {
       if (rm.game === 'pac-man') { pmTick(rm); continue; }
+      if (rm.game === 'counter-strike') { csTick(rm); continue; }
       if (rm.status !== 'racing' && rm.status !== 'countdown') continue;
       let dirty = false;
       const p = [];

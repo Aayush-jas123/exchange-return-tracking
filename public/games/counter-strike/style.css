@@ -335,3 +335,124 @@ html, body {
   .go-score { font-size: 48px; }
   #center-msg { font-size: 28px; }
 }
+
+/* ── Multiplayer Lobby ── */
+#lobbyScreen {
+  align-items: center; justify-content: center;
+  background: var(--bg);
+  z-index: 5;
+}
+.lobby-inner { text-align: center; max-width: 480px; padding: 24px; width: 100%; }
+.lobby-container {
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+  padding: 20px; margin: 20px 0; min-height: 200px;
+}
+.lobby-status {
+  font: 500 14px var(--f); color: var(--dim); padding: 40px 0;
+}
+.lobby-actions {
+  display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px;
+}
+.lobby-btn {
+  padding: 12px 20px; background: var(--card); border: 1px solid var(--line);
+  border-radius: 10px; color: var(--text); font: 600 14px var(--f);
+  cursor: pointer; transition: all .15s;
+}
+.lobby-btn:hover { border-color: rgba(255,255,255,.3); background: #1a1a22; }
+.lobby-btn.primary { background: var(--text); color: var(--bg); border-color: var(--text); }
+.lobby-btn.primary:hover { background: #e0e0e2; }
+.lobby-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.lobby-btn.small { padding: 8px 16px; font-size: 13px; }
+.lobby-join {
+  display: flex; gap: 8px;
+}
+.lobby-join input {
+  flex: 1; padding: 12px; background: var(--bg); border: 1px solid var(--line);
+  border-radius: 10px; color: var(--text); font: 600 14px var(--m);
+  text-align: center; text-transform: uppercase; letter-spacing: 0.1em;
+}
+.lobby-join input::placeholder { color: var(--dim); text-transform: none; letter-spacing: 0; }
+.lobby-room-list {
+  text-align: left; margin-top: 20px;
+}
+.lobby-room-list h3 {
+  font: 700 12px var(--m); color: var(--dim); text-transform: uppercase;
+  letter-spacing: 0.1em; margin-bottom: 12px;
+}
+.no-rooms, .no-invites {
+  font: 400 13px var(--f); color: var(--dim); text-align: center; padding: 20px 0;
+}
+.room-card {
+  display: flex; align-items: center; gap: 12px; padding: 12px;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 10px;
+  margin-bottom: 8px;
+}
+.room-code {
+  font: 700 16px var(--m); color: var(--text); letter-spacing: 0.05em;
+}
+.room-info {
+  flex: 1; font: 400 12px var(--f); color: var(--dim);
+}
+.room-join-btn {
+  padding: 6px 14px; background: var(--text); color: var(--bg);
+  border: none; border-radius: 6px; font: 600 12px var(--f);
+  cursor: pointer; transition: background .15s;
+}
+.room-join-btn:hover { background: #e0e0e2; }
+.room-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px;
+}
+.room-code-large {
+  font: 800 32px var(--m); color: var(--text); letter-spacing: 0.08em;
+}
+.room-members {
+  text-align: left; margin-bottom: 20px;
+}
+.room-members h3 {
+  font: 700 12px var(--m); color: var(--dim); text-transform: uppercase;
+  letter-spacing: 0.1em; margin-bottom: 12px;
+}
+.member-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 12px; background: var(--bg); border: 1px solid var(--line);
+  border-radius: 8px; margin-bottom: 6px;
+}
+.member-row.online { border-color: rgba(74, 222, 128, 0.3); }
+.member-row.offline { opacity: 0.5; }
+.member-name {
+  font: 500 14px var(--f); color: var(--text);
+}
+.member-status {
+  font: 400 11px var(--m); color: var(--dim);
+}
+.room-actions {
+  margin-top: 20px;
+}
+.waiting-msg {
+  font: 400 13px var(--f); color: var(--dim); padding: 20px 0;
+}
+.invite-section {
+  margin-top: 20px; text-align: left;
+}
+.invite-section h4 {
+  font: 700 11px var(--m); color: var(--dim); text-transform: uppercase;
+  letter-spacing: 0.1em; margin-bottom: 10px;
+}
+.invite-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px; background: var(--bg); border: 1px solid var(--line);
+  border-radius: 8px; margin-bottom: 6px;
+}
+.invite-name {
+  font: 500 13px var(--f); color: var(--text);
+}
+.invite-status {
+  font: 400 11px var(--m); color: var(--dim);
+}
+.invite-btn {
+  padding: 4px 12px; background: transparent; border: 1px solid var(--line);
+  border-radius: 6px; color: var(--text); font: 600 11px var(--f);
+  cursor: pointer; transition: all .15s;
+}
+.invite-btn:hover { border-color: var(--text); background: var(--text); color: var(--bg); }
