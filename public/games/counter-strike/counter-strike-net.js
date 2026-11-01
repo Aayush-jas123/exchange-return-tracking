@@ -159,6 +159,15 @@
       try { msg = JSON.parse(e.data); } catch (err) { return; }
       if (!msg || typeof msg.t !== 'string') return;
 
+      // Hello — own identity
+      if (msg.t === 'hello') {
+        myId = sid(msg.me.id);
+        myName = msg.me.n || '';
+        Net.myId = myId;
+        renderLobby();
+        return;
+      }
+
       // Presence
       if (msg.t === 'presence') {
         athletes = msg.a || [];
