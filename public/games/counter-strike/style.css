@@ -254,8 +254,8 @@ html, body {
 
 /* Action Buttons */
 .action-buttons {
-  position: absolute; bottom: 20px; right: 20px;
-  display: flex; flex-direction: column; gap: 10px;
+  position: absolute; bottom: 14px; right: 14px;
+  display: flex; flex-direction: column; gap: 8px;
   pointer-events: auto;
 }
 .action-btn {
@@ -279,8 +279,8 @@ html, body {
 
 /* Weapon Switch */
 .weapon-switch {
-  position: absolute; top: 140px; right: 14px;
-  display: flex; flex-direction: column; gap: 6px;
+  position: absolute; bottom: 320px; left: 14px;
+  display: flex; flex-direction: row; gap: 8px;
   pointer-events: auto;
 }
 .weapon-btn {
@@ -298,8 +298,8 @@ html, body {
 
 /* Jump/Crouch */
 .movement-buttons {
-  position: absolute; bottom: 180px; left: 20px;
-  display: flex; gap: 10px;
+  position: absolute; bottom: 250px; left: 14px;
+  display: flex; flex-direction: column; gap: 8px;
   pointer-events: auto;
 }
 .move-btn {
@@ -326,6 +326,8 @@ html, body {
   .joystick-stick { width: 44px; height: 44px; }
   .action-btn { width: 56px; height: 56px; font-size: 10px; }
   .action-btn.fire { width: 70px; height: 70px; }
+  .weapon-switch { bottom: 290px; left: 14px; }
+  .movement-buttons { bottom: 230px; left: 14px; }
 }
 
 /* ── Responsive ── */
