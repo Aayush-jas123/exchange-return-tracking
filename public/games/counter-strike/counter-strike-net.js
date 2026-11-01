@@ -234,7 +234,7 @@
 
   function getToken() {
     // Try to get token from AthleteXP module or URL params
-    if (window.AthleteXP && window.AthleteXP.getToken) return window.AthleteXP.getToken();
+    if (window.AthleteXP && window.AthleteXP.token) return window.AthleteXP.token();
     const params = new URLSearchParams(location.search);
     return params.get('t') || params.get('token') || '';
   }
