@@ -1181,7 +1181,7 @@ function startRound() {
   game.timeLeft = ROUND_TIME;
   clearBots();
   resetPlayer();
-  spawnBots(Math.min(2 + Math.floor(game.round / 3), 6));
+  spawnBots(Math.min(3 + Math.floor(game.round / 2), 8));
   hud.round.textContent = game.round;
   hud.enemies.textContent = aliveBots().length;
   centerMsg(`ROUND ${game.round}`, `${aliveBots().length} terrorists. Eliminate them all.`);
