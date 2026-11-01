@@ -244,6 +244,24 @@
         console.warn('[CSNet] Server error:', msg.m);
         if (window.showLobbyError) window.showLobbyError(msg.m);
       }
+
+      // Invite received
+      if (msg.t === 'inv') {
+        if (msg.g && msg.g !== GAME_TYPE) return; // ignore invites for other games
+        const fromName = msg.from?.n || 'An athlete';
+        const roomCode = msg.r;
+        console.log('[CSNet] Invite from', fromName, 'to room', roomCode);
+        // Show invite notification
+        if (window.showInvite) {
+          window.showInvite(fromName, roomCode, () => {
+            Net.joinRoom(roomCode);
+          });
+        } else {
+          // Fallback: auto-join if no UI handler
+          Net.joinRoom(roomCode);
+        }
+        return;
+      }
     };
   }
 

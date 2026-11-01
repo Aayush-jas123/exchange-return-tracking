@@ -1773,5 +1773,55 @@ window.startOnlineGame = function(roster) {
   console.log('[CS] Online game started with', roster.length, 'players');
 };
 
+// Show invite notification
+window.showInvite = function(fromName, roomCode, onAccept) {
+  // Create toast notification
+  let toast = document.getElementById('csInviteToast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'csInviteToast';
+    toast.style.cssText = 'position:fixed;left:50%;top:80px;transform:translateX(-50%);z-index:99999;' +
+      'background:rgba(10,10,12,.95);color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:12px;' +
+      'padding:16px 20px;font:500 14px var(--f);letter-spacing:.02em;' +
+      'box-shadow:0 8px 32px rgba(0,0,0,.4);min-width:280px;text-align:center;' +
+      'transition:opacity .3s, transform .3s;opacity:0;pointer-events:none;';
+    document.body.appendChild(toast);
+  }
+  
+  toast.innerHTML = `
+    <div style="margin-bottom:12px;font-size:13px;color:rgba(255,255,255,.7)">Game Invite</div>
+    <div style="margin-bottom:16px;font-size:15px;font-weight:600">${fromName} invited you to play</div>
+    <div style="display:flex;gap:8px;justify-content:center">
+      <button id="csInviteAccept" style="padding:8px 20px;background:#fff;color:#000;border:none;border-radius:8px;font:600 13px var(--f);cursor:pointer">Accept</button>
+      <button id="csInviteDecline" style="padding:8px 20px;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:8px;font:600 13px var(--f);cursor:pointer">Decline</button>
+    </div>
+  `;
+  
+  toast.style.opacity = '1';
+  toast.style.pointerEvents = 'auto';
+  
+  const acceptBtn = document.getElementById('csInviteAccept');
+  const declineBtn = document.getElementById('csInviteDecline');
+  
+  acceptBtn.onclick = () => {
+    toast.style.opacity = '0';
+    toast.style.pointerEvents = 'none';
+    if (onAccept) onAccept();
+  };
+  
+  declineBtn.onclick = () => {
+    toast.style.opacity = '0';
+    toast.style.pointerEvents = 'none';
+  };
+  
+  // Auto-hide after 10 seconds
+  setTimeout(() => {
+    if (toast.style.opacity === '1') {
+      toast.style.opacity = '0';
+      toast.style.pointerEvents = 'none';
+    }
+  }, 10000);
+};
+
 // Initialize online mode if net module is loaded
 initOnlineMode();
