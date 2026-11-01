@@ -1,0 +1,337 @@
+/* ═══════════════════════════════════════════════════════════
+   OFFCOMFRT Arcade — Counter Strike
+   Monochrome Field Manual theme · Mobile-optimized
+   ═══════════════════════════════════════════════════════════ */
+
+:root {
+  --bg: #0a0a0c;
+  --card: #141418;
+  --line: #2a2a32;
+  --text: #f0f0f2;
+  --dim: #8888a0;
+  --f: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+  --m: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  height: 100%; overflow: hidden; background: var(--bg); color: var(--text);
+  font-family: var(--f);
+  user-select: none; -webkit-user-select: none;
+  touch-action: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Screens ── */
+.screen { position: fixed; inset: 0; display: none; }
+.screen.active { display: flex; }
+
+/* ── Menu Screen ── */
+#menuScreen {
+  align-items: center; justify-content: center;
+  background: var(--bg);
+  z-index: 5;
+}
+.menu-inner { text-align: center; max-width: 420px; padding: 24px; width: 100%; }
+
+/* OFFCOMFRT Brand */
+.brand { margin-bottom: 32px; }
+.brand-logo {
+  width: 64px; height: 64px; margin: 0 auto 16px;
+  background: var(--text);
+  border-radius: 16px;
+  display: flex; align-items: center; justify-content: center;
+  font: 900 28px var(--m);
+  color: var(--bg);
+  letter-spacing: -1px;
+}
+.brand-eyebrow {
+  display: block; font: 700 10px var(--m); letter-spacing: .18em; text-transform: uppercase;
+  color: var(--dim); margin-bottom: 8px;
+}
+.brand h1 {
+  font: 800 clamp(32px, 8vw, 48px) var(--f); letter-spacing: -.02em; line-height: 1.1;
+  color: var(--text);
+}
+
+/* Play Button */
+.mode-btn {
+  display: flex; align-items: center; gap: 14px; width: 100%;
+  padding: 16px 20px; background: var(--card);
+  border: 1px solid var(--line); border-radius: 14px;
+  color: var(--text); font: 600 15px var(--f);
+  cursor: pointer; transition: border-color .15s, background .15s;
+  -webkit-tap-highlight-color: transparent;
+  text-align: left;
+}
+.mode-btn:hover, .mode-btn:active { border-color: rgba(255,255,255,.3); background: #1a1a22; }
+.mode-btn .mi { font-size: 22px; width: 36px; text-align: center; flex-shrink: 0; font-style: normal; }
+.mode-btn .ml { display: flex; flex-direction: column; gap: 2px; }
+.mode-btn .ms { font: 400 11px var(--m); color: var(--dim); }
+
+/* Instructions */
+.instructions-toggle {
+  font: 600 12px var(--m); color: var(--dim); cursor: pointer;
+  margin-top: 16px; letter-spacing: .04em;
+}
+.instructions-toggle .arrow { display: inline-block; transition: transform .2s; font-size: 10px; }
+.instructions-toggle.open .arrow { transform: rotate(180deg); }
+.instructions { margin-top: 12px; text-align: left; max-height: 0; overflow: hidden; transition: max-height .3s ease; }
+.instructions[hidden] { display: block; max-height: 0; }
+.instructions:not([hidden]) { max-height: 400px; }
+.instructions p { font: 400 12px/1.6 var(--f); color: var(--dim); margin-bottom: 8px; }
+.instructions b { color: var(--text); }
+
+/* ── Game Screen ── */
+#gameScreen { z-index: 1; }
+#gameScreen canvas { display: block; }
+
+/* ── HUD ── */
+#hud { position: fixed; inset: 0; pointer-events: none; color: var(--text); text-shadow: 0 1px 2px var(--bg); z-index: 2; }
+
+/* Radar */
+#radar {
+  position: absolute; top: 14px; left: 14px; width: 120px; height: 120px;
+  border-radius: 50%; background: rgba(20,20,24,.85); border: 1px solid var(--line);
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+}
+
+/* Top Bar */
+#topbar {
+  position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 10px; font-weight: 700;
+}
+#topbar .team {
+  display: flex; gap: 6px; align-items: center; padding: 6px 12px;
+  background: rgba(20,20,24,.85); border: 1px solid var(--line);
+  border-radius: 8px; font: 700 18px var(--m);
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+}
+#topbar .ct { color: var(--text); }
+#topbar .t { color: var(--dim); }
+#topbar .label { font: 600 10px var(--m); opacity: .6; text-transform: uppercase; letter-spacing: .08em; }
+#timer {
+  font: 700 22px var(--m); padding: 6px 14px;
+  background: rgba(20,20,24,.85); border: 1px solid var(--line);
+  border-radius: 8px; min-width: 72px; text-align: center;
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+}
+#timer.low { color: #ff5a4a; border-color: rgba(255,90,74,.4); }
+#round-info {
+  position: absolute; top: 56px; left: 50%; transform: translateX(-50%);
+  font: 600 11px var(--m); color: var(--dim); letter-spacing: .08em;
+}
+
+/* Crosshair */
+#crosshair { --gap: 6px; position: absolute; top: 50%; left: 50%; width: 0; height: 0; }
+#crosshair i { position: absolute; background: var(--text); box-shadow: 0 0 1px var(--bg); }
+#crosshair .t, #crosshair .b { width: 2px; height: 9px; left: -1px; }
+#crosshair .l, #crosshair .r { width: 9px; height: 2px; top: -1px; }
+#crosshair .t { bottom: var(--gap); }
+#crosshair .b { top: var(--gap); }
+#crosshair .l { right: var(--gap); }
+#crosshair .r { left: var(--gap); }
+
+/* Hit Marker */
+#hitmarker { position: absolute; top: 50%; left: 50%; width: 22px; height: 22px; transform: translate(-50%,-50%) rotate(45deg); opacity: 0; }
+#hitmarker::before, #hitmarker::after { content: ""; position: absolute; background: var(--text); }
+#hitmarker::before { left: 10px; top: 0; width: 2px; height: 22px; }
+#hitmarker::after { top: 10px; left: 0; width: 22px; height: 2px; }
+#hitmarker.kill::before, #hitmarker.kill::after { background: #ff3b3b; }
+
+/* Damage Flash */
+#damage { position: absolute; inset: 0; opacity: 0; background: radial-gradient(ellipse at center, transparent 45%, rgba(200,0,0,.75) 100%); }
+
+/* Kill Feed */
+#killfeed { position: absolute; top: 14px; right: 14px; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+#killfeed div {
+  background: rgba(20,20,24,.85); padding: 5px 10px; border-radius: 6px;
+  font: 600 12px var(--m); border: 1px solid var(--line);
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+}
+#killfeed .you { color: var(--text); }
+#killfeed .bot { color: var(--dim); }
+#killfeed .hs { color: #ff6a5a; font-weight: 700; }
+
+/* Center Message */
+#center-msg {
+  position: absolute; top: 30%; left: 50%; transform: translateX(-50%);
+  font: 800 36px var(--f); letter-spacing: 1px; text-align: center;
+  opacity: 0; transition: opacity .25s; white-space: nowrap;
+}
+#center-msg.show { opacity: 1; }
+#center-msg small { display: block; font: 500 16px var(--f); letter-spacing: 0; margin-top: 6px; color: var(--dim); }
+
+/* Bottom HUD */
+#health-box, #ammo-box, #kills-box {
+  position: absolute; bottom: 18px;
+  background: rgba(20,20,24,.85); padding: 8px 14px; border-radius: 10px;
+  border: 1px solid var(--line); font-weight: 700;
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+}
+#health-box { left: 18px; font: 700 28px var(--m); }
+#health-box .icon { color: var(--text); margin-right: 8px; }
+#health-box.low { color: #ff5a4a; border-color: rgba(255,90,74,.4); }
+#ammo-box { right: 18px; font: 700 28px var(--m); }
+#ammo-box #weapon-name { font: 600 11px var(--m); opacity: .6; margin-right: 10px; vertical-align: middle; text-transform: uppercase; letter-spacing: .06em; }
+#ammo-box .sep { opacity: .4; margin: 0 3px; }
+#ammo-box #reserve { font: 600 18px var(--m); opacity: .7; }
+#kills-box {
+  left: 50%; transform: translateX(-50%);
+  font: 700 13px var(--m); letter-spacing: .06em;
+}
+
+/* ── Pause Overlay ── */
+.pause-overlay {
+  position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+  background: rgba(10,10,12,.85); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  z-index: 10;
+}
+.pause-overlay.hidden { display: none; }
+.pause-panel { text-align: center; padding: 32px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; }
+.pause-panel h2 { font: 800 28px var(--f); letter-spacing: 2px; color: var(--text); margin-bottom: 8px; }
+.pause-panel p { font: 600 11px var(--m); color: var(--dim); letter-spacing: .1em; text-transform: uppercase; }
+
+/* ── Game Over Screen ── */
+#gameOverScreen {
+  align-items: center; justify-content: center;
+  background: rgba(10,10,12,.85); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  z-index: 5;
+}
+.go-inner { text-align: center; max-width: 380px; padding: 24px; width: 100%; }
+.go-label { font: 700 10px var(--m); letter-spacing: .18em; text-transform: uppercase; color: var(--dim); margin-bottom: 8px; }
+.go-score { font: 800 clamp(48px, 12vw, 72px) var(--f); letter-spacing: -.03em; line-height: 1; color: var(--text); }
+.go-sub { font: 400 12px var(--m); color: var(--dim); margin-top: 6px; }
+.go-stats { display: flex; gap: 12px; justify-content: center; margin-top: 28px; }
+.go-stat {
+  padding: 12px 20px; background: var(--card); border: 1px solid var(--line);
+  border-radius: 10px; text-align: center;
+}
+.go-stat .gs-val { font: 700 20px var(--m); color: var(--text); }
+.go-stat .gs-label { font: 500 9px var(--m); color: var(--dim); text-transform: uppercase; letter-spacing: .08em; margin-top: 2px; }
+.go-btns { display: flex; flex-direction: column; gap: 10px; margin-top: 32px; }
+.go-btn {
+  padding: 14px 20px; border-radius: 12px; border: 1px solid var(--line);
+  background: var(--card); color: var(--text); font: 600 14px var(--f);
+  cursor: pointer; transition: border-color .15s, background .15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.go-btn:hover { border-color: rgba(255,255,255,.3); }
+.go-btn.primary { background: var(--text); color: var(--bg); border-color: var(--text); }
+.go-btn.primary:hover { background: #ddd; }
+
+/* ── Mobile Touch Controls ── */
+.touch-controls { display: none; position: fixed; inset: 0; pointer-events: none; z-index: 3; }
+
+/* Virtual Joystick */
+.joystick-zone {
+  position: absolute; bottom: 20px; left: 20px;
+  width: 140px; height: 140px;
+  pointer-events: auto;
+}
+.joystick-base {
+  position: absolute; inset: 0;
+  background: rgba(20,20,24,.6); border: 2px solid var(--line);
+  border-radius: 50%;
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+}
+.joystick-stick {
+  position: absolute; top: 50%; left: 50%;
+  width: 50px; height: 50px;
+  background: rgba(240,240,242,.8); border: 2px solid var(--text);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  transition: background .1s;
+}
+.joystick-stick.active { background: var(--text); }
+
+/* Look Zone (right side) */
+.look-zone {
+  position: absolute; bottom: 0; right: 0;
+  width: 50%; height: 60%;
+  pointer-events: auto;
+}
+
+/* Action Buttons */
+.action-buttons {
+  position: absolute; bottom: 20px; right: 20px;
+  display: flex; flex-direction: column; gap: 10px;
+  pointer-events: auto;
+}
+.action-btn {
+  width: 64px; height: 64px;
+  background: rgba(20,20,24,.8); border: 2px solid var(--line);
+  border-radius: 16px;
+  display: flex; align-items: center; justify-content: center;
+  font: 700 11px var(--m); color: var(--text);
+  text-transform: uppercase; letter-spacing: .06em;
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+}
+.action-btn:active { background: rgba(240,240,242,.3); border-color: var(--text); }
+.action-btn.fire {
+  width: 80px; height: 80px;
+  background: rgba(255,90,74,.2); border-color: rgba(255,90,74,.5);
+  color: #ff5a4a;
+}
+.action-btn.fire:active { background: rgba(255,90,74,.4); }
+
+/* Weapon Switch */
+.weapon-switch {
+  position: absolute; top: 140px; right: 14px;
+  display: flex; flex-direction: column; gap: 6px;
+  pointer-events: auto;
+}
+.weapon-btn {
+  width: 48px; height: 48px;
+  background: rgba(20,20,24,.8); border: 1px solid var(--line);
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font: 700 18px var(--m); color: var(--dim);
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+}
+.weapon-btn:active { background: rgba(240,240,242,.2); }
+.weapon-btn.active { border-color: var(--text); color: var(--text); }
+
+/* Jump/Crouch */
+.movement-buttons {
+  position: absolute; bottom: 180px; left: 20px;
+  display: flex; gap: 10px;
+  pointer-events: auto;
+}
+.move-btn {
+  width: 56px; height: 56px;
+  background: rgba(20,20,24,.8); border: 1px solid var(--line);
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font: 700 20px var(--m); color: var(--dim);
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+}
+.move-btn:active { background: rgba(240,240,242,.2); border-color: var(--text); }
+
+/* Show touch controls only on touch devices */
+@media (hover: none) and (pointer: coarse) {
+  .touch-controls { display: block; }
+  #radar { width: 90px; height: 90px; }
+  #health-box, #ammo-box { font-size: 22px; bottom: 180px; }
+  #health-box { left: 14px; }
+  #ammo-box { right: 14px; }
+  #kills-box { bottom: 180px; }
+  .joystick-zone { width: 120px; height: 120px; bottom: 14px; left: 14px; }
+  .joystick-stick { width: 44px; height: 44px; }
+  .action-btn { width: 56px; height: 56px; font-size: 10px; }
+  .action-btn.fire { width: 70px; height: 70px; }
+}
+
+/* ── Responsive ── */
+@media (max-width: 480px) {
+  .brand h1 { font-size: 32px; }
+  .mode-btn { padding: 14px 16px; font-size: 14px; }
+  .go-score { font-size: 48px; }
+  #center-msg { font-size: 28px; }
+}

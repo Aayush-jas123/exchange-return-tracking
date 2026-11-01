@@ -1501,8 +1501,8 @@ function raceRetry(){clearTimeout(RACE.timer);if(S.token)RACE.timer=setTimeout(r
 function raceClose(){clearTimeout(RACE.timer);const ws=RACE.ws;RACE.ws=null;if(ws)ws.close()}
 // Every cabinet has its own page and rooms are game-scoped, so a lobby or invite
 // link must open the game the room belongs to — not always Rooftop Racing.
-const GAME_LABELS={'rooftop-racing':'Rooftop Race','fruit-ninja':'Fruit Ninja','ping-pong':'Ping Pong','pac-man':'Pac-Man','crossy-road':'Crossy Road'};
-const GAME_URLS={'rooftop-racing':BASE+'/athlete-game.html','fruit-ninja':BASE+'/games/fruit-ninja/index.html','ping-pong':BASE+'/games/ping-pong/index.html','pac-man':BASE+'/games/pac-man/index.html','crossy-road':BASE+'/games/crossy-road/index.html'};
+const GAME_LABELS={'rooftop-racing':'Rooftop Race','fruit-ninja':'Fruit Ninja','ping-pong':'Ping Pong','pac-man':'Pac-Man','crossy-road':'Crossy Road','tower-blocks':'Tower Blocks','counter-strike':'Counter Strike'};
+const GAME_URLS={'rooftop-racing':BASE+'/athlete-game.html','fruit-ninja':BASE+'/games/fruit-ninja/index.html','ping-pong':BASE+'/games/ping-pong/index.html','pac-man':BASE+'/games/pac-man/index.html','crossy-road':BASE+'/games/crossy-road/index.html','tower-blocks':BASE+'/games/tower-blocks/index.html','counter-strike':BASE+'/games/counter-strike/index.html'};
 // Every cabinet carries the portal's own URL (`p`) so a game's back control returns
 // the athlete to this exact page, whichever domain the store is served on.
 const PORTAL_SELF=(location.origin+location.pathname).replace(/\/$/,'');

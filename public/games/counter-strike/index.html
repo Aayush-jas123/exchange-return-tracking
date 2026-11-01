@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+  <title>OFFCOMFRT &mdash; Counter Strike</title>
+  <link rel="stylesheet" href="style.css?v=3" />
+</head>
+<body>
+
+  <!-- ═══ Menu Screen ═══ -->
+  <div id="menuScreen" class="screen active">
+    <div class="menu-inner">
+      <div class="brand">
+        <div class="brand-logo">OC</div>
+        <span class="brand-eyebrow">OFFCOMFRT Arcade</span>
+        <h1>Counter Strike</h1>
+      </div>
+      <button class="mode-btn" id="btnPlay">
+        <span class="mi">🎯</span>
+        <span class="ml">Deploy<span class="ms">Eliminate all terrorists &mdash; survive every round</span></span>
+      </button>
+      <div class="instructions-toggle" id="instrToggle">How to play <span class="arrow">&#9660;</span></div>
+      <div class="instructions" id="instrPanel" hidden>
+        <p><b>Objective:</b> You are a Counter-Terrorist. Eliminate every bot before the round timer expires. Each round spawns more enemies. Your total kills before elimination is your score.</p>
+        <p><b>PC Controls:</b> WASD to move, Mouse to aim, Left click to shoot, Right click to aim down sights, Space to jump, Shift to walk, C/Ctrl to crouch, R to reload, 1/2/3 to switch weapons.</p>
+        <p><b>Mobile Controls:</b> Left joystick to move, right side of screen to aim, fire button to shoot, weapon switch buttons for guns, jump/crouch buttons for movement.</p>
+        <p><b>Scoring:</b> Every kill counts. Headshots are one-hit kills. Walk or crouch for tighter accuracy. The deeper you push into rounds, the tougher the bots become.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Game Screen ═══ -->
+  <div id="gameScreen" class="screen">
+    <div id="hud">
+      <canvas id="radar" width="170" height="170"></canvas>
+      <div id="topbar">
+        <div class="team ct"><span class="label">CT</span><span id="scoreCT">0</span></div>
+        <div id="timer">1:55</div>
+        <div class="team t"><span id="scoreT">0</span><span class="label">T</span></div>
+      </div>
+      <div id="round-info">Round <span id="round">1</span> &middot; Enemies: <span id="enemies">0</span></div>
+      <div id="crosshair"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
+      <div id="hitmarker"></div>
+      <div id="damage"></div>
+      <div id="killfeed"></div>
+      <div id="center-msg"></div>
+      <div id="health-box"><span class="icon">+</span><span id="health">100</span></div>
+      <div id="ammo-box">
+        <span id="weapon-name">RIFLE</span>
+        <span id="ammo">30</span><span class="sep">/</span><span id="reserve">90</span>
+      </div>
+      <div id="kills-box">KILLS: <span id="kills">0</span></div>
+    </div>
+
+    <!-- Mobile Touch Controls -->
+    <div class="touch-controls" id="touchControls">
+      <!-- Movement Joystick -->
+      <div class="joystick-zone" id="joystickZone">
+        <div class="joystick-base"></div>
+        <div class="joystick-stick" id="joystickStick"></div>
+      </div>
+
+      <!-- Look/Aim Zone -->
+      <div class="look-zone" id="lookZone"></div>
+
+      <!-- Action Buttons -->
+      <div class="action-buttons">
+        <button class="action-btn fire" id="btnFire">FIRE</button>
+        <button class="action-btn" id="btnReload">RLD</button>
+      </div>
+
+      <!-- Weapon Switch -->
+      <div class="weapon-switch">
+        <button class="weapon-btn active" data-weapon="0" id="btnWep0">1</button>
+        <button class="weapon-btn" data-weapon="1" id="btnWep1">2</button>
+        <button class="weapon-btn" data-weapon="2" id="btnWep2">3</button>
+      </div>
+
+      <!-- Movement Buttons -->
+      <div class="movement-buttons">
+        <button class="move-btn" id="btnJump">↑</button>
+        <button class="move-btn" id="btnCrouch">↓</button>
+      </div>
+    </div>
+
+    <!-- Pause overlay -->
+    <div id="pauseOverlay" class="pause-overlay hidden">
+      <div class="pause-panel">
+        <h2>PAUSED</h2>
+        <p>Tap to resume</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Game Over Screen ═══ -->
+  <div id="gameOverScreen" class="screen">
+    <div class="go-inner">
+      <div class="go-label">Eliminated</div>
+      <div class="go-score" id="goScore">0</div>
+      <div class="go-sub">total kills</div>
+      <div class="go-stats">
+        <div class="go-stat">
+          <div class="gs-val" id="goXP">--</div>
+          <div class="gs-label">XP Earned</div>
+        </div>
+        <div class="go-stat">
+          <div class="gs-val" id="goRound">1</div>
+          <div class="gs-label">Round Reached</div>
+        </div>
+      </div>
+      <div class="go-btns">
+        <button class="go-btn primary" id="btnRetry">Redeploy</button>
+        <button class="go-btn" id="btnBackMenu">&larr; Back to Menu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Import map for Three.js (ES module) -->
+  <script type="importmap">
+    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+  </script>
+  <!-- Portal bridge scripts load first as regular (synchronous) scripts -->
+  <script src="../portal-back.js?v=1"></script>
+  <script src="../athlete-xp.js?v=19"></script>
+  <!-- Game engine loads as ES module (deferred by spec) -->
+  <script type="module" src="script.js?v=6"></script>
+</body>
+</html>
