@@ -180,15 +180,18 @@
 
       // Room update
       if (msg.t === 'room') {
-        room = msg.r;
+        // msg.r is the room code; the full room data is in msg itself
+        room = {
+          code: msg.r,
+          host: sid(msg.host),
+          status: msg.s,
+          game: msg.g,
+          max: msg.max || MAX_ROOM,
+          members: (msg.m || []).map(m => ({ ...m, id: sid(m.id) }))
+        };
         Net.room = room;
         if (room) {
-          raceId = room.race;
-          // Normalize IDs to strings
-          if (room.members) {
-            room.members = room.members.map(m => ({ ...m, id: sid(m.id) }));
-          }
-          if (room.host) room.host = sid(room.host);
+          raceId = room.code;
         }
         renderLobby();
         if (Net.onRoomUpdate) Net.onRoomUpdate(room);
