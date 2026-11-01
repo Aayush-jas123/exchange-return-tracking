@@ -379,7 +379,7 @@ html, body {
   font: 700 12px var(--m); color: var(--dim); text-transform: uppercase;
   letter-spacing: 0.1em; margin-bottom: 12px;
 }
-.no-rooms, .no-invites {
+.no-rooms, .no-invites, .no-athletes {
   font: 400 13px var(--f); color: var(--dim); text-align: center; padding: 20px 0;
 }
 .room-card {
@@ -456,3 +456,29 @@ html, body {
   cursor: pointer; transition: all .15s;
 }
 .invite-btn:hover { border-color: var(--text); background: var(--text); color: var(--bg); }
+
+/* ── Online Athletes List ── */
+.lobby-athletes {
+  text-align: left; margin-top: 20px;
+}
+.lobby-athletes h3 {
+  font: 700 12px var(--m); color: var(--dim); text-transform: uppercase;
+  letter-spacing: 0.1em; margin-bottom: 12px;
+}
+.athlete-row {
+  display: flex; align-items: center; gap: 12px; padding: 10px 12px;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+  margin-bottom: 6px;
+}
+.athlete-name {
+  flex: 1; font: 500 14px var(--f); color: var(--text);
+}
+.athlete-status {
+  font: 400 11px var(--m); color: #4ade80;
+}
+.athlete-invite-btn {
+  padding: 6px 14px; background: transparent; border: 1px solid var(--line);
+  border-radius: 6px; color: var(--text); font: 600 12px var(--f);
+  cursor: pointer; transition: all .15s;
+}
+.athlete-invite-btn:hover { border-color: var(--text); background: var(--text); color: var(--bg); }

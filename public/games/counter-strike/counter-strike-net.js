@@ -259,7 +259,8 @@
     }
 
     if (!room) {
-      // Show room creation / join UI
+      // Show room creation / join UI + online athletes
+      const onlineAthletes = athletes.filter(a => sid(a.id) !== myId);
       lobbyEl.innerHTML = `
         <div class="lobby-actions">
           <button class="lobby-btn primary" id="csCreateRoom">Create Room</button>
@@ -271,6 +272,10 @@
         <div class="lobby-room-list">
           <h3>Available Rooms</h3>
           <div id="csRoomList"></div>
+        </div>
+        <div class="lobby-athletes">
+          <h3>Online Athletes (${onlineAthletes.length})</h3>
+          <div id="csAthleteList"></div>
         </div>
       `;
       document.getElementById('csCreateRoom').onclick = () => Net.createRoom();
@@ -296,11 +301,39 @@
           btn.onclick = () => Net.joinRoom(btn.dataset.code);
         });
       }
+
+      // Render online athletes with invite buttons
+      const athleteEl = document.getElementById('csAthleteList');
+      if (onlineAthletes.length === 0) {
+        athleteEl.innerHTML = '<div class="no-athletes">No other athletes online</div>';
+      } else {
+        athleteEl.innerHTML = onlineAthletes.map(a => `
+          <div class="athlete-row" data-id="${escapeHtml(a.id)}">
+            <span class="athlete-name">${escapeHtml(a.name || 'Athlete')}</span>
+            <span class="athlete-status">Online</span>
+            <button class="athlete-invite-btn" data-id="${escapeHtml(a.id)}">Invite to Room</button>
+          </div>
+        `).join('');
+        athleteEl.querySelectorAll('.athlete-invite-btn').forEach(btn => {
+          btn.onclick = () => {
+            // Create a room first if not in one, then invite
+            if (!room) {
+              Net.createRoom();
+              // Wait for room creation, then invite
+              setTimeout(() => {
+                if (room) Net.invite(btn.dataset.id);
+              }, 500);
+            } else {
+              Net.invite(btn.dataset.id);
+            }
+          };
+        });
+      }
       return;
     }
 
     // Show room details
-    const isHost = room.host === myId;
+    const isHost = sid(room.host) === myId;
     const members = room.members || [];
     const onlineCount = members.filter(m => m.on).length;
 
