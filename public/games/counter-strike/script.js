@@ -601,7 +601,7 @@ function finishReload() {
 // ── Player ──
 const player = {
   pos: new THREE.Vector3(), vel: new THREE.Vector3(), yaw: Math.PI, pitch: 0,
-  onGround: true, health: 100, alive: true, eye: 1.65, speed: 0,
+  onGround: true, health: 150, alive: true, eye: 1.65, speed: 0,
 };
 const P_RADIUS = 0.35, P_HEIGHT = 1.8;
 
@@ -720,13 +720,13 @@ class Bot {
     const moving = player.speed > 3.2 ? 0.18 : 0;
     const airborne = player.onGround ? 0 : 0.12;
     const crouchBonus = player.eye < 1.4 ? 0.06 : 0;
-    const chance = clamp(0.5 + game.round * 0.035 - dist * 0.009 - moving - airborne - crouchBonus, 0.1, 0.8);
+    const chance = clamp(0.35 + game.round * 0.02 - dist * 0.009 - moving - airborne - crouchBonus, 0.08, 0.65);
     const hit = Math.random() < chance;
     const aim = playerEye.clone().add(new THREE.Vector3(0, -0.35, 0));
     if (!hit) aim.add(new THREE.Vector3(rand(-1, 1), rand(-0.6, 0.8), rand(-1, 1)).multiplyScalar(0.6 + dist * 0.02));
     spawnTracer(muzzle, aim, 0xffc870);
     playShot(clamp(1.2 - dist / 40, 0.12, 0.8), 0.85);
-    if (hit) damagePlayer(Math.round(rand(8, 15) * (Math.random() < 0.08 ? 2.5 : 1)), this);
+    if (hit) damagePlayer(Math.round(rand(5, 10) * (Math.random() < 0.06 ? 1.8 : 1)), this);
   }
 
   update(dt) {
@@ -752,7 +752,7 @@ class Bot {
     let moveSpeed = 0;
 
     if (sees) {
-      if (!this.alert) this.reaction = rand(0.45, 0.85) / (1 + game.round * 0.08);
+      if (!this.alert) this.reaction = rand(0.7, 1.2) / (1 + game.round * 0.04);
       this.alert = true; this.spotted = 2;
       this.lastSeen.copy(player.pos); this.lostTimer = 0;
       this.faceToward(player.pos.x, player.pos.z, dt, 10);
@@ -762,16 +762,16 @@ class Bot {
       if (this.strafeTimer <= 0) { this.strafeDir = [-1, 0, 1][(Math.random() * 3) | 0]; this.strafeTimer = rand(0.5, 1.4); }
       if (this.strafeDir) {
         const sx = (dz / dist) * this.strafeDir, sz = (-dx / dist) * this.strafeDir;
-        this.pos.x += sx * 2.2 * dt; this.pos.z += sz * 2.2 * dt;
-        moveSpeed = 2.2;
+        this.pos.x += sx * 1.6 * dt; this.pos.z += sz * 1.6 * dt;
+        moveSpeed = 1.6;
       }
-      if (dist > 22) { this.moveToward(player.pos.x, player.pos.z, 2.5, dt); moveSpeed = 2.5; }
+      if (dist > 22) { this.moveToward(player.pos.x, player.pos.z, 2.0, dt); moveSpeed = 2.0; }
 
       if (this.reaction <= 0) {
         this.shootCD -= dt;
         if (this.shootCD <= 0) {
           this.shoot(dist);
-          this.shootCD = Math.random() < 0.6 ? rand(0.1, 0.16) : rand(0.35, 0.8);
+          this.shootCD = Math.random() < 0.4 ? rand(0.1, 0.16) : rand(0.35, 0.8);
         }
       }
     } else if (this.alert) {
@@ -1154,7 +1154,7 @@ document.addEventListener('pointerlockchange', () => {
 });
 
 // ── Game flow ──
-const ROUND_TIME = 115;
+const ROUND_TIME = 130;
 const game = { state: 'menu', round: 0, ct: 0, t: 0, kills: 0, timeLeft: ROUND_TIME, endTimer: 0 };
 
 function resetPlayer() {
@@ -1181,7 +1181,7 @@ function startRound() {
   game.timeLeft = ROUND_TIME;
   clearBots();
   resetPlayer();
-  spawnBots(Math.min(3 + Math.floor(game.round / 2), 8));
+  spawnBots(Math.min(2 + Math.floor(game.round / 3), 6));
   hud.round.textContent = game.round;
   hud.enemies.textContent = aliveBots().length;
   centerMsg(`ROUND ${game.round}`, `${aliveBots().length} terrorists. Eliminate them all.`);
