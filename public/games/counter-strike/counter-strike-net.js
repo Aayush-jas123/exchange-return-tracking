@@ -181,13 +181,26 @@
       // Room update
       if (msg.t === 'room') {
         // msg.r is the room code; the full room data is in msg itself
+        const members = (msg.m || []).map(m => ({ ...m, id: sid(m.id) }));
+        
+        // Ensure current user is in the members list
+        if (myId && !members.some(m => m.id === myId)) {
+          members.push({
+            id: myId,
+            n: myName || 'You',
+            lv: 0,
+            on: true,
+            wait: false
+          });
+        }
+        
         room = {
           code: msg.r,
           host: sid(msg.host),
           status: msg.s,
           game: msg.g,
           max: msg.max || MAX_ROOM,
-          members: (msg.m || []).map(m => ({ ...m, id: sid(m.id) }))
+          members
         };
         Net.room = room;
         if (room) {
