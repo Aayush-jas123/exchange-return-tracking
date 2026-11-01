@@ -327,7 +327,7 @@
       } else {
         athleteEl.innerHTML = onlineAthletes.map(a => `
           <div class="athlete-row" data-id="${escapeHtml(a.id)}">
-            <span class="athlete-name">${escapeHtml(a.name || 'Athlete')}</span>
+            <span class="athlete-name">${escapeHtml(a.n || a.name || 'Athlete')}</span>
             <span class="athlete-status">Online</span>
             <button class="athlete-invite-btn" data-id="${escapeHtml(a.id)}">Invite to Room</button>
           </div>
@@ -395,7 +395,7 @@
           const invited = room.invited?.includes(sid(a.id));
           return `
             <div class="invite-row" data-id="${escapeHtml(a.id)}">
-              <span class="invite-name">${escapeHtml(a.name || 'Athlete')}</span>
+              <span class="invite-name">${escapeHtml(a.n || a.name || 'Athlete')}</span>
               ${inRoom ? '<span class="invite-status">In room</span>' :
                 invited ? '<span class="invite-status">Invited</span>' :
                 `<button class="invite-btn" data-id="${escapeHtml(a.id)}">Invite</button>`}
