@@ -2183,177 +2183,192 @@ module.exports = function mountAthleteRoutes(app) {
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
 
-  // ── Live Activity Feed ──
+  // ── Live Activity Feed (paginated & optimized) ──
   // Aggregated recent events: task picks, submissions, approvals, game XP, level-ups
+  // Uses per-source page-sized fetches instead of blanket 200-row pulls, and merges
+  // submissions + approvals into one pass to avoid duplicate queries.
   app.get('/api/athlete-admin/live-activity', authAdmin, async (req, res) => {
     try {
-      const { limit = 50, since } = req.query;
-      const cap = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
+      const { page = 1, per_page = 30, since, type } = req.query;
+      const pageNum = Math.max(1, parseInt(page) || 1);
+      const perPage = Math.min(50, Math.max(10, parseInt(per_page) || 30));
 
       // Time window: last 24 hours by default, or since a specific timestamp
       const sinceDate = since
         ? new Date(parseInt(since) || since).toISOString()
         : new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-      // Parallel fetch all activity sources
-      const [recentPicks, recentSubmissions, recentApprovals, recentGameXp, recentLevelUps, recentBadges] = await Promise.all([
-        // Recent task picks (last 24h)
-        supabase
-          .from('daily_task_picks')
-          .select('id, influencer_id, task_template_id, pool_date, status, created_at')
-          .gte('created_at', sinceDate)
-          .order('created_at', { ascending: false })
-          .limit(cap),
+      // Optional type filter to skip unneeded queries entirely
+      const wantTasks = !type || type === 'tasks' || type === 'all';
+      const wantGames = !type || type === 'games' || type === 'all';
+      const wantMilestones = !type || type === 'milestones' || type === 'all';
 
-        // Recent submissions (tasks turned in by athletes)
-        supabase
-          .from('assignments')
-          .select('id, influencer_id, task_template_id, status, submitted_at, reviewed_at, xp_awarded, coin_awarded, attempt_no, created_at')
-          .in('status', ['SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'REJECTED', 'CHANGES_REQUESTED'])
-          .gte('created_at', sinceDate)
-          .order('submitted_at', { ascending: false })
-          .limit(cap),
+      // Parallel fetch — each source fetches perPage + 1 to detect has_more
+      const fetches = [];
 
-        // Recently approved tasks (last 24h)
-        supabase
-          .from('assignments')
-          .select('id, influencer_id, task_template_id, status, reviewed_at, xp_awarded, coin_awarded, was_on_time')
-          .eq('status', 'APPROVED')
-          .gte('reviewed_at', sinceDate)
-          .order('reviewed_at', { ascending: false })
-          .limit(cap),
+      if (wantTasks) {
+        // Task picks
+        fetches.push(
+          supabase
+            .from('daily_task_picks')
+            .select('id, influencer_id, task_template_id, pool_date, status, created_at')
+            .gte('created_at', sinceDate)
+            .order('created_at', { ascending: false })
+            .range((pageNum - 1) * perPage, pageNum * perPage)
+        );
+        // Submissions (covers SUBMITTED, UNDER_REVIEW, APPROVED, REJECTED, CHANGES_REQUESTED)
+        fetches.push(
+          supabase
+            .from('assignments')
+            .select('id, influencer_id, task_template_id, status, submitted_at, reviewed_at, xp_awarded, coin_awarded, attempt_no, created_at, was_on_time')
+            .in('status', ['SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'REJECTED', 'CHANGES_REQUESTED'])
+            .gte('created_at', sinceDate)
+            .order('submitted_at', { ascending: false })
+            .range((pageNum - 1) * perPage, pageNum * perPage)
+        );
+      } else {
+        fetches.push(Promise.resolve({ data: [] }), Promise.resolve({ data: [] }));
+      }
 
-        // Recent game XP awards
-        supabase
-          .from('ledger_entries')
-          .select('id, influencer_id, currency, amount, reason_code, idempotency_key, created_at')
-          .in('reason_code', ['GAME_XP', 'GAME_COINS', 'RACE_XP'])
-          .gte('created_at', sinceDate)
-          .order('created_at', { ascending: false })
-          .limit(cap),
+      if (wantGames) {
+        fetches.push(
+          supabase
+            .from('ledger_entries')
+            .select('id, influencer_id, currency, amount, reason_code, idempotency_key, created_at')
+            .in('reason_code', ['GAME_XP', 'GAME_COINS', 'RACE_XP'])
+            .gte('created_at', sinceDate)
+            .order('created_at', { ascending: false })
+            .range((pageNum - 1) * perPage, pageNum * perPage)
+        );
+      } else {
+        fetches.push(Promise.resolve({ data: [] }));
+      }
 
-        // Recent level-ups
-        supabase
-          .from('level_history')
-          .select('id, influencer_id, direction, reason_code, from_level_id, to_level_id, occurred_at')
-          .gte('occurred_at', sinceDate)
-          .order('occurred_at', { ascending: false })
-          .limit(cap),
+      if (wantMilestones) {
+        fetches.push(
+          supabase
+            .from('level_history')
+            .select('id, influencer_id, direction, reason_code, from_level_id, to_level_id, occurred_at')
+            .gte('occurred_at', sinceDate)
+            .order('occurred_at', { ascending: false })
+            .range((pageNum - 1) * perPage, pageNum * perPage)
+        );
+        fetches.push(
+          supabase
+            .from('athlete_badges')
+            .select('id, influencer_id, badge_code, badge_name, earned_at')
+            .gte('earned_at', sinceDate)
+            .order('earned_at', { ascending: false })
+            .range((pageNum - 1) * perPage, pageNum * perPage)
+        );
+      } else {
+        fetches.push(Promise.resolve({ data: [] }), Promise.resolve({ data: [] }));
+      }
 
-        // Recent badges earned
-        supabase
-          .from('athlete_badges')
-          .select('id, influencer_id, badge_code, badge_name, earned_at')
-          .gte('earned_at', sinceDate)
-          .order('earned_at', { ascending: false })
-          .limit(20)
-      ]);
+      const results = await Promise.all(fetches);
+      const [recentPicks, recentSubmissions, recentGameXp, recentLevelUps, recentBadges] = results;
 
-      // Fetch athlete names for all involved influencer_ids
+      // Collect IDs for enrichment (only from rows we actually have)
       const allIds = new Set();
-      [recentPicks.data, recentSubmissions.data, recentApprovals.data, recentGameXp.data, recentLevelUps.data, recentBadges.data].forEach(rows => {
-        (rows || []).forEach(r => allIds.add(r.influencer_id));
-      });
-
-      let athletesMap = {};
-      if (allIds.size > 0) {
-        const { data: athleteRows } = await supabase
-          .from('influencers')
-          .select('id, name, athlete_no, athlete_status')
-          .in('id', [...allIds]);
-        (athleteRows || []).forEach(a => athletesMap[a.id] = a);
-      }
-
-      // Fetch task template titles
       const allTaskIds = new Set();
-      [recentPicks.data, recentSubmissions.data, recentApprovals.data].forEach(rows => {
-        (rows || []).forEach(r => { if (r.task_template_id) allTaskIds.add(r.task_template_id); });
-      });
-
-      let tasksMap = {};
-      if (allTaskIds.size > 0) {
-        const { data: taskRows } = await supabase
-          .from('task_templates')
-          .select('id, code, title, type, xp_value, coin_value')
-          .in('id', [...allTaskIds]);
-        (taskRows || []).forEach(t => tasksMap[t.id] = t);
-      }
-
-      // Fetch level names for level-ups
       const allLevelIds = new Set();
+
+      [recentPicks.data, recentSubmissions.data].forEach(rows => {
+        (rows || []).forEach(r => {
+          allIds.add(r.influencer_id);
+          if (r.task_template_id) allTaskIds.add(r.task_template_id);
+        });
+      });
+      (recentGameXp.data || []).forEach(r => allIds.add(r.influencer_id));
       (recentLevelUps.data || []).forEach(l => {
+        allIds.add(l.influencer_id);
         if (l.from_level_id) allLevelIds.add(l.from_level_id);
         if (l.to_level_id) allLevelIds.add(l.to_level_id);
       });
+      (recentBadges.data || []).forEach(b => allIds.add(b.influencer_id));
 
+      // Parallel enrichment — only fetch what's needed
+      const enrichmentFetches = [];
+      let athletesMap = {};
+      let tasksMap = {};
       let levelsMap = {};
-      if (allLevelIds.size > 0) {
-        const { data: levelRows } = await supabase
-          .from('comfort_levels')
-          .select('id, display_name, ordinal')
-          .in('id', [...allLevelIds]);
-        (levelRows || []).forEach(l => levelsMap[l.id] = l);
+
+      if (allIds.size > 0) {
+        enrichmentFetches.push(
+          supabase.from('influencers').select('id, name, athlete_no, athlete_status').in('id', [...allIds])
+            .then(({ data }) => { (data || []).forEach(a => athletesMap[a.id] = a); })
+        );
       }
+      if (allTaskIds.size > 0) {
+        enrichmentFetches.push(
+          supabase.from('task_templates').select('id, code, title, type, xp_value, coin_value').in('id', [...allTaskIds])
+            .then(({ data }) => { (data || []).forEach(t => tasksMap[t.id] = t); })
+        );
+      }
+      if (allLevelIds.size > 0) {
+        enrichmentFetches.push(
+          supabase.from('comfort_levels').select('id, display_name, ordinal').in('id', [...allLevelIds])
+            .then(({ data }) => { (data || []).forEach(l => levelsMap[l.id] = l); })
+        );
+      }
+      await Promise.all(enrichmentFetches);
 
       // Build unified event stream
       const events = [];
 
-      // Task picked events
       (recentPicks.data || []).forEach(p => {
         events.push({
-          id: `pick-${p.id}`,
-          type: 'TASK_PICKED',
+          id: `pick-${p.id}`, type: 'TASK_PICKED',
           athlete: athletesMap[p.influencer_id] || null,
           task: tasksMap[p.task_template_id] || null,
           detail: `Picked task from ${p.pool_date} pool`,
-          timestamp: p.created_at,
-          icon: '📋'
+          timestamp: p.created_at, icon: '📋'
         });
       });
 
-      // Submission events
       (recentSubmissions.data || []).forEach(s => {
         if (s.status === 'SUBMITTED' || s.status === 'UNDER_REVIEW') {
           events.push({
-            id: `submit-${s.id}`,
-            type: 'TASK_SUBMITTED',
+            id: `submit-${s.id}`, type: 'TASK_SUBMITTED',
             athlete: athletesMap[s.influencer_id] || null,
             task: tasksMap[s.task_template_id] || null,
             detail: `Submitted for review (attempt #${s.attempt_no || 1})`,
-            status: s.status,
-            assignment_id: s.id,
-            timestamp: s.submitted_at || s.created_at,
-            icon: '📤',
-            actionable: true
+            status: s.status, assignment_id: s.id,
+            timestamp: s.submitted_at || s.created_at, icon: '📤', actionable: true
           });
         }
         if (s.status === 'APPROVED' && s.reviewed_at) {
           events.push({
-            id: `approved-${s.id}`,
-            type: 'TASK_APPROVED',
+            id: `approved-${s.id}`, type: 'TASK_APPROVED',
             athlete: athletesMap[s.influencer_id] || null,
             task: tasksMap[s.task_template_id] || null,
             detail: `Approved — +${s.xp_awarded || 0} XP, +${s.coin_awarded || 0} coins`,
-            xp_awarded: s.xp_awarded,
-            coin_awarded: s.coin_awarded,
-            timestamp: s.reviewed_at,
-            icon: '✅'
+            xp_awarded: s.xp_awarded, coin_awarded: s.coin_awarded,
+            was_on_time: s.was_on_time,
+            timestamp: s.reviewed_at, icon: '✅'
           });
         }
         if (s.status === 'REJECTED') {
           events.push({
-            id: `rejected-${s.id}`,
-            type: 'TASK_REJECTED',
+            id: `rejected-${s.id}`, type: 'TASK_REJECTED',
             athlete: athletesMap[s.influencer_id] || null,
             task: tasksMap[s.task_template_id] || null,
             detail: 'Rejected',
-            timestamp: s.reviewed_at || s.created_at,
-            icon: '❌'
+            timestamp: s.reviewed_at || s.created_at, icon: '❌'
+          });
+        }
+        if (s.status === 'CHANGES_REQUESTED') {
+          events.push({
+            id: `changes-${s.id}`, type: 'TASK_CHANGES_REQUESTED',
+            athlete: athletesMap[s.influencer_id] || null,
+            task: tasksMap[s.task_template_id] || null,
+            detail: 'Changes requested',
+            assignment_id: s.id,
+            timestamp: s.reviewed_at || s.created_at, icon: '🔄', actionable: true
           });
         }
       });
 
-      // Game XP events
       (recentGameXp.data || []).forEach(g => {
         const game = g.idempotency_key?.split(':')[0] || 'unknown';
         events.push({
@@ -2361,46 +2376,43 @@ module.exports = function mountAthleteRoutes(app) {
           type: g.reason_code === 'GAME_COINS' ? 'GAME_COINS' : 'GAME_XP',
           athlete: athletesMap[g.influencer_id] || null,
           detail: `${g.reason_code === 'GAME_COINS' ? '+' + g.amount + ' coins' : '+' + g.amount + ' XP'} in ${game}`,
-          amount: g.amount,
-          currency: g.currency,
-          timestamp: g.created_at,
-          icon: '🎮'
+          amount: g.amount, currency: g.currency,
+          timestamp: g.created_at, icon: '🎮'
         });
       });
 
-      // Level-up events
       (recentLevelUps.data || []).forEach(l => {
         const fromName = levelsMap[l.from_level_id]?.display_name || '—';
         const toName = levelsMap[l.to_level_id]?.display_name || '—';
         events.push({
-          id: `levelup-${l.id}`,
-          type: 'LEVEL_UP',
+          id: `levelup-${l.id}`, type: 'LEVEL_UP',
           athlete: athletesMap[l.influencer_id] || null,
           detail: `Leveled up: ${fromName} → ${toName}`,
-          from_level: fromName,
-          to_level: toName,
-          timestamp: l.occurred_at,
-          icon: '⬆️'
+          from_level: fromName, to_level: toName,
+          timestamp: l.occurred_at, icon: '⬆️'
         });
       });
 
-      // Badge events
       (recentBadges.data || []).forEach(b => {
         events.push({
-          id: `badge-${b.id}`,
-          type: 'BADGE_EARNED',
+          id: `badge-${b.id}`, type: 'BADGE_EARNED',
           athlete: athletesMap[b.influencer_id] || null,
           detail: `Earned badge: ${b.badge_name || b.badge_code}`,
           badge: b.badge_name || b.badge_code,
-          timestamp: b.earned_at,
-          icon: '🏅'
+          timestamp: b.earned_at, icon: '🏅'
         });
       });
 
-      // Sort by timestamp descending and cap
+      // Sort by timestamp descending
       events.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
-      // Online athletes
+      // Determine has_more from source overfetch
+      const srcHasMore = [
+        recentPicks.data, recentSubmissions.data, recentGameXp.data,
+        recentLevelUps.data, recentBadges.data
+      ].some(d => d && d.length > perPage);
+
+      // Online athletes (cheap — in-memory only)
       const LIVE_MS = 90 * 1000;
       const now = Date.now();
       const onlineIds = [];
@@ -2420,11 +2432,15 @@ module.exports = function mountAthleteRoutes(app) {
       res.json({
         success: true,
         data: {
-          events: events.slice(0, cap),
+          events: events.slice(0, perPage),
+          pagination: {
+            page: pageNum,
+            per_page: perPage,
+            has_more: srcHasMore || events.length > perPage,
+            since: sinceDate
+          },
           online_count: onlineIds.length,
-          online_ids: onlineIds,
-          since: sinceDate,
-          total_events: events.length
+          online_ids: onlineIds
         }
       });
     } catch (err) { res.status(500).json({ error: err.message }); }

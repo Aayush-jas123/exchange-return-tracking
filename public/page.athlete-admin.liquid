@@ -1193,6 +1193,7 @@ let liveActivityEvents = [];
 let liveOnlineAthletes = [];
 let liveFeedFilter = 'all';
 let liveRefreshTimer = null;
+let livePagination = { page: 1, per_page: 30, has_more: false };
 let completedTasks = [];
 let completedPagination = { page: 1, per_page: 50, total: 0, total_pages: 0 };
 
@@ -3157,20 +3158,38 @@ async function resetGamificationDefaults() {
 // LIVE ACTIVITY & COMPLETED TASKS
 // ══════════════════════════════════════════════════════════════════════════
 
-async function loadLiveActivity() {
+async function loadLiveActivity(append) {
   try {
     const periodHours = parseInt(document.getElementById('livePeriodFilter')?.value || '24');
     const since = new Date(Date.now() - periodHours * 3600000).getTime();
+    const page = append ? livePagination.page + 1 : 1;
+    const typeFilter = (liveFeedFilter === 'actionable') ? 'all' : liveFeedFilter;
+    const url = API + '/live-activity?page=' + page + '&per_page=30&since=' + since + (typeFilter !== 'all' ? '&type=' + typeFilter : '');
+
     const [activityRes, onlineRes] = await Promise.allSettled([
-      fetch(API + '/live-activity?limit=100&since=' + since, { headers: ah() }).then(r => r.json()),
-      fetch(API + '/online-athletes', { headers: ah() }).then(r => r.json())
+      fetch(url, { headers: ah() }).then(r => r.json()),
+      // Only fetch online list on first load, not on load-more
+      append ? Promise.resolve({ value: { success: true, data: liveOnlineAthletes } }) :
+        fetch(API + '/online-athletes', { headers: ah() }).then(r => r.json())
     ]);
 
     if (activityRes.value?.success) {
-      liveActivityEvents = activityRes.value.data.events || [];
-      document.getElementById('liveOnlineLabel').textContent = (activityRes.value.data.online_count || 0) + ' online';
+      const newEvents = activityRes.value.data.events || [];
+      if (append) {
+        liveActivityEvents = liveActivityEvents.concat(newEvents);
+      } else {
+        liveActivityEvents = newEvents;
+      }
+      livePagination = {
+        page: page,
+        per_page: 30,
+        has_more: activityRes.value.data.pagination?.has_more || false
+      };
+      if (!append) {
+        document.getElementById('liveOnlineLabel').textContent = (activityRes.value.data.online_count || 0) + ' online';
+      }
     }
-    if (onlineRes.value?.success) {
+    if (!append && onlineRes.value?.success) {
       liveOnlineAthletes = onlineRes.value.data || [];
       document.getElementById('onlineCountBadge').textContent = liveOnlineAthletes.length;
       document.getElementById('navLiveCount').textContent = liveOnlineAthletes.length;
@@ -3179,6 +3198,13 @@ async function loadLiveActivity() {
   } catch (err) {
     console.error('Live activity load error:', err);
   }
+}
+
+async function loadMoreActivity() {
+  const btn = document.getElementById('loadMoreBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Loading...'; }
+  await loadLiveActivity(true);
+  if (btn) { btn.disabled = false; btn.textContent = 'Load More'; }
 }
 
 function renderLiveActivity() {
@@ -3221,8 +3247,8 @@ function renderLiveActivity() {
     const taskTitle = ev.task?.title || '';
     const taskType = ev.task?.type || '';
     const time = timeAgo(new Date(ev.timestamp).getTime());
-    const badgeMap = { 'TASK_PICKED':'pick','TASK_SUBMITTED':'submit','TASK_APPROVED':'approve','TASK_REJECTED':'reject','GAME_XP':'game','GAME_COINS':'game','LEVEL_UP':'level','BADGE_EARNED':'badge' };
-    const labelMap = { 'TASK_PICKED':'PICKED','TASK_SUBMITTED':'SUBMITTED','TASK_APPROVED':'APPROVED','TASK_REJECTED':'REJECTED','GAME_XP':'GAME XP','GAME_COINS':'GAME COINS','LEVEL_UP':'LEVEL UP','BADGE_EARNED':'BADGE' };
+    const badgeMap = { 'TASK_PICKED':'pick','TASK_SUBMITTED':'submit','TASK_APPROVED':'approve','TASK_REJECTED':'reject','TASK_CHANGES_REQUESTED':'submit','GAME_XP':'game','GAME_COINS':'game','LEVEL_UP':'level','BADGE_EARNED':'badge' };
+    const labelMap = { 'TASK_PICKED':'PICKED','TASK_SUBMITTED':'SUBMITTED','TASK_APPROVED':'APPROVED','TASK_REJECTED':'REJECTED','TASK_CHANGES_REQUESTED':'CHANGES','GAME_XP':'GAME XP','GAME_COINS':'GAME COINS','LEVEL_UP':'LEVEL UP','BADGE_EARNED':'BADGE' };
     const badgeClass = badgeMap[ev.type] || '';
     const badgeLabel = labelMap[ev.type] || ev.type.replace(/_/g, ' ');
 
@@ -3249,6 +3275,16 @@ function renderLiveActivity() {
       actionsHtml +
     '</div>';
   }).join('');
+
+  // Append load-more button if there are more pages
+  if (livePagination.has_more) {
+    feedContent.innerHTML += '<div style="padding:1rem;text-align:center;border-top:1px solid var(--border)">' +
+      '<button class="ah-btn ah-btn-sm ah-btn-outline" id="loadMoreBtn" onclick="loadMoreActivity()" style="padding:.5rem 1.5rem;font-size:.6rem">Load More</button>' +
+      '<div style="font-size:.5rem;color:var(--faint);margin-top:.5rem;font-family:var(--mono)">Page ' + livePagination.page + ' · ' + filtered.length + ' events loaded</div>' +
+      '</div>';
+  } else if (filtered.length > 0) {
+    feedContent.innerHTML += '<div style="padding:.75rem;text-align:center;font-size:.5rem;color:var(--faint);font-family:var(--mono);border-top:1px solid var(--border)">' + filtered.length + ' events · Page ' + livePagination.page + '</div>';
+  }
 }
 
 function switchFeedTab(tab) {
@@ -3256,7 +3292,10 @@ function switchFeedTab(tab) {
   document.querySelectorAll('.ah-feed-tab').forEach(t => t.classList.remove('active'));
   const target = document.querySelector('[data-feed-tab="' + tab + '"]');
   if (target) target.classList.add('active');
-  renderLiveActivity();
+  // Reset pagination and reload when switching tabs
+  livePagination.page = 0;
+  liveActivityEvents = [];
+  loadLiveActivity(false);
 }
 
 async function quickApprove(assignmentId) {
