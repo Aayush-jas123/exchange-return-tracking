@@ -169,9 +169,11 @@
       }
 
       // Presence
-      if (msg.t === 'presence') {
+      if (msg.t === 'pr' || msg.t === 'presence') {
         athletes = msg.a || [];
-        rooms = msg.r || [];
+        rooms = msg.rooms || msg.r || [];
+        // Normalize athlete IDs to strings
+        athletes = athletes.map(a => ({ ...a, id: sid(a.id) }));
         renderLobby();
         return;
       }
