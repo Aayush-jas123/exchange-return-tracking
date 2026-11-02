@@ -552,7 +552,21 @@ module.exports = function mountAthleteRoutes(app) {
       const { id } = req.params;
       const { status, reason } = req.body;
 
-      // Transition assignment
+      // Fetch current assignment to check if we need intermediate transition
+      const { data: currentAssignment } = await supabase
+        .from('assignments')
+        .select('status')
+        .eq('id', id)
+        .single();
+
+      // If assignment is SUBMITTED and admin wants to approve/reject/changes,
+      // first transition to UNDER_REVIEW automatically
+      if (currentAssignment?.status === 'SUBMITTED' && 
+          ['APPROVED', 'CHANGES_REQUESTED', 'REJECTED'].includes(status)) {
+        await TransitionService.move('assignment', parseInt(id), 'UNDER_REVIEW', req.adminToken, reason);
+      }
+
+      // Now perform the requested transition
       const result = await TransitionService.move('assignment', parseInt(id), status, req.adminToken, reason);
 
       // If approved, award XP
