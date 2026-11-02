@@ -573,6 +573,9 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);
               <option value="RESERVE">Reserve</option>
               <option value="SUSPENDED">Suspended</option>
             </select>
+            <select class="ah-input" style="margin:0;width:160px;padding:.45rem .75rem;font-size:.7rem" id="athleteRankFilter">
+              <option value="">All Ranks</option>
+            </select>
           </div>
         </div>
         <div class="ah-table-wrap">
@@ -1259,6 +1262,7 @@ async function loadAll() {
 }
 
 function renderAll() {
+  populateRankFilter();
   renderDashboard();
   renderAthletes();
   renderApplications();
@@ -1314,13 +1318,37 @@ function renderDashboard() {
   </tr>`).join('');
 }
 
+let _rankFilterPopulated = false;
+function populateRankFilter() {
+  if (_rankFilterPopulated) return;
+  const sel = document.getElementById('athleteRankFilter');
+  if (!sel || !levels.length) return;
+  const sorted = [...levels].sort((a, b) => (a.ordinal || 0) - (b.ordinal || 0));
+  sorted.forEach(l => {
+    const opt = document.createElement('option');
+    opt.value = String(l.id);
+    opt.textContent = l.display_name;
+    sel.appendChild(opt);
+  });
+  const unranked = document.createElement('option');
+  unranked.value = 'unranked';
+  unranked.textContent = 'Unranked';
+  sel.appendChild(unranked);
+  _rankFilterPopulated = true;
+}
+
 // ── ATHLETES ──
 function renderAthletes() {
   const search = (document.getElementById('athleteSearch')?.value || '').toLowerCase();
   const filter = document.getElementById('athleteFilter')?.value || '';
+  const rankFilter = document.getElementById('athleteRankFilter')?.value || '';
   let list = athletes;
   if (search) list = list.filter(a => (a.name||'').toLowerCase().includes(search) || (a.athlete_no||'').toLowerCase().includes(search));
   if (filter) list = list.filter(a => a.athlete_status === filter);
+  if (rankFilter) {
+    if (rankFilter === 'unranked') list = list.filter(a => !a.level_id);
+    else list = list.filter(a => String(a.level_id) === rankFilter);
+  }
 
   document.getElementById('athletesTable').innerHTML = list.map(a => `<tr onclick="openAthleteDrawer(${a.id})" style="cursor:pointer">
     <td><strong>${esc(a.name)}</strong><div class="muted mono" style="font-size:.55rem;margin-top:2px">${a.athlete_no||'—'}</div></td>
@@ -1336,6 +1364,7 @@ function renderAthletes() {
 
 document.getElementById('athleteSearch')?.addEventListener('input', renderAthletes);
 document.getElementById('athleteFilter')?.addEventListener('change', renderAthletes);
+document.getElementById('athleteRankFilter')?.addEventListener('change', renderAthletes);
 
 // ── APPLICATIONS ──
 function renderApplications() {
@@ -3451,7 +3480,7 @@ function renderCompletedTasks() {
       '<td><div class="reward"><span class="xp">+' + (t.xp_awarded || 0) + ' XP</span> · <span class="coins">+' + (t.coin_awarded || 0) + '</span></div></td>' +
       '<td>' + (t.was_on_time ? '<span style="color:var(--success);font-size:.65rem">✓ On time</span>' : '<span style="color:var(--warning);font-size:.65rem">Late</span>') + '</td>' +
       '<td class="muted" style="font-size:.65rem">' + completedDate + '</td>' +
-      '<td><button class="ah-btn ah-btn-sm ah-btn-outline" style="padding:3px 8px;font-size:.5rem" onclick="viewCompletedDetail(' + t.id + ')">View</button></td>' +
+      '<td><button class="ah-btn ah-btn-sm ah-btn-outline" style="padding:3px 8px;font-size:.5rem" onclick="viewCompletedDetail(' + t.influencer_id + ')">View</button></td>' +
     '</tr>';
   }).join('');
 
