@@ -128,6 +128,8 @@ const GamificationService = {
 
   /**
    * Get today's pool + the athlete's picks and their statuses.
+   * Uses the actual assignment status (not the stale daily_task_picks status)
+   * and includes submission proof details so the frontend can render them.
    */
   async getDailyTasksForAthlete(influencerId, date = null) {
     const poolDate = date || new Date().toISOString().slice(0, 10);
@@ -142,16 +144,59 @@ const GamificationService = {
       .eq('influencer_id', influencerId)
       .eq('pool_date', poolDate);
 
-    // Enrich tasks with pick status
+    // Fetch actual assignment statuses — daily_task_picks.status stays 'PICKED'
+    // even after the athlete submits proof, so the assignment is the source of truth.
+    const assignmentIds = (picks || []).map(p => p.assignment_id).filter(Boolean);
+    let assignmentsMap = {};
+    if (assignmentIds.length > 0) {
+      const { data: assignments } = await supabase
+        .from('assignments')
+        .select('id, status, submitted_at, reviewed_at, attempt_no, xp_awarded, coin_awarded')
+        .in('id', assignmentIds);
+      (assignments || []).forEach(a => { assignmentsMap[a.id] = a; });
+    }
+
+    // Fetch latest submission proof details for each assignment
+    let submissionsMap = {};
+    if (assignmentIds.length > 0) {
+      const { data: submissions } = await supabase
+        .from('submissions')
+        .select('id, assignment_id, post_url, caption, disclosure_found, posted_at, attempt_no, file_ids')
+        .in('assignment_id', assignmentIds)
+        .order('created_at', { ascending: false });
+      (submissions || []).forEach(s => {
+        if (!submissionsMap[s.assignment_id]) submissionsMap[s.assignment_id] = s;
+      });
+    }
+
+    // Enrich tasks with actual assignment status and submission proof
     const picksMap = {};
     (picks || []).forEach(p => { picksMap[p.task_template_id] = p; });
 
-    const enrichedTasks = tasks.map(t => ({
-      ...t,
-      picked: !!picksMap[t.id],
-      pick_status: picksMap[t.id]?.status || null,
-      assignment_id: picksMap[t.id]?.assignment_id || null
-    }));
+    const enrichedTasks = tasks.map(t => {
+      const pick = picksMap[t.id];
+      const assignment = pick?.assignment_id ? assignmentsMap[pick.assignment_id] : null;
+      const submission = pick?.assignment_id ? submissionsMap[pick.assignment_id] : null;
+      return {
+        ...t,
+        picked: !!pick,
+        pick_status: assignment?.status || pick?.status || null,
+        assignment_id: pick?.assignment_id || null,
+        submitted_at: assignment?.submitted_at || null,
+        reviewed_at: assignment?.reviewed_at || null,
+        attempt_no: assignment?.attempt_no || null,
+        xp_awarded: assignment?.xp_awarded || null,
+        coin_awarded: assignment?.coin_awarded || null,
+        submission: submission ? {
+          post_url: submission.post_url,
+          caption: submission.caption,
+          disclosure_found: submission.disclosure_found,
+          posted_at: submission.posted_at,
+          attempt_no: submission.attempt_no,
+          file_ids: submission.file_ids || []
+        } : null
+      };
+    });
 
     const maxPicks = await this._getSetting('daily_task.max_picks', 5);
 

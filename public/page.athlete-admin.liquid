@@ -1771,26 +1771,43 @@ function renderReview() {
     container.innerHTML = '<div style="padding:3rem;text-align:center;color:var(--muted);font-size:.75rem;border:1px solid var(--border)">Queue is empty</div>';
     return;
   }
-  container.innerHTML = reviewItems.map(r => `
+  container.innerHTML = reviewItems.map(r => {
+    const typeLabel = r.task_type ? r.task_type.replace(/_/g,' ') : '';
+    const platLabel = r.task_platform || '';
+    const tags = [typeLabel, platLabel].filter(Boolean).join(' · ');
+    const submittedAt = r.submission_posted_at ? new Date(r.submission_posted_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
+    return `
     <div class="ah-review-card">
       <div class="ah-review-card-head">
         <div>
-          <div class="ah-review-card-title">${esc(r.task_title || r.task_template_id)}</div>
-          <div style="font-size:.65rem;color:var(--muted);margin-top:.25rem">Athlete: ${esc(r.athlete_name || r.influencer_id)} · Attempt #${r.attempt_no || 1}</div>
+          <div class="ah-review-card-title">${esc(r.task_title || 'Task #'+r.task_template_id)}</div>
+          <div style="font-size:.65rem;color:var(--muted);margin-top:.25rem">
+            Athlete: <strong>${esc(r.athlete_name || r.influencer_id)}</strong>
+            · Attempt #${r.submission_attempt || r.attempt_no || 1}
+            ${tags ? ' · <span style="text-transform:uppercase;font-size:.6rem;letter-spacing:.05em">'+esc(tags)+'</span>' : ''}
+          </div>
         </div>
         <span class="ah-badge pending">${r.status.replace(/_/g,' ')}</span>
       </div>
-      ${r.post_url ? `<div style="font-size:.7rem"><a href="${r.post_url}" target="_blank" style="color:var(--text-2)">${r.post_url}</a></div>` : ''}
+      ${r.post_url ? `<div style="font-size:.7rem;margin-top:.5rem"><span style="color:var(--muted);font-size:.6rem;text-transform:uppercase;letter-spacing:.05em">Proof link:</span><br><a href="${esc(r.post_url)}" target="_blank" rel="noopener" style="color:var(--text-2);word-break:break-all">${esc(r.post_url)}</a></div>` : ''}
+      ${r.caption ? `<div style="font-size:.7rem;margin-top:.5rem;padding:.5rem;background:rgba(255,255,255,.03);border-radius:4px;border:1px solid var(--border)"><span style="color:var(--muted);font-size:.6rem;text-transform:uppercase;letter-spacing:.05em">Caption:</span><br><span style="color:var(--text);white-space:pre-wrap">${esc(r.caption)}</span></div>` : ''}
+      <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:center;margin-top:.5rem;font-size:.65rem;color:var(--muted)">
+        ${r.disclosure_found ? '<span style="color:#22c55e">#ad disclosed</span>' : '<span style="color:#f59e0b">No #ad disclosure</span>'}
+        ${r.file_ids && r.file_ids.length ? '<span>'+r.file_ids.length+' file(s) attached</span>' : ''}
+        ${submittedAt ? '<span>Submitted: '+submittedAt+'</span>' : ''}
+      </div>
       <div class="ah-review-card-meta">
         <span>Due: ${new Date(r.due_at).toLocaleDateString('en-IN',{day:'numeric',month:'short'})}</span>
         <span>XP: ${r.xp_value || 0}</span>
+        ${r.coin_value ? '<span>Coins: '+r.coin_value+'</span>' : ''}
       </div>
       <div class="ah-review-card-actions">
         <button class="ah-btn ah-btn-sm" onclick="reviewAssignment(${r.id},'approve')">Approve</button>
         <button class="ah-btn ah-btn-sm ah-btn-outline" onclick="reviewAssignment(${r.id},'changes')">Request Changes</button>
         <button class="ah-btn ah-btn-sm ah-btn-danger" onclick="reviewAssignment(${r.id},'reject')">Reject</button>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 // ── LADDER ──

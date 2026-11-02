@@ -789,9 +789,53 @@ function renderTasks(){
   $('xpEarned').textContent=xp.toLocaleString('en-IN');
   $('xpToGo').textContent=gate.sub;
 
-  // Cleared tasks (from today's completed picks)
-  const cleared=tasks.filter(x=>x.picked&&!['PICKED','ASSIGNED','IN_PROGRESS','CHANGES_REQUESTED'].includes(x.pick_status));
-  $('donelist').innerHTML=cleared.length?cleared.map(t=>`<div class="dr"><svg viewBox="0 0 15 15" aria-hidden="true"><path d="M3 8l3 3 6-7"/></svg><b>${esc(t.title)}</b><s>+${t.xp_value||0} XP</s></div>`).join(''):'<div class="dr" style="color:var(--dim);font-size:11px">No tasks cleared yet at this level</div>';
+  // Categorize picked tasks by actual assignment status (pick_status now reflects assignment.status)
+  const ACTIVE_STATUSES=['PICKED','ASSIGNED','IN_PROGRESS'];
+  const SUBMITTED_STATUSES=['SUBMITTED','UNDER_REVIEW'];
+  // Submitted: proof sent, awaiting admin review
+  const submitted=picked.filter(x=>SUBMITTED_STATUSES.includes(x.pick_status));
+  // Changes requested: need resubmission
+  const changesReq=picked.filter(x=>x.pick_status==='CHANGES_REQUESTED');
+  // Cleared: approved by admin
+  const cleared=picked.filter(x=>x.pick_status==='APPROVED'||x.pick_status==='COMPLETED');
+
+  // Submitted tasks section — show proof details (link, caption, status)
+  const subKick=$('submittedKick'),subList=$('submittedlist');
+  if(submitted.length||changesReq.length){
+    subKick.hidden=false;
+    subKick.textContent=`Submitted · ${submitted.length+changesReq.length} awaiting review`;
+    const allPending=[...submitted,...changesReq];
+    subList.innerHTML=allPending.map(t=>{
+      const s=t.submission||{};
+      const isResubmit=t.pick_status==='CHANGES_REQUESTED';
+      const statusLabel=isResubmit?'Changes requested':'Under review';
+      const statusClass=isResubmit?'sreq':'spending';
+      return `<div class="scard ${statusClass}" data-id="${t.id}">
+        <div class="scard-head">
+          <b>${esc(t.title)}</b>
+          <span class="sstatus ${statusClass}">${statusLabel}</span>
+        </div>
+        <div class="scard-body">
+          ${s.post_url?`<div class="srow"><span class="slab">Proof link</span><a class="slink" href="${esc(s.post_url)}" target="_blank" rel="noopener">${esc(s.post_url.length>48?s.post_url.slice(0,48)+'…':s.post_url)}</a></div>`:''}
+          ${s.caption?`<div class="srow"><span class="slab">Caption</span><p class="scaption">${esc(s.caption)}</p></div>`:''}
+          ${s.disclosure_found?`<div class="srow"><span class="slab">Disclosure</span><span class="sval on">#ad included</span></div>`:''}
+          ${s.posted_at?`<div class="srow"><span class="slab">Submitted</span><span class="sval">${new Date(s.posted_at).toLocaleDateString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</span></div>`:''}
+          ${s.file_ids&&s.file_ids.length?`<div class="srow"><span class="slab">Files</span><span class="sval">${s.file_ids.length} attached</span></div>`:''}
+          ${isResubmit?`<button class="sresubmit" onclick="openSubmission(${t.assignment_id})">Resubmit proof</button>`:''}
+        </div>
+      </div>`;
+    }).join('');
+  }else{
+    subKick.hidden=true;
+    subList.innerHTML='';
+  }
+
+  // Cleared tasks (approved by admin)
+  $('donelist').innerHTML=cleared.length?cleared.map(t=>{
+    const rewarded=t.xp_awarded||t.xp_value||0;
+    const coins=t.coin_awarded||t.coin_value||0;
+    return `<div class="dr"><svg viewBox="0 0 15 15" aria-hidden="true"><path d="M3 8l3 3 6-7"/></svg><b>${esc(t.title)}</b><s>+${rewarded} XP${coins?' · +'+coins+' coins':''}</s></div>`;
+  }).join(''):'<div class="dr" style="color:var(--dim);font-size:11px">No tasks cleared yet at this level</div>';
 
   // Task pool — show all missions, 1 pick per 24h
   const available=tasks.filter(x=>!x.picked);
@@ -820,8 +864,10 @@ function renderTasks(){
     $('taskpool').innerHTML='<div class="dr" style="color:var(--dim);font-size:11px">All missions picked for today</div>';
   }
 
-  // Find focused task
-  let focus=tasks.find(x=>x.picked&&['PICKED','ASSIGNED','IN_PROGRESS','CHANGES_REQUESTED'].includes(x.pick_status));
+  // Find focused task — prioritize active, then changes-requested, then submitted, then unpicked
+  let focus=tasks.find(x=>x.picked&&ACTIVE_STATUSES.includes(x.pick_status));
+  if(!focus)focus=tasks.find(x=>x.picked&&x.pick_status==='CHANGES_REQUESTED');
+  if(!focus)focus=tasks.find(x=>x.picked&&SUBMITTED_STATUSES.includes(x.pick_status));
   if(!focus)focus=tasks.find(x=>!x.picked);
   if(!focus)focus=tasks[0];
   S.focusId=focus?focus.id:null;
@@ -835,9 +881,20 @@ function renderTasks(){
     $('cueSub').textContent=focus.title||'Loading…';
   }
 
-  // Banner
-  $('bannerTitle').textContent='Daily pool is open';
-  $('bannerSub').textContent=`${picked.length} of 1 picked · closes midnight`;
+  // Banner — reflect submission state, not just pool state
+  if(submitted.length){
+    $('bannerTitle').textContent=`${submitted.length} proof${submitted.length>1?'s':''} submitted`;
+    $('bannerSub').textContent='Awaiting admin review';
+  }else if(changesReq.length){
+    $('bannerTitle').textContent='Changes requested';
+    $('bannerSub').textContent='Resubmit your proof';
+  }else if(focus&&focus.picked){
+    $('bannerTitle').textContent='Mission in progress';
+    $('bannerSub').textContent=focus.title||'Submit your proof';
+  }else{
+    $('bannerTitle').textContent='Daily pool is open';
+    $('bannerSub').textContent=`${picked.length} of 1 picked · closes midnight`;
+  }
 
   $('taskPicked').innerHTML=`${picked.length}<s>/1</s>`;
   const heroEl=$('taskHero');
@@ -851,7 +908,7 @@ function renderTasks(){
   }
   // Once a mission is picked the card names it instead of asking again
   if(focus.picked){
-    $('heroA').textContent='Your mission';
+    $('heroA').textContent=SUBMITTED_STATUSES.includes(focus.pick_status)?'Proof submitted':focus.pick_status==='CHANGES_REQUESTED'?'Resubmit needed':'Your mission';
     $('heroB').textContent=focus.title||'Mission';
   }else{
     $('heroA').textContent='Choose your';
@@ -862,8 +919,18 @@ function renderTasks(){
   $('cueClock').textContent=$('taskClock').textContent.replace(/:\d+$/,'')+' left';
   const canPick=!focus.picked&&picked.length<1;
   $('taskAction').disabled=false;
-  if(focus.picked){$('taskAction').textContent=focus.pick_status==='CHANGES_REQUESTED'?'Resubmit proof':'Submit proof';$('taskAction').onclick=()=>openSubmission(focus.assignment_id)}
-  else{$('taskAction').textContent=canPick?'Pick this mission':'Already picked today';$('taskAction').onclick=()=>{canPick?scrollToPool(focus.id):toast('You can only pick 1 mission per day')}}
+  if(focus.picked){
+    if(SUBMITTED_STATUSES.includes(focus.pick_status)){
+      $('taskAction').textContent='Proof submitted ✓';$('taskAction').disabled=true;$('taskAction').onclick=null;
+    }else if(focus.pick_status==='CHANGES_REQUESTED'){
+      $('taskAction').textContent='Resubmit proof';$('taskAction').onclick=()=>openSubmission(focus.assignment_id);
+    }else{
+      $('taskAction').textContent='Submit proof';$('taskAction').onclick=()=>openSubmission(focus.assignment_id);
+    }
+  }else{
+    $('taskAction').textContent=canPick?'Pick this mission':'Already picked today';
+    $('taskAction').onclick=()=>{canPick?scrollToPool(focus.id):toast('You can only pick 1 mission per day')};
+  }
   renderDossier(focus,pick);
 
   // Running timers — live countdowns, refreshed every 30s by refreshCounters()
@@ -914,7 +981,9 @@ function renderDossier(t,pick){
     return;
   }
   const type=String(t.type||'').toUpperCase();
-  $('dossLabel').textContent=t.picked?(t.pick_status==='CHANGES_REQUESTED'?'Your mission · changes requested':'Your mission · '+String(t.pick_status||'PICKED').replace(/_/g,' ').toLowerCase()):'Briefing · not picked yet';
+  // Status label reflects the actual assignment status (now correctly passed through pick_status)
+  const statusLabels={PICKED:'picked',ASSIGNED:'assigned',IN_PROGRESS:'in progress',SUBMITTED:'submitted — awaiting review',UNDER_REVIEW:'under review',CHANGES_REQUESTED:'changes requested',APPROVED:'approved',COMPLETED:'completed'};
+  $('dossLabel').textContent=t.picked?'Your mission · '+(statusLabels[t.pick_status]||String(t.pick_status||'picked').replace(/_/g,' ').toLowerCase()):'Briefing · not picked yet';
   $('dossTitle').textContent=t.title||'Mission';
 
   const tags=[];
@@ -925,6 +994,27 @@ function renderDossier(t,pick){
   if(t.requires_disclosure)tags.push('<em class="on">Ad disclosure</em>');
   if(pick&&pick.picked_at)tags.push(`<em>picked ${new Date(pick.picked_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}</em>`);
   $('dossTags').innerHTML=tags.join('');
+
+  // Show submission proof details when the task has been submitted
+  const sub=t.submission;
+  const proofEl=$('dossProof');
+  if(proofEl){
+    if(sub&&sub.post_url&&['SUBMITTED','UNDER_REVIEW','APPROVED','COMPLETED'].includes(t.pick_status)){
+      proofEl.hidden=false;
+      proofEl.innerHTML=`
+        <div class="proof-detail">
+          <div class="pd-row"><span class="pd-lab">Proof link</span><a class="pd-link" href="${esc(sub.post_url)}" target="_blank" rel="noopener">${esc(sub.post_url)}</a></div>
+          ${sub.caption?`<div class="pd-row"><span class="pd-lab">Caption</span><p class="pd-cap">${esc(sub.caption)}</p></div>`:''}
+          ${sub.disclosure_found?`<div class="pd-row"><span class="pd-lab">Disclosure</span><span class="pd-val">#ad / sponsored included</span></div>`:''}
+          ${sub.posted_at?`<div class="pd-row"><span class="pd-lab">Submitted</span><span class="pd-val">${new Date(sub.posted_at).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})}</span></div>`:''}
+          ${sub.attempt_no>1?`<div class="pd-row"><span class="pd-lab">Attempt</span><span class="pd-val">#${sub.attempt_no}</span></div>`:''}
+          ${t.pick_status==='APPROVED'?`<div class="pd-row pd-approved"><svg viewBox="0 0 15 15" aria-hidden="true"><path d="M3 8l3 3 6-7"/></svg> Approved${t.xp_awarded?' · +'+t.xp_awarded+' XP':''}${t.coin_awarded?' · +'+t.coin_awarded+' coins':''}</div>`:''}
+        </div>`;
+    }else{
+      proofEl.hidden=true;
+      proofEl.innerHTML='';
+    }
+  }
 
   const brief=String(t.brief_md||'').trim()||'No brief attached — open the brief with your coach if anything is unclear.';
   briefEl.textContent=brief;

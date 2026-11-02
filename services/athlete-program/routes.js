@@ -495,9 +495,11 @@ module.exports = function mountAthleteRoutes(app) {
         return res.json({ success: true, data: fallback || [] });
       }
 
-      // Also fetch latest submission for each assignment
       const assignmentIds = (data || []).map(a => a.id);
       let submissionsMap = {};
+      let tasksMap = {};
+
+      // Fetch latest submission proof details for each assignment
       if (assignmentIds.length > 0) {
         const { data: submissions } = await supabase
           .from('submissions')
@@ -510,11 +512,35 @@ module.exports = function mountAthleteRoutes(app) {
         });
       }
 
-      const enriched = (data || []).map(a => ({
-        ...a,
-        post_url: submissionsMap[a.id]?.post_url,
-        athlete_name: a.influencer?.name || a.influencer_id
-      }));
+      // Fetch task template titles so the admin sees what task was submitted
+      const templateIds = [...new Set((data || []).map(a => a.task_template_id))];
+      if (templateIds.length > 0) {
+        const { data: templates } = await supabase
+          .from('task_templates')
+          .select('id, title, type, platform, xp_value, coin_value')
+          .in('id', templateIds);
+        (templates || []).forEach(t => { tasksMap[t.id] = t; });
+      }
+
+      const enriched = (data || []).map(a => {
+        const sub = submissionsMap[a.id] || {};
+        const task = tasksMap[a.task_template_id] || {};
+        return {
+          ...a,
+          task_title: task.title || `Task #${a.task_template_id}`,
+          task_type: task.type || null,
+          task_platform: task.platform || null,
+          xp_value: task.xp_value || 0,
+          coin_value: task.coin_value || 0,
+          athlete_name: a.influencer?.name || a.influencer_id,
+          post_url: sub.post_url || null,
+          caption: sub.caption || null,
+          disclosure_found: sub.disclosure_found || false,
+          file_ids: sub.file_ids || [],
+          submission_posted_at: sub.posted_at || null,
+          submission_attempt: sub.attempt_no || null
+        };
+      });
 
       res.json({ success: true, data: enriched });
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -1001,21 +1027,21 @@ module.exports = function mountAthleteRoutes(app) {
 
       if (error) throw error;
 
-      // Update assignment
+      // Transition assignment through the state machine (never set status directly)
+      // ASSIGNED → IN_PROGRESS → SUBMITTED, or IN_PROGRESS → SUBMITTED
+      if (assignment.status === 'ASSIGNED') {
+        await TransitionService.move('assignment', assignment.id, 'IN_PROGRESS', 'athlete');
+      }
+      await TransitionService.move('assignment', assignment.id, 'SUBMITTED', 'athlete');
+
+      // Update submitted_at and attempt_no (TransitionService only handles status)
       await supabase.from('assignments').update({
-        status: 'SUBMITTED',
         submitted_at: new Date().toISOString(),
         attempt_no: submission.attempt_no
       }).eq('id', assignment.id);
 
-      // If first submission, transition to IN_PROGRESS first
-      if (assignment.status === 'ASSIGNED') {
-        await TransitionService.move('assignment', assignment.id, 'IN_PROGRESS', 'athlete');
-        await TransitionService.move('assignment', assignment.id, 'SUBMITTED', 'athlete');
-      }
-
       res.json({ success: true, data: { submission_id: submission.id } });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { res.status(err.status || 500).json({ error: err.message }); }
   });
 
   // ── Leaderboard ──
