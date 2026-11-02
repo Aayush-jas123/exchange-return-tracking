@@ -574,6 +574,8 @@ module.exports = function mountAthleteRoutes(app) {
         const { data: assignment } = await supabase.from('assignments').select('*').eq('id', id).single();
         const { data: task } = await supabase.from('task_templates').select('*').eq('id', assignment.task_template_id).single();
 
+        console.log(`[Review] Assignment ${id} approved | Task: ${task?.title} | XP: ${task?.xp_value} | Coins: ${task?.coin_value}`);
+
         if (task) {
           let xpValue = task.xp_value || 0;
           // Apply on-time bonus or late penalty
@@ -586,14 +588,18 @@ module.exports = function mountAthleteRoutes(app) {
             xpValue = Math.round(xpValue * (1 - penaltyPct / 100));
           }
 
+          console.log(`[Review] Athlete ${assignment.influencer_id} | On-time: ${isOnTime} | Final XP: ${xpValue} | Coins: ${task.coin_value}`);
+
           if (xpValue > 0) {
-            await LedgerService.award(assignment.influencer_id, 'XP', xpValue, 'ASSIGNMENT', assignment.id,
+            const xpResult = await LedgerService.award(assignment.influencer_id, 'XP', xpValue, 'ASSIGNMENT', assignment.id,
               `assignment:${id}:approved`, 'TASK_APPROVED');
+            console.log(`[Review] XP awarded:`, xpResult);
           }
 
           if (task.coin_value > 0) {
-            await LedgerService.award(assignment.influencer_id, 'COIN', task.coin_value, 'ASSIGNMENT', assignment.id,
+            const coinResult = await LedgerService.award(assignment.influencer_id, 'COIN', task.coin_value, 'ASSIGNMENT', assignment.id,
               `assignment:${id}:coins`, 'TASK_COINS');
+            console.log(`[Review] Coins awarded:`, coinResult);
           }
 
           // Update assignment with awarded amounts
