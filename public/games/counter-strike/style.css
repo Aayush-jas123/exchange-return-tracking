@@ -162,7 +162,7 @@ html, body {
 #center-msg.show { opacity: 1; }
 #center-msg small { display: block; font: 500 16px var(--f); letter-spacing: 0; margin-top: 6px; color: var(--dim); }
 
-/* Bottom HUD */
+/* Bottom HUD — moved to top on mobile via media query */
 #health-box, #ammo-box, #kills-box {
   position: absolute; bottom: 18px;
   background: rgba(20,20,24,.85); padding: 8px 14px; border-radius: 10px;
@@ -226,7 +226,7 @@ html, body {
 /* Virtual Joystick */
 .joystick-zone {
   position: absolute; bottom: 20px; left: 20px;
-  width: 140px; height: 140px;
+  width: 130px; height: 130px;
   pointer-events: auto;
 }
 .joystick-base {
@@ -248,13 +248,13 @@ html, body {
 /* Look Zone (right side) */
 .look-zone {
   position: absolute; bottom: 0; right: 0;
-  width: 50%; height: 60%;
+  width: 45%; height: 50%;
   pointer-events: auto;
 }
 
 /* Action Buttons */
 .action-buttons {
-  position: absolute; bottom: 14px; right: 14px;
+  position: absolute; bottom: 16px; right: 16px;
   display: flex; flex-direction: column; gap: 8px;
   pointer-events: auto;
 }
@@ -271,16 +271,16 @@ html, body {
 }
 .action-btn:active { background: rgba(240,240,242,.3); border-color: var(--text); }
 .action-btn.fire {
-  width: 80px; height: 80px;
+  width: 64px; height: 64px;
   background: rgba(255,90,74,.2); border-color: rgba(255,90,74,.5);
   color: #ff5a4a;
 }
 .action-btn.fire:active { background: rgba(255,90,74,.4); }
 
-/* Weapon Switch */
+/* Weapon Switch — right side, above action buttons (vertical stack) */
 .weapon-switch {
-  position: absolute; bottom: 320px; left: 14px;
-  display: flex; flex-direction: row; gap: 8px;
+  position: absolute; bottom: 160px; right: 20px;
+  display: flex; flex-direction: column; gap: 6px;
   pointer-events: auto;
 }
 .weapon-btn {
@@ -296,9 +296,9 @@ html, body {
 .weapon-btn:active { background: rgba(240,240,242,.2); }
 .weapon-btn.active { border-color: var(--text); color: var(--text); }
 
-/* Jump/Crouch */
+/* Jump/Crouch — left side, above joystick */
 .movement-buttons {
-  position: absolute; bottom: 250px; left: 14px;
+  position: absolute; bottom: 160px; left: 20px;
   display: flex; flex-direction: column; gap: 8px;
   pointer-events: auto;
 }
@@ -318,16 +318,33 @@ html, body {
 @media (hover: none) and (pointer: coarse) {
   .touch-controls { display: block; }
   #radar { width: 90px; height: 90px; }
-  #health-box, #ammo-box { font-size: 22px; bottom: 180px; }
+
+  /* HUD moves to top — clear of all controls */
+  #health-box, #ammo-box, #kills-box { top: 14px; bottom: auto; font-size: 20px; padding: 6px 12px; }
   #health-box { left: 14px; }
   #ammo-box { right: 14px; }
-  #kills-box { bottom: 180px; }
-  .joystick-zone { width: 120px; height: 120px; bottom: 14px; left: 14px; }
+  #kills-box { top: 56px; left: 50%; bottom: auto; }
+
+  /* Left column: joystick at bottom, jump/crouch above it */
+  .joystick-zone { width: 110px; height: 110px; bottom: 16px; left: 16px; }
   .joystick-stick { width: 44px; height: 44px; }
+  .movement-buttons { bottom: 140px; left: 16px; }
+  .move-btn { width: 52px; height: 52px; }
+
+  /* Right column: fire/reload at bottom, weapon switch stacked vertically above */
+  .action-buttons { bottom: 16px; right: 16px; }
   .action-btn { width: 56px; height: 56px; font-size: 10px; }
-  .action-btn.fire { width: 70px; height: 70px; }
-  .weapon-switch { bottom: 290px; left: 14px; }
-  .movement-buttons { bottom: 230px; left: 14px; }
+  .action-btn.fire { width: 60px; height: 60px; }
+  .weapon-switch { flex-direction: column; bottom: 290px; right: 16px; gap: 6px; }
+  .weapon-btn { width: 44px; height: 44px; font-size: 16px; }
+}
+
+/* ── Max-width fallback: HUD to top on narrow viewports (DevTools + real mobile) ── */
+@media (max-width: 768px) {
+  #health-box, #ammo-box, #kills-box { top: 14px; bottom: auto; font-size: 20px; padding: 6px 12px; }
+  #health-box { left: 14px; }
+  #ammo-box { right: 14px; }
+  #kills-box { top: 56px; left: 50%; bottom: auto; }
 }
 
 /* ── Responsive ── */
