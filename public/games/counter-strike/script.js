@@ -2035,9 +2035,17 @@ renderer.domElement.addEventListener('click', (e) => {
 document.addEventListener('pointerlockchange', () => {
   locked = document.pointerLockElement === renderer.domElement;
   pauseOverlay.classList.toggle('hidden', locked || game.state !== 'playing');
+  syncMouseHint();
   if (!locked && game.state === 'playing') {
     mouseDown = false; aiming = false;
   }
+});
+
+// A refused requestPointerLock() reports itself here and nowhere else — pointerlockchange does not
+// fire, so before this listener a co-op match that could not capture the mouse failed silently and
+// looked like a broken game rather than an uncaptured mouse.
+document.addEventListener('pointerlockerror', () => {
+  console.warn('[CS] Pointer lock refused — click the arena to capture the mouse');
 });
 
 // ── Game flow ──
@@ -2288,6 +2296,7 @@ function updateWeapon(dt) {
 }
 
 function updateHud(dt) {
+  syncMouseHint();   // every mode, every frame: the hint is derived from the flags, never owned
   const t = Math.max(0, Math.ceil(game.timeLeft));
   hud.timer.textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
   hud.timer.classList.toggle('low', t <= 15);
@@ -2361,6 +2370,32 @@ let myRow = null;                // my own row as the hub reports it
 let countdownHandle = null;
 let pendingRay = null;           // one fired shot waiting for the next state packet
 
+// Co-op deploys from a hub message plus a 3500ms timer, so the mouse is typically NOT captured on
+// the first frame and the cabinet cannot fix that itself — only a click can. Movement no longer
+// waits for the capture, but looking and shooting still do, so the athlete has to be told.
+// Recomputed from the live flags wherever they change instead of being shown and hidden by hand,
+// which is how overlays like this usually end up stranded over a finished match.
+let mouseHintOn = false;
+function syncMouseHint() {
+  const want = isOnline && !isTouchDevice && !locked && game.state === 'playing';
+  if (want === mouseHintOn) return;
+  mouseHintOn = want;
+  let el = document.getElementById('csMouseHint');
+  if (!el) {
+    if (!want) return;
+    el = document.createElement('div');
+    el.id = 'csMouseHint';
+    el.style.cssText = 'position:fixed;left:50%;bottom:104px;transform:translateX(-50%);z-index:61;'
+      + 'padding:9px 18px;border:1px solid rgba(240,240,242,.24);border-radius:999px;'
+      + 'background:rgba(10,10,12,.8);color:#f0f0f2;'
+      + 'font:500 11px var(--f,system-ui,sans-serif);letter-spacing:.16em;text-transform:uppercase;'
+      + 'pointer-events:none;box-shadow:0 10px 34px rgba(0,0,0,.5);';
+    el.textContent = 'Click to capture the mouse \u00b7 WASD to move';
+    document.body.appendChild(el);
+  }
+  el.style.display = want ? 'block' : 'none';
+}
+
 // ── Main render loop ──
 const clock = new THREE.Clock();
 
@@ -2375,7 +2410,17 @@ function frame() {
     // Co-op. The hub owns the bots, so teammates and terrorists keep moving even while the local
     // player is dead or the round is between states — a frozen squad while you watch them die is
     // exactly what made this mode feel broken.
-    if (game.state === 'playing' && isGameActive()) {
+    //
+    // Deliberately NOT gated on isGameActive(), i.e. not on pointer lock. A co-op match begins from
+    // the hub's 'go' message and a 3500ms countdown, so the requestPointerLock() at the end of it
+    // runs inside a timer and is not a user gesture: the browser refuses and fires
+    // pointerlockerror, not pointerlockchange, so `locked` stays false and never changes again.
+    // Gating on it skipped BOTH updatePlayer and sendPlayerState, which meant the hub went on
+    // streaming a world in which that athlete stood perfectly still at spawn — the other player
+    // watched their teammate freeze, and the teammate could not move either. Walking only needs
+    // the keyboard, which window already listens for; the lock buys mouse-look alone, and the
+    // hint below asks for the click that grants it.
+    if (game.state === 'playing') {
       updatePlayer(dt);
       sendPlayerState();
     }
@@ -3339,9 +3384,14 @@ window.startOnlineGame = function (roster, mapName) {
 
   showScreen(gameScreen);
   audio().resume();
+  // Refused without complaint in every real co-op match: this runs from the countdown's setTimeout,
+  // and a pointer-lock request that is not inside a user gesture is denied. Kept because the athlete
+  // who clicked the arena moments before the host started does get the capture here; the hint in
+  // updateHud covers everyone else.
   if (!isTouchDevice && renderer.domElement.requestPointerLock) {
     renderer.domElement.requestPointerLock();
   }
+  syncMouseHint();
   console.log('[CS] Online match started —', map, (roster || []).length, 'players');
 };
 
@@ -3356,6 +3406,7 @@ window.endOnlineGame = function (rows) {
   clearOnlineFigures();
   if (document.pointerLockElement) document.exitPointerLock();
   game.state = 'gameOver';
+  syncMouseHint();   // no updateHud runs once the match is over, so the hint cannot retire itself
 
   const me = (rows || []).find((r) => String(r.id) === String(typeof CSNet !== 'undefined' ? CSNet.myId : ''));
   goScore.textContent = me ? (me.sc || 0) : game.kills;
