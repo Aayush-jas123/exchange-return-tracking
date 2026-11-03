@@ -216,7 +216,6 @@ const mats = {
   cannabis: new THREE.MeshStandardMaterial({ map: makeCannabisLeafTexture(), alphaTest: 0.5, side: THREE.DoubleSide, roughness: 1 }),
   cannabisStem: new THREE.MeshStandardMaterial({ color: 0x4a4a4a, roughness: 1 }),
   cannabisBud: new THREE.MeshStandardMaterial({ color: 0x8a8a8a, roughness: 1, flatShading: true }),
-  soil: new THREE.MeshStandardMaterial({ map: floorTex, color: 0x555555, roughness: 1 }),
 };
 
 // ── Map ──
@@ -658,6 +657,12 @@ const budGeo = new THREE.SphereGeometry(1, 5, 3);
 // silhouette. One multiplier over both bud placements (branch colas and the terminal stack) keeps
 // them proportional to each other and to the stalk, so this is the only knob to turn.
 const BUD_SCALE = 0.72;
+// Only the top COLA_NODES branch nodes finish in a cola, and the terminal stack is 3 buds, so a
+// plant carries 2 nodes x 2 branches + 3 = 7. Lower branches still end in an upward tip leaf but no
+// bud, which is how a real canopy reads: the growth that reaches the light is what buds out, and the
+// shaded bottom stays wood and leaf. Ten evenly spaced crystals per shrub was the other half of why
+// the plants looked manufactured rather than grown.
+const COLA_NODES = 2;
 
 // Tree: thin trunk collider (easy to walk around) + non-colliding foliage recorded as instances.
 function addTree(x, z, s = 1) {
@@ -845,8 +850,10 @@ function addCannabisPlant(x, z, s = 1) {
         leaf(bx, by, bz, ls, ly + Math.PI, spread);
       }
       const tx = x + d[0] * bLen, ty = y + d[1] * bLen, tz = z + d[2] * bLen;
-      leaf(tx, ty, tz, 0.34 * s, yaw, bTilt - 0.30);         // tip leaf rising into the branch cola
-      _budInst.push({ p: [tx, ty + 0.07 * s, tz], s: [0.08 * s * BUD_SCALE, 0.14 * s * BUD_SCALE, 0.08 * s * BUD_SCALE] });
+      leaf(tx, ty, tz, 0.34 * s, yaw, bTilt - 0.30);         // tip leaf rising to the branch end
+      if (i >= nodes - COLA_NODES) {
+        _budInst.push({ p: [tx, ty + 0.07 * s, tz], s: [0.08 * s * BUD_SCALE, 0.14 * s * BUD_SCALE, 0.08 * s * BUD_SCALE] });
+      }
     }
   }
   // Terminal cola: stacked upright sugar leaves around the main bud
@@ -857,38 +864,54 @@ function addCannabisPlant(x, z, s = 1) {
   }
 }
 
-// Flat decorative slab — mesh only, deliberately NO collider, so tilled beds never block movement
-// and never show up in isFree()/waypoint generation.
-function addFlatSlab(x, z, w, d, h, mat, texScale = 2) {
-  const mesh = new THREE.Mesh(scaledBox(w, h, d, texScale), mat);
-  mesh.position.set(x, h / 2, z);
-  mesh.receiveShadow = true;
-  scene.add(mesh); worldMeshes.push(mesh);
-  return mesh;
-}
-
-// Cultivated patch: tilled rows plus a staggered crop set, jittered so it reads as a planted field
-// rather than a grid. Every plant is still gated on isFree so nothing spawns inside a structure.
-// Spacing stays around 2m — outdoor cannabis is grown roughly 1 plant per 2-4 m², and each plant is
-// now a full branched shrub, so tighter would only cost triangles without adding believable cover.
-function addCannabisField(cx, cz, fw, fd, spacing = 2.0) {
-  let n = 0;
-  for (let gz = -fd / 2 + 0.9; gz <= fd / 2; gz += 1.8) {
-    addFlatSlab(cx, cz + gz, fw, 1.05, 0.09, mats.soil, 2);           // raised soil bed per row
+// Cannabis grows as a scattered fringe along the base of all four perimeter walls, not in corner
+// plots. The previous addCannabisField() laid a jitter grid inside a 10x10 patch and drew a raised
+// soil slab per row, and both habits read wrong: a ±0.26 m jitter on a 2 m pitch is not enough to
+// break a row, so the plants still stood shoulder to shoulder in lines on a dark mat, and the whole
+// crop disappeared the moment you faced a wall. Each plant is now its own rejection sample — a random
+// point along one wall and a random distance off it — so the fringe thickens and thins on its own the
+// way volunteer growth does, and the plants root in the same ground as everything else (no slabs).
+// minGap only keeps two shrubs from occupying one spot; it is deliberately far below the old 2 m pitch
+// so clustering survives. The inset range is wide because the walls are not bare: at x=±45 sit two
+// silos and a shipping container each side, so a fixed 1.6-5.8 m offset left the middle of the east
+// and west walls genuinely unplantable. Rooting up to 8 m off the wall gets the fringe past that gear
+// and stops the whole crop reading as one hedge line. No colliders, so the fringe is walk-through
+// decoration and never enters isFree()/waypoint generation for the hub.
+function scatterCannabis(count, minGap = 1.4) {
+  const WALL = 49;                             // inner face of the perimeter wall
+  const STRETCH = 12;                          // each wall divided into 12 stretches of 7.5 m
+  const slots = [];
+  for (let side = 0; side < 4; side++) for (let b = 0; b < STRETCH; b++) slots.push([side, b]);
+  for (let i = slots.length - 1; i > 0; i--) {  // shuffle, so nothing about the order is rhythmic
+    const j = (Math.random() * (i + 1)) | 0;
+    const t = slots[i]; slots[i] = slots[j]; slots[j] = t;
   }
-  let row = 0;
-  for (let gz = -fd / 2 + 0.9; gz <= fd / 2; gz += 1.8, row++) {
-    const stag = row % 2 ? spacing / 2 : 0;                            // offset alternate rows
-    for (let gx = -fw / 2 + 0.5 + stag; gx <= fw / 2 - 0.3; gx += spacing) {
-      const x = cx + gx + rand(-0.26, 0.26);
-      const z = cz + gz + rand(-0.26, 0.26);
-      if (inSpawnBand(x, z)) continue;
-      if (!isFree(x, z, 0.5)) continue;
-      addCannabisPlant(x, z, 0.9 + Math.random() * 0.55);
-      n++;
+  // Walking shuffled stretches, one plant per stretch per pass, is what makes this even. Sampling a
+  // uniform coordinate instead left the middle third of the east wall with 3 plants in one run out of
+  // three, because the silos and containers at x=±45 reject most of that band - which is the corner
+  // clumping the crop is supposed to have outgrown, arriving by luck rather than by grid.
+  const placed = [];
+  for (let pass = 0; placed.length < count && pass < 8; pass++) {
+    for (const slot of slots) {
+      if (placed.length >= count) break;
+      const [side, b] = slot;
+      for (let att = 0; att < 14; att++) {
+        const along = -45 + (b + Math.random()) * (90 / STRETCH);
+        const inset = rand(1.6, 8.2);              // how far off the wall it rootes
+        const sgn = side % 2 ? 1 : -1;
+        const runsX = side < 2;                    // the S/N walls run along X, the W/E walls along Z
+        const x = runsX ? along : sgn * (WALL - inset);
+        const z = runsX ? sgn * (WALL - inset) : along;
+        if (inSpawnBand(x, z)) continue;           // keep both spawn lanes clear
+        if (!isFree(x, z, 0.6)) continue;
+        if (placed.some((p) => (p.x - x) ** 2 + (p.y - z) ** 2 < minGap * minGap)) continue;
+        placed.push({ x, z });
+        addCannabisPlant(x, z, 0.9 + Math.random() * 0.55);
+        break;                                     // this stretch is filled for this pass
+      }
     }
   }
-  return n;
+  return placed.length;
 }
 
 
@@ -1105,11 +1128,9 @@ function buildIndustrialMap() {
   scatterTrees(95, 5.5);
   scatterBushes(75, 4.5);
 
-  // Cannabis fields tucked into the four corners (distant, off the main lanes & spawn bands).
-  addCannabisField(-42, -42, 10, 10);  // NW corner
-  addCannabisField( 42, -42, 10, 10);  // NE corner
-  addCannabisField(-42,  42, 10, 10);  // SW corner
-  addCannabisField( 42,  42, 10, 10);  // SE corner
+  // Cannabis: a scattered fringe along the base of all four perimeter walls, so the crop reads from
+  // anywhere in the arena instead of only in the corners. Spawn lanes stay clear via inSpawnBand().
+  scatterCannabis(140);
 
   finalizeVegetation();   // build the InstancedMeshes (trunks, foliage, cannabis leaves)
 
