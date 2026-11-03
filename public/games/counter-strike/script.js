@@ -2367,6 +2367,7 @@ const INTERP_DELAY = 110;        // ms of render delay — just over one 100ms h
 const BUFFER_CAP = 12;
 let fxWatermark = 0;             // arrival time of the newest snapshot whose effects have played
 let myRow = null;                // my own row as the hub reports it
+let resetSeenRound = null;       // hub round we already took a spawn from, so a reset fires once per round
 let countdownHandle = null;
 let pendingRay = null;           // one fired shot waiting for the next state packet
 
@@ -3091,8 +3092,9 @@ function blendRigs(store, rowsA, rowsB, u, dt, team, isHuman) {
 
 // The hub's row for me is the authority on whether I am still standing — bot fire is validated
 // server-side, so my local health has to follow it and never the other way round.
-function driveOwn(rows) {
+function driveOwn(snapshot) {
   const mine = String((typeof CSNet !== 'undefined' && CSNet.myId) || '');
+  const rows = snapshot && snapshot.players;
   const me = (rows || []).find((r) => String(r.id) === mine);
   if (!me) return;
   myRow = me;
@@ -3118,12 +3120,21 @@ function driveOwn(rows) {
     player.vel.set(0, 0, 0);
   }
 
+  // The hub re-spawns every player at the top of a round, so the row suddenly carries a different
+  // spot. A cabinet that only followed the alive flag — a teammate who survived the round never saw
+  // one flip — would go on standing where the last round left them, and their next packet would
+  // then push that stale position back over the hub's reset: everyone else watches a figure appear
+  // at one spawn and hop to another. Tracking the round number takes the new spawn, full health and
+  // fresh mags on the same beat as the hub, which is what solo startRound() does locally.
+  const newRound = snapshot.round !== undefined && snapshot.round !== resetSeenRound;
+  if (snapshot.round !== undefined) resetSeenRound = snapshot.round;
+
   if (!me.alive && player.alive) {
     player.alive = false;
     player.health = 0;
     centerMsg('YOU ARE DOWN', 'Spectating until the round ends', 4);
-  } else if (me.alive && !player.alive) {
-    // New round: take the hub's fresh spawn instead of standing on the corpse's spot.
+  } else if (me.alive && (newRound || !player.alive)) {
+    // New round: take the hub's fresh spawn instead of standing on the last round's spot.
     resetPlayer();
     player.pos.set(clamp(me.pos.x, -edge, edge), me.pos.y || 0, clamp(me.pos.z, -edge, edge));
     player.yaw = me.yaw || Math.PI;
@@ -3156,12 +3167,17 @@ function updateOnlinePlayers(dt) {
     b = snapshotBuffer[snapshotBuffer.length - 1];
     a = b;
   }
+  // A round boundary is not a motion step: the frame before it holds last round's spawn points and
+  // last round's bot ids. Interpolating across it draws a teammate gliding tens of metres through
+  // the map to their new spawn, and a smooth glide from a place nobody is standing in is what reads
+  // as heavy buffering. Snap onto the new round and ease normally from the next tick, inside it.
+  if (a.data.round !== b.data.round) a = b;
   while (snapshotBuffer.length > 3 && snapshotBuffer[1].at < rt) snapshotBuffer.shift();
 
   const u = a === b ? 1 : clamp((rt - a.at) / Math.max(1, b.at - a.at), 0, 1);
   blendRigs(onlinePlayers, a.data.players, b.data.players, u, dt, 'CT', true);
   blendRigs(onlineBots, a.data.bots, b.data.bots, u, dt, 'T', false);
-  driveOwn(b.data.players);
+  driveOwn(b.data);
 }
 
 function figureFor(id) {
@@ -3382,6 +3398,14 @@ window.startOnlineGame = function (roster, mapName) {
   hud.enemies.textContent = '0';
   hud.killfeed.innerHTML = '';
 
+  // Nothing from the previous match may blend into this one: a buffer that still holds last game's
+  // frames eases every teammate out of where they died rather than starting at the new spawn, and a
+  // stale fxWatermark would swallow the first tick's tracers. resetSeenRound goes with them so the
+  // first snapshot of this match anchors me to the hub's spawn for round one.
+  snapshotBuffer.length = 0;
+  fxWatermark = 0;
+  resetSeenRound = null;
+
   showScreen(gameScreen);
   audio().resume();
   // Refused without complaint in every real co-op match: this runs from the countdown's setTimeout,
@@ -3404,6 +3428,8 @@ window.endOnlineGame = function (rows) {
   const live = document.getElementById('csCountdown');
   if (live) live.style.display = 'none';
   clearOnlineFigures();
+  snapshotBuffer.length = 0;
+  resetSeenRound = null;
   if (document.pointerLockElement) document.exitPointerLock();
   game.state = 'gameOver';
   syncMouseHint();   // no updateHud runs once the match is over, so the hint cannot retire itself

@@ -64,6 +64,13 @@
   const TRAIL_KEEP = 0.7;  // seconds of bot history to remember: the rewind plus round-trip slack
   const HIT_RADIUS = 0.5;  // horizontal miss tolerance, unchanged from the original test
 
+  // How long a player row may keep a claimed speed with no packet behind it. Cabinets drive the
+  // leg swing from the row's `speed`, and streaming stops the moment a round ends (playerInput
+  // ignores claims outside 'playing' too), so a teammate who was sprinting when the clock hit zero
+  // would march on the spot for the whole intermission: a frozen position plus a running gait is
+  // precisely what a lagging player looks like, even though nothing on the wire is late.
+  const STALE_INPUT = 0.3;
+
   // Transient combat events kept per world so every client can draw the tracer / hit / kill it
   // missed. Capped: a 4-player room spraying rifles for two seconds must not grow the snapshot.
   const FX_CAP = 48;
@@ -393,6 +400,7 @@
       kills: 0,
       deaths: 0,
       speed: 0,
+      lastInput: 0,
       shootCD: 0,
       reloading: 0,
       walkPhase: 0
@@ -476,6 +484,12 @@
 
   function step(world, dt) {
     world.now += dt;
+
+    // Outside the state branch on purpose: the intermission is exactly when packets stop arriving.
+    for (const p of Object.values(world.players)) {
+      if (p.speed > 0 && (!p.lastInput || world.now - p.lastInput > STALE_INPUT)) p.speed = 0;
+    }
+
     if (world.state === 'playing') {
       world.timeLeft -= dt;
 
@@ -538,6 +552,7 @@
     p.yaw = input.yaw || 0;
     p.pitch = input.pitch || 0;
     p.speed = input.speed || 0;
+    p.lastInput = world.now;
     p.crouching = input.crouching || false;
     p.onGround = input.onGround !== false;
 
