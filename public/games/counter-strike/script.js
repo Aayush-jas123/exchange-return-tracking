@@ -653,6 +653,11 @@ const cannabisLeafGeo = makeCannabisLeafGeo();
 // main stalk and every branch. Low-poly sphere for the buds — both shared by the whole field.
 const stalkGeo = new THREE.CylinderGeometry(0.62, 1, 1, 5, 1, true);
 const budGeo = new THREE.SphereGeometry(1, 5, 3);
+// The faceted 5x3 sphere is what makes every bud read as a bright crystal stud, and at full size
+// they were the loudest thing on the plant — louder than the blades that are supposed to carry the
+// silhouette. One multiplier over both bud placements (branch colas and the terminal stack) keeps
+// them proportional to each other and to the stalk, so this is the only knob to turn.
+const BUD_SCALE = 0.72;
 
 // Tree: thin trunk collider (easy to walk around) + non-colliding foliage recorded as instances.
 function addTree(x, z, s = 1) {
@@ -841,14 +846,14 @@ function addCannabisPlant(x, z, s = 1) {
       }
       const tx = x + d[0] * bLen, ty = y + d[1] * bLen, tz = z + d[2] * bLen;
       leaf(tx, ty, tz, 0.34 * s, yaw, bTilt - 0.30);         // tip leaf rising into the branch cola
-      _budInst.push({ p: [tx, ty + 0.10 * s, tz], s: [0.08 * s, 0.14 * s, 0.08 * s] });
+      _budInst.push({ p: [tx, ty + 0.07 * s, tz], s: [0.08 * s * BUD_SCALE, 0.14 * s * BUD_SCALE, 0.08 * s * BUD_SCALE] });
     }
   }
   // Terminal cola: stacked upright sugar leaves around the main bud
   for (let k = 0; k < 4; k++) leaf(x, H * (0.89 + k * 0.05), z, 0.36 * s * (1 - k * 0.12), phase + k * 1.57, 0.50);
   for (let b = 0; b < 3; b++) {
-    const r = 0.11 * s * (1 - b * 0.22);
-    _budInst.push({ p: [x, H + 0.02 + b * 0.12 * s, z], s: [r, r * 1.35, r] });
+    const r = 0.11 * s * BUD_SCALE * (1 - b * 0.22);
+    _budInst.push({ p: [x, H + 0.02 + b * 0.09 * s, z], s: [r, r * 1.35, r] });
   }
 }
 
