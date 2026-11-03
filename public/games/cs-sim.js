@@ -628,10 +628,15 @@
 
   // Combat events are one-shot: they are drained here, at the moment the hub reads them to
   // broadcast, so a tracer/muzzle/hit is delivered to every client exactly once and never replays.
+  //
+  // `t` is part of the payload, not decoration: the cabinet drops any frame whose `t` is not a
+  // string (pacman-sim already tags its own snapshot), so an untagged world here means the hub
+  // streams a match nobody renders — no terrorists, no teammates, an empty arena.
   function snapshot(world) {
     const fx = world.fx.slice();
     world.fx.length = 0;
     return {
+      t: 'snapshot',
       map: world.map,
       round: world.round,
       timeLeft: r2(world.timeLeft),

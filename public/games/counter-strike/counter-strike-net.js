@@ -181,7 +181,18 @@
     ws.onmessage = (e) => {
       let msg;
       try { msg = JSON.parse(e.data); } catch (err) { return; }
-      if (!msg || typeof msg.t !== 'string') return;
+      if (!msg || typeof msg !== 'object') return;
+
+      // Snapshot. Tested before the typed-message gate below, because a cached copy of this file
+      // has to keep working against a hub that tags its frames and vice versa: the hub's shared
+      // world is the only source of terrorists and teammates in co-op, so dropping it silently
+      // shows up as a perfectly playable match with nobody in it.
+      if (msg.t === 'snapshot' || (msg.round !== undefined && msg.state)) {
+        if (Net.onSnapshot) Net.onSnapshot(msg);
+        return;
+      }
+
+      if (typeof msg.t !== 'string') return;
 
       // Hello — own identity
       if (msg.t === 'hello') {
@@ -252,12 +263,6 @@
           // No countdown UI available — deploy straight away rather than sit in the lobby
           window.startOnlineGame(Net.roster, Net.map);
         }
-        return;
-      }
-
-      // Snapshot
-      if (msg.t === 'snapshot' || (msg.round !== undefined && msg.state)) {
-        if (Net.onSnapshot) Net.onSnapshot(msg);
         return;
       }
 
