@@ -53,6 +53,17 @@
   const PLAYER_EYE_CROUCH = 1.15;
   const BOT_HEIGHT = 1.8;
 
+  // A bullet has to be judged where the shooter SAW the target, not where the hub keeps it. Cabinets
+  // draw bots from a deliberately delayed snapshot buffer (INTERP_DELAY 110ms in script.js) on top of
+  // one-way latency and a 100ms hub tick, so the image an athlete aims at is 150-250ms in the past.
+  // Validated against the live position, a bot at alert speed covers 0.5-0.7m in that window — more
+  // than the hit radius — and a clean body shot came back with no marker at all. That is what made
+  // co-op enemies feel unkillable next to identical single-player bots, which are hit-tested in the
+  // same frame they are drawn.
+  const HIT_REWIND = 0.25; // seconds of client-side latency credited to the shooter
+  const TRAIL_KEEP = 0.7;  // seconds of bot history to remember: the rewind plus round-trip slack
+  const HIT_RADIUS = 0.5;  // horizontal miss tolerance, unchanged from the original test
+
   // Transient combat events kept per world so every client can draw the tracer / hit / kill it
   // missed. Capped: a 4-player room spraying rifles for two seconds must not grow the snapshot.
   const FX_CAP = 48;
@@ -95,6 +106,7 @@
       this.stuckRef = { x, z };
       this.walkPhase = Math.random() * 10;
       this.speed = 0;
+      this.trail = []; // timestamped positions, newest last, for the hit rewind above
     }
 
     pickWaypoint(world) {
@@ -244,6 +256,10 @@
       const actual = dist2D(before.x, before.z, this.pos.x, this.pos.z) / Math.max(dt, 1e-4);
       this.walkPhase += dt * actual * 3.2;
       this.speed = actual;
+
+      // Six samples at the hub's 10Hz tick comfortably span the visual lag a client shoots into.
+      this.trail.push({ x: this.pos.x, y: this.pos.y, z: this.pos.z, t: world.now });
+      while (this.trail.length > 2 && world.now - this.trail[0].t > TRAIL_KEEP) this.trail.shift();
     }
 
     shoot(world, target, dist) {
@@ -257,11 +273,16 @@
         d: [r2(dx / d), 0, r2(dz / d)],
       });
 
-      // Calculate hit chance
+      // Calculate hit chance — these are the SINGLE-PLAYER cabinet's numbers, not the ones this file
+      // carried. Its bots rolled 0.5 + round*0.035 against a 0.8 cap for 8-15 damage with an 8% chance
+      // of a 2.5x spike, so the same athlete died roughly twice as fast in a co-op round as in a solo
+      // one, and a match you cannot survive is exactly as unwinnable as a bot you cannot hit.
+      // The wall check below stays, because a solo bot shooting through a warehouse is a bug rather
+      // than difficulty.
       const moving = target.speed > 3.2 ? 0.18 : 0;
       const airborne = target.onGround ? 0 : 0.12;
       const crouchBonus = target.crouching ? 0.06 : 0;
-      const chance = clamp(0.5 + world.round * 0.035 - dist * 0.009 - moving - airborne - crouchBonus, 0.1, 0.8);
+      const chance = clamp(0.35 + world.round * 0.02 - dist * 0.009 - moving - airborne - crouchBonus, 0.08, 0.65);
 
       let hit = false;
       if (Math.random() < chance) {
@@ -269,7 +290,7 @@
         // so a bot behind a warehouse wall still killed you on the other side of it.
         hit = los(world, this.pos.x, this.pos.z, target.pos.x, target.pos.z);
         if (hit) {
-          const dmg = Math.round(rand(8, 15) * (Math.random() < 0.08 ? 2.5 : 1));
+          const dmg = Math.round(rand(5, 10) * (Math.random() < 0.06 ? 1.8 : 1));
           world.damagePlayer(target.id, dmg, this);
           pushFx(world, { e: 'hit', id: target.id, dmg, mine: Math.max(0, Math.round(target.health)) });
         }
@@ -287,9 +308,12 @@
       }
     }
 
-    damage(amount, part) {
+    // The caller applies the body-part multiplier exactly once, the way the cabinet does. This used
+    // to multiply again, so a leg shot in co-op cost six rifle rounds instead of four and a head
+    // shot was worth sixteen.
+    damage(amount) {
       if (!this.alive) return false;
-      this.health -= amount * (PART_MULT[part] || 1);
+      this.health -= amount;
       if (!this.alert) this.reaction = rand(BOT_REACTION_MIN, BOT_REACTION_MAX);
       this.alert = true;
       if (this.health <= 0) {
@@ -338,6 +362,7 @@
       endTimer: 0,
       fx: [],
       fxSeq: 1,
+      now: 0, // monotonic seconds; the clock the hit rewind reads
     };
     // Bots damage players through the world, so the hub must hand them that door — without it the
     // first landed bot shot threw inside the shared 100ms tick and took every room's loop down.
@@ -450,6 +475,7 @@
   }
 
   function step(world, dt) {
+    world.now += dt;
     if (world.state === 'playing') {
       world.timeLeft -= dt;
 
@@ -525,8 +551,9 @@
     if (p.pos.y < g) p.pos.y = g;
     else if (p.pos.y - g > 1.6) p.pos.y = g; // no teleporting onto a roof you cannot reach
 
-    // Weapon switch
-    if (input.weapon && input.weapon !== p.weapon) {
+    // Weapon switch. Unknown names are ignored rather than fatal: an older or patched client that
+    // reported a weapon the hub has no table for used to throw here and stall the room's tick.
+    if (input.weapon && input.weapon !== p.weapon && WEAPONS[input.weapon]) {
       p.weapon = input.weapon;
       p.ammo = WEAPONS[input.weapon].mag;
       p.reserve = WEAPONS[input.weapon].reserve;
@@ -561,10 +588,40 @@
   // Where along a horizontal band a figure's body parts sit, used to turn a validated ray into a
   // head / torso / leg hit instead of the random roll this used to fake.
   function partAtHeight(relY) {
+    if (relY > 2) return null; // a ray clearing the head is a miss; without this it scored a headshot
     if (relY > 1.55) return 'head';
     if (relY > 0.75) return 'body';
     if (relY > 0.05) return 'legs';
     return null;
+  }
+
+  // Where a bot was at time t, read back through the trail it keeps each tick. Anything with no
+  // history yet — a bot spawned this second — is judged on its live position rather than given a
+  // phantom rewind.
+  function trailPosition(bot, t) {
+    const trail = bot.trail;
+    if (!trail || trail.length < 2) return bot.pos;
+    if (t >= trail[trail.length - 1].t) return bot.pos;
+    if (t <= trail[0].t) return trail[0];
+    for (let i = trail.length - 1; i > 0; i--) {
+      const a = trail[i - 1], b = trail[i];
+      if (a.t <= t && t <= b.t) {
+        const u = (t - a.t) / Math.max(1e-4, b.t - a.t);
+        return { x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u, z: a.z + (b.z - a.z) * u };
+      }
+    }
+    return trail[trail.length - 1];
+  }
+
+  // Does this ray cross the figure's volume, and where on it? One position at a time; validateHit
+  // calls it for the seen position and the live one and keeps the nearer result.
+  function rayHitsBot(ray, at, wallDist) {
+    const ex = at.x - ray.ox, ez = at.z - ray.oz;
+    const along = ex * ray.dx + ez * ray.dz;
+    if (along <= 0 || along >= wallDist) return null;
+    if (dist2D(ray.ox + ray.dx * along, ray.oz + ray.dz * along, at.x, at.z) > HIT_RADIUS) return null;
+    const part = partAtHeight(ray.oy + ray.dy * along - at.y);
+    return part ? { along, part } : null;
   }
 
   function validateHit(world, shooter, ray) {
@@ -576,29 +633,27 @@
     if (!(len > 0.0001)) return null;
     dx /= len; dy /= len; dz /= len;
     const maxDist = clamp(ray.dist || 120, 1, 200);
+    const shot = { ox, oy, oz, dx, dy, dz };
 
     // Distance to the nearest wall along the shot, from the shared geometry.
     const wall = CSMap.rayBlock(world.colliders, ox, oy, oz, dx, dy, dz, maxDist);
     const wallDist = wall ? wall.dist : maxDist;
 
-    // Nearest bot whose volume the ray crosses before that wall.
+    // Nearest bot the ray crosses before that wall, judged both where the shooter was shown it and
+    // where the hub has it now, so the rewind can only ever be more forgiving than the live test.
     let best = null;
+    const seenAt = world.now - HIT_REWIND;
     for (const bot of world.bots) {
       if (!bot.alive) continue;
-      const ex = bot.pos.x - ox, ez = bot.pos.z - oz;
-      const along = ex * dx + ez * dz;
-      if (along <= 0 || along >= wallDist) continue;
-      const px = ox + dx * along, pz = oz + dz * along;
-      if (dist2D(px, pz, bot.pos.x, bot.pos.z) > 0.5) continue;
-      const relY = oy + dy * along - bot.pos.y;
-      const part = partAtHeight(relY);
-      if (!part) continue;
-      if (!best || along < best.along) best = { bot, along, part };
+      for (const at of [trailPosition(bot, seenAt), bot.pos]) {
+        const hit = rayHitsBot(shot, at, wallDist);
+        if (hit && (!best || hit.along < best.along)) best = { bot, along: hit.along, part: hit.part };
+      }
     }
     if (!best) return null;
 
-    const dmg = WEAPONS[shooter.weapon].dmg * PART_MULT[best.part];
-    const killed = best.bot.damage(dmg, best.part);
+    const wdef = WEAPONS[shooter.weapon] || WEAPONS.rifle;
+    const killed = best.bot.damage(wdef.dmg * PART_MULT[best.part]);
     shooter.kills += killed ? 1 : 0;
     pushFx(world, {
       e: 'hit', by: 'p', id: shooter.id, bot: best.bot.id, part: best.part,
