@@ -3215,16 +3215,29 @@ function sendPlayerState() {
 }
 
 // ── Online Mode Initialization ──
+// counter-strike-net.js is a classic script that publishes window.CSNet from its own
+// DOMContentLoaded handler. A deferred module runs while readyState is still "interactive" — after
+// the markup is parsed but before that event — so CSNet genuinely is not there yet when this file
+// finishes, and a single call at the bottom of it silently does nothing. Half the multiplayer code
+// then lives: the lobby, the room list and the deploy countdown all run inside the net module and
+// keep working, while the renderer is deaf because applySnapshot was never installed. The hub's
+// shared world is the only source of terrorists and teammates in co-op, so the athlete gets a fully
+// playable, completely empty arena and one console line nobody looks for.
 function initOnlineMode() {
-  if (typeof CSNet === 'undefined') {
-    console.warn('[CS] counter-strike-net.js not loaded — multiplayer disabled');
+  if (typeof CSNet !== 'undefined' && CSNet) {
+    if (CSNet.onSnapshot === applySnapshot) return; // already wired
+    CSNet.onSnapshot = applySnapshot;
+    CSNet.onMatchEnd = (rows) => window.endOnlineGame(rows);
+    console.log('[CS] Online mode initialized');
     return;
   }
-
-  CSNet.onSnapshot = applySnapshot;
-  CSNet.onMatchEnd = (rows) => window.endOnlineGame(rows);
-
-  console.log('[CS] Online mode initialized');
+  // net.js queued its own DOMContentLoaded handler while the document was still parsing, so by the
+  // time this event fires window.CSNet exists and the queue order is already correct.
+  if (document.readyState !== 'complete') {
+    document.addEventListener('DOMContentLoaded', initOnlineMode, { once: true });
+    return;
+  }
+  console.warn('[CS] counter-strike-net.js not loaded — multiplayer disabled');
 }
 
 // ── Match start ──

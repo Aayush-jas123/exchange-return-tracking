@@ -40,6 +40,7 @@
   const Net = {
     myId: null,
     connected: false,
+    needsSignIn: false, // no athlete token on this page — the hub would reject the socket
     inGame: false,
     room: null,
     selectedMap: 'industrial', // Map selection for multiplayer
@@ -155,8 +156,21 @@
   // ── Connection ──
   function doConnect() {
     if (stopped) return;
+    clearTimeout(retryTimer);
+    const token = getToken();
+    if (!token) {
+      // The hub refuses the upgrade without an athlete, so do not pretend to be connecting. Check
+      // again shortly because the portal can supply the token after this page is already open.
+      ready = false;
+      Net.connected = false;
+      Net.needsSignIn = true;
+      retryTimer = setTimeout(doConnect, 4000);
+      renderLobby();
+      return;
+    }
+    Net.needsSignIn = false;
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const url = `${proto}//${location.host}/ws/race?t=${encodeURIComponent(getToken())}&c=game`;
+    const url = `${proto}//${location.host}/ws/race?t=${encodeURIComponent(token)}&c=game`;
     ws = new WebSocket(url);
 
     ws.onopen = () => {
@@ -316,9 +330,18 @@
 
   function getToken() {
     // Try to get token from AthleteXP module or URL params
-    if (window.AthleteXP && window.AthleteXP.token) return window.AthleteXP.token();
-    const params = new URLSearchParams(location.search);
-    return params.get('t') || params.get('token') || '';
+    // sessionStorage hands back null and `encodeURIComponent(null)` is the four-character text
+    // "null", so a page opened without an athlete session used to dial the hub with `?t=null` and
+    // take a 401 on every single retry — the lobby then read "Connecting..." forever and
+    // multiplayer looked broken instead of simply unsigned-in.
+    let t = '';
+    if (window.AthleteXP && window.AthleteXP.token) t = window.AthleteXP.token() || '';
+    if (!t) {
+      const params = new URLSearchParams(location.search);
+      t = params.get('t') || params.get('token') || '';
+    }
+    if (!t) t = new URLSearchParams(location.hash.slice(1)).get('t') || '';
+    return (t && t !== 'null') ? t : '';
   }
 
   // ── Lobby Rendering ──
@@ -327,7 +350,9 @@
     if (!lobbyEl) return;
 
     if (!Net.connected) {
-      lobbyEl.innerHTML = '<div class="lobby-status">Connecting...</div>';
+      lobbyEl.innerHTML = '<div class="lobby-status">' + (Net.needsSignIn
+        ? 'Co-op needs an athlete sign-in &mdash; open Counter Strike from the Athlete Portal.'
+        : 'Connecting...') + '</div>';
       return;
     }
 
