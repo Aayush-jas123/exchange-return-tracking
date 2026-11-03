@@ -1789,6 +1789,7 @@ function triggerGameOver() {
 }
 
 function startNewGame() {
+  buildMap();
   game.round = 0; game.ct = 0; game.t = 0; game.kills = 0;
   game.timeLeft = ROUND_TIME; game.endTimer = 0;
   hud.scoreCT.textContent = '0'; hud.scoreT.textContent = '0';
