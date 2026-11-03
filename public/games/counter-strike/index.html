@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
   <title>OFFCOMFRT &mdash; Counter Strike</title>
-  <link rel="stylesheet" href="style.css?v=10" />
+  <link rel="stylesheet" href="style.css?v=11" />
 </head>
 <body>
 
@@ -16,6 +16,28 @@
         <span class="brand-eyebrow">OFFCOMFRT Arcade</span>
         <h1>Counter Strike</h1>
       </div>
+      
+      <!-- Map Selection -->
+      <div class="map-select-section">
+        <div class="map-select-label">SELECT MAP</div>
+        <div class="map-options">
+          <button class="map-option active" data-map="industrial">
+            <div class="map-icon">🏭</div>
+            <div class="map-info">
+              <div class="map-name">Industrial Complex</div>
+              <div class="map-desc">Abandoned warehouse district with towers and defensive positions</div>
+            </div>
+          </button>
+          <button class="map-option" data-map="classic">
+            <div class="map-icon">🎯</div>
+            <div class="map-info">
+              <div class="map-name">Classic Arena</div>
+              <div class="map-desc">Original training ground with balanced layout</div>
+            </div>
+          </button>
+        </div>
+      </div>
+      
       <button class="mode-btn" id="btnPlay">
         <span class="mi">🎯</span>
         <span class="ml">Deploy<span class="ms">Eliminate all terrorists &mdash; survive every round</span></span>
@@ -146,8 +168,8 @@
   <script src="../portal-back.js?v=1"></script>
   <script src="../athlete-xp.js?v=19"></script>
   <!-- Network client for multiplayer -->
-  <script src="counter-strike-net.js?v=9"></script>
+  <script src="counter-strike-net.js?v=10"></script>
   <!-- Game engine loads as ES module (deferred by spec) -->
-  <script type="module" src="script.js?v=13"></script>
+  <script type="module" src="script.js?v=24"></script>
 </body>
 </html>

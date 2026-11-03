@@ -25,6 +25,22 @@ instrToggle.addEventListener('click', () => {
   instrToggle.classList.toggle('open', open);
 });
 
+// ── Map Selection ──
+let selectedMap = 'industrial'; // Default to new industrial complex
+const mapOptions = document.querySelectorAll('.map-option');
+mapOptions.forEach(btn => {
+  btn.addEventListener('click', () => {
+    mapOptions.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedMap = btn.dataset.map;
+    console.log('[CS] Map selected:', selectedMap);
+    // Update multiplayer network module if available
+    if (typeof window.CSNet !== 'undefined' && window.CSNet.setMap) {
+      window.CSNet.setMap(selectedMap);
+    }
+  });
+});
+
 // ── Renderer / scene ──
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -37,7 +53,7 @@ gameScreen.prepend(renderer.domElement);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x2a2a2e); // lighter monochrome gray
-scene.fog = new THREE.Fog(0x2a2a2e, 45, 120);
+scene.fog = new THREE.Fog(0x2a2a2e, 50, 160);
 
 const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.03, 300);
 camera.rotation.order = 'YXZ';
@@ -192,13 +208,22 @@ const mats = {
   wall2: new THREE.MeshStandardMaterial({ map: wallTex2, roughness: 0.95 }),
   crate: new THREE.MeshStandardMaterial({ map: crateTex, roughness: 0.85 }),
   metal: new THREE.MeshStandardMaterial({ map: metalTex, roughness: 0.6, metalness: 0.4 }),
+  concrete: new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.98, color: 0xbdbdbd }),
+  leaf: new THREE.MeshStandardMaterial({ color: 0x55595a, roughness: 1, flatShading: true }),
 };
 
 // ── Map ──
 const colliders = [];
 const worldMeshes = [];
 
+// Geometry cache: identical box dims+texScale share ONE BufferGeometry instead of allocating
+// a fresh GPU buffer per mesh. The map has hundreds of repeated boxes (walls, stairs, slabs),
+// so this collapses VRAM to a handful of geometries. Entries persist across clearMap on purpose.
+const _boxGeoCache = new Map();
 function scaledBox(w, h, d, scale) {
+  const key = `${w}|${h}|${d}|${scale}`;
+  const hit = _boxGeoCache.get(key);
+  if (hit) return hit;
   const geo = new THREE.BoxGeometry(w, h, d);
   const uv = geo.attributes.uv;
   const dims = [[d, h], [d, h], [w, d], [w, d], [w, h], [w, h]];
@@ -208,6 +233,18 @@ function scaledBox(w, h, d, scale) {
       uv.setXY(k, uv.getX(k) * dims[f][0] / scale, uv.getY(k) * dims[f][1] / scale);
     }
   }
+  _boxGeoCache.set(key, geo);
+  return geo;
+}
+
+// Cylinder geometry cache (tanks, towers, silos) keyed by radius+height.
+const _cylGeoCache = new Map();
+function getCylGeo(radius, height) {
+  const key = `${radius}|${height}`;
+  const hit = _cylGeoCache.get(key);
+  if (hit) return hit;
+  const geo = new THREE.CylinderGeometry(radius, radius, height, 16);
+  _cylGeoCache.set(key, geo);
   return geo;
 }
 
@@ -220,7 +257,344 @@ function addBox(x, z, w, d, h, mat, texScale = 2.5, y = 0) {
   colliders.push({ minX: x - w / 2, maxX: x + w / 2, minZ: z - d / 2, maxZ: z + d / 2, minY: y, maxY: y + h });
   return mesh;
 }
+
+// Add cylinder helper for industrial structures (tanks, towers, pipes)
+function addCylinder(x, z, radius, height, mat, y = 0, rotation = 0) {
+  const mesh = new THREE.Mesh(getCylGeo(radius, height), mat);
+  mesh.position.set(x, y + height / 2, z);
+  if (rotation) mesh.rotation.y = rotation;
+  mesh.castShadow = mesh.receiveShadow = true;
+  scene.add(mesh);
+  worldMeshes.push(mesh);
+  // Approximate cylinder as box collider for simplicity
+  colliders.push({ minX: x - radius, maxX: x + radius, minZ: z - radius, maxZ: z + radius, minY: y, maxY: y + height });
+  return mesh;
+}
+
 const crate = (x, z, s = 1.2, y = 0) => addBox(x, z, s, s, s, mats.crate, s, y);
+
+// Build the floor plane for a given map size (must be called inside each map builder after clearMap)
+function buildGround(size) {
+  const g = new THREE.Mesh(new THREE.PlaneGeometry(size, size), mats.ground);
+  g.rotation.x = -Math.PI / 2;
+  g.receiveShadow = true;
+  scene.add(g);
+  worldMeshes.push(g);
+  return g;
+}
+
+// Climbable staircase: emits stacked step boxes each ≤ STEP (0.4) tall so players can walk up
+// dir: 'N' ascends toward -z, 'S' toward +z, 'E' toward +x, 'W' toward -x
+function addStairs(x, z, totalH, steps, width, dir, mat = mats.concrete) {
+  const stepH = totalH / steps;
+  const stepD = 0.55;
+  for (let i = 0; i < steps; i++) {
+    const y = (i + 1) * stepH;
+    const off = i * stepD;
+    if (dir === 'N') addBox(x, z - off, width, stepD, y, mat, 2);
+    else if (dir === 'S') addBox(x, z + off, width, stepD, y, mat, 2);
+    else if (dir === 'E') addBox(x + off, z, stepD, width, y, mat, 2);
+    else if (dir === 'W') addBox(x - off, z, stepD, width, y, mat, 2);
+  }
+}
+
+// Shipping container: long steel box. axis 'x' or 'z', len defaults to 6 (standard 20ft)
+function addContainer(x, z, len, axis, y = 0) {
+  const w = axis === 'x' ? len : 2.4;
+  const d = axis === 'x' ? 2.4 : len;
+  return addBox(x, z, w, d, 2.6, mats.metal, 3, y);
+}
+
+// Elevate a flat roof/platform on top of pillars (walkable with matching addStairs)
+function addPlatform(x, z, w, d, y, mat = mats.metal) {
+  // Deck slab (thin)
+  return addBox(x, z, w, d, 0.3, mat, 2.5, y);
+}
+
+// Vertical support pillars under a platform
+function addPillars(x, z, w, d, h, count = 4) {
+  const pts = count === 4
+    ? [[-w/2+0.4, -d/2+0.4], [w/2-0.4, -d/2+0.4], [-w/2+0.4, d/2-0.4], [w/2-0.4, d/2-0.4]]
+    : [[0, 0]];
+  for (const [ox, oz] of pts) addBox(x + ox, z + oz, 0.5, 0.5, h - 0.3, mats.wall, 1.5);
+}
+
+// A wall run along `axis` ('x' = spans width along x, 'z' = spans depth along z)
+// with a centered full-height DOORWAY opening of width gapW.
+function addDoorWall(cx, cz, len, axis, baseY, h, gapW, mat) {
+  const wt = 0.6;
+  const side = (len - gapW) / 2;
+  if (axis === 'x') {
+    addBox(cx - (gapW / 2 + side / 2), cz, side, wt, h, mat, 2, baseY);
+    addBox(cx + (gapW / 2 + side / 2), cz, side, wt, h, mat, 2, baseY);
+    // lintel above the doorway (top 0.9m of the opening filled)
+    addBox(cx, cz, gapW, wt, 0.9, mat, 2, baseY + h - 0.9);
+  } else {
+    addBox(cx, cz - (gapW / 2 + side / 2), wt, side, h, mat, 2, baseY);
+    addBox(cx, cz + (gapW / 2 + side / 2), wt, side, h, mat, 2, baseY);
+    addBox(cx, cz, wt, gapW, 0.9, mat, 2, baseY + h - 0.9);
+  }
+}
+
+// A wall run with a centered WINDOW opening (sill below, header above, clear view through).
+function addWinWall(cx, cz, len, axis, baseY, h, winW, sillH, headH, mat) {
+  const wt = 0.6;
+  const side = (len - winW) / 2;
+  const openH = h - sillH - headH;
+  if (axis === 'x') {
+    addBox(cx - (winW / 2 + side / 2), cz, side, wt, h, mat, 2, baseY);
+    addBox(cx + (winW / 2 + side / 2), cz, side, wt, h, mat, 2, baseY);
+    addBox(cx, cz, winW, wt, sillH, mat, 2, baseY);                 // sill
+    addBox(cx, cz, winW, wt, headH, mat, 2, baseY + h - headH);     // header
+  } else {
+    addBox(cx, cz - (winW / 2 + side / 2), wt, side, h, mat, 2, baseY);
+    addBox(cx, cz + (winW / 2 + side / 2), wt, side, h, mat, 2, baseY);
+    addBox(cx, cz, wt, winW, sillH, mat, 2, baseY);
+    addBox(cx, cz, wt, winW, headH, mat, 2, baseY + h - headH);
+  }
+}
+
+// ══ Duplex building: two walkable floors, defined interior, internal stairs, windows, roof ══
+// Footprint centered at (bx,bz), width w along x, depth d along z. Axis-aligned (colliders are AABB).
+// Entry door on the south face; internal straight staircase up the east shaft to the second floor.
+function addDuplexBuilding(bx, bz, w, d) {
+  const wt = 0.6;
+  const gfH = 3.5;                 // ground-floor clear height
+  const slabT = 0.3;              // floor/roof slab thickness
+  const ufH = 2.8;               // upper-floor wall height
+  const midY = gfH;              // second-floor slab bottom
+  const upY = gfH + slabT;        // upper-floor walking level (3.8)
+  const roofY = upY + ufH;        // roof slab bottom (6.6)
+  const hw = w / 2, hd = d / 2;
+
+  // ── Ground floor: exterior walls, south face has the entry doorway ──
+  addWinWall(bx, bz - hd, w, 'x', 0, gfH, 2.4, 1.1, 1.1, mats.wall2);   // north (window)
+  addDoorWall(bx, bz + hd, w, 'x', 0, gfH, 2.6, mats.wall2);            // south (entry)
+  addWinWall(bx - hw, bz, d, 'z', 0, gfH, 2.2, 1.1, 1.1, mats.wall2);   // west (window)
+  addBox(bx + hw, bz, wt, d, gfH, mats.wall2);                          // east (solid, stair shaft behind it)
+
+  // ── Ground-floor interior: partition with a doorway so rooms connect ──
+  addDoorWall(bx - 1, bz, d - 2, 'z', 0, gfH, 2.2, mats.wall);
+  crate(bx - hw + 2, bz + hd - 2, 1.4);                                // furniture/cover inside
+  crate(bx - hw + 2, bz - hd + 2, 1.2);
+
+  // ── Second-floor slab: solid west/center; a 3.5 m open stair shaft runs along the east wall ──
+  const shaft = 3.5;
+  const slabEast = bx + hw - shaft;                 // east edge of the walkable slab
+  const slabW = slabEast - (bx - hw);
+  addBox(bx - hw + slabW / 2, bz, slabW, d - wt, slabT, mats.concrete, 2.5, midY);
+
+  // ── Internal staircase up the east shaft; player steps WEST off the top onto the slab (no rail) ──
+  addStairs(slabEast + shaft / 2, bz + hd - 0.8, upY, 11, 3.0, 'N', mats.metal);
+
+  // ── Upper-floor walls (on top of the slab) with windows ──
+  addWinWall(bx, bz - hd, w, 'x', upY, ufH, 2.6, 0.9, 0.9, mats.wall);   // north
+  addWinWall(bx, bz + hd, w, 'x', upY, ufH, 2.6, 0.9, 0.9, mats.wall);   // south
+  addWinWall(bx - hw, bz, d, 'z', upY, ufH, 2.2, 0.9, 0.9, mats.wall);   // west
+  addBox(bx + hw, bz, wt, d, ufH, mats.wall);                           // east (solid)
+  // upstairs partition WITH a doorway (this is what lets you cross to the other side)
+  addDoorWall(bx - 1, bz, d - 2, 'z', upY, ufH, 2.2, mats.wall2);
+
+  // ── Roof slab (capped, slight overhang) ──
+  addBox(bx, bz, w + 0.6, d + 0.6, slabT, mats.metal, 2.5, roofY);
+  // parapet so the roof reads as a defined building top
+  addBox(bx, bz - hd - 0.2, w + 0.6, 0.3, 0.7, mats.concrete, 1.5, roofY + slabT);
+  addBox(bx, bz + hd + 0.2, w + 0.6, 0.3, 0.7, mats.concrete, 1.5, roofY + slabT);
+}
+
+// ══ Rounded duplex: octagonal (chamfered) two-floor building with a cylindrical roof ══
+// Same proven interior as the square duplex (rectangular slab + east stair shaft) but the
+// exterior is an octagon (cardinal walls + corner blocks) capped by a round roof for a rounded look.
+function addRoundDuplex(bx, bz, w, d) {
+  const wt = 0.6;
+  const gfH = 3.5, slabT = 0.3, ufH = 2.8;
+  const midY = gfH, upY = gfH + slabT, roofY = upY + ufH;
+  const hw = w / 2, hd = d / 2;
+  const c = 2;                              // corner chamfer block size
+  const flatX = w - 2 * c, flatZ = d - 2 * c;
+  const co = hw - c / 2, czo = hd - c / 2;
+
+  // ── Ground floor: octagon ring (cardinal walls shorter, corners filled by blocks) ──
+  addWinWall(bx, bz - hd, flatX, 'x', 0, gfH, 2.2, 1.1, 1.1, mats.wall2);   // north
+  addDoorWall(bx, bz + hd, flatX, 'x', 0, gfH, 2.6, mats.wall2);            // south (entry)
+  addWinWall(bx - hw, bz, flatZ, 'z', 0, gfH, 2.2, 1.1, 1.1, mats.wall2);   // west
+  addBox(bx + hw, bz, wt, d, gfH, mats.wall2);                              // east (solid, stair shaft behind)
+  addBox(bx - co, bz - czo, c, c, gfH, mats.wall2, 2);                       // NW chamfer
+  addBox(bx - co, bz + czo, c, c, gfH, mats.wall2, 2);                       // SW chamfer
+  addBox(bx + co, bz - czo, c, c, gfH, mats.wall2, 2);                       // NE chamfer
+  // (SE corner left open — the internal stair shaft runs up the east/south-east)
+
+  // interior partition with doorway + cover
+  addDoorWall(bx - 1, bz, d - 2, 'z', 0, gfH, 2.2, mats.wall);
+  crate(bx - hw + 2, bz + hd - 2, 1.4);
+
+  // ── Second-floor slab (rectangular, open east shaft) + internal stairs ──
+  const shaft = 3.5;
+  const slabEast = bx + hw - shaft;
+  const slabW = slabEast - (bx - hw);
+  addBox(bx - hw + slabW / 2, bz, slabW, d - wt, slabT, mats.concrete, 2.5, midY);
+  addStairs(slabEast + shaft / 2, bz + hd - 0.8, upY, 11, 3.0, 'N', mats.metal);
+
+  // ── Upper floor: matching octagon ring ──
+  addWinWall(bx, bz - hd, flatX, 'x', upY, ufH, 2.4, 0.9, 0.9, mats.wall);
+  addWinWall(bx, bz + hd, flatX, 'x', upY, ufH, 2.4, 0.9, 0.9, mats.wall);
+  addWinWall(bx - hw, bz, flatZ, 'z', upY, ufH, 2.2, 0.9, 0.9, mats.wall);
+  addBox(bx + hw, bz, wt, d, ufH, mats.wall);
+  addBox(bx - co, bz - czo, c, c, ufH, mats.wall, 2, upY);
+  addBox(bx - co, bz + czo, c, c, ufH, mats.wall, 2, upY);
+  addBox(bx + co, bz - czo, c, c, ufH, mats.wall, 2, upY);
+  addDoorWall(bx - 1, bz, d - 2, 'z', upY, ufH, 2.2, mats.wall2);
+
+  // ── Rounded roof: cylinder cap + parapet ring + finial ──
+  const rr = Math.max(hw, hd) + 0.3;
+  addCylinder(bx, bz, rr, slabT, mats.metal, roofY);
+  addCylinder(bx, bz, rr, 0.6, mats.concrete, roofY + slabT);
+  addCylinder(bx, bz, 0.5, 1.6, mats.metal, roofY + slabT + 0.6);
+}
+
+// ══ Round walkable lookout tower (lighthouse-style): cylindrical body + top gallery + stairs ══
+// Solid tapered body as the landmark; a round deck at `h` on the shaft is reachable by a straight
+// external staircase from the south, ringed by railings. Players can climb to the deck.
+function addRoundTower(x, z, radius = 3, h = 4.5) {
+  // support column (solid cylinder up to the deck)
+  addCylinder(x, z, radius - 1.1, h, mats.wall2);
+  // round walkable deck
+  addCylinder(x, z, radius, 0.35, mats.metal, h);
+  // lamp room on top (small cylinder) — landmark cap
+  addCylinder(x, z, radius * 0.55, 1.6, mats.wall, h + 0.35);
+  // railings around the deck edge
+  const rn = 10;
+  for (let i = 0; i < rn; i++) {
+    const a = (i / rn) * Math.PI * 2;
+    addBox(x + Math.cos(a) * (radius - 0.2), z + Math.sin(a) * (radius - 0.2), 0.2, 0.2, 1, mats.metal, 1, h + 0.35);
+  }
+  // straight external staircase from the south, ascending north onto the deck
+  const steps = Math.round(h / 0.35);
+  const run = (steps - 1) * 0.55;
+  addStairs(x, z + radius + run, h + 0.35, steps, 2.4, 'N', mats.metal);
+}
+
+// ══ Vehicle: 'truck' (long box + cab, climbable bed) or 'car' (low, jumpable roof) ══
+// axis 'x' or 'z'. Body sits on the ground; a small step block lets players hop onto a truck bed.
+function addVehicle(x, z, axis, type = 'truck') {
+  const m = type === 'truck' ? mats.metal : mats.wall2;
+  if (type === 'truck') {
+    const L = axis === 'x' ? [5, 2.4] : [2.4, 5];   // cargo box w,d
+    const C = axis === 'x' ? [2.2, 2.4] : [2.4, 2.2]; // cab w,d
+    const off = axis === 'x' ? [3.6, 0] : [0, 3.6];
+    addBox(x, z, L[0], L[1], 2.6, m, 2.5);                       // cargo bed
+    addBox(x + off[0], z + off[1], C[0], C[1], 2.2, mats.wall, 2); // cab
+    // step block to climb onto the 2.6 m bed
+    addBox(x - (axis === 'x' ? 3.2 : 0), z - (axis === 'x' ? 0 : 3.2), 1.2, 1.2, 0.8, mats.concrete, 2);
+  } else {
+    const B = axis === 'x' ? [4, 2] : [2, 4];
+    addBox(x, z, B[0], B[1], 1.1, m, 2.5);                     // lower body (jumpable ~1.1 m)
+    const c = axis === 'x' ? [2, 1.7] : [1.7, 2];
+    addBox(x, z, c[0], c[1], 0.7, mats.wall, 2, 1.1);          // cabin on top
+  }
+}
+
+// ══ Pavement: a thin raised walkway/curb (≤ STEP tall so it is walkable), forms paths/sidewalks ══
+function addPavement(x, z, w, d) {
+  return addBox(x, z, w, d, 0.18, mats.concrete, 3);
+}
+
+// ── Vegetation (INSTANCED: all foliage in one draw call, all trunks in one) ──
+// Shared low-poly geometry + InstancedMesh keeps GPU buffers/draw-calls flat no matter
+// how many trees/bushes scatter() places, so render RAM stays low.
+const foliageGeo = new THREE.SphereGeometry(1, 8, 6);
+const trunkGeo = new THREE.CylinderGeometry(0.3, 0.42, 2.2, 7);
+const _leafInst = [];    // { p:[x,y,z], s:[sx,sy,sz] }
+const _trunkInst = [];   // { p:[x,y,z], s:[sx,sy,sz] }
+
+// Tree: thin trunk collider (easy to walk around) + non-colliding foliage recorded as instances.
+function addTree(x, z, s = 1) {
+  _trunkInst.push({ p: [x, 1.1 * s, z], s: [s, s, s] });
+  _leafInst.push({ p: [x, 2.7 * s, z], s: [1.25 * s, 1.15 * s, 1.25 * s] });
+  _leafInst.push({ p: [x + 0.55 * s, 3.3 * s, z - 0.35 * s], s: [0.85 * s, 0.85 * s, 0.85 * s] });
+  colliders.push({ minX: x - 0.42 * s, maxX: x + 0.42 * s, minZ: z - 0.42 * s, maxZ: z + 0.42 * s, minY: 0, maxY: 2.2 * s });
+}
+
+// Bush: purely decorative low foliage, NO collider, so it never blocks player or bot movement.
+function addBush(x, z, s = 1) {
+  _leafInst.push({ p: [x, 0.5 * s, z], s: [0.9 * s, 0.7 * s, 0.9 * s] });
+}
+
+// Build the two InstancedMeshes from the collected transforms (called once after the map is placed).
+function _fillInstances(geo, mat, list) {
+  if (!list.length) return;
+  const im = new THREE.InstancedMesh(geo, mat, list.length);
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), pos = new THREE.Vector3(), scl = new THREE.Vector3();
+  for (let i = 0; i < list.length; i++) {
+    pos.set(list[i].p[0], list[i].p[1], list[i].p[2]);
+    scl.set(list[i].s[0], list[i].s[1], list[i].s[2]);
+    m.compose(pos, q, scl);
+    im.setMatrixAt(i, m);
+  }
+  im.instanceMatrix.needsUpdate = true;
+  im.castShadow = true; im.receiveShadow = true;    // keep the same lit/shadowed look as before
+  im.frustumCulled = true;
+  scene.add(im); worldMeshes.push(im);
+}
+function finalizeVegetation() {
+  _fillInstances(trunkGeo, mats.wall, _trunkInst);
+  _fillInstances(foliageGeo, mats.leaf, _leafInst);
+  _trunkInst.length = 0; _leafInst.length = 0;
+}
+
+// Dense-but-passable grove: trees kept ≥ minGap apart so lanes stay walkable, and only placed
+// on free ground (never on pavements/structures/spawns). Bushes fill the gaps decoratively.
+function addForest(cx, cz, radius, count, minGap = 3.0) {
+  const placed = [];
+  let guard = 0;
+  while (placed.length < count && guard++ < count * 40) {
+    const a = Math.random() * Math.PI * 2;
+    const r = Math.sqrt(Math.random()) * radius;
+    const x = cx + Math.cos(a) * r;
+    const z = cz + Math.sin(a) * r;
+    // keep clear of structures, pavements and existing trunks
+    if (!isFree(x, z, 0.9)) continue;
+    if (placed.some(p => (p.x - x) ** 2 + (p.y - z) ** 2 < minGap * minGap)) continue;
+    placed.push({ x, z });
+    addTree(x, z, 0.85 + Math.random() * 0.6);
+    if (Math.random() < 0.7) addBush(x + rand(-1.6, 1.6), z + rand(-1.6, 1.6), 0.8 + Math.random() * 0.6);
+  }
+  return placed.length;
+}
+
+// Even map-wide scatter (NOT clustered): rejection-samples across the whole arena with a large
+// min-gap so trees distribute evenly through the open ground, keeping spawn bands clear.
+function inSpawnBand(x, z) {
+  return (z <= -40 && z >= -45 && Math.abs(x) <= 8) || (z >= 35 && z <= 45 && Math.abs(x) <= 20);
+}
+function scatterTrees(count, minGap = 5.5) {
+  const placed = [];
+  let guard = 0;
+  while (placed.length < count && guard++ < count * 60) {
+    const x = rand(-46, 46), z = rand(-46, 46);
+    if (inSpawnBand(x, z)) continue;
+    if (!isFree(x, z, 1.0)) continue;
+    if (placed.some(p => (p.x - x) ** 2 + (p.y - z) ** 2 < minGap * minGap)) continue;
+    placed.push({ x, z });
+    addTree(x, z, 0.85 + Math.random() * 0.7);
+    if (Math.random() < 0.5) addBush(x + rand(-2.5, 2.5), z + rand(-2.5, 2.5), 0.8 + Math.random() * 0.7);
+  }
+  return placed.length;
+}
+function scatterBushes(count, minGap = 4.5) {
+  const placed = [];
+  let guard = 0;
+  while (placed.length < count && guard++ < count * 60) {
+    const x = rand(-46, 46), z = rand(-46, 46);
+    if (inSpawnBand(x, z)) continue;
+    if (!isFree(x, z, 0.8)) continue;
+    if (placed.some(p => (p.x - x) ** 2 + (p.y - z) ** 2 < minGap * minGap)) continue;
+    placed.push({ x, z });
+    addBush(x, z, 0.8 + Math.random() * 0.8);
+  }
+  return placed.length;
+}
+
 
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(66, 66), mats.ground);
 ground.rotation.x = -Math.PI / 2;
@@ -290,36 +664,222 @@ function createWallLogo(x, y, z, rotY = 0) {
   scene.add(mesh);
 }
 
-// Wall logos on inner walls (horizontal OFFCOMFRT text)
-createWallLogo(-18, 3, 6, Math.PI / 2);
-createWallLogo(18, 3, -6, -Math.PI / 2);
-createWallLogo(0, 3, -32, 0);
-createWallLogo(0, 3, 32, Math.PI);
+// ════════════════════════════════════════════════════════════
+//  MAP BUILDING FUNCTIONS
+// ════════════════════════════════════════════════════════════
 
-addBox(0, -32.5, 66, 1, 7, mats.wall);
-addBox(0, 32.5, 66, 1, 7, mats.wall);
-addBox(-32.5, 0, 1, 66, 7, mats.wall);
-addBox(32.5, 0, 1, 66, 7, mats.wall);
-addBox(-18, 0, 20, 1.2, 5, mats.wall);
-addBox(18, 0, 20, 1.2, 5, mats.wall);
-addBox(0, 0, 6, 6, 4.2, mats.wall2);
-addBox(-22, -14, 8, 10, 5.5, mats.wall2);
-addBox(22, 16, 10, 8, 5.5, mats.wall2);
-addBox(-4, 15, 6, 4, 3.5, mats.wall2);
-addBox(5, -14, 4, 6, 3.5, mats.wall2);
-addBox(-10, 19, 1.2, 12, 4.5, mats.wall);
-addBox(11, -20, 1.2, 12, 4.5, mats.wall);
-addBox(-26, 10, 8, 1.2, 4, mats.wall);
-addBox(26, -8, 8, 1.2, 4, mats.wall);
-addBox(16, 6, 6, 2.4, 2.6, mats.metal, 3);
-addBox(-15, -6, 2.4, 6, 2.6, mats.metal, 3);
-crate(-21, 21, 2); crate(-19, 21, 2); crate(-21, 21, 1.3, 2);
-crate(-16, 25, 1.2); crate(-25, 17, 1.4);
-crate(21, -16, 2); crate(21, -18, 2); crate(21, -16, 1.3, 2);
-crate(16, -12, 1.2); crate(25, -22, 1.4); crate(26, -24, 1.1);
-crate(-6, -6, 1.3); crate(6, 6, 1.3); crate(-3, 7, 1.1); crate(3, -8, 1.1);
-crate(-12, -24, 1.4); crate(12, 25, 1.4); crate(-28, -28, 1.6); crate(28, 28, 1.6);
-crate(-28, 2.5, 1.2); crate(28, -2.5, 1.2); crate(0, 22, 1.2); crate(0, -22, 1.2);
+function clearMap() {
+  // Remove all world meshes and colliders. InstancedMeshes own a per-map instanceMatrix buffer
+  // that must be freed on rebuild (otherwise switching maps leaks VRAM). Their shared base
+  // geometry (foliage/trunk) and the cached box/cylinder geometries are reused, so we only
+  // release the instance buffer here — never the geometry.
+  for (const mesh of worldMeshes) {
+    scene.remove(mesh);
+    if (mesh.isInstancedMesh) mesh.dispose();
+  }
+  worldMeshes.length = 0;
+  colliders.length = 0;
+}
+
+function buildIndustrialMap() {
+  // ════════════════════════════════════════════════════════════
+  //  ABANDONED INDUSTRIAL COMPLEX — 99x99 Arena (1.5x)
+  //  Six duplex buildings (2 walkable floors, interiors, internal
+  //  stairs, windows, roofs) around a central street, with
+  //  containers, tanks, silos and barriers for cover.
+  //  CT spawn band x[-8,8] z[-45,-40] and T spawn band x[-20,20]
+  //  z[35,45] are kept clear.
+  // ════════════════════════════════════════════════════════════
+
+  buildGround(99);
+
+  // OFFCOMFRT wordmarks flush on the inner face of each perimeter wall
+  createWallLogo(0, 3, -48.4, 0);
+  createWallLogo(0, 3, 48.4, Math.PI);
+  createWallLogo(-48.4, 3, 0, Math.PI / 2);
+  createWallLogo(48.4, 3, 0, -Math.PI / 2);
+
+  // ── Perimeter Walls ──
+  addBox(0, -49.5, 99, 1, 8, mats.wall);
+  addBox(0, 49.5, 99, 1, 8, mats.wall);
+  addBox(-49.5, 0, 1, 99, 8, mats.wall);
+  addBox(49.5, 0, 1, 99, 8, mats.wall);
+
+  // ════════════════════════════════════════════════════
+  //  DUPLEX BUILDINGS (entry door faces south; internal stairs up east gallery)
+  // ════════════════════════════════════════════════════
+  addDuplexBuilding(-33, -33, 12, 9);   // NW block
+  addDuplexBuilding(33, -33, 12, 9);    // NE block
+  addDuplexBuilding(-16, 3, 11, 8);     // central-west block
+  addDuplexBuilding(16, 3, 11, 8);      // central-east block
+  addDuplexBuilding(-33, 29, 12, 9);    // SW block
+  addDuplexBuilding(33, 29, 12, 9);     // SE block
+  // Two rounded (octagonal) duplexes flanking the central plaza on the west/east avenues
+  addRoundDuplex(-36, 0, 12, 12);       // west rounded duplex
+  addRoundDuplex(36, 0, 12, 12);        // east rounded duplex
+
+  // ════════════════════════════════════════════════════
+  //  INDUSTRIAL FILLER (tanks, silos, containers, barriers)
+  // ════════════════════════════════════════════════════
+  // Central street: two tanks + a container as mid cover (spawns stay clear)
+  addCylinder(0, -30, 3.0, 3.4, mats.metal);
+  addCylinder(0, -22, 2.4, 3.0, mats.metal);
+  addContainer(0, 20, 6, 'x');
+  addStairs(6.5, 20, 2.6, 8, 2.4, 'W');          // climb onto the mid container
+
+  // Tall silos marking the outer corners
+  addCylinder(-45, -12, 2.8, 9, mats.wall2);
+  addCylinder(-45, 12, 2.6, 8, mats.wall2);
+  addCylinder(45, -12, 2.6, 8, mats.wall2);
+  addCylinder(45, 12, 2.8, 10, mats.wall2);
+
+  // Container clusters in the side yards (climbable via stairs)
+  addContainer(-45, 0, 6, 'z');
+  addContainer(45, 0, 6, 'z');
+  addContainer(-45, 0, 6, 'z', 2.6);             // double-stack (west)
+  addStairs(-40, -24, 2.6, 8, 2.4, 'W');         // to a lone container top
+  addContainer(-45, -24, 6, 'x');
+
+  // Low concrete barriers forming lanes between the buildings
+  addBox(0, -14, 8, 1.2, 2.6, mats.concrete);
+  addBox(-24, -14, 1.2, 8, 2.4, mats.wall);
+  addBox(24, -14, 1.2, 8, 2.4, mats.wall);
+  addBox(-24, 16, 1.2, 8, 2.6, mats.wall);
+  addBox(24, 16, 1.2, 8, 2.6, mats.wall);
+  addBox(0, 12, 6, 1.2, 2.2, mats.concrete);
+
+  // Overhead pipe rack across the central street (walk under)
+  addBox(0, -6, 20, 0.4, 0.4, mats.metal, 2, 4.8);
+  addBox(-9, -6, 0.4, 0.4, 4.8, mats.wall, 1);
+  addBox(9, -6, 0.4, 0.4, 4.8, mats.wall, 1);
+
+  // Sniper perch: 3x3 deck at y=3 on pillars near the north edge, stairs from south
+  addPillars(0, -40, 3, 3, 3);
+  addPlatform(0, -40, 3.4, 3.4, 3, mats.metal);
+  addStairs(0, -35, 3, 8, 2, 'N');
+
+  // Barrels scattered for detail
+  addCylinder(-20, -30, 0.6, 1.2, mats.metal);
+  addCylinder(20, -30, 0.6, 1.2, mats.metal);
+  addCylinder(-8, 28, 0.6, 1.3, mats.metal);
+  addCylinder(8, 28, 0.5, 1.1, mats.metal);
+
+  // ════════════════════════════════════════════════════
+  //  PAVEMENT STREETS (thin raised walkways connecting the blocks)
+  // ════════════════════════════════════════════════════
+  // Avenues run N-S along x=±28 and E-W along z=±20, plus a central plaza.
+  addPavement(0, 0, 8, 70);          // central N-S avenue
+  addPavement(-28, 0, 5, 70);        // west avenue
+  addPavement(28, 0, 5, 70);         // east avenue
+  addPavement(0, -20, 70, 5);        // north cross street
+  addPavement(0, 20, 70, 5);         // south cross street
+  addPavement(0, 0, 16, 16);         // central plaza
+  addPavement(0, -32, 44, 4);        // far-north cross walk
+  addPavement(0, 32, 44, 4);         // far-south cross walk
+  addPavement(-38, 0, 4, 44);        // outer-west sidewalk
+  addPavement(38, 0, 4, 44);         // outer-east sidewalk
+  addPavement(-14, 0, 3, 40);        // inner-west walk
+  addPavement(14, 0, 3, 40);         // inner-east walk
+
+  // ════════════════════════════════════════════════════
+  //  ROUND WALKABLE TOWERS (lighthouse-style lookouts)
+  // ════════════════════════════════════════════════════
+  addRoundTower(-28, -2, 3.2, 5);    // west lighthouse (stairs run south onto the avenue)
+  addRoundTower(28, 2, 3.2, 5);      // east lighthouse
+  addRoundTower(0, -34, 2.8, 4);     // north lookout near CT lane
+
+  // ════════════════════════════════════════════════════
+  //  VEHICLES (trucks with climbable beds + low cars) parked on the streets
+  // ════════════════════════════════════════════════════
+  addVehicle(-28, -18, 'x', 'truck');
+  addVehicle(28, 18, 'x', 'truck');
+  addVehicle(-4, 30, 'z', 'truck');
+  addVehicle(6, -28, 'z', 'car');
+  addVehicle(-14, 12, 'x', 'car');
+  addVehicle(14, -12, 'x', 'car');
+  addVehicle(30, -30, 'z', 'car');
+
+  // ════════════════════════════════════════════════════
+  //  VEGETATION — fills open ground; trunks are thin & trees spaced so player/bots move easily
+  //  (placed last so isFree() sees every structure/pavement already added)
+  // ════════════════════════════════════════════════════
+  // One compact forest for flavour, then even map-wide scatter (spread, NOT clustered).
+  // Placed last so isFree() sees every structure/pavement already added.
+  addForest(-40, 4, 6, 18, 3.4);
+  scatterTrees(95, 5.5);
+  scatterBushes(75, 4.5);
+  finalizeVegetation();   // build the two InstancedMeshes from all collected transforms
+
+  // Scattered crates for cover along the lanes
+  crate(-8, -18, 1.4); crate(8, -18, 1.4);
+  crate(-20, 8, 1.5); crate(20, 8, 1.5);
+  crate(-8, 30, 1.2); crate(8, 30, 1.2);
+
+  console.log('[CS] Industrial Complex: 6 duplexes + round towers, vehicles, pavement streets (99x99)');
+}
+
+function buildClassicMap() {
+  // ════════════════════════════════════════════════════════════
+  //  CLASSIC ARENA — 66x66 Arena (Original)
+  // ════════════════════════════════════════════════════════════
+
+  buildGround(66);
+
+  // Wall logos on inner walls (horizontal OFFCOMFRT text)
+  createWallLogo(-18, 3, 6, Math.PI / 2);
+  createWallLogo(18, 3, -6, -Math.PI / 2);
+  createWallLogo(0, 3, -32, 0);
+  createWallLogo(0, 3, 32, Math.PI);
+
+  addBox(0, -32.5, 66, 1, 7, mats.wall);
+  addBox(0, 32.5, 66, 1, 7, mats.wall);
+  addBox(-32.5, 0, 1, 66, 7, mats.wall);
+  addBox(32.5, 0, 1, 66, 7, mats.wall);
+  addBox(-18, 0, 20, 1.2, 5, mats.wall);
+  addBox(18, 0, 20, 1.2, 5, mats.wall);
+  addBox(0, 0, 6, 6, 4.2, mats.wall2);
+  addBox(-22, -14, 8, 10, 5.5, mats.wall2);
+  addBox(22, 16, 10, 8, 5.5, mats.wall2);
+  addBox(-4, 15, 6, 4, 3.5, mats.wall2);
+  addBox(5, -14, 4, 6, 3.5, mats.wall2);
+  addBox(-10, 19, 1.2, 12, 4.5, mats.wall);
+  addBox(11, -20, 1.2, 12, 4.5, mats.wall);
+  addBox(-26, 10, 8, 1.2, 4, mats.wall);
+  addBox(26, -8, 8, 1.2, 4, mats.wall);
+  addBox(16, 6, 6, 2.4, 2.6, mats.metal, 3);
+  addBox(-15, -6, 2.4, 6, 2.6, mats.metal, 3);
+  crate(-21, 21, 2); crate(-19, 21, 2); crate(-21, 21, 1.3, 2);
+  crate(-16, 25, 1.2); crate(-25, 17, 1.4);
+  crate(21, -16, 2); crate(21, -18, 2); crate(21, -16, 1.3, 2);
+  crate(16, -12, 1.2); crate(25, -22, 1.4); crate(26, -24, 1.1);
+  crate(-6, -6, 1.3); crate(6, 6, 1.3); crate(-3, 7, 1.1); crate(3, -8, 1.1);
+  crate(-12, -24, 1.4); crate(12, 25, 1.4); crate(-28, -28, 1.6); crate(28, 28, 1.6);
+  crate(-28, 2.5, 1.2); crate(28, -2.5, 1.2); crate(0, 22, 1.2); crate(0, -22, 1.2);
+}
+
+// ── Waypoints ──
+const waypoints = [];
+function generateWaypoints() {
+  waypoints.length = 0;
+  const count = selectedMap === 'classic' ? 60 : 100;
+  const range = selectedMap === 'classic' ? 30 : 45;
+  while (waypoints.length < count) {
+    const x = rand(-range, range), z = rand(-range, range);
+    if (isFree(x, z, 0.9)) waypoints.push(new THREE.Vector2(x, z));
+  }
+}
+
+function buildMap() {
+  clearMap();
+  if (selectedMap === 'classic') {
+    buildClassicMap();
+    console.log('[CS] Classic map loaded (66x66)');
+  } else {
+    buildIndustrialMap();
+    console.log('[CS] Industrial Complex map loaded (99x99)');
+  }
+  generateWaypoints();
+}
 
 // ── Physics helpers ──
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -359,9 +919,12 @@ function groundHeight(pos, r) {
 }
 
 function isFree(x, z, r) {
-  if (Math.abs(x) > 31 - r || Math.abs(z) > 31 - r) return false;
+  if (Math.abs(x) > 48 - r || Math.abs(z) > 48 - r) return false;
   return !colliders.some(c => circleHitsBox(x, z, r, c));
 }
+
+// Build initial map (industrial by default)
+buildMap();
 
 const rayLOS = new THREE.Raycaster();
 const _tmpDir = new THREE.Vector3();
@@ -371,12 +934,6 @@ function hasLOS(from, to) {
   rayLOS.set(from, _tmpDir.normalize());
   rayLOS.far = dist;
   return rayLOS.intersectObjects(worldMeshes, false).length === 0;
-}
-
-const waypoints = [];
-while (waypoints.length < 60) {
-  const x = rand(-30, 30), z = rand(-30, 30);
-  if (isFree(x, z, 0.9)) waypoints.push(new THREE.Vector2(x, z));
 }
 
 // ── Audio (synthesised) ──
@@ -819,7 +1376,7 @@ function spawnBots(n) {
   const names = [...BOT_NAMES].sort(() => Math.random() - 0.5);
   for (let i = 0; i < n; i++) {
     let x, z, tries = 0;
-    do { x = rand(-14, 14); z = rand(23, 30); tries++; } while ((!isFree(x, z, 0.6) || bots.some(b => Math.hypot(b.pos.x - x, b.pos.z - z) < 1.5)) && tries < 200);
+    do { x = rand(-20, 20); z = rand(35, 45); tries++; } while ((!isFree(x, z, 0.6) || bots.some(b => Math.hypot(b.pos.x - x, b.pos.z - z) < 1.5)) && tries < 200);
     const b = new Bot(x, z, names[i % names.length]);
     b.yaw = Math.PI; bots.push(b);
   }
@@ -1159,7 +1716,7 @@ const game = { state: 'menu', round: 0, ct: 0, t: 0, kills: 0, timeLeft: ROUND_T
 
 function resetPlayer() {
   let x, z;
-  do { x = rand(-6, 6); z = rand(-30, -26); } while (!isFree(x, z, 0.5));
+  do { x = rand(-8, 8); z = rand(-45, -40); } while (!isFree(x, z, 0.5));
   player.pos.set(x, 0, z);
   player.vel.set(0, 0, 0);
   player.yaw = Math.PI; player.pitch = 0;
@@ -1457,7 +2014,7 @@ function frame() {
   } else if (game.state === 'menu') {
     // Slow fly-over behind the menu
     const t = performance.now() * 0.00005;
-    camera.position.set(Math.sin(t) * 26, 16, Math.cos(t) * 26);
+    camera.position.set(Math.sin(t) * 40, 20, Math.cos(t) * 40);
     camera.lookAt(0, 0, 0);
   }
 
