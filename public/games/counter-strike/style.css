@@ -257,6 +257,16 @@ html, body {
 .go-stat .gs-val { font: 700 20px var(--m); color: var(--text); }
 .go-stat .gs-label { font: 500 9px var(--m); color: var(--dim); text-transform: uppercase; letter-spacing: .08em; margin-top: 2px; }
 .go-btns { display: flex; flex-direction: column; gap: 10px; margin-top: 32px; }
+
+/* Co-op team board, filled from the hub's results message */
+.go-coop:empty { display: none; }
+.go-coop { margin-top: 20px; display: flex; flex-direction: column; gap: 6px; }
+.go-coop-row {
+  display: flex; justify-content: space-between; gap: 18px;
+  font: 500 12px var(--m); color: var(--dim);
+  border-bottom: 1px solid rgba(255, 255, 255, .07); padding-bottom: 5px;
+}
+.go-coop-row span:last-child { color: var(--text); }
 .go-btn {
   padding: 14px 20px; border-radius: 12px; border: 1px solid var(--line);
   background: var(--card); color: var(--text); font: 600 14px var(--f);

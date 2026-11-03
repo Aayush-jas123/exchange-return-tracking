@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
   <title>OFFCOMFRT &mdash; Counter Strike</title>
-  <link rel="stylesheet" href="style.css?v=13" />
+  <link rel="stylesheet" href="style.css?v=14" />
 </head>
 <body>
 
@@ -175,6 +175,8 @@
           <div class="gs-label">Round Reached</div>
         </div>
       </div>
+      <!-- Co-op scoreboard is filled by the hub's results message -->
+      <div class="go-coop" id="goCoop"></div>
       <div class="go-btns">
         <button class="go-btn primary" id="btnRetry">Redeploy</button>
         <button class="go-btn" id="btnBackMenu">&larr; Back to Menu</button>
@@ -190,8 +192,10 @@
   <script src="../portal-back.js?v=1"></script>
   <script src="../athlete-xp.js?v=19"></script>
   <!-- Network client for multiplayer -->
-  <script src="counter-strike-net.js?v=10"></script>
+  <script src="counter-strike-net.js?v=11"></script>
+  <!-- Shared map geometry: the same module the hub requires, so client and server collide identically -->
+  <script src="../cs-map.js?v=1"></script>
   <!-- Game engine loads as ES module (deferred by spec) -->
-  <script type="module" src="script.js?v=31"></script>
+  <script type="module" src="script.js?v=32"></script>
 </body>
 </html>

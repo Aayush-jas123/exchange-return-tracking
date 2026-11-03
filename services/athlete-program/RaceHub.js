@@ -206,6 +206,7 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
   function roomState(rm) {
     return {
       t: 'room', r: rm.code, host: rm.hostId, s: rm.status, g: rm.game, max: rm.max || MAX_ROOM, dur: isArcade(rm.game) ? 0 : RACE_MS,
+      map: rm.map || null,
       m: [...rm.members.values()].map(m => ({ id: m.id, n: m.name, lv: m.level, c: m.c, wait: !!m.waiting, on: !!m.ws }))
     };
   }
@@ -329,16 +330,19 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
       if (rm.game === 'pac-man') {
         rm.pm = PM.createWorld([...rm.members.values()].filter(m => m.inRace).map(m => ({ id: m.id, spawn: m.c })));
       }
-      // Counter Strike: team-based coop vs bots — hub owns all bot AI and round state
+      // Counter Strike: team-based coop vs bots — hub owns all bot AI and round state.
+      // The host's map pick has to drive the SIMULATION too, not just the host's own screen:
+      // the world used to be built from whichever layout cs-sim shipped, so picking Classic in the
+      // lobby left the hub running the big arena's colliders underneath a 66x66 map.
       if (rm.game === 'counter-strike') {
-        rm.cs = CS.createWorld([...rm.members.values()].filter(m => m.inRace).map(m => String(m.id)));
+        rm.cs = CS.createWorld([...rm.members.values()].filter(m => m.inRace).map(m => String(m.id)), rm.map);
         // Set player names
         for (const m of rm.members.values()) {
           if (m.inRace) CS.setPlayerName(rm.cs, String(m.id), m.name);
         }
         CS.startRound(rm.cs);
       }
-      broadcastRoom(rm, { t: 'go', race: rm.raceId, room: rm.code, game: rm.game, seed: rm.seed, in: COUNTDOWN_MS, dur: 0,
+      broadcastRoom(rm, { t: 'go', race: rm.raceId, room: rm.code, game: rm.game, seed: rm.seed, map: rm.map || null, in: COUNTDOWN_MS, dur: 0,
         roster: [...rm.members.values()].filter(m => m.inRace).map(m => ({ id: m.id, n: m.name, c: m.c })) });
       pushRoom(rm);
       clearTimeout(rm.timer);
@@ -867,10 +871,12 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
     send(ws, { t: 'ok', m: `Invite sent to ${target.name}`, to: target.id });
   }
 
-  function createRoom(ws, gameType) {
+  function createRoom(ws, gameType, mapName) {
     if (ws.room) leaveRoom(ws);
     const game = normalizeGame(gameType);
-    const rm = { code: newCode(), hostId: ws.athlete.id, status: 'lobby', members: new Map(), seed: 0, raceId: null, startAt: 0, timer: null, guard: null, game, max: ROOM_MAX[game] || MAX_ROOM };
+    // Only the host picks the arena, and only from the names the cabinet actually builds.
+    const map = game === 'counter-strike' ? (mapName === 'classic' ? 'classic' : 'industrial') : null;
+    const rm = { code: newCode(), hostId: ws.athlete.id, status: 'lobby', members: new Map(), seed: 0, raceId: null, startAt: 0, timer: null, guard: null, game, map, max: ROOM_MAX[game] || MAX_ROOM };
     rooms.set(rm.code, rm);
     joinRoom(ws, rm);
     return rm;
@@ -908,7 +914,7 @@ function createHub({ resolveAthlete = defaultResolve, awardXp = defaultAward, aw
       if (msg.t === 'ss') return onSoloMsg(ws, msg, false);
       if (msg.t === 'se') return onSoloMsg(ws, msg, true);
       if (msg.t === 'solo') return onSolo(ws);
-      if (msg.t === 'create') return createRoom(ws, msg.game);
+      if (msg.t === 'create') return createRoom(ws, msg.game, msg.map);
       if (msg.t === 'pp_state') return onPPState(ws, msg);
       if (msg.t === 'pp_end') return onPPEnd(ws, msg);
       if (msg.t === 'pm_state') return onPMState(ws, msg);

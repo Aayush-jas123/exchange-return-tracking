@@ -659,7 +659,7 @@ function addTree(x, z, s = 1) {
   _trunkInst.push({ p: [x, 1.1 * s, z], s: [s, s, s] });
   _leafInst.push({ p: [x, 2.7 * s, z], s: [1.25 * s, 1.15 * s, 1.25 * s] });
   _leafInst.push({ p: [x + 0.55 * s, 3.3 * s, z - 0.35 * s], s: [0.85 * s, 0.85 * s, 0.85 * s] });
-  colliders.push({ minX: x - 0.42 * s, maxX: x + 0.42 * s, minZ: z - 0.42 * s, maxZ: z + 0.42 * s, minY: 0, maxY: 2.2 * s });
+  colliders.push({ minX: x - 0.42 * s, maxX: x + 0.42 * s, minZ: z - 0.42 * s, maxZ: z + 0.42 * s, minY: 0, maxY: 2.2 * s, veg: true });
 }
 
 // Bush: purely decorative low foliage, NO collider, so it never blocks player or bot movement.
@@ -1161,10 +1161,41 @@ function generateWaypoints() {
   waypoints.length = 0;
   const count = selectedMap === 'classic' ? 60 : 100;
   const range = selectedMap === 'classic' ? 30 : 45;
-  while (waypoints.length < count) {
+  // Guarded: if a map edit ever makes free space scarce this must degrade to fewer waypoints rather
+  // than spin the browser forever inside a while loop.
+  let guard = 0;
+  while (waypoints.length < count && guard++ < count * 300) {
     const x = rand(-range, range), z = rand(-range, range);
     if (isFree(x, z, 0.9)) waypoints.push(new THREE.Vector2(x, z));
   }
+}
+
+// ── Physics tables come from cs-map.js, the same module the hub loads for co-op ──
+// The visual builders push their own colliders while the map is drawn (so vegetation placement
+// still sees the structures), then this replaces the whole array with the shared table, keeping
+// only the randomly-scattered tree trunks, which exist client-side only. It also diffs the two
+// lists and shouts in the console if they disagree — that drift is exactly what used to make bots
+// take cover behind walls the player could walk through.
+function installSharedColliders() {
+  if (typeof CSMap === 'undefined' || !CSMap.collidersFor) {
+    console.warn('[CS] cs-map.js not loaded — keeping the collider list built by the visual builders');
+    return;
+  }
+  const key = (c) => `${c.minX.toFixed(2)}|${c.maxX.toFixed(2)}|${c.minZ.toFixed(2)}|${c.maxZ.toFixed(2)}|${c.minY.toFixed(2)}|${c.maxY.toFixed(2)}`;
+  const visual = colliders.filter((c) => !c.veg);
+  const shared = CSMap.collidersFor(selectedMap);
+  const vKeys = new Set(visual.map(key)), sKeys = new Set(shared.map(key));
+  const onlyVisual = visual.filter((c) => !sKeys.has(key(c))).length;
+  const onlyShared = shared.filter((c) => !vKeys.has(key(c))).length;
+  if (onlyVisual || onlyShared) {
+    console.warn(`[CS] cs-map.js layout is out of step with the drawn map: ${onlyVisual} collider(s) only in the map, ${onlyShared} only in cs-map.js`);
+  } else {
+    console.log(`[CS] Colliders locked to cs-map.js (${shared.length} volumes, matches drawn map)`);
+  }
+  const veg = colliders.filter((c) => c.veg);
+  colliders.length = 0;
+  for (const c of shared) colliders.push(c);
+  for (const c of veg) colliders.push(c);
 }
 
 function buildMap() {
@@ -1176,6 +1207,7 @@ function buildMap() {
     buildIndustrialMap();
     console.log('[CS] Industrial Complex map loaded (99x99)');
   }
+  installSharedColliders();
   generateWaypoints();
 }
 
@@ -1183,45 +1215,26 @@ function buildMap() {
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const rand = (a, b) => a + Math.random() * (b - a);
 
+// Physics helpers. Each one is a thin wrapper over cs-map.js so the player, the local bots and the
+// co-op hub all resolve the same arithmetic — the previous local copies were how the two sides
+// drifted apart in the first place.
 function circleHitsBox(x, z, r, c) {
-  const dx = x - clamp(x, c.minX, c.maxX), dz = z - clamp(z, c.minZ, c.maxZ);
-  return dx * dx + dz * dz < r * r;
+  return CSMap.circleHitsBox(x, z, r, c);
 }
 
 function collide(pos, r, h, step) {
-  for (const c of colliders) {
-    if (c.maxY <= pos.y + step || c.minY >= pos.y + h) continue;
-    const cx = clamp(pos.x, c.minX, c.maxX), cz = clamp(pos.z, c.minZ, c.maxZ);
-    const dx = pos.x - cx, dz = pos.z - cz, d2 = dx * dx + dz * dz;
-    if (d2 >= r * r) continue;
-    if (d2 > 1e-8) {
-      const d = Math.sqrt(d2);
-      pos.x += (dx / d) * (r - d);
-      pos.z += (dz / d) * (r - d);
-    } else {
-      const pl = pos.x - c.minX, pr = c.maxX - pos.x, pb = pos.z - c.minZ, pf = c.maxZ - pos.z;
-      const m = Math.min(pl, pr, pb, pf);
-      if (m === pl) pos.x = c.minX - r; else if (m === pr) pos.x = c.maxX + r;
-      else if (m === pb) pos.z = c.minZ - r; else pos.z = c.maxZ + r;
-    }
-  }
+  CSMap.collide(colliders, pos, r, h, step);
 }
 
-const STEP = 0.4;
+const STEP = CSMap.STEP;
 function groundHeight(pos, r) {
-  let g = 0;
-  for (const c of colliders) {
-    if (c.maxY <= pos.y + STEP && c.maxY > g && circleHitsBox(pos.x, pos.z, r * 0.85, c)) g = c.maxY;
-  }
-  return g;
+  return CSMap.groundHeight(colliders, pos, r, STEP);
 }
 
-function mapHalf() { return selectedMap === 'classic' ? 32 : 48; }
+function mapHalf() { return CSMap.info(selectedMap).half; }
 
 function isFree(x, z, r) {
-  const h = mapHalf();
-  if (Math.abs(x) > h - r || Math.abs(z) > h - r) return false;
-  return !colliders.some(c => circleHitsBox(x, z, r, c));
+  return CSMap.isFree(colliders, mapHalf(), x, z, r);
 }
 
 // Build initial map (industrial by default)
@@ -1346,7 +1359,7 @@ const hud = {
   weapon: $('weapon-name'), timer: $('timer'), round: $('round'), enemies: $('enemies'),
   scoreCT: $('scoreCT'), scoreT: $('scoreT'), kills: $('kills'), killfeed: $('killfeed'),
   center: $('center-msg'), hit: $('hitmarker'), damage: $('damage'), crosshair: $('crosshair'),
-  radar: $('radar'),
+  radar: $('radar'), coopBoard: $('goCoop'),
 };
 const radarCtx = hud.radar.getContext('2d');
 let centerTimer = 0, hitTimer = 0, damageFlash = 0;
@@ -1648,8 +1661,12 @@ class Bot {
 
     collide(this.pos, 0.4, 1.8, STEP);
     this.pos.y = groundHeight(this.pos, 0.4);
-    this.pos.x = clamp(this.pos.x, -31.5, 31.5);
-    this.pos.z = clamp(this.pos.z, -31.5, 31.5);
+    // Confinement has to come from the arena actually drawn — the old ±31.5 literal was written
+    // for Classic and pushed the whole terrorist team back inside the walls of the 99m Industrial
+    // Complex, so bots could never reach the buildings they were patrolling toward.
+    const edge = mapHalf() - 1.5;
+    this.pos.x = clamp(this.pos.x, -edge, edge);
+    this.pos.z = clamp(this.pos.z, -edge, edge);
 
     this.stuckTimer += dt;
     if (this.stuckTimer > 1.2) {
@@ -1711,6 +1728,16 @@ function fire() {
   const targets = worldMeshes.concat(...aliveBots().map(b => b.parts));
   const hit = shootRay.intersectObjects(targets, false)[0];
   const end = hit ? hit.point : camera.position.clone().addScaledVector(dir, 200);
+
+  // In co-op the hub decides what a bullet does, so the fired ray is queued for the next state
+  // packet. It is kept as a plain array because it is handed straight onto the wire.
+  if (isOnline) {
+    pendingRay = {
+      o: [camera.position.x, camera.position.y, camera.position.z],
+      d: [dir.x, dir.y, dir.z],
+      dist: Math.min(200, end.distanceTo(camera.position)),
+    };
+  }
 
   const muzzleWorld = camera.position.clone()
     .addScaledVector(new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion), 0.22)
@@ -2018,10 +2045,12 @@ const ROUND_TIME = 130;
 const game = { state: 'menu', round: 0, ct: 0, t: 0, kills: 0, timeLeft: ROUND_TIME, endTimer: 0 };
 
 function resetPlayer() {
-  let x, z;
+  let x, z, tries = 0;
   const ctZMin = selectedMap === 'classic' ? -25 : -45;
   const ctZMax = selectedMap === 'classic' ? -20 : -40;
-  do { x = rand(-8, 8); z = rand(ctZMin, ctZMax); } while (!isFree(x, z, 0.5));
+  // The try cap matters: a spawn band that a map edit has filled in would otherwise spin here
+  // forever and take the whole page down with it.
+  do { x = rand(-8, 8); z = rand(ctZMin, ctZMax); tries++; } while (!isFree(x, z, 0.5) && tries < 200);
   player.pos.set(x, 0, z);
   player.vel.set(0, 0, 0);
   player.yaw = Math.PI; player.pitch = 0;
@@ -2095,6 +2124,7 @@ function triggerGameOver() {
 
 function startNewGame() {
   buildMap();
+  if (hud.coopBoard) hud.coopBoard.innerHTML = '';
   game.round = 0; game.ct = 0; game.t = 0; game.kills = 0;
   game.timeLeft = ROUND_TIME; game.endTimer = 0;
   hud.scoreCT.textContent = '0'; hud.scoreT.textContent = '0';
@@ -2135,14 +2165,24 @@ if (btnBackFromLobby) {
   });
 }
 
-// Game over → Redeploy
+// Game over → Redeploy. After a co-op match the room is still open on the hub, so this goes back to
+// the lobby instead of dropping the athlete into a private round they did not ask for.
 btnRetry.addEventListener('click', () => {
+  if (typeof CSNet !== 'undefined' && CSNet.room) {
+    if (hud.coopBoard) hud.coopBoard.innerHTML = '';
+    showScreen(lobbyScreen);
+    return;
+  }
   startNewGame();
 });
 
 // Game over → Back to menu
 btnBackMenu.addEventListener('click', () => {
   game.state = 'menu';
+  isOnline = false;
+  clearOnlineFigures();
+  if (hud.coopBoard) hud.coopBoard.innerHTML = '';
+  if (typeof CSNet !== 'undefined' && CSNet.room) CSNet.leaveRoom();
   showScreen(menuScreen);
 });
 
@@ -2277,6 +2317,24 @@ function drawRadar() {
     c.arc((b.pos.x - player.pos.x) * scale, (b.pos.z - player.pos.z) * scale, b.dead ? 2.5 : 4, 0, Math.PI * 2);
     c.fill();
   }
+  // In co-op the terrorist force and the squad live in the snapshot, not in the local arrays, so
+  // the blip sweep has to read the same entities the 3D view is drawing.
+  if (isOnline) {
+    for (const rig of onlineBots.values()) {
+      if (!rig.alive) continue;
+      c.fillStyle = '#ff4a4a';
+      c.beginPath();
+      c.arc((rig.pos.x - player.pos.x) * scale, (rig.pos.z - player.pos.z) * scale, 4, 0, Math.PI * 2);
+      c.fill();
+    }
+    for (const rig of onlinePlayers.values()) {
+      if (!rig.alive) continue;
+      c.fillStyle = 'rgba(240,240,242,0.9)';
+      c.beginPath();
+      c.arc((rig.pos.x - player.pos.x) * scale, (rig.pos.z - player.pos.z) * scale, 3, 0, Math.PI * 2);
+      c.fill();
+    }
+  }
   c.restore();
   c.fillStyle = '#f0f0f2'; // white for player
   c.beginPath();
@@ -2285,6 +2343,23 @@ function drawRadar() {
   c.lineTo(S / 2 + 5, S / 2 + 5);
   c.closePath(); c.fill();
 }
+
+// ── Online state ──
+// Declared here, above the render loop, because frame() is invoked synchronously while this module
+// is still evaluating: anything it touches further down would still be in its temporal dead zone on
+// the very first call, and that throws straight through the loop into a black screen.
+let isOnline = false;
+let onlineRoster = [];
+const onlinePlayers = new Map(); // id -> FigureRig (teammates)
+const onlineBots = new Map();    // id -> FigureRig (terrorists, simulated by the hub)
+let lastSnapshot = null;
+let snapshotBuffer = [];         // {at, data} back-buffer, oldest first
+const INTERP_DELAY = 110;        // ms of render delay — just over one 100ms hub tick
+const BUFFER_CAP = 12;
+let fxWatermark = 0;             // arrival time of the newest snapshot whose effects have played
+let myRow = null;                // my own row as the hub reports it
+let countdownHandle = null;
+let pendingRay = null;           // one fired shot waiting for the next state packet
 
 // ── Main render loop ──
 const clock = new THREE.Clock();
@@ -2296,19 +2371,24 @@ function frame() {
   // Apply touch look on mobile
   if (isTouchDevice) applyTouchLook(dt);
 
-  if (isGameActive()) {
-    if (!isOnline) {
-      // Single-player: local simulation
-      game.timeLeft -= dt;
-      if (game.timeLeft <= 0) endRound('T');
+  if (isOnline && game.state !== 'menu') {
+    // Co-op. The hub owns the bots, so teammates and terrorists keep moving even while the local
+    // player is dead or the round is between states — a frozen squad while you watch them die is
+    // exactly what made this mode feel broken.
+    if (game.state === 'playing' && isGameActive()) {
       updatePlayer(dt);
-      for (const b of bots) b.update(dt);
-    } else {
-      // Online: server owns bots, we just render and send state
-      updatePlayer(dt);
-      updateOnlinePlayers(dt);
       sendPlayerState();
     }
+    updateOnlinePlayers(dt);
+    updateWeapon(dt);
+    updateEffects(dt);
+    updateHud(dt);
+  } else if (!isOnline && isGameActive()) {
+    // Single-player: local simulation
+    game.timeLeft -= dt;
+    if (game.timeLeft <= 0) endRound('T');
+    updatePlayer(dt);
+    for (const b of bots) b.update(dt);
     updateWeapon(dt);
     updateEffects(dt);
     updateHud(dt);
@@ -2334,251 +2414,792 @@ frame();
 
 // ════════════════════════════════════════════════════════════
 //  ONLINE MULTIPLAYER MODE
+//  Hub-authoritative co-op: RaceHub steps every terrorist and validates every bullet, and this
+//  cabinet draws the world it streams. State declarations live above the render loop.
 // ════════════════════════════════════════════════════════════
 
-// ── Online State ──
-let isOnline = false;
-let onlinePlayers = new Map(); // id -> { model, data, targetPos, targetYaw }
-let onlineBots = new Map(); // id -> { model, data, targetPos }
-let lastSnapshot = null;
-let snapshotBuffer = [];
-const SNAPSHOT_INTERP_MS = 100;
+// ── Shared rig resources ──
+// One geometry cache and two material sets serve every figure on screen. The previous class built
+// fresh boxes per instance and then disposed the module-level materials when a player left, which
+// stripped the skin off every figure still standing — so nothing below is owned by a single rig
+// except its two label canvases and its flash quads.
+const rigGeo = new Map();
+function boxG(w, h, d) {
+  const k = `b${w},${h},${d}`;
+  let g = rigGeo.get(k);
+  if (!g) rigGeo.set(k, (g = new THREE.BoxGeometry(w, h, d)));
+  return g;
+}
+function cylG(r, h, seg) {
+  const k = `c${r},${h},${seg}`;
+  let g = rigGeo.get(k);
+  if (!g) rigGeo.set(k, (g = new THREE.CylinderGeometry(r, r, h, seg)));
+  return g;
+}
 
-// ── CT Player Materials (Monochrome Team) ──
+const mkMat = (color, roughness = 0.9, metalness = 0) =>
+  new THREE.MeshStandardMaterial({ color, roughness, metalness });
+
+// Counter-Terrorist kit: pale fatigues, dark armour plate, helmet with a goggle band.
 const ctMats = {
-  skin: new THREE.MeshStandardMaterial({ color: 0xd8d8d8, roughness: 0.9 }),
-  helmet: new THREE.MeshStandardMaterial({ color: 0x3a3a3e, roughness: 0.7 }),
-  vest: new THREE.MeshStandardMaterial({ color: 0x5a5a5e, roughness: 0.8 }),
-  shirt: new THREE.MeshStandardMaterial({ color: 0xe8e8e8, roughness: 0.9 }),
-  pants: new THREE.MeshStandardMaterial({ color: 0x9a9a9e, roughness: 0.9 }),
-  weapon: new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.4, metalness: 0.6 }),
-  glove: new THREE.MeshStandardMaterial({ color: 0x2a2a2e, roughness: 0.8 }),
+  skin: mkMat(0xd8d8d8),
+  cloth: mkMat(0xe8e8e8),
+  pants: mkMat(0x9a9a9e),
+  armour: mkMat(0x5a5a5e, 0.8),
+  head: mkMat(0x3a3a3e, 0.7),
+  gear: mkMat(0x2a2a2e, 0.85),
+  rubber: mkMat(0x191920, 0.6, 0.3),
+  glove: mkMat(0x2a2a2e),
+  gun: mkMat(0x1a1a1a, 0.4, 0.6),
+  pale: mkMat(0xf2f2f2),
+};
+// Terrorist kit: the same greyscale a step darker, soft cap and a pale face wrap. The two teams
+// read apart by tone and silhouette, never by hue — the house rule for this cabinet.
+const tMats = {
+  skin: mkMat(0xc2c2c2),
+  cloth: mkMat(0x7e7e82),
+  pants: mkMat(0x6c6c70),
+  armour: mkMat(0x505054, 0.85),
+  head: mkMat(0x3c3c40),
+  gear: mkMat(0x4a4a4e),
+  rubber: mkMat(0x1c1c22, 0.6, 0.3),
+  glove: mkMat(0x8e8e92),
+  gun: mkMat(0x242428, 0.45, 0.55),
+  pale: mkMat(0xd6d6d6),
 };
 
-// ── Remote Player Model (Detailed Articulated) ──
-class RemotePlayerModel {
-  constructor(id, name) {
-    this.id = id;
-    this.name = name;
+// ── Articulated figure ──
+// Drives teammates and hub-owned terrorists from the same rig. Joints are real groups (hip → knee
+// → ankle, shoulder → elbow → hand), so the walk cycle, the crouch, the aim pitch and the death
+// fall are skeletal rather than a single box tipping over.
+class FigureRig {
+  constructor(id, name, team, heading = 0) {
+    this.id = String(id);
+    this.name = name || 'Operator';
+    this.team = team === 'T' ? 'T' : 'CT';
+    const M = this.M = this.team === 'T' ? tMats : ctMats;
+
+    // Rendered state. Everything here is eased toward the interpolated snapshot target in drive().
     this.pos = new THREE.Vector3();
-    this.yaw = 0;
-    this.walkPhase = 0;
+    this.prev = new THREE.Vector3();
+    this.strafe = 0;      // body-space lateral velocity, used for lean
+    this.heading = heading;
+    this.pitch = 0;
+    this.speed = 0;
+    this.walk = Math.random() * 6.283;
+    this.breath = Math.random() * 6.283;
+    this.crouchAmt = 0;
+    this.airAmt = 0;
+    this.lean = 0;
+    this.kick = 0;
+    this.flash = 0;
+    this.muzzle = 0;
     this.health = 100;
     this.alive = true;
-    this.weapon = 'rifle';
-    this.parts = [];
+    this.deathT = -1;
+    this.alert = false;
+    this.weaponKey = 'rifle';
 
-    const g = this.group = new THREE.Group();
-    const part = (geo, mat, x, y, z, partName, parent = g) => {
+    const root = this.root = new THREE.Group();
+    const body = this.body = new THREE.Group(); // tips over as a whole on death
+    root.add(body);
+
+    const add = (parent, geo, mat, x, y, z, rx = 0, ry = 0, rz = 0, shadow = true) => {
       const m = new THREE.Mesh(geo, mat);
-      m.position.set(x, y, z); m.castShadow = true;
-      m.userData = { playerId: id, part: partName };
-      parent.add(m); if (partName) this.parts.push(m); return m;
+      m.position.set(x, y, z);
+      m.rotation.set(rx, ry, rz);
+      m.castShadow = shadow;
+      parent.add(m);
+      return m;
+    };
+    const joint = (parent, x, y, z) => {
+      const g = new THREE.Group();
+      g.position.set(x, y, z);
+      parent.add(g);
+      return g;
     };
 
-    // Legs (two-part with boots)
-    this.legL = new THREE.Group(); this.legL.position.set(-0.14, 0.85, 0); g.add(this.legL);
-    this.legR = new THREE.Group(); this.legR.position.set(0.14, 0.85, 0); g.add(this.legR);
-    part(new THREE.BoxGeometry(0.22, 0.45, 0.24), ctMats.pants, 0, -0.225, 0, 'legs', this.legL);
-    part(new THREE.BoxGeometry(0.22, 0.4, 0.24), ctMats.helmet, 0, -0.65, 0, 'legs', this.legL); // boot
-    part(new THREE.BoxGeometry(0.22, 0.45, 0.24), ctMats.pants, 0, -0.225, 0, 'legs', this.legR);
-    part(new THREE.BoxGeometry(0.22, 0.4, 0.24), ctMats.helmet, 0, -0.65, 0, 'legs', this.legR); // boot
+    // ── Pelvis and legs ──
+    const pelvis = this.pelvis = joint(body, 0, 0.92, 0);
+    add(pelvis, boxG(0.4, 0.22, 0.26), M.pants, 0, -0.02, 0);
+    add(pelvis, boxG(0.44, 0.07, 0.3), M.rubber, 0, 0.09, 0);                 // belt
+    add(pelvis, boxG(0.09, 0.06, 0.04), M.pale, 0, 0.09, 0.15, 0, 0, 0, false); // buckle
 
-    // Torso with vest
-    part(new THREE.BoxGeometry(0.58, 0.68, 0.32), ctMats.shirt, 0, 1.2, 0, 'body');
-    part(new THREE.BoxGeometry(0.6, 0.45, 0.36), ctMats.vest, 0, 1.25, 0, 'body'); // vest
-    part(new THREE.BoxGeometry(0.15, 0.15, 0.08), ctMats.skin, 0, 1.5, 0.18, 'body'); // team indicator
+    this.hip = []; this.knee = []; this.ankle = [];
+    for (const side of [-1, 1]) {
+      const hip = joint(pelvis, 0.115 * side, -0.08, 0);
+      add(hip, boxG(0.19, 0.42, 0.22), M.pants, 0, -0.21, 0);
+      add(hip, boxG(0.06, 0.13, 0.1), M.gear, 0.085 * side, -0.2, 0.06, 0, 0, 0, false); // cargo pocket
+      const knee = joint(hip, 0, -0.42, 0);
+      add(knee, boxG(0.175, 0.4, 0.2), M.pants, 0, -0.2, 0);
+      add(knee, boxG(0.15, 0.12, 0.06), M.rubber, 0, 0.02, 0.1, 0, 0, 0, false); // pad
+      const ankle = joint(knee, 0, -0.4, 0);
+      add(ankle, boxG(0.19, 0.14, 0.22), M.rubber, 0, -0.04, 0.02);
+      add(ankle, boxG(0.2, 0.05, 0.3), M.gear, 0, -0.12, 0.05);               // sole
+      add(ankle, boxG(0.15, 0.07, 0.06), M.rubber, 0, -0.07, 0.16, 0, 0, 0, false); // toe cap
+      this.hip.push(hip); this.knee.push(knee); this.ankle.push(ankle);
+    }
 
-    // Head with helmet
-    part(new THREE.BoxGeometry(0.3, 0.32, 0.3), ctMats.skin, 0, 1.74, 0, 'head');
-    part(new THREE.BoxGeometry(0.32, 0.18, 0.32), ctMats.helmet, 0, 1.88, 0, 'head'); // helmet
-    part(new THREE.BoxGeometry(0.28, 0.08, 0.02), ctMats.helmet, 0, 1.77, 0.16, 'head'); // mask
+    // ── Upper body: carries the aim pitch ──
+    const upper = this.upper = joint(body, 0, 0.92, 0);
+    add(upper, boxG(0.46, 0.5, 0.28), M.cloth, 0, 0.26, 0);        // chest
+    add(upper, boxG(0.36, 0.3, 0.24), M.cloth, 0, -0.05, 0);       // abdomen
+    add(upper, boxG(0.5, 0.42, 0.09), M.armour, 0, 0.28, 0.16);    // plate carrier
+    add(upper, boxG(0.5, 0.42, 0.09), M.armour, 0, 0.28, -0.16);   // back plate
+    add(upper, boxG(0.1, 0.09, 0.3), M.armour, 0.17, 0.5, 0);      // straps
+    add(upper, boxG(0.1, 0.09, 0.3), M.armour, -0.17, 0.5, 0);
+    add(upper, boxG(0.34, 0.08, 0.2), M.gear, 0, 0.53, 0);         // collar
+    add(upper, boxG(0.13, 0.14, 0.08), M.gear, 0.1, 0.15, 0.21, 0, 0, 0, false);
+    add(upper, boxG(0.13, 0.14, 0.08), M.gear, -0.05, 0.15, 0.21, 0, 0, 0, false);
+    add(upper, boxG(0.1, 0.16, 0.1), M.gear, 0.26, 0.3, 0.02);     // side pouch
+    add(upper, boxG(0.11, 0.19, 0.07), M.rubber, -0.22, 0.34, -0.19, 0.1); // radio
+    add(upper, boxG(0.02, 0.16, 0.02), M.rubber, -0.24, 0.5, -0.2, 0.15, 0, 0.1, false); // antenna
+    add(upper, boxG(0.2, 0.05, 0.05), M.pale, 0, 0.46, 0.16, 0, 0, 0, false);  // ID tape
 
-    // Arms with gloves
-    part(new THREE.BoxGeometry(0.16, 0.35, 0.16), ctMats.shirt, -0.38, 1.35, 0, 'body');
-    part(new THREE.BoxGeometry(0.14, 0.2, 0.14), ctMats.glove, -0.38, 1.1, 0.1, 'body'); // glove
-    part(new THREE.BoxGeometry(0.16, 0.35, 0.16), ctMats.shirt, 0.38, 1.35, 0, 'body');
-    part(new THREE.BoxGeometry(0.14, 0.2, 0.14), ctMats.glove, 0.38, 1.1, 0.1, 'body'); // glove
+    // ── Head ──
+    const neck = joint(upper, 0, 0.56, 0);
+    add(neck, boxG(0.13, 0.1, 0.13), M.skin, 0, 0.02, 0);
+    const head = this.head = joint(neck, 0, 0.07, 0);
+    add(head, boxG(0.25, 0.29, 0.27), M.skin, 0, 0.15, 0);         // skull
+    add(head, boxG(0.19, 0.1, 0.21), M.skin, 0, 0.02, 0.02);       // jaw
+    add(head, boxG(0.05, 0.06, 0.05), M.skin, 0, 0.14, 0.15, 0, 0, 0, false);
+    add(head, boxG(0.04, 0.07, 0.05), M.skin, 0.14, 0.15, -0.02, 0, 0, 0, false);
+    add(head, boxG(0.04, 0.07, 0.05), M.skin, -0.14, 0.15, -0.02, 0, 0, 0, false);
+    if (this.team === 'CT') {
+      add(head, boxG(0.29, 0.15, 0.31), M.head, 0, 0.31, 0);           // helmet dome
+      add(head, boxG(0.31, 0.04, 0.33), M.head, 0, 0.22, 0, 0, 0, 0, false); // rim
+      add(head, boxG(0.2, 0.11, 0.09), M.head, 0, 0.24, -0.16);         // nape guard
+      add(head, boxG(0.24, 0.05, 0.03), M.gear, 0, 0.34, 0.16, 0, 0, 0, false); // goggle band
+      add(head, boxG(0.17, 0.12, 0.05), M.rubber, 0, 0.05, 0.14, 0, 0, 0, false); // half mask
+      add(head, boxG(0.05, 0.09, 0.03), M.gear, 0.13, 0.12, 0.1, 0, 0, 0, false);  // strap
+    } else {
+      add(head, boxG(0.28, 0.12, 0.3), M.head, 0, 0.3, 0);              // soft cap
+      add(head, boxG(0.29, 0.04, 0.11), M.head, 0, 0.25, 0.17, 0.2, 0, 0, false); // peak
+      add(head, boxG(0.26, 0.19, 0.28), M.pale, 0, 0.1, 0.01, 0, 0, 0, false);    // face wrap
+      add(head, boxG(0.24, 0.05, 0.03), M.rubber, 0, 0.2, 0.15, 0, 0, 0, false);  // goggles
+      add(head, boxG(0.09, 0.16, 0.09), M.gear, 0.02, 0.16, -0.17);              // sling knot
+    }
 
-    // Weapon
-    part(new THREE.BoxGeometry(0.08, 0.1, 0.75), ctMats.weapon, 0.05, 1.36, 0.55, null);
+    // ── Arms ──
+    this.shoulder = []; this.elbow = []; this.handL = null;
+    for (const side of [-1, 1]) {
+      const sh = joint(upper, 0.27 * side, 0.47, 0);
+      add(sh, boxG(0.14, 0.3, 0.15), M.cloth, 0, -0.15, 0);
+      add(sh, boxG(0.155, 0.09, 0.11), M.rubber, 0, -0.02, 0.06, 0, 0, 0, false);
+      const el = joint(sh, 0, -0.3, 0);
+      add(el, boxG(0.12, 0.28, 0.13), M.cloth, 0, -0.14, 0);
+      add(el, boxG(0.13, 0.09, 0.07), M.rubber, 0, 0.01, 0.06, 0, 0, 0, false);
+      const hd = joint(el, 0, -0.28, 0);
+      add(hd, boxG(0.11, 0.12, 0.13), M.glove, 0, -0.05, 0.01);
+      this.shoulder.push(sh); this.elbow.push(el);
+      if (side < 0) this.handL = hd; else this.handR = hd;
+    }
+    // Fighting stance: both hands brought onto the weapon.
+    this.baseArm = { shoulder: [-1.15, -0.95], elbow: [-0.75, -1.15] };
+    this.shoulder[0].rotation.x = this.baseArm.shoulder[0];
+    this.shoulder[1].rotation.x = this.baseArm.shoulder[1];
+    this.elbow[0].rotation.x = this.baseArm.elbow[0];
+    this.elbow[1].rotation.x = this.baseArm.elbow[1];
+    this.shoulder[0].rotation.z = 0.18;
+    this.shoulder[1].rotation.z = -0.18;
 
-    // Name tag (canvas texture)
-    this.nameTag = this.createNameTag(name);
-    this.nameTag.position.set(0, 2.3, 0);
-    g.add(this.nameTag);
+    // ── Weapon ──
+    const gun = this.gun = joint(upper, 0.07, 0.29, 0.26);
+    this.guns = { rifle: this.buildRifle(gun, M), pistol: this.buildPistol(gun, M) };
+    this.guns.pistol.visible = false;
+    this.muzzlePoint = new THREE.Vector3(0, 0.02, -0.86);
 
-    // Health bar
-    this.healthBar = this.createHealthBar();
-    this.healthBar.position.set(0, 2.15, 0);
-    g.add(this.healthBar);
+    // Muzzle flash — two crossed additive quads, owned by this figure.
+    const flashMat = this.flashMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff, transparent: true, opacity: 0,
+      blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+    });
+    const mf = this.muzzleFlash = new THREE.Group();
+    mf.add(new THREE.Mesh(boxG(0.26, 0.26, 0.001), flashMat));
+    const mf2 = new THREE.Mesh(boxG(0.07, 0.34, 0.001), flashMat);
+    mf2.rotation.z = Math.PI / 2; mf.add(mf2);
+    mf.position.copy(this.muzzlePoint);
+    mf.visible = false;
+    gun.add(mf);
 
-    g.position.copy(this.pos);
-    scene.add(g);
+    // Hit feedback — a slightly oversized shell that glows, so no shared material is ever tinted.
+    const glowMat = this.glowMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff, transparent: true, opacity: 0,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    });
+    const shell = this.shell = new THREE.Group();
+    shell.add(new THREE.Mesh(boxG(0.54, 0.9, 0.36), glowMat)).children.at(-1).position.y = 0.2;
+    shell.add(new THREE.Mesh(boxG(0.33, 0.4, 0.35), glowMat)).children.at(-1).position.y = 1.72;
+    shell.visible = false;
+    body.add(shell);
+
+    // Alert pip — terrorists get a marker the instant the hub flags them as engaged.
+    if (this.team === 'T') {
+      this.pip = new THREE.Mesh(boxG(0.06, 0.16, 0.02), glowMat);
+      this.pip.position.set(0, 2.2, 0);
+      this.pip.visible = false;
+      root.add(this.pip);
+    }
+
+    // ── Labels ──
+    this.nameTag = this.makeLabel(name || 'Operator', 'name');
+    this.nameTag.position.set(0, 2.44, 0);
+    root.add(this.nameTag);
+    this.healthBar = this.makeLabel('', 'health');
+    this.healthBar.position.set(0, 2.26, 0);
+    root.add(this.healthBar);
+
+    root.position.copy(this.pos);
+    root.rotation.y = heading;
+    scene.add(root);
   }
 
-  createNameTag(name) {
+  buildRifle(parent, M) {
+    const g = new THREE.Group();
+    const put = (geo, mat, x, y, z, rx = 0, ry = 0, rz = 0) => {
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(x, y, z); m.rotation.set(rx, ry, rz); m.castShadow = true; g.add(m); return m;
+    };
+    put(boxG(0.07, 0.11, 0.52), M.gun, 0, 0, -0.1);            // receiver
+    put(boxG(0.075, 0.05, 0.2), M.gear, 0, 0.075, -0.14, 0, 0, 0); // rail
+    put(boxG(0.06, 0.075, 0.24), M.gear, 0, -0.005, -0.42);    // handguard
+    const barrel = put(cylG(0.014, 0.3, 8), M.gun, 0, 0.01, -0.66, Math.PI / 2);
+    barrel.castShadow = false;
+    put(boxG(0.04, 0.05, 0.05), M.gun, 0, 0.005, -0.83);       // muzzle brake
+    put(boxG(0.02, 0.045, 0.02), M.gun, 0, 0.06, -0.55, 0, 0, 0, false); // front post
+    put(boxG(0.02, 0.04, 0.02), M.gun, 0, 0.06, -0.05, 0, 0, 0, false);  // rear sight
+    put(boxG(0.055, 0.2, 0.07), M.gear, 0, -0.14, 0.12, -0.2); // grip
+    put(boxG(0.07, 0.24, 0.09), M.gear, 0, -0.15, -0.2, 0.35); // mag (raked)
+    put(boxG(0.05, 0.09, 0.22), M.gear, 0, -0.01, 0.28);       // stock
+    put(boxG(0.045, 0.13, 0.03), M.gun, 0, -0.06, -0.3, 0, 0, 0, false); // sling
+    parent.add(g);
+    return g;
+  }
+
+  buildPistol(parent, M) {
+    const g = new THREE.Group();
+    const put = (geo, mat, x, y, z, rx = 0) => {
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(x, y, z); m.rotation.x = rx; m.castShadow = true; g.add(m); return m;
+    };
+    put(boxG(0.05, 0.06, 0.22), M.gun, 0, 0.01, -0.06);
+    put(boxG(0.045, 0.15, 0.055), M.gear, 0, -0.07, 0.02, -0.22);
+    put(boxG(0.04, 0.02, 0.14), M.gun, 0, -0.02, -0.08);
+    put(boxG(0.015, 0.035, 0.015), M.gun, 0, 0.05, -0.15, 0);
+    g.position.z += 0.1;
+    parent.add(g);
+    return g;
+  }
+
+  makeLabel(text, kind) {
     const canvas = document.createElement('canvas');
-    canvas.width = 256; canvas.height = 64;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = 'rgba(42, 42, 46, 0.85)';
-    ctx.fillRect(0, 0, 256, 64);
-    ctx.fillStyle = '#f0f0f2';
-    ctx.font = 'bold 28px -apple-system, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(name, 128, 32);
+    canvas.width = kind === 'name' ? 256 : 128;
+    canvas.height = kind === 'name' ? 64 : 16;
     const tex = new THREE.CanvasTexture(canvas);
-    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
-    const sprite = new THREE.Sprite(mat);
-    sprite.scale.set(2, 0.5, 1);
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: tex, transparent: true, depthWrite: false,
+    }));
+    sprite.scale.set(kind === 'name' ? 1.9 : 1.15, kind === 'name' ? 0.44 : 0.14, 1);
+    sprite.renderOrder = 4;
+    sprite.userData = { canvas, tex, kind };
+    if (kind === 'name') this.paintName(sprite, text);
+    else this.paintHealth(sprite, this.health);
     return sprite;
   }
 
-  createHealthBar() {
-    const canvas = document.createElement('canvas');
-    canvas.width = 128; canvas.height = 16;
-    const tex = new THREE.CanvasTexture(canvas);
-    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
-    const sprite = new THREE.Sprite(mat);
-    sprite.scale.set(1.2, 0.15, 1);
-    sprite.userData.canvas = canvas;
-    sprite.userData.texture = tex;
-    return sprite;
+  paintName(sprite, text) {
+    const c = sprite.userData.canvas, x = c.getContext('2d');
+    x.clearRect(0, 0, c.width, c.height);
+    x.fillStyle = 'rgba(14,14,16,0.72)';
+    x.fillRect(0, 0, c.width, c.height);
+    x.strokeStyle = 'rgba(240,240,242,0.22)';
+    x.lineWidth = 3; x.strokeRect(2, 2, c.width - 4, c.height - 4);
+    x.fillStyle = '#f0f0f2';
+    x.font = 'bold 26px -apple-system, sans-serif';
+    x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.fillText(String(text).slice(0, 16), c.width / 2, c.height / 2 + 1);
+    sprite.userData.tex.needsUpdate = true;
   }
 
-  updateHealth(health) {
-    this.health = health;
-    const canvas = this.healthBar.userData.canvas;
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, 128, 16);
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-    ctx.fillRect(0, 0, 128, 16);
-    const pct = Math.max(0, health / 100);
-    const color = pct > 0.6 ? '#4ade80' : pct > 0.3 ? '#fbbf24' : '#ef4444';
-    ctx.fillStyle = color;
-    ctx.fillRect(2, 2, 124 * pct, 12);
-    this.healthBar.userData.texture.needsUpdate = true;
+  // Greyscale health bar — brightness carries the state, never hue.
+  paintHealth(sprite, hp) {
+    const c = sprite.userData.canvas, x = c.getContext('2d');
+    const pct = Math.max(0, Math.min(1, hp / 100));
+    x.clearRect(0, 0, c.width, c.height);
+    x.fillStyle = 'rgba(10,10,12,0.72)';
+    x.fillRect(0, 0, c.width, c.height);
+    const tone = Math.round(120 + 130 * pct);
+    x.fillStyle = `rgb(${tone},${tone},${tone})`;
+    x.fillRect(2, 2, (c.width - 4) * pct, c.height - 4);
+    x.fillStyle = 'rgba(240,240,242,0.55)';
+    for (let i = 1; i < 4; i++) x.fillRect((c.width / 4) * i, 0, 1, c.height);
+    sprite.userData.tex.needsUpdate = true;
   }
 
-  update(dt, targetPos, targetYaw, walkPhase, speed) {
-    // Interpolate position
-    this.pos.lerp(targetPos, Math.min(1, dt * 10));
-    this.group.position.copy(this.pos);
+  setWeapon(key) {
+    if (key === this.weaponKey || !this.guns[key]) return;
+    this.weaponKey = key;
+    this.guns.rifle.visible = key === 'rifle';
+    this.guns.pistol.visible = key === 'pistol';
+    // The flash has to sit on the barrel that is actually in hand, not where the rifle ends.
+    this.muzzleFlash.position.set(0, key === 'rifle' ? 0.02 : 0.05, key === 'rifle' ? -0.86 : -0.2);
+  }
 
-    // Interpolate rotation
-    let yawDiff = targetYaw - this.yaw;
-    yawDiff = Math.atan2(Math.sin(yawDiff), Math.cos(yawDiff));
-    this.yaw += yawDiff * Math.min(1, dt * 10);
-    this.group.rotation.y = this.yaw;
+  // ── Per-frame pose. `t` is the interpolated hub state for this figure. ──
+  drive(t, dt) {
+    // Ground the figure on the interpolated position, then measure real velocity for lean.
+    this.prev.copy(this.pos);
+    this.pos.set(t.x, t.y, t.z);
+    this.root.position.copy(this.pos);
 
-    // Walk animation
-    this.walkPhase = walkPhase;
-    const swing = Math.sin(this.walkPhase) * Math.min(1, speed / 2) * 0.6;
-    this.legL.rotation.x = swing;
-    this.legR.rotation.x = -swing;
+    let diff = t.heading - this.heading;
+    diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+    this.heading += diff * Math.min(1, dt * 16);
+    this.body.rotation.y = 0;
+    this.root.rotation.y = this.heading;
+    if (this.prev.x === 0 && this.prev.z === 0 && t.x === 0 && t.z === 0) this.prev.copy(this.pos);
 
-    // Name tag always faces camera
-    this.nameTag.lookAt(camera.position);
-    this.healthBar.lookAt(camera.position);
+    this.speed = t.speed;
+    this.pitch += (clamp(t.pitch || 0, -1.4, 1.4) - this.pitch) * Math.min(1, dt * 12);
+    const wantCrouch = t.crouching ? 1 : 0;
+    this.crouchAmt += (wantCrouch - this.crouchAmt) * Math.min(1, dt * 9);
+    const wantAir = t.onGround === false ? 1 : 0;
+    this.airAmt += (wantAir - this.airAmt) * Math.min(1, dt * 10);
+    if (t.alert !== undefined) this.alert = t.alert;
+    if (t.weapon) this.setWeapon(t.weapon);
+    if (t.health !== undefined && Math.abs(t.health - this.health) > 0.5) {
+      this.health = t.health;
+      this.paintHealth(this.healthBar, this.health);
+    }
+
+    // Body-space lateral speed → bank into a strafe, so turning to run reads as weight shifting.
+    const vx = (this.pos.x - this.prev.x) / Math.max(dt, 1e-3);
+    const vz = (this.pos.z - this.prev.z) / Math.max(dt, 1e-3);
+    const cos = Math.cos(this.heading), sin = Math.sin(this.heading);
+    const side = vx * cos - vz * sin;   // +Z-facing model: right is +X after the yaw
+    this.strafe += (side - this.strafe) * Math.min(1, dt * 8);
+    this.lean += (clamp(-this.strafe * 0.02, -0.16, 0.16) - this.lean) * Math.min(1, dt * 8);
+
+    this.breath += dt * 1.9;
+    this.walk += dt * (this.speed * 3.2 + 0.6); // keeps a live idle cadence even when standing
+    this.kick = Math.max(0, this.kick - dt * 5.5);
+    this.flash = Math.max(0, this.flash - dt * 4.5);
+    this.muzzle = Math.max(0, this.muzzle - dt * 14);
+
+    // A falling figure poses itself and fades its own label; the distance-based label pass below
+    // would otherwise stomp that fade back to invisible on the same frame.
+    if (this.deathT >= 0) { this.poseDeath(dt); return; }
+
+    const moving = clamp((this.speed - 0.4) / 5, 0, 1);
+    const w = this.walk;
+    const s = Math.sin(w), s2 = Math.sin(w * 2);
+    const amp = 0.55 * moving;
+
+    // Legs: thighs swing from the hip, shins only fold backwards, ankles keep the foot level.
+    for (let i = 0; i < 2; i++) {
+      const dir = i === 0 ? 1 : -1;
+      const hipBend = dir * s * amp;
+      const fold = Math.max(0, -dir * Math.cos(w)) * 1.15 * moving;
+      this.hip[i].rotation.x = hipBend - this.crouchAmt * 0.85 + this.airAmt * -0.55;
+      this.knee[i].rotation.x = fold + this.crouchAmt * 1.5 + this.airAmt * 0.95;
+      this.ankle[i].rotation.x = -fold * 0.55 - hipBend * 0.3 - this.airAmt * 0.3;
+      this.hip[i].rotation.z = dir * 0.03 * moving;
+    }
+
+    // Pelvis: stride lift, crouch drop, and the small counter-roll of a walking torso.
+    this.pelvis.position.y = 0.92
+      - this.crouchAmt * 0.26
+      + Math.abs(Math.cos(w)) * 0.035 * moving
+      + Math.sin(this.breath) * 0.008;
+    this.body.rotation.z = this.lean + s * 0.022 * moving;
+    this.upper.rotation.z = -this.lean * 0.55 - s * 0.03 * moving;
+    this.upper.rotation.y = -s * 0.09 * moving;
+
+    // Aim: the whole upper body pitches with the head taking half the angle, exactly like a
+    // real rifle carriage — this is what makes a remote player "live" instead of a flat prop.
+    this.upper.rotation.x = -this.pitch * 0.75 - this.crouchAmt * 0.22 + this.kick * 0.16;
+    this.head.rotation.x = -this.pitch * 0.35 + Math.sin(this.breath * 0.7) * 0.02;
+    this.head.rotation.y = Math.sin(this.breath * 0.45) * 0.05;
+
+    // Arms: base stance plus stride counter-swing, recoil punch and a reload dip.
+    const swing = s * 0.11 * moving;
+    for (let i = 0; i < 2; i++) {
+      const rel = i === 0 ? -1 : 1;
+      this.shoulder[i].rotation.x = this.baseArm.shoulder[i] + rel * swing - this.pitch * 0.12 + this.kick * 0.28;
+      this.elbow[i].rotation.x = this.baseArm.elbow[i] + this.kick * 0.5;
+    }
+    this.handR.rotation.x = -this.kick * 0.3;
+
+    // Weapon: sinks with the stance, jerks back and up on every fired round.
+    this.gun.position.set(0.07, 0.29 - this.crouchAmt * 0.04 + this.kick * 0.02, 0.26 + this.kick * 0.07);
+    this.gun.rotation.x = -this.pitch * 0.22 + this.kick * 0.42;
+    this.gun.rotation.z = Math.sin(this.breath) * 0.012 + this.lean * 0.3;
+
+    // Muzzle flash and hit glow
+    this.muzzleFlash.visible = this.muzzle > 0;
+    if (this.muzzleFlash.visible) {
+      this.flashMat.opacity = Math.min(1, this.muzzle * 1.4);
+      const sc = 0.7 + Math.random() * 0.6;
+      this.muzzleFlash.scale.set(sc, sc, 1);
+      this.muzzleFlash.rotation.z = Math.random() * Math.PI;
+    } else {
+      this.flashMat.opacity = 0;
+    }
+    this.shell.visible = this.flash > 0 || !!this.alert;
+    if (this.shell.visible) this.glowMat.opacity = Math.min(0.5, this.flash * 0.5 + (this.alert ? 0.06 : 0));
+    if (this.pip) this.pip.visible = this.alert ? Math.sin(performance.now() * 0.012) > -0.3 : false;
+
+    this.updateLabels(dt);
+  }
+
+  poseDeath(dt) {
+    this.deathT += dt;
+    const k = Math.min(1, this.deathT * 2.6);
+    const eased = 1 - Math.pow(1 - k, 2);
+    this.body.rotation.x = -eased * Math.PI / 2;
+    this.body.position.y = eased * 0.16;
+    this.root.position.y = this.pos.y + 0.02;
+    for (let i = 0; i < 2; i++) {
+      this.hip[i].rotation.x = (i === 0 ? 0.5 : -0.35) * eased;
+      this.knee[i].rotation.x = (i === 0 ? 1.1 : 0.4) * eased;
+      this.shoulder[i].rotation.x = this.baseArm.shoulder[i] * (1 - eased) - 0.5 * eased;
+      this.elbow[i].rotation.x = this.baseArm.elbow[i] * (1 - eased);
+    }
+    this.upper.rotation.x = 0.2 * eased;
+    this.gun.rotation.x = -0.9 * eased;
+    this.muzzleFlash.visible = false;
+    this.shell.visible = false;
+    if (this.pip) this.pip.visible = false;
+    // Face plant: fade the labels rather than yank the model out of the world.
+    const o = 1 - Math.min(1, Math.max(0, (this.deathT - 1.6) / 1.2));
+    this.nameTag.material.opacity = o * 0.55;
+    this.healthBar.material.opacity = 0;
+    this.root.rotation.y = this.heading;
+  }
+
+  updateLabels(dt) {
+    // Sprites already face the camera; the only work left is scaling them down with distance so a
+    // teammate 60 m away does not cover the screen, and hiding them once they are out of the fight.
+    const d = camera.position.distanceTo(this.pos);
+    const sc = clamp(d / 26, 0.7, 2.1);
+    this.nameTag.scale.set(1.9 * sc, 0.44 * sc, 1);
+    this.healthBar.scale.set(1.15 * sc, 0.14 * sc, 1);
+    const show = this.alive && d < 130;
+    this.nameTag.visible = show;
+    this.healthBar.visible = show && this.health < 100;
+    this.nameTag.material.opacity = show ? clamp(1.3 - d / 130, 0.25, 1) : 0;
+    this.healthBar.material.opacity = this.healthBar.visible ? 1 : 0;
+  }
+
+  // One fired round as seen by everyone else: flash, recoil punch, and a report that fades with
+  // distance so the arena has real directionality.
+  shot() {
+    this.kick = 1;
+    this.muzzle = 1;
+  }
+
+  hit() { this.flash = 1; }
+
+  kill() {
+    if (this.deathT >= 0) return;
+    this.alive = false;
+    this.health = 0;
+    this.paintHealth(this.healthBar, 0);
+    this.deathT = 0;
+  }
+
+  // A hub round reset resurrects the same id in the same list, so the rig has to come back up
+  // rather than be rebuilt — rebuilding would drop the shared materials and pop the camera.
+  revive() {
+    this.deathT = -1;
+    this.alive = true;
+    this.health = 100;
+    this.paintHealth(this.healthBar, 100);
+    this.body.rotation.set(0, 0, 0);
+    this.body.position.set(0, 0, 0);
+    this.nameTag.material.opacity = 1;
+    this.healthBar.material.opacity = 0;
+    this.healthBar.visible = false;
   }
 
   dispose() {
-    scene.remove(this.group);
-    this.parts.forEach(p => {
-      p.geometry.dispose();
-      p.material.dispose();
-    });
+    scene.remove(this.root);
+    // Only per-instance resources: the shared geometry and material sets belong to every figure.
+    for (const sp of [this.nameTag, this.healthBar]) {
+      if (!sp) continue;
+      sp.userData.tex.dispose();
+      sp.material.dispose();
+    }
+    this.flashMat.dispose();
+    this.glowMat.dispose();
   }
 }
 
 // ── Online Snapshot Handling ──
+//
+// The hub streams one world every 100 ms. Snapshots go into a short back-buffer and the frame is
+// drawn from a point about one tick behind "now", blending the two real states that straddle it.
+// That is what turns a 10 Hz staircase into continuous motion: the old code chased a single target
+// with an exponential filter, which smoothed the error but never knew how far behind it was — so
+// figures crept after they had stopped and slid when they started.
 function applySnapshot(snapshot) {
   if (!snapshot || !isOnline) return;
   lastSnapshot = snapshot;
+  snapshotBuffer.push({ at: performance.now(), data: snapshot });
+  while (snapshotBuffer.length > BUFFER_CAP) snapshotBuffer.shift();
+  syncOnlineHud(snapshot);
+}
 
-  // Update game state from snapshot
+function syncOnlineHud(snapshot) {
+  const prevCT = game.ct, prevT = game.t;
+  const roundChanged = snapshot.round !== game.round;
+  const wasEnd = game.state === 'roundEnd';
+
   game.round = snapshot.round;
   game.timeLeft = snapshot.timeLeft;
   game.state = snapshot.state;
   game.ct = snapshot.scoreCT;
   game.t = snapshot.scoreT;
 
-  // Update HUD
   hud.round.textContent = game.round;
   hud.scoreCT.textContent = game.ct;
   hud.scoreT.textContent = game.t;
-  const t = Math.max(0, Math.ceil(game.timeLeft));
-  hud.timer.textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+  hud.enemies.textContent = (snapshot.bots || []).filter((b) => b.alive).length;
+  const secs = Math.max(0, Math.ceil(game.timeLeft));
+  hud.timer.textContent = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
 
-  // Update remote players
-  const currentIds = new Set();
-  for (const pData of snapshot.players) {
-    if (pData.id === CSNet?.myId) continue; // Skip self
-    currentIds.add(pData.id);
-    let rp = onlinePlayers.get(pData.id);
-    if (!rp) {
-      rp = new RemotePlayerModel(pData.id, pData.name || 'Player');
-      onlinePlayers.set(pData.id, rp);
+  // Round narration is driven by the shared state, so all four cabinets hear it at once.
+  if (snapshot.state === 'playing' && (roundChanged || wasEnd)) {
+    const n = (snapshot.bots || []).filter((b) => b.alive).length;
+    centerMsg(`ROUND ${game.round}`, `${n} terrorists. Eliminate them all.`);
+  } else if (snapshot.state === 'roundEnd' && !wasEnd) {
+    const ctWon = game.ct > prevCT;
+    centerMsg(ctWon ? '<span style="color:#f0f0f2">COUNTER-TERRORISTS WIN</span>'
+      : '<span style="color:#8888a0">TERRORISTS WIN</span>',
+      ctWon ? 'Next round starting…' : "Time's up — next round starting…", 4);
+  }
+}
+
+// The wire carries each sender's own heading convention: a cabinet reports its camera yaw (an
+// angle for something facing -Z), the hub reports bot headings as atan2(dx, dz) (facing +Z). Our
+// figures are built facing +Z, so a human yaw needs the half turn added.
+function headingOf(row, isHuman) { return row.yaw + (isHuman ? Math.PI : 0); }
+
+function blendAngle(a, b, u) {
+  let d = b - a;
+  d = Math.atan2(Math.sin(d), Math.cos(d));
+  return a + d * u;
+}
+
+function blendRow(a, b, u, isHuman) {
+  const pick = (x, y) => (u > 0.5 ? y : x); // discrete state flips at the midpoint of the blend
+  return {
+    x: a.pos.x + (b.pos.x - a.pos.x) * u,
+    y: a.pos.y + (b.pos.y - a.pos.y) * u,
+    z: a.pos.z + (b.pos.z - a.pos.z) * u,
+    heading: blendAngle(headingOf(a, isHuman), headingOf(b, isHuman), u),
+    pitch: a.pitch !== undefined && b.pitch !== undefined
+      ? a.pitch + (b.pitch - a.pitch) * u
+      : (b.pitch || 0),
+    speed: b.speed || 0,
+    crouching: pick(!!a.crouching, !!b.crouching),
+    onGround: pick(a.onGround !== false, b.onGround !== false),
+    health: b.health,
+    weapon: pick(a.weapon, b.weapon),
+    alert: pick(!!a.alert, !!b.alert),
+    alive: !!b.alive,
+  };
+}
+
+function indexRows(rows) {
+  const m = new Map();
+  for (const r of rows || []) m.set(String(r.id), r);
+  return m;
+}
+
+function blendRigs(store, rowsA, rowsB, u, dt, team, isHuman) {
+  const A = indexRows(rowsA), B = indexRows(rowsB);
+  const mine = String((typeof CSNet !== 'undefined' && CSNet.myId) || '');
+  const seen = new Set();
+  for (const [id, rb] of B) {
+    if (isHuman && id === mine) continue; // first person: your own body is not drawn
+    seen.add(id);
+    const ra = A.get(id) || rb;
+    let rig = store.get(id);
+    if (!rig) {
+      rig = new FigureRig(id, rb.name || (team === 'T' ? 'Terrorist' : 'Operator'), team, headingOf(rb, isHuman));
+      rig.pos.set(rb.pos.x, rb.pos.y || 0, rb.pos.z);
+      rig.prev.copy(rig.pos);
+      rig.walk = rb.walkPhase || 0;
+      store.set(id, rig);
     }
-    rp.targetPos = new THREE.Vector3(pData.pos.x, pData.pos.y || 0, pData.pos.z);
-    rp.targetYaw = pData.yaw;
-    rp.alive = pData.alive;
-    rp.group.visible = pData.alive;
-    rp.updateHealth(pData.health);
-    rp.weapon = pData.weapon;
+    rig.drive(blendRow(ra, rb, u, isHuman), dt);
+    if (!rb.alive && rig.deathT < 0) rig.kill();
+    else if (rb.alive && rig.deathT >= 0) rig.revive();
+  }
+  for (const [id, rig] of store) {
+    if (seen.has(id)) continue;
+    rig.dispose();
+    store.delete(id);
+  }
+}
+
+// The hub's row for me is the authority on whether I am still standing — bot fire is validated
+// server-side, so my local health has to follow it and never the other way round.
+function driveOwn(rows) {
+  const mine = String((typeof CSNet !== 'undefined' && CSNet.myId) || '');
+  const me = (rows || []).find((r) => String(r.id) === mine);
+  if (!me) return;
+  myRow = me;
+
+  game.kills = me.kills || 0;
+  hud.kills.textContent = game.kills;
+
+  const drop = player.health - (me.health === undefined ? player.health : me.health);
+  if (drop > 0.5 && player.alive) {
+    damageFlash = Math.min(1, damageFlash + 0.45);
+    hud.healthBox.classList.toggle('low', me.health <= 25);
+  }
+  player.health = me.health === undefined ? player.health : me.health;
+  hud.health.textContent = Math.ceil(Math.max(0, player.health));
+
+  // Frame to frame the cabinet owns its own movement, so the echo is only used to correct a real
+  // disagreement — snapping to every 10 Hz packet would rubber-band local movement.
+  const edge = mapHalf() - 1.2;
+  if (player.alive && Math.hypot(player.pos.x - me.pos.x, player.pos.z - me.pos.z) > 3) {
+    player.pos.x = clamp(me.pos.x, -edge, edge);
+    player.pos.z = clamp(me.pos.z, -edge, edge);
+    player.pos.y = me.pos.y || 0;
+    player.vel.set(0, 0, 0);
   }
 
-  // Remove disconnected players
-  for (const [id, rp] of onlinePlayers) {
-    if (!currentIds.has(id)) {
-      rp.dispose();
-      onlinePlayers.delete(id);
-    }
-  }
-
-  // Update bots
-  const botIds = new Set();
-  for (const bData of snapshot.bots) {
-    botIds.add(bData.id);
-    let bot = onlineBots.get(bData.id);
-    if (!bot) {
-      bot = new RemotePlayerModel(bData.id, bData.name || 'Bot');
-      onlineBots.set(bData.id, bot);
-    }
-    bot.targetPos = new THREE.Vector3(bData.pos.x, bData.pos.y || 0, bData.pos.z);
-    bot.targetYaw = bData.yaw;
-    bot.alive = bData.alive;
-    bot.group.visible = bData.alive;
-    bot.updateHealth(bData.health);
-  }
-
-  // Remove dead bots
-  for (const [id, bot] of onlineBots) {
-    if (!botIds.has(id)) {
-      bot.dispose();
-      onlineBots.delete(id);
-    }
+  if (!me.alive && player.alive) {
+    player.alive = false;
+    player.health = 0;
+    centerMsg('YOU ARE DOWN', 'Spectating until the round ends', 4);
+  } else if (me.alive && !player.alive) {
+    // New round: take the hub's fresh spawn instead of standing on the corpse's spot.
+    resetPlayer();
+    player.pos.set(clamp(me.pos.x, -edge, edge), me.pos.y || 0, clamp(me.pos.z, -edge, edge));
+    player.yaw = me.yaw || Math.PI;
+    player.pitch = 0;
+    camera.position.set(player.pos.x, player.pos.y + player.eye, player.pos.z);
   }
 }
 
 function updateOnlinePlayers(dt) {
-  for (const [id, rp] of onlinePlayers) {
-    if (rp.targetPos) {
-      rp.update(dt, rp.targetPos, rp.targetYaw, rp.walkPhase || 0, rp.speed || 0);
+  if (!snapshotBuffer.length) return;
+  const rt = performance.now() - INTERP_DELAY;
+
+  // Play the effects of every snapshot the render point has now passed, each exactly once, so
+  // tracers and muzzle flashes land with the motion they belong to instead of a tick early.
+  for (const s of snapshotBuffer) {
+    if (s.at <= fxWatermark || s.at > rt) continue;
+    emitFx(s.data.fx);
+    fxWatermark = s.at;
+  }
+
+  let a = null, b = null;
+  for (let i = 0; i < snapshotBuffer.length - 1; i++) {
+    if (snapshotBuffer[i].at <= rt && snapshotBuffer[i + 1].at >= rt) {
+      a = snapshotBuffer[i]; b = snapshotBuffer[i + 1]; break;
     }
   }
-  for (const [id, bot] of onlineBots) {
-    if (bot.targetPos) {
-      bot.update(dt, bot.targetPos, bot.targetYaw, bot.walkPhase || 0, bot.speed || 0);
+  if (!a) {
+    // Starved (tab throttled, packet loss, first frames of the match): hold on the newest state
+    // rather than extrapolating an invented one.
+    b = snapshotBuffer[snapshotBuffer.length - 1];
+    a = b;
+  }
+  while (snapshotBuffer.length > 3 && snapshotBuffer[1].at < rt) snapshotBuffer.shift();
+
+  const u = a === b ? 1 : clamp((rt - a.at) / Math.max(1, b.at - a.at), 0, 1);
+  blendRigs(onlinePlayers, a.data.players, b.data.players, u, dt, 'CT', true);
+  blendRigs(onlineBots, a.data.bots, b.data.bots, u, dt, 'T', false);
+  driveOwn(b.data.players);
+}
+
+function figureFor(id) {
+  const key = String(id);
+  return onlinePlayers.get(key) || onlineBots.get(key) || null;
+}
+
+function nameFor(id) {
+  if (!id) return 'Terrorist';
+  const key = String(id);
+  if (typeof CSNet !== 'undefined' && key === String(CSNet.myId)) return 'You';
+  const rig = figureFor(key);
+  if (rig) return rig.name;
+  const row = (lastSnapshot && (lastSnapshot.players || []).concat(lastSnapshot.bots || []) || [])
+    .find((r) => String(r.id) === key);
+  return (row && row.name) || 'Operator';
+}
+
+// One-shot world events from the hub, replayed on every cabinet so the fight looks and sounds the
+// same to all four players.
+function emitFx(list) {
+  if (!list || !list.length) return;
+  const mine = String((typeof CSNet !== 'undefined' && CSNet.myId) || '');
+  for (const ev of list) {
+    if (ev.e === 'shot') {
+      const byPlayer = ev.by === 'p';
+      const rig = figureFor(ev.id);
+      if (!rig) continue;
+      const o = new THREE.Vector3(ev.o[0], ev.o[1], ev.o[2]);
+      const d = new THREE.Vector3(ev.d[0], ev.d[1], ev.d[2]);
+      rig.shot();
+      const dist = o.distanceTo(camera.position);
+      if (String(ev.id) !== mine) playShot(clamp(1.2 - dist / 55, 0.07, 0.75), byPlayer ? 1 : 0.88);
+      // Bots get a dedicated tracer event; a player round is extended here to whatever the shared
+      // geometry puts in the way, which is why it stops on the wall exactly where it should.
+      if (byPlayer && String(ev.id) !== mine) {
+        // Visual only, so it may march coarse: 1 m steps to the first volume in the way.
+        const wall = CSMap.rayBlock(colliders, o.x, o.y, o.z, d.x, d.y, d.z, 60, 1);
+        spawnTracer(o, o.clone().addScaledVector(d, wall ? wall.dist : 60));
+      }
+    } else if (ev.e === 'tracer') {
+      const rig = onlineBots.get(String(ev.id));
+      if (!rig) continue;
+      const from = new THREE.Vector3(rig.pos.x, rig.pos.y + 1.45, rig.pos.z);
+      const to = new THREE.Vector3(ev.to[0], ev.to[1], ev.to[2]);
+      spawnTracer(from, to, 0xd0d0d0);
+      if (!ev.hit) spawnParticles(to, null, dustMat, 3, 1.6);
+    } else if (ev.e === 'hit') {
+      if (ev.bot !== undefined) {
+        // A player round that landed: ev.bot is the victim, so the spark belongs on its body.
+        const rig = onlineBots.get(String(ev.bot));
+        if (rig) {
+          rig.hit();
+          const at = new THREE.Vector3(rig.pos.x, rig.pos.y + (ev.part === 'head' ? 1.72 : ev.part === 'legs' ? 0.5 : 1.2), rig.pos.z);
+          spawnParticles(at, null, bloodMat, 8, 2);
+        }
+        if (String(ev.id) === mine) { showHit(ev.killed); playBeep(ev.killed ? 1400 : 1100, 0.04, 0.12); }
+      } else {
+        const rig = onlinePlayers.get(String(ev.id));
+        if (rig) rig.hit();
+        if (String(ev.id) === mine) playBeep(120, 0.07, 0.18, 'sawtooth');
+      }
+    } else if (ev.e === 'kill') {
+      const rig = onlineBots.get(String(ev.victim));
+      if (rig) rig.kill();
+      killFeed(nameFor(ev.by), ev.name || (rig && rig.name) || 'Terrorist', ev.part === 'head', false);
+    } else if (ev.e === 'death') {
+      const rig = onlinePlayers.get(String(ev.victim));
+      if (rig) rig.kill();
+      if (String(ev.victim) !== mine) killFeed(nameFor(ev.by), ev.name || 'Operator', false, true);
     }
   }
 }
 
 function sendPlayerState() {
-  if (!isOnline || !CSNet || !CSNet.connected) return;
+  if (!isOnline || typeof CSNet === 'undefined' || !CSNet.connected) return;
   const shoot = mouseDown || (isTouchDevice && touch.fire);
   const reload = keys.KeyR || false;
+  // Attach the fired shot's muzzle ray to this packet. The hub ray-marches it against the shared
+  // geometry, so teammates' bullets actually hit bots. `shoot` is forced alongside it because the
+  // hub only fires on the flag, and a tap released between packets would otherwise be a no-op.
+  const ray = pendingRay;
+  pendingRay = null;
   CSNet.sendState(
     player.pos,
     player.yaw,
@@ -2588,53 +3209,158 @@ function sendPlayerState() {
     player.onGround,
     current === inventory.rifle ? 'rifle' : 'pistol',
     reload,
-    shoot,
-    null // hitRay - server validates
+    shoot || !!ray,
+    ray
   );
 }
 
 // ── Online Mode Initialization ──
 function initOnlineMode() {
-  if (typeof CSNet === 'undefined') return;
+  if (typeof CSNet === 'undefined') {
+    console.warn('[CS] counter-strike-net.js not loaded — multiplayer disabled');
+    return;
+  }
 
   CSNet.onSnapshot = applySnapshot;
-  CSNet.onMatchEnd = (results) => {
-    isOnline = false;
-    // Show results
-    if (results && results.length > 0) {
-      const myResult = results.find(r => r.id === CSNet.myId);
-      if (myResult) {
-        goScore.textContent = myResult.sc || 0;
-        goXP.textContent = myResult.xp ? `+${myResult.xp} XP` : '--';
-      }
-    }
-    triggerGameOver();
-  };
+  CSNet.onMatchEnd = (rows) => window.endOnlineGame(rows);
 
   console.log('[CS] Online mode initialized');
 }
 
-// Check if we're starting an online game
-window.startOnlineGame = function(roster) {
+// ── Match start ──
+// The hub has already built the world on the host's map pick, so every cabinet has to draw that
+// same layout before the first snapshot lands — otherwise the shared colliders belong to an arena
+// nobody is looking at.
+function ensureMap(mapName) {
+  const wanted = mapName || (typeof CSNet !== 'undefined' && CSNet.map) || selectedMap;
+  const map = wanted === 'classic' ? 'classic' : 'industrial';
+  if (map !== selectedMap) {
+    selectedMap = map;
+    if (typeof CSNet !== 'undefined' && CSNet.setMap) CSNet.setMap(map);
+    buildMap();
+  } else if (!colliders.length) {
+    buildMap();
+  }
+  return map;
+}
+
+function clearOnlineFigures() {
+  for (const rig of onlinePlayers.values()) rig.dispose();
+  for (const rig of onlineBots.values()) rig.dispose();
+  onlinePlayers.clear();
+  onlineBots.clear();
+  snapshotBuffer.length = 0;
+  fxWatermark = 0;
+  myRow = null;
+}
+
+// Countdown overlay: the four athletes see who is deploying and a shared three-second count before
+// the hub opens fire, so nobody is caught standing in the spawn with the round already running.
+window.startCountdown = function (ms, roster, mapName) {
+  const map = ensureMap(mapName);
+  onlineRoster = roster || [];
+  clearBots();
+  clearOnlineFigures();
+  showScreen(gameScreen);
+
+  let el = document.getElementById('csCountdown');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'csCountdown';
+    el.style.cssText = 'position:fixed;inset:0;z-index:60;display:flex;flex-direction:column;' +
+      'align-items:center;justify-content:center;gap:18px;pointer-events:none;' +
+      'background:radial-gradient(circle at 50% 45%,rgba(10,10,12,.25),rgba(8,8,10,.82));' +
+      'color:#f0f0f2;font:500 14px var(--f,system-ui,sans-serif);letter-spacing:.14em;';
+    document.body.appendChild(el);
+  }
+  el.style.display = 'flex';
+  const names = onlineRoster.map((m) => escapeText(m.n || 'Athlete')).join(' · ');
+  let left = Math.max(0, Math.round((ms || 3500) / 1000));
+  const draw = () => {
+    el.innerHTML =
+      `<div style="font-size:12px;opacity:.55">DEPLOYING TO ${map.toUpperCase()}</div>` +
+      `<div style="font-size:76px;font-weight:700;line-height:1">${left || 'GO'}</div>` +
+      `<div style="font-size:13px;opacity:.75">${names || 'Solo run'}</div>` +
+      `<div style="font-size:11px;opacity:.45">CO-OP · THE HUB RUNS EVERY BOT AND EVERY BULLET</div>`;
+  };
+  draw();
+
+  clearInterval(countdownHandle);
+  const start = performance.now();
+  const span = Math.max(500, ms || 3500);
+  countdownHandle = setInterval(() => {
+    const next = Math.max(0, Math.ceil((span - (performance.now() - start)) / 1000));
+    if (next !== left) { left = next; draw(); }
+  }, 100);
+
+  setTimeout(() => {
+    clearInterval(countdownHandle);
+    countdownHandle = null;
+    const live = document.getElementById('csCountdown');
+    if (live) live.style.display = 'none';
+    window.startOnlineGame(onlineRoster, map);
+  }, span);
+};
+
+window.startOnlineGame = function (roster, mapName) {
+  const map = ensureMap(mapName || (typeof CSNet !== 'undefined' && CSNet.map));
+  onlineRoster = roster || onlineRoster || [];
   isOnline = true;
   game.state = 'playing';
   game.round = 0;
   game.ct = 0;
   game.t = 0;
   game.kills = 0;
-  game.timeLeft = 115;
+  game.timeLeft = 130;
+  game.endTimer = 0;
 
-  // Clear local bots - server owns them
-  clearBots();
-
-  // Reset local player
+  clearBots();          // the hub owns every terrorist from here on
+  clearOnlineFigures();
   resetPlayer();
+  hud.scoreCT.textContent = '0';
+  hud.scoreT.textContent = '0';
+  hud.kills.textContent = '0';
+  hud.round.textContent = '—';
+  hud.enemies.textContent = '0';
+  hud.killfeed.innerHTML = '';
 
   showScreen(gameScreen);
-  if (!isTouchDevice) renderer.domElement.requestPointerLock();
-
-  console.log('[CS] Online game started with', roster.length, 'players');
+  audio().resume();
+  if (!isTouchDevice && renderer.domElement.requestPointerLock) {
+    renderer.domElement.requestPointerLock();
+  }
+  console.log('[CS] Online match started —', map, (roster || []).length, 'players');
 };
+
+// Hub results. XP is awarded by the hub for co-op, so this must not report a run locally — that
+// would pay the athlete twice.
+window.endOnlineGame = function (rows) {
+  isOnline = false;
+  clearInterval(countdownHandle);
+  countdownHandle = null;
+  const live = document.getElementById('csCountdown');
+  if (live) live.style.display = 'none';
+  clearOnlineFigures();
+  if (document.pointerLockElement) document.exitPointerLock();
+  game.state = 'gameOver';
+
+  const me = (rows || []).find((r) => String(r.id) === String(typeof CSNet !== 'undefined' ? CSNet.myId : ''));
+  goScore.textContent = me ? (me.sc || 0) : game.kills;
+  goRound.textContent = lastSnapshot ? (lastSnapshot.round || game.round) : game.round;
+  goXP.textContent = me && me.xp ? `+${me.xp} XP` : '--';
+  // Team board straight from the hub, escaped — names arrive off the wire.
+  if (hud.coopBoard) {
+    hud.coopBoard.innerHTML = (rows || []).map((r) =>
+      `<div class="go-coop-row"><span>${escapeText(r.n || r.name || 'Athlete')}${String(r.id) === String(typeof CSNet !== 'undefined' ? CSNet.myId : '') ? ' (You)' : ''}</span><span>${r.sc || 0} kills</span></div>`).join('');
+  }
+  showScreen(gameOverScreen);
+};
+
+function escapeText(str) {
+  return String(str == null ? '' : str)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
 
 // Show invite notification
 window.showInvite = function(fromName, roomCode, onAccept) {
@@ -2684,6 +3410,25 @@ window.showInvite = function(fromName, roomCode, onAccept) {
       toast.style.pointerEvents = 'none';
     }
   }, 10000);
+};
+
+// Hub problems are terse ("Room not found", "Only the host can start") — put them where the
+// athlete looking at the lobby will actually see them.
+window.showLobbyError = function (message) {
+  let el = document.getElementById('csLobbyError');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'csLobbyError';
+    el.style.cssText = 'position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:99999;'
+      + 'background:rgba(10,10,12,.95);color:#f0f0f2;border:1px solid rgba(255,255,255,.24);'
+      + 'border-radius:10px;padding:10px 18px;font:500 13px var(--f);letter-spacing:.03em;'
+      + 'transition:opacity .3s;opacity:0;pointer-events:none;';
+    document.body.appendChild(el);
+  }
+  el.textContent = message || 'Something went wrong';
+  el.style.opacity = '1';
+  clearTimeout(el._hide);
+  el._hide = setTimeout(() => { el.style.opacity = '0'; }, 4000);
 };
 
 // Initialize online mode if net module is loaded

@@ -3,35 +3,36 @@
    ----------------------------------------------------------------------------
    The authoritative game state lives here: RaceHub.js simulates the match,
    owns all bot AI, validates hits, and broadcasts snapshots at 10Hz.
-   
+
    Clients only stream their own position + aim + shoot state, and render
    the snapshot they get back. This prevents cheating and ensures all
    players see the same bots/round state.
-   
+
+   Map geometry and collision arithmetic come from cs-map.js — the SAME module
+   the browser loads — so the hub's walls are the player's walls.
+
    No DOM and no wall-clock reads inside the stepping code — the hub calls
    step(world, dt) on a fixed 100ms tick.
    ============================================================================ */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory();
-  else root.CSSim = factory();
-})(typeof self !== 'undefined' ? self : this, function () {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./cs-map.js'));
+  else root.CSSim = factory(root.CSMap);
+})(typeof self !== 'undefined' ? self : this, function (CSMap) {
   'use strict';
 
   // ── Constants ──
-  const MAP_SIZE = 66; // 66x66 play area
-  const HALF_MAP = MAP_SIZE / 2;
   const ROUND_TIME = 115; // seconds
   const BOT_NAMES = ['Viper', 'Jackal', 'Cobra', 'Raven', 'Ghost', 'Hyena', 'Scorpion', 'Wolf', 'Falcon', 'Mamba', 'Rook', 'Shadow'];
-  
+
   // Weapon definitions
   const WEAPONS = {
     rifle: { name: 'RIFLE', mag: 30, reserve: 90, rate: 0.1, auto: true, dmg: 34, reload: 2.3, spread: 0.004, recoil: 0.011, speed: 6.0 },
     pistol: { name: 'PISTOL', mag: 12, reserve: 48, rate: 0.17, auto: false, dmg: 27, reload: 1.6, spread: 0.006, recoil: 0.02, speed: 6.5 },
   };
-  
+
   // Hit multipliers
   const PART_MULT = { head: 4, body: 1, legs: 0.75 };
-  
+
   // Bot AI constants
   const BOT_SPEED = 2.4;
   const BOT_ALERT_SPEED = 3.6;
@@ -43,117 +44,35 @@
   const BOT_STRAFE_CHANGE_MAX = 1.4;
   const BOT_LOST_TIMER = 7;
   const BOT_STUCK_TIMER = 1.2;
-  
-  // Player constants
+
+  // Body metrics shared with the client's model: a standing figure occupies 0 → 1.8 m, and the
+  // hub needs those numbers to decide which body part a validated ray actually crossed.
   const PLAYER_RADIUS = 0.35;
   const PLAYER_HEIGHT = 1.8;
   const PLAYER_EYE_STAND = 1.65;
   const PLAYER_EYE_CROUCH = 1.15;
-  const PLAYER_SPEED = 6.0;
-  const PLAYER_CROUCH_SPEED = 2.2;
-  
-  // Spawn zones
-  const CT_SPAWN = { xMin: -6, xMax: 6, zMin: -30, zMax: -26 }; // South (player start)
-  const T_SPAWN = { xMin: -14, xMax: 14, zMin: 23, zMax: 30 }; // North (bot start)
-  
-  // ── Map Colliders (simplified AABB) ──
-  // Format: { minX, maxX, minZ, maxZ, minY, maxY }
-  const COLLIDERS = [
-    // Outer walls
-    { minX: -HALF_MAP, maxX: HALF_MAP, minZ: -32.5 - 0.5, maxZ: -32.5 + 0.5, minY: 0, maxY: 7 },
-    { minX: -HALF_MAP, maxX: HALF_MAP, minZ: 32.5 - 0.5, maxZ: 32.5 + 0.5, minY: 0, maxY: 7 },
-    { minX: -32.5 - 0.5, maxX: -32.5 + 0.5, minZ: -HALF_MAP, maxZ: HALF_MAP, minY: 0, maxY: 7 },
-    { minX: 32.5 - 0.5, maxX: 32.5 + 0.5, minZ: -HALF_MAP, maxZ: HALF_MAP, minY: 0, maxY: 7 },
-    
-    // Internal walls
-    { minX: -18 - 10, maxX: -18 + 10, minZ: -0.6, maxZ: 0.6, minY: 0, maxY: 5 },
-    { minX: 18 - 10, maxX: 18 + 10, minZ: -0.6, maxZ: 0.6, minY: 0, maxY: 5 },
-    { minX: -3 - 0.6, maxX: 3 + 0.6, minZ: -3, maxZ: 3, minY: 0, maxY: 4.2 }, // Central box
-    
-    // Large structures
-    { minX: -22 - 4, maxX: -22 + 4, minZ: -14 - 5, maxZ: -14 + 5, minY: 0, maxY: 5.5 },
-    { minX: 22 - 5, maxX: 22 + 5, minZ: 16 - 4, maxZ: 16 + 4, minY: 0, maxY: 5.5 },
-    { minX: -4 - 3, maxX: -4 + 3, minZ: 15 - 2, maxZ: 15 + 2, minY: 0, maxY: 3.5 },
-    { minX: 5 - 2, maxX: 5 + 2, minZ: -14 - 3, maxZ: -14 + 3, minY: 0, maxY: 3.5 },
-    
-    // Corridor walls
-    { minX: -10 - 0.6, maxX: -10 + 0.6, minZ: 19 - 6, maxZ: 19 + 6, minY: 0, maxY: 4.5 },
-    { minX: 11 - 0.6, maxX: 11 + 0.6, minZ: -20 - 6, maxZ: -20 + 6, minY: 0, maxY: 4.5 },
-    { minX: -26 - 4, maxX: -26 + 4, minZ: 10 - 0.6, maxZ: 10 + 0.6, minY: 0, maxY: 4 },
-    { minX: 26 - 4, maxX: 26 + 4, minZ: -8 - 0.6, maxZ: -8 + 0.6, minY: 0, maxY: 4 },
-    
-    // Metal platforms
-    { minX: 16 - 3, maxX: 16 + 3, minZ: 6 - 1.2, maxZ: 6 + 1.2, minY: 0, maxY: 2.6 },
-    { minX: -15 - 1.2, maxX: -15 + 1.2, minZ: -6 - 3, maxZ: -6 + 3, minY: 0, maxY: 2.6 },
-  ];
-  
-  // ── Waypoints for bot patrol ──
-  const WAYPOINTS = [];
-  for (let i = 0; i < 60; i++) {
-    WAYPOINTS.push({
-      x: (Math.random() - 0.5) * 60,
-      y: (Math.random() - 0.5) * 60
-    });
-  }
-  
+  const BOT_HEIGHT = 1.8;
+
+  // Transient combat events kept per world so every client can draw the tracer / hit / kill it
+  // missed. Capped: a 4-player room spraying rifles for two seconds must not grow the snapshot.
+  const FX_CAP = 48;
+
   // ── Helper Functions ──
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const rand = (a, b) => a + Math.random() * (b - a);
   const dist2D = (x1, z1, x2, z2) => Math.hypot(x2 - x1, z2 - z1);
-  
-  function circleHitsBox(x, z, r, c) {
-    const dx = x - clamp(x, c.minX, c.maxX);
-    const dz = z - clamp(z, c.minZ, c.maxZ);
-    return dx * dx + dz * dz < r * r;
+
+  // All collision goes through cs-map.js so the hub and the browser agree bit for bit.
+  const collide = (world, pos, r, h) => CSMap.collide(world.colliders, pos, r, h, CSMap.STEP);
+  const ground = (world, pos, r) => CSMap.groundHeight(world.colliders, pos, r, CSMap.STEP);
+  const free = (world, x, z, r) => CSMap.isFree(world.colliders, world.half, x, z, r);
+  const los = (world, x1, z1, x2, z2) => CSMap.hasLOS(world.colliders, x1, z1, x2, z2);
+
+  function pushFx(world, ev) {
+    world.fx.push(ev);
+    if (world.fx.length > FX_CAP) world.fx.splice(0, world.fx.length - FX_CAP);
   }
-  
-  function collide(pos, r) {
-    for (const c of COLLIDERS) {
-      if (!circleHitsBox(pos.x, pos.z, r, c)) continue;
-      const cx = clamp(pos.x, c.minX, c.maxX);
-      const cz = clamp(pos.z, c.minZ, c.maxZ);
-      const dx = pos.x - cx;
-      const dz = pos.z - cz;
-      const d2 = dx * dx + dz * dz;
-      if (d2 > 1e-8) {
-        const d = Math.sqrt(d2);
-        pos.x += (dx / d) * (r - d);
-        pos.z += (dz / d) * (r - d);
-      } else {
-        const pl = pos.x - c.minX;
-        const pr = c.maxX - pos.x;
-        const pb = pos.z - c.minZ;
-        const pf = c.maxZ - pos.z;
-        const m = Math.min(pl, pr, pb, pf);
-        if (m === pl) pos.x = c.minX - r;
-        else if (m === pr) pos.x = c.maxX + r;
-        else if (m === pb) pos.z = c.minZ - r;
-        else pos.z = c.maxZ + r;
-      }
-    }
-  }
-  
-  function isFree(x, z, r) {
-    if (Math.abs(x) > HALF_MAP - r || Math.abs(z) > HALF_MAP - r) return false;
-    return !COLLIDERS.some(c => circleHitsBox(x, z, r, c));
-  }
-  
-  function hasLOS(x1, z1, x2, z2) {
-    const dx = x2 - x1;
-    const dz = z2 - z1;
-    const dist = Math.hypot(dx, dz);
-    const steps = Math.ceil(dist / 0.5);
-    for (let i = 1; i < steps; i++) {
-      const t = i / steps;
-      const x = x1 + dx * t;
-      const z = z1 + dz * t;
-      if (COLLIDERS.some(c => x >= c.minX && x <= c.maxX && z >= c.minZ && z <= c.maxZ)) {
-        return false;
-      }
-    }
-    return true;
-  }
-  
+
   // ── Bot Class ──
   class Bot {
     constructor(id, x, z, name) {
@@ -177,20 +96,21 @@
       this.walkPhase = Math.random() * 10;
       this.speed = 0;
     }
-    
-    pickWaypoint() {
+
+    pickWaypoint(world) {
       const from = { x: this.pos.x, z: this.pos.z };
       for (let i = 0; i < 20; i++) {
-        const w = WAYPOINTS[(Math.random() * WAYPOINTS.length) | 0];
-        const dist = dist2D(from.x, from.z, w.x, w.y);
-        if (dist > 5 && hasLOS(from.x, from.z, w.x, w.y)) {
+        const w = world.waypoints[(Math.random() * world.waypoints.length) | 0];
+        if (!w) continue;
+        const dist = dist2D(from.x, from.z, w.x, w.z);
+        if (dist > 5 && los(world, from.x, from.z, w.x, w.z)) {
           this.target = w;
           return;
         }
       }
-      this.target = WAYPOINTS[(Math.random() * WAYPOINTS.length) | 0];
+      this.target = world.waypoints[(Math.random() * world.waypoints.length) | 0] || { x: 0, z: 0 };
     }
-    
+
     moveToward(tx, tz, speed, dt) {
       const dx = tx - this.pos.x;
       const dz = tz - this.pos.z;
@@ -201,7 +121,7 @@
       this.pos.z += (dz / d) * s;
       return d;
     }
-    
+
     faceToward(tx, tz, dt, rate = 8) {
       const want = Math.atan2(tx - this.pos.x, tz - this.pos.z);
       let diff = want - this.yaw;
@@ -209,13 +129,13 @@
       this.yaw += diff * Math.min(1, rate * dt);
       return Math.abs(diff);
     }
-    
+
     update(dt, world) {
       if (!this.alive) return;
-      
+
       const before = { x: this.pos.x, z: this.pos.z };
       let moveSpeed = 0;
-      
+
       // Find closest alive player
       let closestPlayer = null;
       let closestDist = Infinity;
@@ -227,7 +147,7 @@
           closestPlayer = p;
         }
       }
-      
+
       // Check line of sight to closest player
       let sees = false;
       if (closestPlayer && closestDist < 55) {
@@ -236,10 +156,10 @@
         let ang = Math.atan2(dx, dz) - this.yaw;
         ang = Math.abs(Math.atan2(Math.sin(ang), Math.cos(ang)));
         if (this.alert || ang < 1.25 || closestDist < 3) {
-          sees = hasLOS(this.pos.x, this.pos.z, closestPlayer.pos.x, closestPlayer.pos.z);
+          sees = los(world, this.pos.x, this.pos.z, closestPlayer.pos.x, closestPlayer.pos.z);
         }
       }
-      
+
       if (sees && closestPlayer) {
         // Combat mode
         if (!this.alert) this.reaction = rand(0.45, 0.85) / (1 + world.round * 0.08);
@@ -248,7 +168,7 @@
         this.lostTimer = 0;
         this.faceToward(closestPlayer.pos.x, closestPlayer.pos.z, dt, 10);
         this.reaction -= dt;
-        
+
         // Strafe
         this.strafeTimer -= dt;
         if (this.strafeTimer <= 0) {
@@ -258,20 +178,20 @@
         if (this.strafeDir) {
           const dx = closestPlayer.pos.x - this.pos.x;
           const dz = closestPlayer.pos.z - this.pos.z;
-          const d = Math.hypot(dx, dz);
+          const d = Math.hypot(dx, dz) || 1;
           const sx = (dz / d) * this.strafeDir;
           const sz = (-dx / d) * this.strafeDir;
           this.pos.x += sx * BOT_STRAFE_SPEED * dt;
           this.pos.z += sz * BOT_STRAFE_SPEED * dt;
           moveSpeed = BOT_STRAFE_SPEED;
         }
-        
+
         // Approach if far
         if (closestDist > 22) {
           this.moveToward(closestPlayer.pos.x, closestPlayer.pos.z, 2.5, dt);
           moveSpeed = 2.5;
         }
-        
+
         // Shoot
         if (this.reaction <= 0) {
           this.shootCD -= dt;
@@ -292,50 +212,70 @@
         }
       } else {
         // Patrol mode
-        if (!this.target) this.pickWaypoint();
-        this.faceToward(this.target.x, this.target.y, dt, 5);
-        const d = this.moveToward(this.target.x, this.target.y, BOT_SPEED, dt);
+        if (!this.target) this.pickWaypoint(world);
+        this.faceToward(this.target.x, this.target.z, dt, 5);
+        const d = this.moveToward(this.target.x, this.target.z, BOT_SPEED, dt);
         moveSpeed = BOT_SPEED;
-        if (d < 0.8) this.pickWaypoint();
+        if (d < 0.8) this.pickWaypoint(world);
       }
-      
-      // Collision
-      collide(this.pos, 0.4);
-      this.pos.x = clamp(this.pos.x, -31.5, 31.5);
-      this.pos.z = clamp(this.pos.z, -31.5, 31.5);
-      
+
+      // Collision — height-aware, so a bot walks over pavement and low barriers exactly like the
+      // player does instead of gridlocking on a 18 cm curb.
+      collide(world, this.pos, 0.4, BOT_HEIGHT);
+      const edge = world.half - 1.5;
+      this.pos.x = clamp(this.pos.x, -edge, edge);
+      this.pos.z = clamp(this.pos.z, -edge, edge);
+      this.pos.y = ground(world, this.pos, 0.4);
+
       // Stuck detection
       this.stuckTimer += dt;
       if (this.stuckTimer > BOT_STUCK_TIMER) {
         if (moveSpeed > 0 && dist2D(this.pos.x, this.pos.z, this.stuckRef.x, this.stuckRef.z) < 0.4) {
           if (!sees) {
             this.alert = false;
-            this.pickWaypoint();
+            this.pickWaypoint(world);
           }
         }
         this.stuckRef = { x: this.pos.x, z: this.pos.z };
         this.stuckTimer = 0;
       }
-      
+
       // Walk animation
       const actual = dist2D(before.x, before.z, this.pos.x, this.pos.z) / Math.max(dt, 1e-4);
       this.walkPhase += dt * actual * 3.2;
       this.speed = actual;
     }
-    
+
     shoot(world, target, dist) {
+      // Muzzle event so every client draws the tracer and animates the shot
+      const origin = { x: this.pos.x, y: this.pos.y + 1.45, z: this.pos.z };
+      const dx = target.pos.x - this.pos.x, dz = target.pos.z - this.pos.z;
+      const d = Math.hypot(dx, dz) || 1;
+      pushFx(world, {
+        e: 'shot', by: 'b', id: this.id,
+        o: [r2(origin.x), r2(origin.y), r2(origin.z)],
+        d: [r2(dx / d), 0, r2(dz / d)],
+      });
+
       // Calculate hit chance
       const moving = target.speed > 3.2 ? 0.18 : 0;
       const airborne = target.onGround ? 0 : 0.12;
       const crouchBonus = target.crouching ? 0.06 : 0;
       const chance = clamp(0.5 + world.round * 0.035 - dist * 0.009 - moving - airborne - crouchBonus, 0.1, 0.8);
-      
+
+      let hit = false;
       if (Math.random() < chance) {
-        // Hit
-        const dmg = Math.round(rand(8, 15) * (Math.random() < 0.08 ? 2.5 : 1));
-        world.damagePlayer(target.id, dmg, this);
+        // Walls between bot and target genuinely stop the bullet — the roll used to fire blind,
+        // so a bot behind a warehouse wall still killed you on the other side of it.
+        hit = los(world, this.pos.x, this.pos.z, target.pos.x, target.pos.z);
+        if (hit) {
+          const dmg = Math.round(rand(8, 15) * (Math.random() < 0.08 ? 2.5 : 1));
+          world.damagePlayer(target.id, dmg, this);
+          pushFx(world, { e: 'hit', id: target.id, dmg, mine: Math.max(0, Math.round(target.health)) });
+        }
       }
-      
+      pushFx(world, { e: 'tracer', by: 'b', id: this.id, vid: target.id, hit, to: [r2(target.pos.x), r2(target.pos.y + 1.2), r2(target.pos.z)] });
+
       // Alert nearby bots
       for (const bot of world.bots) {
         if (bot === this || !bot.alive) continue;
@@ -346,7 +286,7 @@
         }
       }
     }
-    
+
     damage(amount, part) {
       if (!this.alive) return false;
       this.health -= amount * (PART_MULT[part] || 1);
@@ -358,25 +298,35 @@
       }
       return false;
     }
-    
+
     snapshot() {
       return {
         id: this.id,
         name: this.name,
-        pos: this.pos,
-        yaw: this.yaw,
-        health: this.health,
+        pos: { x: r2(this.pos.x), y: r2(this.pos.y), z: r2(this.pos.z) },
+        yaw: r3(this.yaw),
+        health: Math.max(0, Math.round(this.health)),
         alive: this.alive,
         alert: this.alert,
-        walkPhase: this.walkPhase,
-        speed: this.speed
+        walkPhase: r2(this.walkPhase),
+        speed: r2(this.speed)
       };
     }
   }
-  
+
+  const r2 = (v) => Math.round((v || 0) * 100) / 100;
+  const r3 = (v) => Math.round((v || 0) * 1000) / 1000;
+
   // ── World Management ──
-  function createWorld(playerIds) {
+  function createWorld(playerIds, mapName) {
+    const map = mapName && CSMap.MAPS[mapName] ? mapName : 'industrial';
+    const info = CSMap.info(map);
     const world = {
+      map,
+      half: info.half,
+      colliders: CSMap.collidersFor(map),
+      waypoints: CSMap.waypoints(map, map === 'classic' ? 60 : 110),
+      spawns: { ct: info.ct, t: info.t },
       round: 0,
       timeLeft: ROUND_TIME,
       state: 'lobby', // lobby, playing, roundEnd
@@ -385,17 +335,21 @@
       scoreCT: 0,
       scoreT: 0,
       nextBotId: 1,
-      endTimer: 0
+      endTimer: 0,
+      fx: [],
+      fxSeq: 1,
     };
-    
-    // Initialize players
+    // Bots damage players through the world, so the hub must hand them that door — without it the
+    // first landed bot shot threw inside the shared 100ms tick and took every room's loop down.
+    world.damagePlayer = (id, amount, attacker) => damagePlayer(world, id, amount, attacker);
+
     for (const id of playerIds) {
-      world.players[id] = createPlayer(id);
+      world.players[String(id)] = createPlayer(id);
     }
-    
+
     return world;
   }
-  
+
   function createPlayer(id) {
     return {
       id,
@@ -419,30 +373,34 @@
       walkPhase: 0
     };
   }
-  
+
   function spawnBots(world, count) {
     const names = [...BOT_NAMES].sort(() => Math.random() - 0.5);
+    const band = world.spawns.t;
     for (let i = 0; i < count; i++) {
       let x, z, tries = 0;
       do {
-        x = rand(T_SPAWN.xMin, T_SPAWN.xMax);
-        z = rand(T_SPAWN.zMin, T_SPAWN.zMax);
+        x = rand(band.xMin, band.xMax);
+        z = rand(band.zMin, band.zMax);
         tries++;
-      } while ((!isFree(x, z, 0.6) || world.bots.some(b => b.alive && dist2D(b.pos.x, b.pos.z, x, z) < 1.5)) && tries < 200);
-      
+      } while ((!free(world, x, z, 0.6) || world.bots.some(b => b.alive && dist2D(b.pos.x, b.pos.z, x, z) < 1.5)) && tries < 200);
+
       const bot = new Bot(world.nextBotId++, x, z, names[i % names.length]);
       bot.yaw = Math.PI;
+      bot.pos.y = ground(world, bot.pos, 0.4);
       world.bots.push(bot);
     }
   }
-  
-  function resetPlayer(player) {
-    let x, z;
+
+  function resetPlayer(world, player) {
+    const band = world.spawns.ct;
+    let x, z, tries = 0;
     do {
-      x = rand(CT_SPAWN.xMin, CT_SPAWN.xMax);
-      z = rand(CT_SPAWN.zMin, CT_SPAWN.zMax);
-    } while (!isFree(x, z, 0.5));
-    
+      x = rand(band.xMin, band.xMax);
+      z = rand(band.zMin, band.zMax);
+      tries++;
+    } while (!free(world, x, z, 0.5) && tries < 200);
+
     player.pos = { x, y: 0, z };
     player.vel = { x: 0, y: 0, z: 0 };
     player.yaw = Math.PI;
@@ -459,50 +417,51 @@
     player.reloading = 0;
     player.walkPhase = 0;
   }
-  
+
   function startRound(world) {
     world.round++;
     world.state = 'playing';
     world.timeLeft = ROUND_TIME;
-    
+    world.fx.length = 0;
+
     // Clear dead bots
     world.bots = world.bots.filter(b => b.alive);
-    
+
     // Reset players
     for (const p of Object.values(world.players)) {
-      resetPlayer(p);
+      resetPlayer(world, p);
     }
-    
+
     // Spawn new bots
     const count = Math.min(3 + Math.floor(world.round / 2), 8);
     spawnBots(world, count);
   }
-  
+
   function endRound(world, winner) {
     if (world.state !== 'playing') return;
     world.state = 'roundEnd';
     world.endTimer = 4;
-    
+
     if (winner === 'CT') {
       world.scoreCT++;
     } else {
       world.scoreT++;
     }
   }
-  
+
   function step(world, dt) {
     if (world.state === 'playing') {
       world.timeLeft -= dt;
-      
+
       // Update bots
       for (const bot of world.bots) {
         bot.update(dt, world);
       }
-      
+
       // Update players
       for (const p of Object.values(world.players)) {
         if (!p.alive) continue;
-        
+
         // Reload
         if (p.reloading > 0) {
           p.reloading -= dt;
@@ -515,14 +474,14 @@
             p.reserve -= take;
           }
         }
-        
+
         // Shoot cooldown
         p.shootCD = Math.max(0, p.shootCD - dt);
-        
+
         // Walk animation
         p.walkPhase += dt * p.speed * 3.2;
       }
-      
+
       // Check round end
       const aliveBots = world.bots.filter(b => b.alive);
       if (aliveBots.length === 0) {
@@ -537,137 +496,180 @@
       }
     }
   }
-  
+
   function playerInput(world, id, input) {
-    const p = world.players[id];
+    const p = world.players[String(id)];
     if (!p || !p.alive || world.state !== 'playing') return;
-    
-    // Update position
-    p.pos.x = input.pos.x;
-    p.pos.z = input.pos.z;
-    p.yaw = input.yaw;
-    p.pitch = input.pitch;
+    const pos = input.pos || {};
+    if (typeof pos.x !== 'number' || typeof pos.z !== 'number') return;
+
+    // Update position. y travels with it: the client owns the climb onto containers and up stair
+    // runs, and without the height the hub would read a player standing on a deck as being inside
+    // it and shove them back down in everyone else's view.
+    p.pos.x = pos.x;
+    p.pos.z = pos.z;
+    p.pos.y = clamp(typeof pos.y === 'number' ? pos.y : 0, 0, 12);
+    p.yaw = input.yaw || 0;
+    p.pitch = input.pitch || 0;
     p.speed = input.speed || 0;
     p.crouching = input.crouching || false;
     p.onGround = input.onGround !== false;
-    
-    // Collision
-    collide(p.pos, PLAYER_RADIUS);
-    p.pos.x = clamp(p.pos.x, -31.5, 31.5);
-    p.pos.z = clamp(p.pos.z, -31.5, 31.5);
-    
+
+    // Collision, then keep the reported height honest with what the shared geometry says the
+    // player is actually standing on.
+    collide(world, p.pos, PLAYER_RADIUS, PLAYER_HEIGHT);
+    const edge = world.half - 1.2;
+    p.pos.x = clamp(p.pos.x, -edge, edge);
+    p.pos.z = clamp(p.pos.z, -edge, edge);
+    const g = ground(world, p.pos, PLAYER_RADIUS);
+    if (p.pos.y < g) p.pos.y = g;
+    else if (p.pos.y - g > 1.6) p.pos.y = g; // no teleporting onto a roof you cannot reach
+
     // Weapon switch
     if (input.weapon && input.weapon !== p.weapon) {
       p.weapon = input.weapon;
       p.ammo = WEAPONS[input.weapon].mag;
       p.reserve = WEAPONS[input.weapon].reserve;
     }
-    
+
     // Reload
     if (input.reload && p.reloading <= 0 && p.ammo < WEAPONS[p.weapon].mag && p.reserve > 0) {
       p.reloading = WEAPONS[p.weapon].reload;
     }
-    
+
     // Shoot
     if (input.shoot && p.shootCD <= 0 && p.reloading <= 0 && p.ammo > 0) {
       p.shootCD = WEAPONS[p.weapon].rate;
       p.ammo--;
-      
-      // Validate hits against bots
-      if (input.hitRay) {
-        validateHit(world, p, input.hitRay);
-      }
+      // Direction in the client's convention: the cabinet aims with camera.rotation.order 'YXZ',
+      // so forward is (-sin(yaw)cos(pitch), sin(pitch), -cos(yaw)cos(pitch)). Peers use this to
+      // draw the tracer, and any other sign here would render every shot backwards on screen.
+      pushFx(world, {
+        e: 'shot', by: 'p', id: p.id,
+        o: [r2(p.pos.x), r2(p.pos.y + (p.crouching ? PLAYER_EYE_CROUCH : PLAYER_EYE_STAND)), r2(p.pos.z)],
+        d: [r2(-Math.sin(p.yaw) * Math.cos(p.pitch)), r2(Math.sin(p.pitch)), r2(-Math.cos(p.yaw) * Math.cos(p.pitch))],
+      });
     }
+
+    // Hit validation lives outside the shoot block on purpose. A cabinet sends exactly one ray per
+    // shot it really fired, and a pistol tap released between two 100ms packets would otherwise
+    // arrive with `shoot` already false — the bullet would fire on the shooter's screen and do
+    // nothing in the shared world.
+    if (input.hitRay) validateHit(world, p, input.hitRay);
   }
-  
+
+  // Where along a horizontal band a figure's body parts sit, used to turn a validated ray into a
+  // head / torso / leg hit instead of the random roll this used to fake.
+  function partAtHeight(relY) {
+    if (relY > 1.55) return 'head';
+    if (relY > 0.75) return 'body';
+    if (relY > 0.05) return 'legs';
+    return null;
+  }
+
   function validateHit(world, shooter, ray) {
-    // Ray: { origin: {x, z}, dir: {x, z}, maxDist }
-    const maxDist = ray.maxDist || 200;
-    const step = 0.5;
-    const steps = Math.ceil(maxDist / step);
-    
-    for (let i = 1; i <= steps; i++) {
-      const t = i / steps;
-      const x = ray.origin.x + ray.dir.x * maxDist * t;
-      const z = ray.origin.z + ray.dir.z * maxDist * t;
-      
-      // Check wall collision
-      if (COLLIDERS.some(c => x >= c.minX && x <= c.maxX && z >= c.minZ && z <= c.maxZ)) {
-        return null; // Hit wall
-      }
-      
-      // Check bot collision
-      for (const bot of world.bots) {
-        if (!bot.alive) continue;
-        if (dist2D(x, z, bot.pos.x, bot.pos.z) < 0.5) {
-          // Hit bot
-          const part = Math.random() < 0.2 ? 'head' : Math.random() < 0.7 ? 'body' : 'legs';
-          const dmg = WEAPONS[shooter.weapon].dmg * PART_MULT[part];
-          const killed = bot.damage(dmg, part);
-          
-          if (killed) {
-            shooter.kills++;
-            return { botId: bot.id, botName: bot.name, part, killed: true };
-          }
-          return { botId: bot.id, botName: bot.name, part, killed: false };
-        }
-      }
+    // Ray: { o:[x,y,z], d:[x,y,z], dist } — direction is a unit vector, all hub-side validated.
+    if (!ray || !Array.isArray(ray.o) || !Array.isArray(ray.d)) return null;
+    const [ox, oy, oz] = ray.o;
+    let [dx, dy, dz] = ray.d;
+    const len = Math.hypot(dx, dy, dz);
+    if (!(len > 0.0001)) return null;
+    dx /= len; dy /= len; dz /= len;
+    const maxDist = clamp(ray.dist || 120, 1, 200);
+
+    // Distance to the nearest wall along the shot, from the shared geometry.
+    const wall = CSMap.rayBlock(world.colliders, ox, oy, oz, dx, dy, dz, maxDist);
+    const wallDist = wall ? wall.dist : maxDist;
+
+    // Nearest bot whose volume the ray crosses before that wall.
+    let best = null;
+    for (const bot of world.bots) {
+      if (!bot.alive) continue;
+      const ex = bot.pos.x - ox, ez = bot.pos.z - oz;
+      const along = ex * dx + ez * dz;
+      if (along <= 0 || along >= wallDist) continue;
+      const px = ox + dx * along, pz = oz + dz * along;
+      if (dist2D(px, pz, bot.pos.x, bot.pos.z) > 0.5) continue;
+      const relY = oy + dy * along - bot.pos.y;
+      const part = partAtHeight(relY);
+      if (!part) continue;
+      if (!best || along < best.along) best = { bot, along, part };
     }
-    
-    return null; // No hit
+    if (!best) return null;
+
+    const dmg = WEAPONS[shooter.weapon].dmg * PART_MULT[best.part];
+    const killed = best.bot.damage(dmg, best.part);
+    shooter.kills += killed ? 1 : 0;
+    pushFx(world, {
+      e: 'hit', by: 'p', id: shooter.id, bot: best.bot.id, part: best.part,
+      killed, dist: r2(best.along),
+    });
+    if (killed) {
+      pushFx(world, { e: 'kill', by: shooter.id, victim: best.bot.id, name: best.bot.name, part: best.part });
+      const alive = world.bots.some(b => b.alive);
+      if (!alive) endRound(world, 'CT');
+    }
+    return { botId: best.bot.id, part: best.part, killed };
   }
-  
+
   function damagePlayer(world, playerId, amount, attacker) {
-    const p = world.players[playerId];
+    const p = world.players[String(playerId)];
     if (!p || !p.alive) return;
-    
+
     p.health = Math.max(0, p.health - amount);
     if (p.health <= 0) {
       p.alive = false;
       p.deaths++;
-      if (attacker && world.players[attacker.id]) {
-        // Bot killed player
-      }
+      pushFx(world, { e: 'death', by: attacker && attacker.id, victim: p.id, name: p.name });
+      // Everyone down ends the round for the terrorists' side.
+      if (!Object.values(world.players).some(q => q.alive)) endRound(world, 'T');
     }
   }
-  
+
+  // Combat events are one-shot: they are drained here, at the moment the hub reads them to
+  // broadcast, so a tracer/muzzle/hit is delivered to every client exactly once and never replays.
   function snapshot(world) {
+    const fx = world.fx.slice();
+    world.fx.length = 0;
     return {
+      map: world.map,
       round: world.round,
-      timeLeft: world.timeLeft,
+      timeLeft: r2(world.timeLeft),
       state: world.state,
       scoreCT: world.scoreCT,
       scoreT: world.scoreT,
       players: Object.values(world.players).map(p => ({
         id: p.id,
         name: p.name,
-        pos: p.pos,
-        yaw: p.yaw,
-        pitch: p.pitch,
-        health: p.health,
+        pos: { x: r2(p.pos.x), y: r2(p.pos.y), z: r2(p.pos.z) },
+        yaw: r3(p.yaw),
+        pitch: r3(p.pitch),
+        health: Math.max(0, Math.round(p.health)),
         alive: p.alive,
         crouching: p.crouching,
+        onGround: p.onGround !== false,
         weapon: p.weapon,
         kills: p.kills,
         deaths: p.deaths,
-        walkPhase: p.walkPhase,
-        speed: p.speed
+        speed: r2(p.speed),
+        walkPhase: r2(p.walkPhase)
       })),
       bots: world.bots.map(b => b.snapshot()),
-      endTimer: world.endTimer
+      fx,
+      endTimer: r2(world.endTimer)
     };
   }
-  
+
   function setPlayerName(world, id, name) {
-    if (world.players[id]) {
-      world.players[id].name = name;
+    if (world.players[String(id)]) {
+      world.players[String(id)].name = name;
     }
   }
-  
+
   function aliveBots(world) {
     return world.bots.filter(b => b.alive);
   }
-  
+
   // ── Public API ──
   return {
     createWorld,
@@ -680,8 +682,6 @@
     aliveBots,
     damagePlayer,
     WEAPONS,
-    MAP_SIZE,
-    HALF_MAP,
-    ROUND_TIME
+    ROUND_TIME,
   };
 });

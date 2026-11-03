@@ -42,6 +42,9 @@
     connected: false,
     inGame: false,
     room: null,
+    selectedMap: 'industrial', // Map selection for multiplayer
+    map: null, // The map the hub actually built the world on (sent with 'go')
+    roster: [],
 
     connect() {
       if (ws || stopped) return;
@@ -64,8 +67,13 @@
       renderLobby();
     },
 
+    setMap(mapName) {
+      Net.selectedMap = mapName;
+      console.log('[CSNet] Map set to:', mapName);
+    },
+
     createRoom() {
-      send({ t: 'create', game: GAME_TYPE });
+      send({ t: 'create', game: GAME_TYPE, map: Net.selectedMap });
     },
 
     joinRoom(code) {
@@ -95,6 +103,12 @@
     },
 
     // Stream player state to hub at 10Hz
+    //
+    // `pos.y` travels because the client owns the climb — onto containers, up the stair runs, off
+    // the sniper deck. Without the height the hub read a player standing on a deck as being inside
+    // it and snapped them back to the floor, so peers saw everyone walk through raised ground.
+    // `hitRay` is the muzzle ray in world space; the hub ray-marches it against the shared
+    // geometry, so a teammate's bullets actually kill bots instead of passing through them.
     sendState(pos, yaw, pitch, speed, crouching, onGround, weapon, reload, shoot, hitRay) {
       if (!inGame || !ready) return;
       const nowMs = Date.now();
@@ -102,7 +116,11 @@
       lastStateSend = nowMs;
       send({
         t: 'cs_state',
-        pos: { x: Math.round(pos.x * 100) / 100, z: Math.round(pos.z * 100) / 100 },
+        pos: {
+          x: Math.round(pos.x * 100) / 100,
+          y: Math.round((pos.y || 0) * 100) / 100,
+          z: Math.round(pos.z * 100) / 100,
+        },
         yaw: Math.round(yaw * 1000) / 1000,
         pitch: Math.round(pitch * 1000) / 1000,
         speed: Math.round(speed * 100) / 100,
@@ -111,7 +129,13 @@
         weapon: weapon || 'rifle',
         reload: !!reload,
         shoot: !!shoot,
-        hitRay: hitRay || null
+        hitRay: hitRay
+          ? {
+            o: hitRay.o.map((v) => Math.round(v * 100) / 100),
+            d: hitRay.d.map((v) => Math.round(v * 1000) / 1000),
+            dist: Math.round(hitRay.dist || 120),
+          }
+          : null,
       });
     },
 
@@ -200,6 +224,7 @@
           status: msg.s,
           game: msg.g,
           max: msg.max || MAX_ROOM,
+          map: msg.map || null,
           members
         };
         Net.room = room;
@@ -211,14 +236,21 @@
         return;
       }
 
-      // Game start
+      // Game start — the hub has already built the world on the host's map, so every cabinet has
+      // to draw that same map or the geometry under the shared simulation is a different arena.
       if (msg.t === 'go') {
         if (msg.game !== GAME_TYPE) return;
         raceId = msg.race;
         inGame = true;
         Net.inGame = true;
+        Net.map = msg.map || Net.selectedMap || 'industrial';
+        Net.roster = msg.roster || [];
+        Net.selectedMap = Net.map;
         if (window.startCountdown) {
-          window.startCountdown(msg.in || 3500, msg.roster || []);
+          window.startCountdown(msg.in || 3500, Net.roster, Net.map);
+        } else if (window.startOnlineGame) {
+          // No countdown UI available — deploy straight away rather than sit in the lobby
+          window.startOnlineGame(Net.roster, Net.map);
         }
         return;
       }
