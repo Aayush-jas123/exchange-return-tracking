@@ -210,9 +210,13 @@ const mats = {
   metal: new THREE.MeshStandardMaterial({ map: metalTex, roughness: 0.6, metalness: 0.4 }),
   concrete: new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.98, color: 0xbdbdbd }),
   leaf: new THREE.MeshStandardMaterial({ color: 0x55595a, roughness: 1, flatShading: true }),
-  // Cannabis leaf blades are flat plane geometry, so the material must be double-sided.
-  // Tint stays in the muted monochrome family (desaturated olive-gray) to match the brand.
-  cannabis: new THREE.MeshStandardMaterial({ color: 0x50584c, roughness: 1, flatShading: true, side: THREE.DoubleSide }),
+  // Cannabis leaves are alpha-textured quads, so the material needs the leaf map + alphaTest and
+  // must be double-sided. instanceColor supplies per-leaf tint variation on top of the map.
+  // roughness 1 matches mats.leaf so the foliage lights identically to the trees and bushes.
+  cannabis: new THREE.MeshStandardMaterial({ map: makeCannabisLeafTexture(), alphaTest: 0.5, side: THREE.DoubleSide, roughness: 1 }),
+  cannabisStem: new THREE.MeshStandardMaterial({ color: 0x4a4a4a, roughness: 1 }),
+  cannabisBud: new THREE.MeshStandardMaterial({ color: 0x8a8a8a, roughness: 1, flatShading: true }),
+  soil: new THREE.MeshStandardMaterial({ map: floorTex, color: 0x555555, roughness: 1 }),
 };
 
 // ── Map ──
@@ -509,43 +513,146 @@ const foliageGeo = new THREE.SphereGeometry(1, 8, 6);
 const trunkGeo = new THREE.CylinderGeometry(0.3, 0.42, 2.2, 7);
 const _leafInst = [];    // { p:[x,y,z], s:[sx,sy,sz] }
 const _trunkInst = [];   // { p:[x,y,z], s:[sx,sy,sz] }
-const _cannabisInst = []; // { p:[x,y,z], s, yaw, tilt } — palmate leaf blades needing per-instance rotation
+const _cannabisInst = []; // { p, s, yaw, tilt, roll, col } — one textured fan leaf per instance
+const _stemInst = [];     // { p, s } cannabis stalks (own list: different material from tree trunks)
+const _budInst = [];      // { p, s } terminal cola / bud clusters
+// instanceColor MULTIPLIES the leaf map, so these must stay near-white or they would crush the
+// blade to black — and strictly greyscale (r==g==b) so a tinted leaf can never leak hue into the
+// monochrome arena. The variation they add is luminance only: some fans read dusty-pale, others shadowed.
+const CANNABIS_TINTS = [0xffffff, 0xe8e8e8, 0xd0d0d0, 0xf4f4f4, 0xc2c2c2];
 
-// A single cannabis (marijuana) leaf: 9 narrow serrated leaflets radiating from the base, built as
-// flat triangles in the XY plane with the tip pointing up (+Y). Made ONCE and shared by every
-// instance, so a whole field costs one geometry + one draw call. Double-sided material shows it.
-function makeCannabisLeafGeo() {
-  const positions = [];
-  // [angle-from-vertical(rad), length, half-width] — centre leaflet longest, sides shorter/angled.
-  const leaflets = [
-    [0, 1.00, 0.085], [0.42, 0.86, 0.08], [-0.42, 0.86, 0.08],
-    [0.82, 0.68, 0.075], [-0.82, 0.68, 0.075], [1.2, 0.5, 0.065], [-1.2, 0.5, 0.065],
-    [1.55, 0.34, 0.055], [-1.55, 0.34, 0.055],
+// ══ Cannabis leaf: drawn ONCE onto an alpha canvas, then mapped onto a single subdivided quad ══
+// Hand-building a serrated fan costs ~300 triangles per leaf; a textured quad costs 20 and draws
+// the silhouette far more accurately (real serrations, midrib, lateral veins). Whole field stays
+// one geometry + one texture + one draw call, so VRAM and frame cost stay flat.
+// Anatomy followed: palmately compound leaf, 7 narrow lanceolate leaflets converging on the top of
+// a petiole, centre leaflet longest, each with deep asymmetric teeth pointing toward the tip.
+// Rendered in the arena's monochrome palette — see the greyscale note inside the function.
+function makeCannabisLeafTexture(size = 512) {
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = size;
+  const g = cv.getContext('2d');
+  const S = size / 512;
+  const ox = 256 * S, oy = 366 * S;                    // top of the petiole
+  // The petiole is ~29% of the quad, matching a real fan leaf (30cm leaf = 10cm stalk + 20cm blade).
+  // Shortening it was what turned the plant into a solid core: every blade pivoted exactly on the
+  // stem axis and they stacked. A long petiole holds each fan clear of the wood, so the structure
+  // reads as separate hands and the branches stay visible between them.
+  // [angle from vertical, length, half-width, pair rank] — 7 lanceolate leaflets (~6.5:1), centre
+  // longest; the pair rank staggers each leaflet's attach point down the petiole, which is what
+  // opens the fan into the recognisable cannabis silhouette instead of a fused star. Leaflets sit at
+  // the broad end of the range on purpose: a true 10:1 sativa blade is only ~4cm wide at game scale
+  // and collapses into a stick, which is what made the first version read as a conifer.
+  const LEAFLETS = [
+    [0, 336, 31, 0], [0.52, 296, 29, 1], [-0.52, 296, 29, 1],
+    [1.02, 242, 25, 2], [-1.02, 242, 25, 2], [1.46, 172, 18, 3], [-1.46, 172, 18, 3],
   ];
-  const segs = 7;
-  for (const [ang, len, hw] of leaflets) {
-    const dx = Math.sin(ang), dy = Math.cos(ang);     // unit vector along the leaflet
-    const px = Math.cos(ang), py = -Math.sin(ang);    // perpendicular (half-width) direction
-    for (let i = 0; i < segs; i++) {
-      const t0 = i / segs, t1 = (i + 1) / segs;
-      // widest ~35% up the blade, tapering to a point at the tip and pinching at the base
-      const wf = t => hw * Math.sin(Math.PI * Math.min(1, t * 1.1)) * (1 - t) * 1.9;
-      const serr = (t, idx) => (idx % 2 ? 0.82 : 1.12); // zig-zag edges read as serration
-      const bx0 = dx * len * t0, by0 = dy * len * t0;
-      const bx1 = dx * len * t1, by1 = dy * len * t1;
-      const w0 = wf(t0) * serr(t0, i), w1 = wf(t1) * serr(t1, i + 1);
-      const l0x = bx0 + px * w0, l0y = by0 + py * w0, r0x = bx0 - px * w0, r0y = by0 - py * w0;
-      const l1x = bx1 + px * w1, l1y = by1 + py * w1, r1x = bx1 - px * w1, r1y = by1 - py * w1;
-      positions.push(l0x, l0y, 0, r0x, r0y, 0, r1x, r1y, 0);
-      positions.push(l0x, l0y, 0, r1x, r1y, 0, l1x, l1y, 0);
+  const outline = (ang, len, hw, rank) => {
+    const dx = Math.sin(ang), dy = -Math.cos(ang);     // canvas Y grows downward
+    const px = Math.cos(ang), py = Math.sin(ang);      // unit perpendicular
+    const ax = ox, ay = oy + rank * 16 * S;
+    const steps = 120, teeth = 13, L = [], R = [];
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const prof = Math.pow(t, 0.75) * Math.pow(1 - t, 0.9) * 3.12;   // narrow base, widest ~45%
+      const ph = (t * teeth) % 1;                                      // quick rise to the tooth,
+      const serr = ph < 0.28 ? 0.5 + 0.5 * (ph / 0.28) : 1 - 0.5 * ((ph - 0.28) / 0.72);  // slow fall
+      const w = hw * prof * serr;
+      const bx = ax + dx * len * t, by = ay + dy * len * t;
+      L.push([bx + px * w, by + py * w]);
+      R.push([bx - px * w, by - py * w]);
     }
+    return { L, R, dx, dy, len, ax, ay, steps };
+  };
+  // ── Strict greyscale, like every other surface in the arena (concrete #3a3a3e, crate #141418,
+  // foliage #55595a, metal #2a2a32). Monochrome is the house rule, so the leaf has to carry its
+  // readability on detail rather than hue: a machined pale edge along every serration, a dark
+  // midrib, a lateral vein into each tooth, and concrete-style speckle grime clipped to the blade.
+  const tracePath = (L, R) => {
+    g.beginPath();
+    g.moveTo(L[0][0], L[0][1]);
+    for (const p of L) g.lineTo(p[0], p[1]);
+    for (let i = R.length - 1; i >= 0; i--) g.lineTo(R[i][0], R[i][1]);
+    g.closePath();
+  };
+  // petiole: runs from the bottom edge of the quad up to the convergence point
+  g.beginPath();
+  g.moveTo(ox - 6 * S, size); g.lineTo(ox + 6 * S, size);
+  g.lineTo(ox + 3.2 * S, oy); g.lineTo(ox - 3.2 * S, oy);
+  g.closePath();
+  g.fillStyle = '#3a3a3a'; g.fill();
+  g.strokeStyle = 'rgba(216,216,216,0.2)'; g.lineWidth = 1.1 * S; g.stroke();
+  for (const [ang, len, hw, rank] of LEAFLETS) {
+    const { L, R, dx, dy, ax, ay, steps } = outline(ang, len, hw, rank);
+    const grd = g.createLinearGradient(ax, ay, ax + dx * len, ay + dy * len);
+    grd.addColorStop(0, '#232323'); grd.addColorStop(0.5, '#494949'); grd.addColorStop(1, '#6d6d6d');
+    tracePath(L, R);
+    g.fillStyle = grd; g.fill();
+    // Bounding box of this leaflet, so the grime pass can scatter over it without spilling off the
+    // blade (everything below is clipped to the leaf path anyway).
+    let bx0 = 1e9, bx1 = -1e9, by0 = 1e9, by1 = -1e9;
+    for (const p of L.concat(R)) {
+      if (p[0] < bx0) bx0 = p[0]; if (p[0] > bx1) bx1 = p[0];
+      if (p[1] < by0) by0 = p[1]; if (p[1] > by1) by1 = p[1];
+    }
+    g.save();
+    g.clip();
+    // Same speckle routine the concrete and crate textures use, so the blades sit in the world's
+    // material language instead of looking like flat vector shapes pasted over it.
+    for (let i = 0; i < 300; i++) {
+      const v = Math.random() - 0.5;
+      g.fillStyle = v > 0 ? `rgba(255,255,255,${v * 0.22})` : `rgba(0,0,0,${-v * 0.34})`;
+      g.fillRect(bx0 + Math.random() * (bx1 - bx0), by0 + Math.random() * (by1 - by0), 2 * S, 2 * S);
+    }
+    // Faint cross-hatch, echoing the machined hatch on the metal props.
+    g.strokeStyle = 'rgba(255,255,255,0.045)'; g.lineWidth = 1 * S;
+    for (let x = bx0 - (by1 - by0); x < bx1; x += 7 * S) {
+      g.beginPath(); g.moveTo(x, by1); g.lineTo(x + (by1 - by0), by0); g.stroke();
+    }
+    // midrib plus one lateral vein running into every serration tooth — the detail that makes the
+    // blade read as cannabis at distance instead of a generic spiky leaf.
+    g.strokeStyle = 'rgba(10,10,10,0.72)'; g.lineWidth = 1.8 * S;
+    g.beginPath(); g.moveTo(ax, ay); g.lineTo(ax + dx * len * 0.95, ay + dy * len * 0.95); g.stroke();
+    g.lineWidth = 0.85 * S; g.strokeStyle = 'rgba(12,12,12,0.5)';
+    for (let j = 1; j < 13; j++) {
+      const i = Math.round(((j + 0.28) / 13) * steps);
+      if (i >= steps) continue;
+      const t = i / steps;
+      const vx = ax + dx * len * t, vy = ay + dy * len * t;
+      g.beginPath(); g.moveTo(vx, vy); g.lineTo(L[i][0], L[i][1]); g.stroke();
+      g.beginPath(); g.moveTo(vx, vy); g.lineTo(R[i][0], R[i][1]); g.stroke();
+    }
+    g.restore();
+    // Bright cut edge on the silhouette. Against a dark industrial backdrop this is what lets the
+    // serration read at range — with hue removed from the palette, edge contrast is the only cue left.
+    tracePath(L, R);
+    g.strokeStyle = 'rgba(228,228,228,0.42)'; g.lineWidth = 1.7 * S; g.stroke();
+    g.strokeStyle = 'rgba(8,8,8,0.5)'; g.lineWidth = 0.7 * S; g.stroke();
   }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geo.computeVertexNormals();   // flat blade -> normals along ±Z, lit correctly with DoubleSide
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;                 // thin blades seen obliquely; 4x is enough and keeps VRAM low
+  return t;
+}
+
+// One leaf = a quad pivoted at the petiole base (so tilt swings the whole blade out from the
+// stalk), gently folded into a V along the midrib and drooping toward the tip like a real fan leaf.
+function makeCannabisLeafGeo() {
+  const geo = new THREE.PlaneGeometry(1, 1, 2, 4);
+  const p = geo.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i) + 0.5;          // 0 = petiole base, 1 = leaflet tips
+    p.setY(i, y);
+    p.setZ(i, -0.075 * Math.abs(x) * 2 + 0.055 * y * y);
+  }
+  geo.computeVertexNormals();
   return geo;
 }
 const cannabisLeafGeo = makeCannabisLeafGeo();
+// Open 5-sided cylinder, height 1, so an instance's scale.y IS the segment length. Used for the
+// main stalk and every branch. Low-poly sphere for the buds — both shared by the whole field.
+const stalkGeo = new THREE.CylinderGeometry(0.62, 1, 1, 5, 1, true);
+const budGeo = new THREE.SphereGeometry(1, 5, 3);
 
 // Tree: thin trunk collider (easy to walk around) + non-colliding foliage recorded as instances.
 function addTree(x, z, s = 1) {
@@ -579,28 +686,37 @@ function _fillInstances(geo, mat, list) {
 function finalizeVegetation() {
   _fillInstances(trunkGeo, mats.wall, _trunkInst);
   _fillInstances(foliageGeo, mats.leaf, _leafInst);
-  _fillCannabis(cannabisLeafGeo, mats.cannabis, _cannabisInst);
+  _fillInstances(budGeo, mats.cannabisBud, _budInst);
+  _fillOriented(stalkGeo, mats.cannabisStem, _stemInst, false);
+  _fillOriented(cannabisLeafGeo, mats.cannabis, _cannabisInst, true);
   _trunkInst.length = 0; _leafInst.length = 0; _cannabisInst.length = 0;
+  _stemInst.length = 0; _budInst.length = 0;
 }
 
-// Cannabis leaves carry their own orientation (yaw around the stem + outward tilt), so they get a
-// dedicated filler that composes a quaternion per instance instead of the identity used for blobs.
-function _fillCannabis(geo, mat, list) {
+// Oriented instancing for anything that carries a yaw/tilt/roll: cannabis leaves (with a per-leaf
+// tint) and the stalk + branches. `s` may be a scalar (uniform) or a [x,y,z] triple.
+function _fillOriented(geo, mat, list, colored) {
   if (!list.length) return;
   const im = new THREE.InstancedMesh(geo, mat, list.length);
   const m = new THREE.Matrix4(), pos = new THREE.Vector3(), scl = new THREE.Vector3();
-  const qy = new THREE.Quaternion(), qx = new THREE.Quaternion();
-  const Y = new THREE.Vector3(0, 1, 0), X = new THREE.Vector3(1, 0, 0);
+  const q = new THREE.Quaternion(), qy = new THREE.Quaternion(), qx = new THREE.Quaternion(), qz = new THREE.Quaternion();
+  const Y = new THREE.Vector3(0, 1, 0), X = new THREE.Vector3(1, 0, 0), Z = new THREE.Vector3(0, 0, 1);
+  const c = new THREE.Color();
   for (let i = 0; i < list.length; i++) {
     const it = list[i];
     pos.set(it.p[0], it.p[1], it.p[2]);
-    scl.set(it.s, it.s, it.s);
-    qy.setFromAxisAngle(Y, it.yaw);        // spin leaf around the stem
-    qx.setFromAxisAngle(X, it.tilt);       // lean the tip outward from vertical
-    m.compose(pos, qy.multiply(qx), scl);
+    const sv = Array.isArray(it.s) ? it.s : [it.s, it.s, it.s];
+    scl.set(sv[0], sv[1], sv[2]);
+    qy.setFromAxisAngle(Y, it.yaw || 0);       // spin around the stalk
+    qx.setFromAxisAngle(X, it.tilt || 0);      // swing out from vertical
+    qz.setFromAxisAngle(Z, it.roll || 0);      // twist within the blade plane
+    q.copy(qy).multiply(qx).multiply(qz);
+    m.compose(pos, q, scl);
     im.setMatrixAt(i, m);
+    if (colored) im.setColorAt(i, c.setHex(it.col));   // multiplies the leaf map -> natural variation
   }
   im.instanceMatrix.needsUpdate = true;
+  if (colored && im.instanceColor) im.instanceColor.needsUpdate = true;
   im.castShadow = true; im.receiveShadow = true;
   im.frustumCulled = true;
   scene.add(im); worldMeshes.push(im);
@@ -659,39 +775,111 @@ function scatterBushes(count, minGap = 4.5) {
   return placed.length;
 }
 
-// ── Cannabis (marijuana) plants — decorative leaf field, NO colliders (walk/bot-through) ──
-// One stem (thin trunk instance) + several whorls of palmate leaf blades fanned around it.
+// ── Cannabis plant: a branched, decussate shrub — which is the actual growth habit of Cannabis ──
+// and the reason the earlier single-stick version looked sparse. Structure, bottom up:
+//   • main stalk; the lowest node carries only the big heavy "skirt" pair every real plant
+//     self-prunes, and every node above it throws a PAIR of opposite branches, each pair rotated 90°
+//   • a couple of leaves sit at the fork itself, filling the gap between stalk and branch
+//   • branches carry their own leaves, alternating 90° along the branch exactly like the stalk does
+//     (decussate), so a branch fills space in 3D rather than staying a flat feather
+//   • every fan is held well above horizontal. That is the natural leaf angle, and it matters: a fan
+//     lying flat is edge-on to a standing player and the plant reads sparse, while presenting the
+//     blade is what makes the canopy look dense.
+//   • branches end in their own cola, and the stalk finishes in a terminal cola ringed by sugar leaves
+// ~72 blades per plant, all one instanced draw call. NO colliders: player and bots walk straight
+// through a field, and nothing here feeds isFree()/waypoint generation.
 function addCannabisPlant(x, z, s = 1) {
-  const sh = 1.15 * s;                                    // stem height
-  _trunkInst.push({ p: [x, sh / 2, z], s: [0.16 * s, sh / 2.2, 0.16 * s] });
-  const nodes = [                                         // leaf pairs up the stem, tip leaning out
-    { h: 0.5,  tilt: 1.30, ls: 0.60 * s, n: 5 },
-    { h: 0.75, tilt: 1.05, ls: 0.80 * s, n: 4 },
-    { h: 1.0,  tilt: 0.70, ls: 0.95 * s, n: 3 },
-  ];
-  for (const nd of nodes) {
-    const phase = Math.random() * Math.PI;
-    for (let i = 0; i < nd.n; i++) {
-      const yaw = phase + (i / nd.n) * Math.PI * 2;
-      _cannabisInst.push({ p: [x, nd.h * sh, z], s: nd.ls, yaw, tilt: nd.tilt + rand(-0.12, 0.12) });
+  const H = 1.55 * s;
+  const tint = () => CANNABIS_TINTS[(Math.random() * CANNABIS_TINTS.length) | 0];
+  // A woody segment rising from (px,py,pz) for `len` at `tilt` from vertical, around `yaw`.
+  // Returns its unit direction so leaves can be hung along it.
+  const seg = (px, py, pz, len, yaw, tilt, r) => {
+    const st = Math.sin(tilt), d = [st * Math.sin(yaw), Math.cos(tilt), st * Math.cos(yaw)];
+    _stemInst.push({ p: [px + d[0] * len / 2, py + d[1] * len / 2, pz + d[2] * len / 2], s: [r, len, r], yaw, tilt });
+    return d;
+  };
+  const leaf = (px, py, pz, ls, yaw, tilt) => _cannabisInst.push({
+    p: [px, py, pz], s: ls, yaw, tilt: tilt + rand(-0.09, 0.09), roll: rand(-0.16, 0.16), col: tint(),
+  });
+
+  // Radii are deliberately tiny. A real Cannabis stem is 3-5cm across and its branches 1-2cm; the
+  // previous 5cm/3cm radii made a 10cm trunk on a 1.5m plant, which is why the skeleton read as
+  // branches rather than as a leafy shrub. The blades carry the silhouette, not the wood.
+  seg(x, 0, z, H, 0, 0, 0.026 * s);                         // main stalk
+  const phase = Math.random() * Math.PI * 2;
+  const nodes = 6;
+  for (let i = 0; i < nodes; i++) {
+    const f = 0.08 + (i / (nodes - 1)) * 0.86;              // 8% → 94% up the stalk
+    const y = f * H, pair = phase + i * Math.PI / 2;        // each pair rotated 90° from the last
+    const fn = (f - 0.24) / 0.70;                           // 0 at the first branch node → 1 at top
+    if (fn < 0) {                                           // skirt: the big lowest pair
+      leaf(x, y, z, 0.74 * s, pair, 1.12);
+      leaf(x, y, z, 0.74 * s, pair + Math.PI, 1.12);
+      continue;
+    }
+    if (fn < 0.5) {                                         // fork leaves, tapering off as branches take over
+      const ls = 0.60 * s * (1 - fn * 0.6);
+      leaf(x, y, z, ls, pair + Math.PI / 2, 1.14);
+      leaf(x, y, z, ls, pair - Math.PI / 2, 1.14);
+    }
+    for (let k = 0; k < 2; k++) {
+      const yaw = pair + k * Math.PI;
+      const bTilt = 1.06 - fn * 0.54;                       // 61° out low, 30° near the apex
+      const bLen = H * (0.28 + 0.22 * Math.sin(Math.PI * (0.22 + fn * 0.62)));
+      const d = seg(x, y, z, bLen, yaw, bTilt, 0.013 * s);
+      // 2-3 leaf nodes spread evenly down the whole branch rather than bunched on the outer half, so
+      // the wood stays visible between fans instead of being swallowed by them.
+      const pairs = (fn > 0.10 && fn < 0.80) ? 3 : 2;
+      for (let j = 0; j < pairs; j++) {
+        const t = 0.16 + (pairs > 1 ? j * (0.68 / (pairs - 1)) : 0.4);
+        const ls = 0.62 * s * (1 - (j / pairs) * 0.26);
+        const bx = x + d[0] * bLen * t, by = y + d[1] * bLen * t, bz = z + d[2] * bLen * t;
+        const ly = (j % 2 ? yaw : yaw + Math.PI / 2);        // alternate 90° along the branch
+        const spread = 1.05 + bTilt * 0.20 - (j / pairs) * 0.18;   // face out, flattening to the tip
+        leaf(bx, by, bz, ls, ly, spread);
+        leaf(bx, by, bz, ls, ly + Math.PI, spread);
+      }
+      const tx = x + d[0] * bLen, ty = y + d[1] * bLen, tz = z + d[2] * bLen;
+      leaf(tx, ty, tz, 0.34 * s, yaw, bTilt - 0.30);         // tip leaf rising into the branch cola
+      _budInst.push({ p: [tx, ty + 0.10 * s, tz], s: [0.08 * s, 0.14 * s, 0.08 * s] });
     }
   }
-  // Top colar: two near-vertical young leaves
-  _cannabisInst.push({ p: [x, sh, z], s: 0.95 * s, yaw: Math.random() * 6.28, tilt: 0.18 });
-  _cannabisInst.push({ p: [x, sh, z], s: 0.85 * s, yaw: Math.random() * 6.28, tilt: 0.25 });
+  // Terminal cola: stacked upright sugar leaves around the main bud
+  for (let k = 0; k < 4; k++) leaf(x, H * (0.89 + k * 0.05), z, 0.36 * s * (1 - k * 0.12), phase + k * 1.57, 0.50);
+  for (let b = 0; b < 3; b++) {
+    const r = 0.11 * s * (1 - b * 0.22);
+    _budInst.push({ p: [x, H + 0.02 + b * 0.12 * s, z], s: [r, r * 1.35, r] });
+  }
 }
 
-// Rectangular planted patch (for the field rows at the corners). Jittered grid, every plant gated
-// on isFree so it never sits inside a building, wall or pavement, and spawn bands stay clear.
+// Flat decorative slab — mesh only, deliberately NO collider, so tilled beds never block movement
+// and never show up in isFree()/waypoint generation.
+function addFlatSlab(x, z, w, d, h, mat, texScale = 2) {
+  const mesh = new THREE.Mesh(scaledBox(w, h, d, texScale), mat);
+  mesh.position.set(x, h / 2, z);
+  mesh.receiveShadow = true;
+  scene.add(mesh); worldMeshes.push(mesh);
+  return mesh;
+}
+
+// Cultivated patch: tilled rows plus a staggered crop set, jittered so it reads as a planted field
+// rather than a grid. Every plant is still gated on isFree so nothing spawns inside a structure.
+// Spacing stays around 2m — outdoor cannabis is grown roughly 1 plant per 2-4 m², and each plant is
+// now a full branched shrub, so tighter would only cost triangles without adding believable cover.
 function addCannabisField(cx, cz, fw, fd, spacing = 2.0) {
   let n = 0;
-  for (let gx = -fw / 2; gx <= fw / 2; gx += spacing) {
-    for (let gz = -fd / 2; gz <= fd / 2; gz += spacing) {
-      const x = cx + gx + rand(-0.45, 0.45);
-      const z = cz + gz + rand(-0.45, 0.45);
+  for (let gz = -fd / 2 + 0.9; gz <= fd / 2; gz += 1.8) {
+    addFlatSlab(cx, cz + gz, fw, 1.05, 0.09, mats.soil, 2);           // raised soil bed per row
+  }
+  let row = 0;
+  for (let gz = -fd / 2 + 0.9; gz <= fd / 2; gz += 1.8, row++) {
+    const stag = row % 2 ? spacing / 2 : 0;                            // offset alternate rows
+    for (let gx = -fw / 2 + 0.5 + stag; gx <= fw / 2 - 0.3; gx += spacing) {
+      const x = cx + gx + rand(-0.26, 0.26);
+      const z = cz + gz + rand(-0.26, 0.26);
       if (inSpawnBand(x, z)) continue;
-      if (!isFree(x, z, 0.6)) continue;
-      addCannabisPlant(x, z, 0.8 + Math.random() * 0.5);
+      if (!isFree(x, z, 0.5)) continue;
+      addCannabisPlant(x, z, 0.9 + Math.random() * 0.55);
       n++;
     }
   }
@@ -913,10 +1101,10 @@ function buildIndustrialMap() {
   scatterBushes(75, 4.5);
 
   // Cannabis fields tucked into the four corners (distant, off the main lanes & spawn bands).
-  addCannabisField(-43, -43, 9, 9);   // NW corner
-  addCannabisField( 43, -43, 9, 9);   // NE corner
-  addCannabisField(-43,  43, 9, 9);   // SW corner
-  addCannabisField( 43,  43, 9, 9);   // SE corner
+  addCannabisField(-42, -42, 10, 10);  // NW corner
+  addCannabisField( 42, -42, 10, 10);  // NE corner
+  addCannabisField(-42,  42, 10, 10);  // SW corner
+  addCannabisField( 42,  42, 10, 10);  // SE corner
 
   finalizeVegetation();   // build the InstancedMeshes (trunks, foliage, cannabis leaves)
 
