@@ -210,6 +210,9 @@ const mats = {
   metal: new THREE.MeshStandardMaterial({ map: metalTex, roughness: 0.6, metalness: 0.4 }),
   concrete: new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.98, color: 0xbdbdbd }),
   leaf: new THREE.MeshStandardMaterial({ color: 0x55595a, roughness: 1, flatShading: true }),
+  // Cannabis leaf blades are flat plane geometry, so the material must be double-sided.
+  // Tint stays in the muted monochrome family (desaturated olive-gray) to match the brand.
+  cannabis: new THREE.MeshStandardMaterial({ color: 0x50584c, roughness: 1, flatShading: true, side: THREE.DoubleSide }),
 };
 
 // ── Map ──
@@ -506,6 +509,43 @@ const foliageGeo = new THREE.SphereGeometry(1, 8, 6);
 const trunkGeo = new THREE.CylinderGeometry(0.3, 0.42, 2.2, 7);
 const _leafInst = [];    // { p:[x,y,z], s:[sx,sy,sz] }
 const _trunkInst = [];   // { p:[x,y,z], s:[sx,sy,sz] }
+const _cannabisInst = []; // { p:[x,y,z], s, yaw, tilt } — palmate leaf blades needing per-instance rotation
+
+// A single cannabis (marijuana) leaf: 9 narrow serrated leaflets radiating from the base, built as
+// flat triangles in the XY plane with the tip pointing up (+Y). Made ONCE and shared by every
+// instance, so a whole field costs one geometry + one draw call. Double-sided material shows it.
+function makeCannabisLeafGeo() {
+  const positions = [];
+  // [angle-from-vertical(rad), length, half-width] — centre leaflet longest, sides shorter/angled.
+  const leaflets = [
+    [0, 1.00, 0.085], [0.42, 0.86, 0.08], [-0.42, 0.86, 0.08],
+    [0.82, 0.68, 0.075], [-0.82, 0.68, 0.075], [1.2, 0.5, 0.065], [-1.2, 0.5, 0.065],
+    [1.55, 0.34, 0.055], [-1.55, 0.34, 0.055],
+  ];
+  const segs = 7;
+  for (const [ang, len, hw] of leaflets) {
+    const dx = Math.sin(ang), dy = Math.cos(ang);     // unit vector along the leaflet
+    const px = Math.cos(ang), py = -Math.sin(ang);    // perpendicular (half-width) direction
+    for (let i = 0; i < segs; i++) {
+      const t0 = i / segs, t1 = (i + 1) / segs;
+      // widest ~35% up the blade, tapering to a point at the tip and pinching at the base
+      const wf = t => hw * Math.sin(Math.PI * Math.min(1, t * 1.1)) * (1 - t) * 1.9;
+      const serr = (t, idx) => (idx % 2 ? 0.82 : 1.12); // zig-zag edges read as serration
+      const bx0 = dx * len * t0, by0 = dy * len * t0;
+      const bx1 = dx * len * t1, by1 = dy * len * t1;
+      const w0 = wf(t0) * serr(t0, i), w1 = wf(t1) * serr(t1, i + 1);
+      const l0x = bx0 + px * w0, l0y = by0 + py * w0, r0x = bx0 - px * w0, r0y = by0 - py * w0;
+      const l1x = bx1 + px * w1, l1y = by1 + py * w1, r1x = bx1 - px * w1, r1y = by1 - py * w1;
+      positions.push(l0x, l0y, 0, r0x, r0y, 0, r1x, r1y, 0);
+      positions.push(l0x, l0y, 0, r1x, r1y, 0, l1x, l1y, 0);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.computeVertexNormals();   // flat blade -> normals along ±Z, lit correctly with DoubleSide
+  return geo;
+}
+const cannabisLeafGeo = makeCannabisLeafGeo();
 
 // Tree: thin trunk collider (easy to walk around) + non-colliding foliage recorded as instances.
 function addTree(x, z, s = 1) {
@@ -539,7 +579,31 @@ function _fillInstances(geo, mat, list) {
 function finalizeVegetation() {
   _fillInstances(trunkGeo, mats.wall, _trunkInst);
   _fillInstances(foliageGeo, mats.leaf, _leafInst);
-  _trunkInst.length = 0; _leafInst.length = 0;
+  _fillCannabis(cannabisLeafGeo, mats.cannabis, _cannabisInst);
+  _trunkInst.length = 0; _leafInst.length = 0; _cannabisInst.length = 0;
+}
+
+// Cannabis leaves carry their own orientation (yaw around the stem + outward tilt), so they get a
+// dedicated filler that composes a quaternion per instance instead of the identity used for blobs.
+function _fillCannabis(geo, mat, list) {
+  if (!list.length) return;
+  const im = new THREE.InstancedMesh(geo, mat, list.length);
+  const m = new THREE.Matrix4(), pos = new THREE.Vector3(), scl = new THREE.Vector3();
+  const qy = new THREE.Quaternion(), qx = new THREE.Quaternion();
+  const Y = new THREE.Vector3(0, 1, 0), X = new THREE.Vector3(1, 0, 0);
+  for (let i = 0; i < list.length; i++) {
+    const it = list[i];
+    pos.set(it.p[0], it.p[1], it.p[2]);
+    scl.set(it.s, it.s, it.s);
+    qy.setFromAxisAngle(Y, it.yaw);        // spin leaf around the stem
+    qx.setFromAxisAngle(X, it.tilt);       // lean the tip outward from vertical
+    m.compose(pos, qy.multiply(qx), scl);
+    im.setMatrixAt(i, m);
+  }
+  im.instanceMatrix.needsUpdate = true;
+  im.castShadow = true; im.receiveShadow = true;
+  im.frustumCulled = true;
+  scene.add(im); worldMeshes.push(im);
 }
 
 // Dense-but-passable grove: trees kept ≥ minGap apart so lanes stay walkable, and only placed
@@ -593,6 +657,45 @@ function scatterBushes(count, minGap = 4.5) {
     addBush(x, z, 0.8 + Math.random() * 0.8);
   }
   return placed.length;
+}
+
+// ── Cannabis (marijuana) plants — decorative leaf field, NO colliders (walk/bot-through) ──
+// One stem (thin trunk instance) + several whorls of palmate leaf blades fanned around it.
+function addCannabisPlant(x, z, s = 1) {
+  const sh = 1.15 * s;                                    // stem height
+  _trunkInst.push({ p: [x, sh / 2, z], s: [0.16 * s, sh / 2.2, 0.16 * s] });
+  const nodes = [                                         // leaf pairs up the stem, tip leaning out
+    { h: 0.5,  tilt: 1.30, ls: 0.60 * s, n: 5 },
+    { h: 0.75, tilt: 1.05, ls: 0.80 * s, n: 4 },
+    { h: 1.0,  tilt: 0.70, ls: 0.95 * s, n: 3 },
+  ];
+  for (const nd of nodes) {
+    const phase = Math.random() * Math.PI;
+    for (let i = 0; i < nd.n; i++) {
+      const yaw = phase + (i / nd.n) * Math.PI * 2;
+      _cannabisInst.push({ p: [x, nd.h * sh, z], s: nd.ls, yaw, tilt: nd.tilt + rand(-0.12, 0.12) });
+    }
+  }
+  // Top colar: two near-vertical young leaves
+  _cannabisInst.push({ p: [x, sh, z], s: 0.95 * s, yaw: Math.random() * 6.28, tilt: 0.18 });
+  _cannabisInst.push({ p: [x, sh, z], s: 0.85 * s, yaw: Math.random() * 6.28, tilt: 0.25 });
+}
+
+// Rectangular planted patch (for the field rows at the corners). Jittered grid, every plant gated
+// on isFree so it never sits inside a building, wall or pavement, and spawn bands stay clear.
+function addCannabisField(cx, cz, fw, fd, spacing = 2.0) {
+  let n = 0;
+  for (let gx = -fw / 2; gx <= fw / 2; gx += spacing) {
+    for (let gz = -fd / 2; gz <= fd / 2; gz += spacing) {
+      const x = cx + gx + rand(-0.45, 0.45);
+      const z = cz + gz + rand(-0.45, 0.45);
+      if (inSpawnBand(x, z)) continue;
+      if (!isFree(x, z, 0.6)) continue;
+      addCannabisPlant(x, z, 0.8 + Math.random() * 0.5);
+      n++;
+    }
+  }
+  return n;
 }
 
 
@@ -808,7 +911,14 @@ function buildIndustrialMap() {
   addForest(-40, 4, 6, 18, 3.4);
   scatterTrees(95, 5.5);
   scatterBushes(75, 4.5);
-  finalizeVegetation();   // build the two InstancedMeshes from all collected transforms
+
+  // Cannabis fields tucked into the four corners (distant, off the main lanes & spawn bands).
+  addCannabisField(-43, -43, 9, 9);   // NW corner
+  addCannabisField( 43, -43, 9, 9);   // NE corner
+  addCannabisField(-43,  43, 9, 9);   // SW corner
+  addCannabisField( 43,  43, 9, 9);   // SE corner
+
+  finalizeVegetation();   // build the InstancedMeshes (trunks, foliage, cannabis leaves)
 
   // Scattered crates for cover along the lanes
   crate(-8, -18, 1.4); crate(8, -18, 1.4);
