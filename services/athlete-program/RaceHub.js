@@ -60,6 +60,21 @@ function num(v, lo, hi) {
 
 // ── Default athlete resolver + XP award (overridable for tests) ──
 const athleteCache = new Map(); // id -> { at, info }
+const ATHLETE_CACHE_TTL = 5 * 60 * 1000;
+const ATHLETE_CACHE_MAX = 200;
+// Periodic prune so the cache doesn't grow unbounded when many distinct athletes
+// connect over the lifetime of the process.
+setInterval(() => {
+  const nowMs = now();
+  for (const [id, entry] of athleteCache) {
+    if (nowMs - entry.at > ATHLETE_CACHE_TTL) athleteCache.delete(id);
+  }
+  // Hard cap: drop oldest entries if we exceed the size limit.
+  if (athleteCache.size > ATHLETE_CACHE_MAX) {
+    const sorted = [...athleteCache.entries()].sort((a, b) => a[1].at - b[1].at);
+    for (let i = 0; i < sorted.length - ATHLETE_CACHE_MAX; i++) athleteCache.delete(sorted[i][0]);
+  }
+}, 60 * 1000).unref();
 async function defaultResolve(rawToken) {
   const TokenService = require('./TokenService');
   const resolved = await TokenService.resolve(rawToken);

@@ -117,6 +117,14 @@ function buildExchangeProductName(title, variant) {
 // In-memory cache for Shopify customer name lookups (avoids repeated API calls)
 const _customerNameCache = new Map();
 const CUSTOMER_NAME_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+const CUSTOMER_NAME_CACHE_MAX = 500;
+// Periodic prune so stale entries don't linger even when cache is below the hard cap.
+setInterval(() => {
+    const cutoff = Date.now() - CUSTOMER_NAME_CACHE_TTL;
+    for (const [key, val] of _customerNameCache) {
+        if (val.ts < cutoff) _customerNameCache.delete(key);
+    }
+}, 5 * 60 * 1000).unref();
 
 // Resolve the best customer display name from cart data
 // Tries: customer_name -> Shopify lookup by email (cached) -> email prefix -> 'there'
@@ -146,7 +154,7 @@ async function resolveCustomerDisplayName(cart) {
             // Cache the result (even null so we don't re-lookup emails with no Shopify customer)
             _customerNameCache.set(cart.customer_email, { name: resolvedName, ts: Date.now() });
             // Evict stale entries if cache grows too large
-            if (_customerNameCache.size > 500) {
+            if (_customerNameCache.size > CUSTOMER_NAME_CACHE_MAX) {
                 const cutoff = Date.now() - CUSTOMER_NAME_CACHE_TTL;
                 for (const [key, val] of _customerNameCache) {
                     if (val.ts < cutoff) _customerNameCache.delete(key);
@@ -7174,6 +7182,20 @@ const PERMISSION_RULES = [
 // Bounded in-memory operator cache (same pattern as settingsCache) — avoids a DB hit per request
 const operatorCache = new Map();
 const OPERATOR_CACHE_TTL = 30 * 1000;
+const OPERATOR_CACHE_MAX = 100;
+// Periodic prune so the cache doesn't grow unbounded when many distinct operators
+// authenticate over the lifetime of the process.
+setInterval(() => {
+    const now = Date.now();
+    for (const [id, entry] of operatorCache) {
+        if (now - entry.fetchedAt > OPERATOR_CACHE_TTL) operatorCache.delete(id);
+    }
+    // Hard cap: drop oldest entries if we exceed the size limit.
+    if (operatorCache.size > OPERATOR_CACHE_MAX) {
+        const sorted = [...operatorCache.entries()].sort((a, b) => a[1].fetchedAt - b[1].fetchedAt);
+        for (let i = 0; i < sorted.length - OPERATOR_CACHE_MAX; i++) operatorCache.delete(sorted[i][0]);
+    }
+}, 60 * 1000).unref();
 
 function invalidateOperatorCache() {
     operatorCache.clear();

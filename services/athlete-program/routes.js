@@ -31,6 +31,16 @@ module.exports = function mountAthleteRoutes(app) {
   // In-memory by design (resets on restart); every authed request is a beacon,
   // so any athlete with the portal open refreshes via its 30s leaderboard poll.
   const portalPresence = new Map();
+  const PRESENCE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+  const PRESENCE_CLEANUP_MS = 2 * 60 * 1000; // prune every 2 minutes
+  // Periodically drop stale entries so the Map doesn't grow unbounded.
+  // Without this, every distinct athlete who ever auths leaves a permanent record.
+  setInterval(() => {
+    const now = Date.now();
+    for (const [id, ts] of portalPresence) {
+      if (now - ts > PRESENCE_TTL_MS) portalPresence.delete(id);
+    }
+  }, PRESENCE_CLEANUP_MS).unref();
 
   async function authAthlete(req, res, next) {
     const { token } = req.params;
