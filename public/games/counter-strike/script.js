@@ -918,8 +918,11 @@ function groundHeight(pos, r) {
   return g;
 }
 
+function mapHalf() { return selectedMap === 'classic' ? 32 : 48; }
+
 function isFree(x, z, r) {
-  if (Math.abs(x) > 48 - r || Math.abs(z) > 48 - r) return false;
+  const h = mapHalf();
+  if (Math.abs(x) > h - r || Math.abs(z) > h - r) return false;
   return !colliders.some(c => circleHitsBox(x, z, r, c));
 }
 
@@ -1376,7 +1379,9 @@ function spawnBots(n) {
   const names = [...BOT_NAMES].sort(() => Math.random() - 0.5);
   for (let i = 0; i < n; i++) {
     let x, z, tries = 0;
-    do { x = rand(-20, 20); z = rand(35, 45); tries++; } while ((!isFree(x, z, 0.6) || bots.some(b => Math.hypot(b.pos.x - x, b.pos.z - z) < 1.5)) && tries < 200);
+    const tZMin = selectedMap === 'classic' ? 20 : 35;
+    const tZMax = selectedMap === 'classic' ? 25 : 45;
+    do { x = rand(-20, 20); z = rand(tZMin, tZMax); tries++; } while ((!isFree(x, z, 0.6) || bots.some(b => Math.hypot(b.pos.x - x, b.pos.z - z) < 1.5)) && tries < 200);
     const b = new Bot(x, z, names[i % names.length]);
     b.yaw = Math.PI; bots.push(b);
   }
@@ -1716,7 +1721,9 @@ const game = { state: 'menu', round: 0, ct: 0, t: 0, kills: 0, timeLeft: ROUND_T
 
 function resetPlayer() {
   let x, z;
-  do { x = rand(-8, 8); z = rand(-45, -40); } while (!isFree(x, z, 0.5));
+  const ctZMin = selectedMap === 'classic' ? -25 : -45;
+  const ctZMax = selectedMap === 'classic' ? -20 : -40;
+  do { x = rand(-8, 8); z = rand(ctZMin, ctZMax); } while (!isFree(x, z, 0.5));
   player.pos.set(x, 0, z);
   player.vel.set(0, 0, 0);
   player.yaw = Math.PI; player.pitch = 0;
