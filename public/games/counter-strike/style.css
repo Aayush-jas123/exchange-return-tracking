@@ -54,6 +54,53 @@ html, body {
   color: var(--text);
 }
 
+/* Map Selection */
+.map-select-section { margin-bottom: 28px; }
+.map-select-label {
+  font: 600 10px var(--m); letter-spacing: .22em; text-transform: uppercase;
+  color: var(--dim); margin-bottom: 14px;
+  display: flex; align-items: center; gap: 12px;
+}
+.map-select-label::before, .map-select-label::after {
+  content: ''; flex: 1; height: 1px; background: var(--line);
+}
+.map-options { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.map-option {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 16px; background: var(--card);
+  border: 1px solid var(--line); border-radius: 10px;
+  color: var(--dim); font: 500 14px var(--f);
+  cursor: pointer; transition: all .2s ease;
+  -webkit-tap-highlight-color: transparent;
+  text-align: left;
+  width: 100%;
+  box-sizing: border-box;
+  position: relative;
+}
+.map-option::before {
+  content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+  width: 3px; height: 0; background: var(--text); border-radius: 0 2px 2px 0;
+  transition: height .2s ease;
+}
+.map-option:hover { border-color: rgba(255,255,255,.15); background: #16161c; color: var(--text); }
+.map-option.active {
+  border-color: rgba(255,255,255,.25); background: #18181f; color: var(--text);
+}
+.map-option.active::before { height: 60%; }
+.map-icon {
+  width: 36px; height: 36px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.map-icon svg {
+  width: 28px; height: 28px;
+  stroke: var(--dim); transition: stroke .2s ease;
+}
+.map-option:hover .map-icon svg { stroke: rgba(255,255,255,.7); }
+.map-option.active .map-icon svg { stroke: var(--text); }
+.map-info { display: flex; flex-direction: column; gap: 3px; flex: 1; }
+.map-name { font: 600 13px var(--f); color: var(--text); letter-spacing: .01em; }
+.map-desc { font: 400 10.5px var(--m); color: var(--dim); line-height: 1.45; letter-spacing: .01em; }
+
 /* Play Button */
 .mode-btn {
   display: flex; align-items: center; gap: 14px; width: 100%;
