@@ -13,7 +13,9 @@ const lobbyScreen = document.getElementById('lobbyScreen');
 const pauseOverlay = document.getElementById('pauseOverlay');
 
 function showScreen(el) {
-  [menuScreen, gameScreen, gameOverScreen, lobbyScreen].forEach(s => s.classList.remove('active'));
+  [menuScreen, gameScreen, gameOverScreen, lobbyScreen, missionSelectScreen, missionBriefingScreen, missionCompleteScreen].forEach(s => {
+    if (s) s.classList.remove('active');
+  });
   if (el) el.classList.add('active');
 }
 
