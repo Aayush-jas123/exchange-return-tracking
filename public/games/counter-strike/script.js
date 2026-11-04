@@ -2106,9 +2106,9 @@ const MISSIONS = [
       {
         id: 'obj_1_1',
         type: 'enter_zone',
-        title: 'Enter Greyhaven Complex',
-        description: 'Infiltrate the industrial complex through the main gate',
-        zone: { x: 0, z: -30, radius: 8 },
+        title: 'Infiltrate the SE Duplex',
+        description: 'Breach the southeast duplex to begin the operation',
+        zone: { x: 33, z: -33, radius: 6 },
         triggerDistance: 5,
         completed: false
       },
@@ -2154,10 +2154,10 @@ const MISSIONS = [
       {
         id: 'obj_1_6',
         type: 'escape_zone',
-        title: 'Escape the Complex',
-        description: 'Get RAVEN to the extraction point',
-        zone: { x: 0, z: -40, radius: 10 },
-        triggerDistance: 8,
+        title: 'Escape via NE Duplex Rooftop',
+        description: 'Get RAVEN to the extraction point on the northeast duplex roof',
+        zone: { x: 33, z: 29, radius: 6 },
+        triggerDistance: 5,
         requiresNPC: true,
         completed: false
       }
@@ -2448,28 +2448,28 @@ function spawnNPC(x, z, name, id) {
 function spawnMissionEnemies() {
   if (!currentMission) return;
   
-  // Strategic enemy placements along Mission 1 path
-  // Player spawns in SW corner (-41, -41), objective route leads NE through buildings
-  // 7 enemies INSIDE buildings (both floors), 6 OUTSIDE
+  // Strategic enemy placements — mostly INSIDE buildings (both floors)
+  // Player spawns in SW corner (-41, -41), route leads through buildings NE
+  // 10 enemies INSIDE buildings, 3 OUTSIDE
   const enemyPlacements = [
-    // === INSIDE BUILDINGS — Ground Floor (4) ===
-    { x: -33, z: -30, patrol: false, inside: true },   // SW duplex ground floor (near clue 1)
-    { x: 36, z: -2, patrol: true, inside: true },      // E round duplex ground floor (near clue 2)
-    { x: -33, z: 29, patrol: false, inside: true },    // NW duplex ground floor (near RAVEN)
-    { x: 16, z: 3, patrol: false, inside: true },      // E center duplex ground floor
+    // === INSIDE BUILDINGS — Ground Floor (5) ===
+    { x: 33, z: -33, patrol: false, inside: true },   // SE duplex (entry objective)
+    { x: -33, z: -30, patrol: false, inside: true },  // SW duplex (clue 1)
+    { x: 36, z: -2, patrol: true, inside: true },     // E round duplex (clue 2)
+    { x: -33, z: 29, patrol: false, inside: true },   // NW duplex ground (near RAVEN)
+    { x: 16, z: 3, patrol: false, inside: true },     // E center duplex
     
-    // === INSIDE BUILDINGS — Upper Floor (3) ===
-    { x: -33, z: -30, patrol: false, inside: true, upperFloor: true },  // SW duplex upper floor
-    { x: 33, z: 29, patrol: true, inside: true, upperFloor: true },     // NE duplex upper floor
-    { x: -16, z: 3, patrol: false, inside: true, upperFloor: true },    // W center duplex upper floor
+    // === INSIDE BUILDINGS — Upper Floor (5) ===
+    { x: -33, z: -30, patrol: false, inside: true, upperFloor: true },  // SW duplex upper
+    { x: 33, z: -33, patrol: true, inside: true, upperFloor: true },    // SE duplex upper
+    { x: 33, z: 29, patrol: true, inside: true, upperFloor: true },     // NE duplex upper (escape route)
+    { x: -16, z: 3, patrol: false, inside: true, upperFloor: true },    // W center duplex upper
+    { x: -36, z: 0, patrol: true, inside: true, upperFloor: true },     // W round duplex upper
     
-    // === OUTSIDE — Patrol & Guards (6) ===
-    { x: 8, z: -5, patrol: true },       // Entrance east
-    { x: -8, z: -5, patrol: true },      // Entrance west
-    { x: -10, z: 5, patrol: true },      // Mid-range
-    { x: 8, z: 18, patrol: true },       // Central avenue
-    { x: -5, z: 10, patrol: true },      // Escape route
-    { x: 3, z: -15, patrol: false }      // Final blocker
+    // === OUTSIDE — Perimeter (3) ===
+    { x: -8, z: -5, patrol: true },      // West perimeter patrol
+    { x: 8, z: 18, patrol: true },       // Central avenue patrol
+    { x: 3, z: -15, patrol: false }      // Static blocker
   ];
   
   const names = [...BOT_NAMES].sort(() => Math.random() - 0.5);
