@@ -5,8 +5,8 @@
 
 -- Create mission_progress table
 CREATE TABLE IF NOT EXISTS mission_progress (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  athlete_id UUID NOT NULL REFERENCES influencers(id) ON DELETE CASCADE,
+  id BIGSERIAL PRIMARY KEY,
+  athlete_id BIGINT NOT NULL REFERENCES influencers(id) ON DELETE CASCADE,
   progress JSONB NOT NULL DEFAULT '{"completed":[],"bestTimes":{},"scores":{}}'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
