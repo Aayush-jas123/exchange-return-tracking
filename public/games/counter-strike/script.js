@@ -2359,9 +2359,11 @@ function beginMissionGameplay() {
     const roundInfo = document.getElementById('round-info');
     const killsBox = document.getElementById('kills-box');
     const scoreboard = document.getElementById('scoreboard');
+    const centerMsg = document.getElementById('center-msg');
     if (roundInfo) roundInfo.style.display = 'none';
     if (killsBox) killsBox.style.display = 'none';
     if (scoreboard) scoreboard.style.display = 'none';
+    if (centerMsg) centerMsg.style.display = 'none';
     
     // Spawn mission-specific NPCs and clues
     spawnMissionEntities();
@@ -2659,9 +2661,11 @@ function showMissionCompleteScreen() {
   const roundInfo = document.getElementById('round-info');
   const killsBox = document.getElementById('kills-box');
   const scoreboard = document.getElementById('scoreboard');
+  const centerMsgEl = document.getElementById('center-msg');
   if (roundInfo) roundInfo.style.display = '';
   if (killsBox) killsBox.style.display = '';
   if (scoreboard) scoreboard.style.display = '';
+  if (centerMsgEl) centerMsgEl.style.display = '';
   
   showScreen(missionCompleteScreen);
 }
@@ -2801,23 +2805,13 @@ function updateMissionMarkers() {
   }
   
   if (targetX !== undefined) {
-    // Draw path line from player to objective
+    // Draw waypoint on radar
     const wx = (targetX - player.pos.x) * scale;
     const wz = (targetZ - player.pos.z) * scale;
     
     c.save();
     c.translate(S / 2, S / 2);
     c.rotate(player.yaw);
-    
-    // Draw dashed path line
-    c.strokeStyle = 'rgba(255, 170, 0, 0.3)';
-    c.lineWidth = 2;
-    c.setLineDash([4, 4]);
-    c.beginPath();
-    c.moveTo(0, 0);
-    c.lineTo(wx, wz);
-    c.stroke();
-    c.setLineDash([]);
     
     // Draw pulsing waypoint marker
     const pulse = (Math.sin(performance.now() * 0.005) + 1) * 0.5;
@@ -2837,20 +2831,6 @@ function updateMissionMarkers() {
     c.beginPath();
     c.arc(wx, wz, 4, 0, Math.PI * 2);
     c.fill();
-    
-    // Direction indicator (arrow pointing to objective)
-    const angle = Math.atan2(wz, wx);
-    c.save();
-    c.translate(wx, wz);
-    c.rotate(angle);
-    c.fillStyle = '#ffaa00';
-    c.beginPath();
-    c.moveTo(12, 0);
-    c.lineTo(6, -4);
-    c.lineTo(6, 4);
-    c.closePath();
-    c.fill();
-    c.restore();
     
     c.restore();
   }
@@ -2949,9 +2929,11 @@ function startNewGame() {
   const roundInfo = document.getElementById('round-info');
   const killsBox = document.getElementById('kills-box');
   const scoreboard = document.getElementById('scoreboard');
+  const centerMsgEl = document.getElementById('center-msg');
   if (roundInfo) roundInfo.style.display = '';
   if (killsBox) killsBox.style.display = '';
   if (scoreboard) scoreboard.style.display = '';
+  if (centerMsgEl) centerMsgEl.style.display = '';
   
   showScreen(gameScreen);
   startRound();
