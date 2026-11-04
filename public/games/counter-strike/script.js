@@ -2887,14 +2887,25 @@ function updateMissionMarkers() {
 
 function resetPlayer() {
   let x, z, tries = 0;
-  const ctZMin = selectedMap === 'classic' ? -25 : -45;
-  const ctZMax = selectedMap === 'classic' ? -20 : -40;
-  // The try cap matters: a spawn band that a map edit has filled in would otherwise spin here
-  // forever and take the whole page down with it.
-  do { x = rand(-8, 8); z = rand(ctZMin, ctZMax); tries++; } while (!isFree(x, z, 0.5) && tries < 200);
-  player.pos.set(x, 0, z);
-  player.vel.set(0, 0, 0);
-  player.yaw = Math.PI; player.pitch = 0;
+  const inMission = missionState.active && selectedMap !== 'classic';
+  
+  if (inMission) {
+    // Mission: spawn in the southwest corner, far from enemies and objective
+    do { x = rand(-44, -38); z = rand(-44, -38); tries++; } while (!isFree(x, z, 0.5) && tries < 200);
+    player.pos.set(x, 0, z);
+    player.vel.set(0, 0, 0);
+    // Face northeast toward the map center / objective direction
+    player.yaw = Math.PI * 1.25; player.pitch = 0;
+  } else {
+    const ctZMin = selectedMap === 'classic' ? -25 : -45;
+    const ctZMax = selectedMap === 'classic' ? -20 : -40;
+    // The try cap matters: a spawn band that a map edit has filled in would otherwise spin here
+    // forever and take the whole page down with it.
+    do { x = rand(-8, 8); z = rand(ctZMin, ctZMax); tries++; } while (!isFree(x, z, 0.5) && tries < 200);
+    player.pos.set(x, 0, z);
+    player.vel.set(0, 0, 0);
+    player.yaw = Math.PI; player.pitch = 0;
+  }
   player.health = 100; player.alive = true;
   player.onGround = true; player.eye = 1.65;
   hud.health.textContent = 100;
