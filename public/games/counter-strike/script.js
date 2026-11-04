@@ -2355,6 +2355,14 @@ function beginMissionGameplay() {
     resetPlayer();
     clearBots();
     
+    // Hide round-based HUD elements during mission
+    const roundInfo = document.getElementById('round-info');
+    const killsBox = document.getElementById('kills-box');
+    const scoreboard = document.getElementById('scoreboard');
+    if (roundInfo) roundInfo.style.display = 'none';
+    if (killsBox) killsBox.style.display = 'none';
+    if (scoreboard) scoreboard.style.display = 'none';
+    
     // Spawn mission-specific NPCs and clues
     spawnMissionEntities();
     
@@ -2647,6 +2655,14 @@ function showMissionCompleteScreen() {
     AthleteXP.report('counter-strike-mission', score);
   }
   
+  // Restore round-based HUD elements
+  const roundInfo = document.getElementById('round-info');
+  const killsBox = document.getElementById('kills-box');
+  const scoreboard = document.getElementById('scoreboard');
+  if (roundInfo) roundInfo.style.display = '';
+  if (killsBox) killsBox.style.display = '';
+  if (scoreboard) scoreboard.style.display = '';
+  
   showScreen(missionCompleteScreen);
 }
 
@@ -2927,6 +2943,16 @@ function startNewGame() {
   hud.kills.textContent = '0';
   hud.killfeed.innerHTML = '';
   clearBots();
+  
+  // Hide mission HUD and restore round-based HUD
+  if (missionHud) missionHud.style.display = 'none';
+  const roundInfo = document.getElementById('round-info');
+  const killsBox = document.getElementById('kills-box');
+  const scoreboard = document.getElementById('scoreboard');
+  if (roundInfo) roundInfo.style.display = '';
+  if (killsBox) killsBox.style.display = '';
+  if (scoreboard) scoreboard.style.display = '';
+  
   showScreen(gameScreen);
   startRound();
 }
