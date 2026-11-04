@@ -1543,8 +1543,6 @@ class Bot {
     this.strafeDir = 0; this.strafeTimer = 0; this.target = null;
     this.stuckTimer = 0; this.stuckRef = this.pos.clone();
     this.walkPhase = Math.random() * 10; this.spotted = 0; this.parts = [];
-    this.activationDelay = 0; // Delay before enemy becomes active (for missions)
-    this.activated = true; // Whether enemy is active
 
     const g = this.group = new THREE.Group();
     const part = (geo, mat, x, y, z, partName, parent = g) => {
@@ -1636,27 +1634,6 @@ class Bot {
       this.group.rotation.x = -Math.min(1, this.deathT * 3.5) * Math.PI / 2;
       this.group.position.y = Math.min(1, this.deathT * 3.5) * 0.18;
       return;
-    }
-    
-    // Handle activation delay for mission enemies
-    if (!this.activated) {
-      this.activationDelay -= dt;
-      if (this.activationDelay <= 0) {
-        this.activated = true;
-        console.log('[CS] Enemy activated:', this.name);
-      } else {
-        // Still patrol but don't detect player
-        if (this.patrolCenter) {
-          this.patrolAngle += this.patrolSpeed * dt * 0.3;
-          const targetX = this.patrolCenter.x + Math.cos(this.patrolAngle) * this.patrolRadius;
-          const targetZ = this.patrolCenter.y + Math.sin(this.patrolAngle) * this.patrolRadius;
-          this.faceToward(targetX, targetZ, dt, 5);
-          this.moveToward(targetX, targetZ, 2.4, dt);
-        }
-        this.group.position.copy(this.pos);
-        this.group.rotation.y = this.yaw;
-        return;
-      }
     }
     
     const eye = this.eye();
@@ -2461,46 +2438,46 @@ function spawnNPC(x, z, name, id) {
 function spawnMissionEnemies() {
   if (!currentMission) return;
   
-  // Strategic enemy placements along Mission 1 path with activation delays
+  // Strategic enemy placements along Mission 1 path
   // Player spawns at z: -45 to -40, so enemies start much further away
   const enemyPlacements = [
-    // Far entrance guards (2 enemies) - activate after 8 seconds, far from spawn
-    { x: 8, z: -15, patrol: true, delay: 8 },
-    { x: -8, z: -15, patrol: true, delay: 8 },
+    // Far entrance guards (2 enemies)
+    { x: 8, z: -15, patrol: true },
+    { x: -8, z: -15, patrol: true },
     
-    // Mid-range patrol (3 enemies) - activate after 15 seconds
-    { x: -10, z: -5, patrol: true, delay: 15 },
-    { x: -12, z: 5, patrol: true, delay: 15 },
-    { x: -8, z: 10, patrol: true, delay: 15 },
+    // Mid-range patrol (3 enemies)
+    { x: -10, z: -5, patrol: true },
+    { x: -12, z: 5, patrol: true },
+    { x: -8, z: 10, patrol: true },
     
-    // Guards around first clue location (2 enemies) - activate after 20 seconds
-    { x: -18, z: 8, patrol: false, delay: 20 },
-    { x: -12, z: 12, patrol: true, delay: 20 },
+    // Guards around first clue location (2 enemies)
+    { x: -18, z: 8, patrol: false },
+    { x: -12, z: 12, patrol: true },
     
-    // Patrol between clues (4 enemies) - activate after 25 seconds
-    { x: 0, z: 15, patrol: true, delay: 25 },
-    { x: 8, z: 18, patrol: true, delay: 25 },
-    { x: 15, z: 22, patrol: true, delay: 25 },
-    { x: 18, z: 28, patrol: true, delay: 25 },
+    // Patrol between clues (4 enemies)
+    { x: 0, z: 15, patrol: true },
+    { x: 8, z: 18, patrol: true },
+    { x: 15, z: 22, patrol: true },
+    { x: 18, z: 28, patrol: true },
     
-    // Guards around second clue (2 enemies) - activate after 30 seconds
-    { x: 22, z: 23, patrol: false, delay: 30 },
-    { x: 18, z: 27, patrol: true, delay: 30 },
+    // Guards around second clue (2 enemies)
+    { x: 22, z: 23, patrol: false },
+    { x: 18, z: 27, patrol: true },
     
-    // Heavy resistance near RAVEN (4 enemies) - activate after 35 seconds
-    { x: -20, z: 32, patrol: true, delay: 35 },
-    { x: -28, z: 33, patrol: true, delay: 35 },
-    { x: -23, z: 38, patrol: false, delay: 35 },
-    { x: -27, z: 37, patrol: true, delay: 35 },
+    // Heavy resistance near RAVEN (4 enemies)
+    { x: -20, z: 32, patrol: true },
+    { x: -28, z: 33, patrol: true },
+    { x: -23, z: 38, patrol: false },
+    { x: -27, z: 37, patrol: true },
     
-    // Pursuit squad on escape route (3 enemies) - activate after 40 seconds
-    { x: -15, z: 20, patrol: true, delay: 40 },
-    { x: -5, z: 5, patrol: true, delay: 40 },
-    { x: 5, z: -10, patrol: true, delay: 40 },
+    // Pursuit squad on escape route (3 enemies)
+    { x: -15, z: 20, patrol: true },
+    { x: -5, z: 5, patrol: true },
+    { x: 5, z: -10, patrol: true },
     
-    // Final blockers near extraction (2 enemies) - activate after 45 seconds
-    { x: 3, z: -25, patrol: false, delay: 45 },
-    { x: -3, z: -30, patrol: false, delay: 45 }
+    // Final blockers near extraction (2 enemies)
+    { x: 3, z: -25, patrol: false },
+    { x: -3, z: -30, patrol: false }
   ];
   
   const names = [...BOT_NAMES].sort(() => Math.random() - 0.5);
@@ -2523,10 +2500,6 @@ function spawnMissionEnemies() {
     const bot = new Bot(placement.x, placement.z, names[i % names.length]);
     bot.yaw = Math.PI;
     
-    // Set activation delay for mission enemies
-    bot.activationDelay = placement.delay || 0;
-    bot.activated = bot.activationDelay === 0;
-    
     // Set patrol behavior
     if (placement.patrol) {
       bot.patrolCenter = new THREE.Vector2(placement.x, placement.z);
@@ -2538,7 +2511,7 @@ function spawnMissionEnemies() {
     bots.push(bot);
   });
   
-  console.log('[CS] Spawned', enemyPlacements.length, 'mission enemies with staggered activation');
+  console.log('[CS] Spawned', enemyPlacements.length, 'mission enemies');
 }
 
 function updateMissionHud() {
