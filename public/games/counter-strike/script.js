@@ -1511,6 +1511,15 @@ function damagePlayer(amount, attacker) {
   hud.health.textContent = Math.ceil(player.health);
   hud.healthBox.classList.toggle('low', player.health <= 25);
   playBeep(90, 0.08, 0.2, 'sawtooth');
+  // Escort mode — RAVEN takes splash damage during firefight
+  if (missionState.escortActive && missionState.escortNPC) {
+    missionState.escortHealth = Math.max(0, missionState.escortHealth - amount * 0.3);
+    if (missionState.escortHealth <= 0) {
+      showMissionNotification('RAVEN DOWN — MISSION FAILED');
+      missionState.escortActive = false;
+      setTimeout(() => triggerGameOver(), 1500);
+    }
+  }
   if (player.health <= 0) {
     player.alive = false;
     killFeed(attacker.name, 'You', false, true);
@@ -2114,12 +2123,12 @@ const MISSIONS = [
       },
       {
         id: 'obj_1_2',
-        type: 'find_clue',
-        title: 'Investigate Signs of Struggle',
-        description: 'Investigate inside the southwest duplex',
-        location: { x: -33, z: -30, radius: 3 },
-        clueType: 'spent_ammo',
-        triggerDistance: 2.5,
+        type: 'collect_evidence',
+        title: 'Search the SW Duplex',
+        description: 'Find 3 pieces of evidence scattered inside the southwest duplex',
+        location: { x: -33, z: -30, radius: 8 },
+        evidenceCount: 3,
+        triggerDistance: 2.0,
         completed: false
       },
       {
@@ -2155,10 +2164,12 @@ const MISSIONS = [
         id: 'obj_1_6',
         type: 'escape_zone',
         title: 'Escape via NE Duplex Rooftop',
-        description: 'Get RAVEN to the extraction point on the northeast duplex roof',
+        description: 'Get RAVEN to the extraction point — 90 seconds!',
         zone: { x: 33, z: 29, radius: 6 },
         triggerDistance: 5,
         requiresNPC: true,
+        escort: true,
+        timeLimit: 90,
         completed: false
       }
     ],
@@ -2198,6 +2209,11 @@ const MISSIONS = [
         { speaker: 'ROOK', text: 'I hate those words.', portrait: 'rook' },
         { speaker: 'RAVEN', text: 'They\'re not planning to leave this place standing. There\'s a charge planted in the main facility building. We have minutes.', portrait: 'raven' }
       ],
+      'raven_extraction': [
+        { speaker: 'ROOK', text: 'Move to the NE duplex. Extraction point is on the roof.', portrait: 'rook' },
+        { speaker: 'RAVEN', text: 'After you.', portrait: 'raven' },
+        { speaker: 'ROOK', text: 'Stay close. We have 90 seconds before this place becomes a crater.', portrait: 'rook' }
+      ],
       'mission_complete': [
         { speaker: 'SABLE', text: 'ROOK, status report.', portrait: 'sable' },
         { speaker: 'ROOK', text: 'RAVEN extracted. We have intelligence on Greyline operations. Recommend immediate follow-up.', portrait: 'rook' },
@@ -2225,8 +2241,22 @@ let missionState = {
   dialogueQueue: [],
   npcs: [],
   clues: [],
-  missionComplete: false
+  evidence: [],
+  evidenceCollected: 0,
+  missionComplete: false,
+  escortActive: false,
+  escortNPC: null,
+  escortHealth: 100,
+  extractionTimer: 0,
+  extractionStartTime: 0
 };
+
+// Evidence spawn positions — 3 items scattered inside SW duplex (-33, -30)
+const EVIDENCE_POSITIONS = [
+  { x: -34.5, z: -31.5, type: 'shell_casings', label: 'Shell Casings' },
+  { x: -31.5, z: -29.0, type: 'bloody_cloth', label: 'Torn Fabric' },
+  { x: -33.0, z: -32.5, type: 'broken_radio', label: 'Broken Radio' }
+];
 
 // ── Mission Progress Persistence ──
 const MISSION_STORAGE_KEY = 'cs_mission_progress';
@@ -2317,7 +2347,14 @@ function startMission(missionId) {
     dialogueQueue: [],
     npcs: [],
     clues: [],
-    missionComplete: false
+    evidence: [],
+    evidenceCollected: 0,
+    missionComplete: false,
+    escortActive: false,
+    escortNPC: null,
+    escortHealth: 100,
+    extractionTimer: 0,
+    extractionStartTime: 0
   };
   
   // Reset objectives
@@ -2392,10 +2429,19 @@ function beginMissionGameplay() {
 function spawnMissionEntities() {
   if (!currentMission) return;
   
-  // Spawn clues
+  // Spawn clues (single-item objectives like obj_1_3 radio)
   currentMission.objectives.forEach(obj => {
     if (obj.type === 'find_clue') {
       spawnClue(obj.location.x, obj.location.z, obj.clueType, obj.id);
+    }
+  });
+  
+  // Spawn evidence collection items (obj_1_2 — 3 items in SW duplex)
+  currentMission.objectives.forEach(obj => {
+    if (obj.type === 'collect_evidence') {
+      EVIDENCE_POSITIONS.forEach((ep, i) => {
+        spawnEvidence(ep.x, ep.z, ep.type, obj.id + '_' + i, ep.label);
+      });
     }
   });
   
@@ -2408,17 +2454,192 @@ function spawnMissionEntities() {
 }
 
 function spawnClue(x, z, type, id) {
-  const geo = new THREE.BoxGeometry(0.4, 0.4, 0.4);
-  const mat = new THREE.MeshStandardMaterial({ 
-    color: 0x888888, 
-    emissive: 0x444444, 
-    emissiveIntensity: 0.3 
-  });
-  const clue = new THREE.Mesh(geo, mat);
-  clue.position.set(x, 0.5, z);
-  clue.userData = { type: 'clue', clueType: type, id: id };
-  scene.add(clue);
-  missionState.clues.push(clue);
+  const group = new THREE.Group();
+  const dark = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.9 });
+  const mid = new THREE.MeshStandardMaterial({ color: 0x666666, roughness: 0.85 });
+  const light = new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.8 });
+  const brass = new THREE.MeshStandardMaterial({ color: 0x999999, roughness: 0.5, metalness: 0.6 });
+  const glow = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, emissive: 0x555555, emissiveIntensity: 0.4 });
+
+  const part = (geo, mat, px, py, pz, rx, ry, rz) => {
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(px, py, pz);
+    if (rx) m.rotation.x = rx; if (ry) m.rotation.y = ry; if (rz) m.rotation.z = rz;
+    m.castShadow = true;
+    group.add(m); return m;
+  };
+
+  if (type === 'spent_ammo') {
+    // Shell casings cluster scattered on ground
+    for (let i = 0; i < 7; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = Math.random() * 0.6;
+      const cx = Math.cos(angle) * dist;
+      const cz = Math.sin(angle) * dist;
+      part(new THREE.CylinderGeometry(0.03, 0.025, 0.12, 6), brass,
+        cx, 0.06, cz, Math.random() * 0.4 - 0.2, Math.random() * Math.PI, Math.random() * 0.6 - 0.3);
+    }
+    // Impact stain on ground (dark circle)
+    part(new THREE.CircleGeometry(0.35, 12), dark, 0, 0.01, 0, -Math.PI / 2, 0, 0);
+    // Bullet holes on nearby wall (small dark cylinders)
+    for (let i = 0; i < 3; i++) {
+      part(new THREE.CylinderGeometry(0.02, 0.02, 0.06, 6), dark,
+        -0.3 + i * 0.3, 0.8 + Math.random() * 0.4, -0.5, Math.PI / 2, 0, 0);
+    }
+    // Faint glow marker above to attract attention
+    part(new THREE.SphereGeometry(0.08, 8, 8), glow, 0, 0.6, 0);
+  } else if (type === 'radio') {
+    // Damaged radio body
+    part(new THREE.BoxGeometry(0.35, 0.22, 0.15), mid, 0, 0.11, 0);
+    // Antenna (bent/broken)
+    const antenna = part(new THREE.CylinderGeometry(0.012, 0.008, 0.4, 6), dark, 0.1, 0.35, -0.04);
+    antenna.rotation.z = 0.4; antenna.rotation.x = -0.2;
+    // Antenna tip (broken, glowing faintly)
+    part(new THREE.SphereGeometry(0.025, 6, 6), glow, 0.22, 0.5, -0.06);
+    // Speaker grille lines
+    for (let i = 0; i < 3; i++) {
+      part(new THREE.BoxGeometry(0.18, 0.01, 0.005), dark, 0, 0.08 + i * 0.04, 0.078);
+    }
+    // Frequency dial (small cylinder on front)
+    part(new THREE.CylinderGeometry(0.025, 0.025, 0.02, 8), brass, -0.1, 0.16, 0.08, Math.PI / 2, 0, 0);
+    // Damage crack (thin dark line across body)
+    part(new THREE.BoxGeometry(0.3, 0.008, 0.005), dark, 0.02, 0.18, 0.078, 0, 0, 0.3);
+    // Sparks indicator (small glowing sphere)
+    part(new THREE.SphereGeometry(0.04, 6, 6), glow, 0.15, 0.22, 0.05);
+  } else {
+    // Generic fallback clue
+    part(new THREE.BoxGeometry(0.3, 0.3, 0.3), glow, 0, 0.3, 0);
+  }
+
+  // Floating interaction indicator above all clues
+  const indicator = part(new THREE.OctahedronGeometry(0.1, 0), glow, 0, 1.0, 0);
+  indicator.userData.isIndicator = true;
+
+  group.position.set(x, 0, z);
+  group.userData = { type: 'clue', clueType: type, id: id };
+  scene.add(group);
+  missionState.clues.push(group);
+}
+
+function spawnEvidence(x, z, type, id, label) {
+  const group = new THREE.Group();
+  const dark = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.9 });
+  const mid = new THREE.MeshStandardMaterial({ color: 0x666666, roughness: 0.85 });
+  const light = new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.8 });
+  const brass = new THREE.MeshStandardMaterial({ color: 0x999999, roughness: 0.5, metalness: 0.6 });
+  const glow = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, emissive: 0x555555, emissiveIntensity: 0.4 });
+  const stain = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.95 });
+
+  const part = (geo, mat, px, py, pz, rx, ry, rz) => {
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(px, py, pz);
+    if (rx) m.rotation.x = rx; if (ry) m.rotation.y = ry; if (rz) m.rotation.z = rz;
+    m.castShadow = true;
+    group.add(m); return m;
+  };
+
+  if (type === 'shell_casings') {
+    // Scattered shell casings cluster — 12 individual brass cylinders
+    for (let i = 0; i < 12; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = Math.random() * 0.8;
+      const cx = Math.cos(angle) * dist;
+      const cz = Math.sin(angle) * dist;
+      part(new THREE.CylinderGeometry(0.025, 0.02, 0.1, 6), brass,
+        cx, 0.05, cz,
+        Math.random() * 0.5 - 0.25, Math.random() * Math.PI, Math.random() * 0.8 - 0.4);
+    }
+    // Primer marks on spent casings (tiny dark discs)
+    for (let i = 0; i < 5; i++) {
+      part(new THREE.CylinderGeometry(0.012, 0.012, 0.004, 6), dark,
+        (Math.random() - 0.5) * 0.6, 0.005, (Math.random() - 0.5) * 0.6);
+    }
+    // Gunpowder residue stain on ground (dark irregular circle)
+    part(new THREE.CircleGeometry(0.5, 16), stain, 0, 0.005, 0, -Math.PI / 2, 0, 0);
+    // Impact crater (small depression)
+    part(new THREE.SphereGeometry(0.15, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2), dark,
+      0.1, -0.02, -0.1);
+    // Spent bullet deformed tip
+    part(new THREE.ConeGeometry(0.02, 0.06, 6), brass,
+      -0.3, 0.03, 0.2, 0, 0, Math.PI / 2);
+    // Link fragment (belt piece)
+    part(new THREE.TorusGeometry(0.03, 0.008, 4, 6), brass,
+      0.25, 0.02, -0.15, Math.PI / 2, 0, 0);
+    // Floating glow marker
+    const g1 = part(new THREE.OctahedronGeometry(0.08, 0), glow, 0, 0.9, 0);
+    g1.userData.isIndicator = true;
+
+  } else if (type === 'bloody_cloth') {
+    // Torn fabric base — irregular flat shape
+    part(new THREE.BoxGeometry(0.5, 0.02, 0.35), light, 0, 0.01, 0);
+    // Folded creases (3 ridges)
+    for (let i = 0; i < 3; i++) {
+      part(new THREE.BoxGeometry(0.45, 0.025, 0.04), mid,
+        0, 0.025, -0.12 + i * 0.12);
+    }
+    // Torn edge strips (irregular boundary)
+    part(new THREE.BoxGeometry(0.08, 0.015, 0.3), mid, 0.25, 0.015, 0.02);
+    part(new THREE.BoxGeometry(0.06, 0.015, 0.25), mid, -0.24, 0.015, -0.03);
+    // Dark stain patches (blood/evidence marks)
+    part(new THREE.CircleGeometry(0.08, 8), stain, 0.05, 0.025, 0.05, -Math.PI / 2, 0, 0.3);
+    part(new THREE.CircleGeometry(0.06, 8), stain, -0.1, 0.025, -0.08, -Math.PI / 2, 0, 0);
+    part(new THREE.CircleGeometry(0.04, 6), dark, 0.15, 0.025, -0.05, -Math.PI / 2, 0, 0);
+    // Folded corner
+    const fold = part(new THREE.BoxGeometry(0.12, 0.03, 0.1), mid, 0.2, 0.04, 0.12);
+    fold.rotation.z = 0.4; fold.rotation.y = 0.3;
+    // Thread frays at torn edges
+    for (let i = 0; i < 4; i++) {
+      part(new THREE.CylinderGeometry(0.003, 0.003, 0.08, 4), light,
+        -0.25 + Math.random() * 0.05, 0.01, -0.12 + i * 0.08,
+        0, 0, Math.random() * 0.5 - 0.25);
+    }
+    // Small evidence tag (upright rectangle)
+    const tag = part(new THREE.BoxGeometry(0.08, 0.12, 0.005), glow, -0.15, 0.1, 0);
+    tag.userData.isIndicator = true;
+
+  } else if (type === 'broken_radio') {
+    // Radio body (cracked housing)
+    part(new THREE.BoxGeometry(0.3, 0.2, 0.14), mid, 0, 0.1, 0);
+    // Top panel (slightly offset — damage)
+    const topPanel = part(new THREE.BoxGeometry(0.28, 0.02, 0.13), dark, 0.02, 0.21, 0);
+    topPanel.rotation.z = 0.05;
+    // Bent broken antenna (two segments at different angles)
+    const ant1 = part(new THREE.CylinderGeometry(0.01, 0.008, 0.25, 6), dark, 0.1, 0.32, -0.03);
+    ant1.rotation.z = 0.5; ant1.rotation.x = -0.15;
+    const ant2 = part(new THREE.CylinderGeometry(0.008, 0.005, 0.15, 6), dark, 0.2, 0.42, -0.05);
+    ant2.rotation.z = 0.9; ant2.rotation.x = -0.3;
+    // Antenna tip (sparking)
+    part(new THREE.SphereGeometry(0.02, 6, 6), glow, 0.26, 0.48, -0.06);
+    // Speaker grille (5 horizontal lines)
+    for (let i = 0; i < 5; i++) {
+      part(new THREE.BoxGeometry(0.16, 0.008, 0.005), dark, 0, 0.06 + i * 0.03, 0.073);
+    }
+    // Frequency dial (cylindrical knob)
+    part(new THREE.CylinderGeometry(0.022, 0.022, 0.025, 8), brass, -0.09, 0.15, 0.075, Math.PI / 2, 0, 0);
+    // Channel selector switch
+    part(new THREE.BoxGeometry(0.04, 0.025, 0.015), dark, 0.06, 0.15, 0.075);
+    // Crack damage line (diagonal across body)
+    part(new THREE.BoxGeometry(0.25, 0.006, 0.005), dark, 0.01, 0.16, 0.073, 0, 0, 0.35);
+    // Second crack (perpendicular)
+    part(new THREE.BoxGeometry(0.006, 0.12, 0.005), dark, -0.05, 0.12, 0.073, 0, 0, -0.15);
+    // Missing panel chunk (dark void)
+    part(new THREE.BoxGeometry(0.06, 0.06, 0.04), dark, 0.1, 0.08, 0.05);
+    // Internal circuit board visible through damage
+    part(new THREE.BoxGeometry(0.05, 0.05, 0.003), stain, 0.1, 0.08, 0.03);
+    // Tiny components on circuit (resistors/capacitors)
+    for (let i = 0; i < 3; i++) {
+      part(new THREE.BoxGeometry(0.008, 0.005, 0.003), brass,
+        0.085 + i * 0.012, 0.075 + i * 0.008, 0.032);
+    }
+    // Sparking damage indicator
+    const spk = part(new THREE.SphereGeometry(0.035, 6, 6), glow, 0.1, 0.14, 0.06);
+    spk.userData.isIndicator = true;
+  }
+
+  group.position.set(x, 0, z);
+  group.userData = { type: 'evidence', evidenceType: type, id: id, label: label };
+  scene.add(group);
+  missionState.evidence.push(group);
 }
 
 function spawnNPC(x, z, name, id) {
@@ -2573,6 +2794,43 @@ function spawnMissionEnemies() {
   console.log('[CS] Spawned', enemyPlacements.length, 'mission enemies');
 }
 
+// ── Escort System — RAVEN follows player during extraction ──
+function updateEscort(dt) {
+  if (!missionState.escortActive || !missionState.escortNPC) return;
+
+  const npc = missionState.escortNPC;
+  const obj = currentMission.objectives[missionState.currentObjective];
+
+  // Update extraction countdown timer
+  if (obj && obj.escort) {
+    const elapsed = (Date.now() - missionState.extractionStartTime) / 1000;
+    missionState.extractionTimer = Math.max(0, obj.timeLimit - elapsed);
+    if (missionState.extractionTimer <= 0) {
+      showMissionNotification('TIME\'S UP — EXTRACTION FAILED');
+      missionState.escortActive = false;
+      triggerGameOver();
+      return;
+    }
+  }
+
+  // RAVEN follows player at walking speed, maintains ~3 unit distance
+  const dx = player.pos.x - npc.position.x;
+  const dz = player.pos.z - npc.position.z;
+  const dist = Math.hypot(dx, dz);
+  const followDist = 3;
+
+  if (dist > followDist) {
+    const speed = 4.5 * dt;
+    npc.position.x += (dx / dist) * speed;
+    npc.position.z += (dz / dist) * speed;
+    // Face toward player
+    npc.rotation.y = Math.atan2(dx, dz);
+  }
+
+  // Keep RAVEN on ground level
+  npc.position.y = 0;
+}
+
 function updateMissionHud() {
   if (!currentMission || !missionState.active) return;
   
@@ -2585,6 +2843,48 @@ function updateMissionHud() {
   const mins = Math.floor(elapsed / 60);
   const secs = elapsed % 60;
   missionTimer.textContent = `${mins}:${String(secs).padStart(2, '0')}`;
+
+  // Evidence counter visibility
+  const evidenceEl = document.getElementById('evidenceCounter');
+  if (evidenceEl) {
+    if (obj && obj.type === 'collect_evidence' && !obj.completed) {
+      evidenceEl.style.display = 'block';
+      evidenceEl.textContent = `EVIDENCE ${missionState.evidenceCollected}/${obj.evidenceCount}`;
+    } else {
+      evidenceEl.style.display = 'none';
+    }
+  }
+
+  // Escort HUD visibility
+  const escortEl = document.getElementById('escortHud');
+  if (escortEl) {
+    if (missionState.escortActive) {
+      escortEl.style.display = 'flex';
+      const statusEl = document.getElementById('escortStatus');
+      const timerEl = document.getElementById('extractionTimer');
+      if (statusEl) {
+        if (missionState.escortHealth <= 30) {
+          statusEl.textContent = 'RAVEN STATUS: CRITICAL';
+          statusEl.classList.add('danger');
+        } else if (missionState.escortHealth <= 60) {
+          statusEl.textContent = 'RAVEN STATUS: INJURED';
+          statusEl.classList.remove('danger');
+        } else {
+          statusEl.textContent = 'RAVEN STATUS: OK';
+          statusEl.classList.remove('danger');
+        }
+      }
+      if (timerEl && obj && obj.escort) {
+        const tLeft = Math.max(0, Math.ceil(missionState.extractionTimer));
+        const tm = Math.floor(tLeft / 60);
+        const ts = tLeft % 60;
+        timerEl.textContent = `${tm}:${String(ts).padStart(2, '0')}`;
+        timerEl.classList.toggle('urgent', tLeft <= 30);
+      }
+    } else {
+      escortEl.style.display = 'none';
+    }
+  }
 }
 
 function checkMissionObjectives() {
@@ -2600,8 +2900,7 @@ function checkMissionObjectives() {
     case 'escape_zone':
       const dist = Math.hypot(playerPos.x - obj.zone.x, playerPos.z - obj.zone.z);
       if (dist < obj.triggerDistance) {
-        if (obj.requiresNPC && missionState.npcs.length === 0) {
-          // Need RAVEN to escape with
+        if (obj.requiresNPC && !missionState.escortNPC) {
           showMissionNotification('Get RAVEN to safety!');
           return;
         }
@@ -2615,12 +2914,10 @@ function checkMissionObjectives() {
         const cdist = Math.hypot(playerPos.x - clue.position.x, playerPos.z - clue.position.z);
         if (cdist < obj.triggerDistance) {
           completeObjective(obj);
-          // Show clue dialogue
           const dialogueKey = `clue_${missionState.currentObjective}`;
           if (currentMission.dialogues[dialogueKey]) {
             playDialogue(dialogueKey);
           }
-          // Remove clue from scene
           scene.remove(clue);
           missionState.clues = missionState.clues.filter(c => c.userData.id !== obj.id);
         }
@@ -2641,17 +2938,76 @@ function checkMissionObjectives() {
       break;
       
     case 'dialogue_sequence':
-      // Auto-complete when dialogue finishes
       if (!missionState.dialogueActive) {
         completeObjective(obj);
+        // Track raven_extraction dialogue completion for escort activation
+        if (obj.dialogueId === 'raven_extraction') {
+          missionState._pendingEscortActivation = true;
+        }
       }
       break;
+
+    case 'collect_evidence':
+      // Check proximity to each uncollected evidence item
+      for (let ei = 0; ei < missionState.evidence.length; ei++) {
+        const ev = missionState.evidence[ei];
+        if (ev.userData.collected) continue;
+        const edist = Math.hypot(playerPos.x - ev.position.x, playerPos.z - ev.position.z);
+        if (edist < obj.triggerDistance) {
+          ev.userData.collected = true;
+          missionState.evidenceCollected++;
+          scene.remove(ev);
+          missionState.evidence.splice(ei, 1);
+          showMissionNotification(`Evidence collected: ${obj.evidenceCount - missionState.evidenceCollected} remaining`);
+          if (missionState.evidenceCollected >= obj.evidenceCount) {
+            completeObjective(obj);
+          }
+          break;
+        }
+      }
+      break;
+  }
+
+  // Check if escort should activate (after raven_extraction dialogue ends)
+  if (missionState._pendingEscortActivation && !missionState.dialogueActive) {
+    missionState._pendingEscortActivation = false;
+    missionState.escortActive = true;
+    const ravenNPC = missionState.npcs.find(n => n.userData.name === 'RAVEN');
+    if (ravenNPC) {
+      missionState.escortNPC = ravenNPC;
+      ravenNPC.userData.followMode = true;
+    }
+    missionState.extractionStartTime = Date.now();
+    missionState.extractionTimer = 90;
+    showMissionNotification('ESCORT RAVEN TO EXTRACTION — 90 SECONDS');
+    // Spawn extra enemies along the escape route (SW → NE diagonal)
+    const escapeEnemies = [
+      { x: -10, z: -5 }, { x: 5, z: 10 }, { x: 15, z: 15 },
+      { x: 25, z: 20 }, { x: 28, z: 25 }
+    ];
+    const eNames = [...BOT_NAMES].sort(() => Math.random() - 0.5);
+    escapeEnemies.forEach((ep, i) => {
+      if (isFree(ep.x, ep.z, 0.6)) {
+        const b = new Bot(ep.x, ep.z, eNames[i % eNames.length]);
+        b.patrolCenter = new THREE.Vector2(ep.x, ep.z);
+        b.patrolRadius = 4;
+        b.patrolAngle = Math.random() * Math.PI * 2;
+        b.patrolSpeed = 2;
+        bots.push(b);
+      }
+    });
+    console.log('[CS] Escort activated — RAVEN following, 90s countdown started');
   }
 }
 
 function completeObjective(obj) {
   obj.completed = true;
   missionState.currentObjective++;
+  
+  // Deactivate escort mode when escape zone completes
+  if (obj.escort) {
+    missionState.escortActive = false;
+  }
   
   showMissionNotification(`Objective Complete: ${obj.title}`);
   
@@ -2666,7 +3022,14 @@ function completeObjective(obj) {
 function completeMission() {
   missionState.missionComplete = true;
   missionState.active = false;
+  missionState.escortActive = false;
   missionState.elapsedTime = Date.now() - missionState.startTime;
+  
+  // Remove escort NPC from scene
+  if (missionState.escortNPC) {
+    scene.remove(missionState.escortNPC);
+    missionState.escortNPC = null;
+  }
   
   // Show final dialogue
   playDialogue('mission_complete', () => {
@@ -2855,6 +3218,15 @@ function updateMissionMarkers() {
       targetX = npc.position.x;
       targetZ = npc.position.z;
     }
+  } else if (obj.type === 'collect_evidence') {
+    // Show nearest uncollected evidence on radar
+    let nearest = null, nearDist = Infinity;
+    for (const ev of missionState.evidence) {
+      if (ev.userData.collected) continue;
+      const d = Math.hypot(ev.position.x - player.pos.x, ev.position.z - player.pos.z);
+      if (d < nearDist) { nearDist = d; nearest = ev; }
+    }
+    if (nearest) { targetX = nearest.position.x; targetZ = nearest.position.z; }
   }
   
   if (targetX === undefined) return;
@@ -3007,6 +3379,9 @@ const btnPlay = document.getElementById('btnPlay');
 
 function triggerGameOver() {
   game.state = 'gameOver';
+  // Clean up mission escort state
+  missionState.escortActive = false;
+  missionState.escortNPC = null;
   // Release pointer lock
   if (document.pointerLockElement) document.exitPointerLock();
   // Show game over screen with stats
@@ -3032,6 +3407,14 @@ function startNewGame() {
   hud.kills.textContent = '0';
   hud.killfeed.innerHTML = '';
   clearBots();
+  
+  // Clean up mission entities and escort state
+  missionState.evidence.forEach(ev => scene.remove(ev));
+  missionState.evidence = [];
+  missionState.evidenceCollected = 0;
+  missionState.escortActive = false;
+  missionState.escortNPC = null;
+  missionState._pendingEscortActivation = false;
   
   // Hide mission HUD and restore round-based HUD
   if (missionHud) missionHud.style.display = 'none';
@@ -3380,6 +3763,17 @@ function frame() {
       updateMissionHud();
       checkMissionObjectives();
       updateMissionMarkers();
+      updateEscort(dt);
+      // Animate evidence indicators (floating bob)
+      const t = performance.now() * 0.001;
+      for (const ev of missionState.evidence) {
+        ev.children.forEach(ch => {
+          if (ch.userData.isIndicator) {
+            ch.position.y = 0.9 + Math.sin(t * 2 + ev.position.x) * 0.1;
+            ch.rotation.y = t * 1.5;
+          }
+        });
+      }
     } else {
       // Classic round-based mode
       game.timeLeft -= dt;
