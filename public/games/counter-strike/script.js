@@ -2449,16 +2449,16 @@ function spawnMissionEnemies() {
   if (!currentMission) return;
   
   // Strategic enemy placements along Mission 1 path
-  // Player spawns at z: -45 to -40, so enemies start much further away
+  // Player spawns at z: -45 to -40, enemies start much further away (z: -5 and beyond)
   const enemyPlacements = [
-    // Far entrance guards (2 enemies)
-    { x: 8, z: -15, patrol: true },
-    { x: -8, z: -15, patrol: true },
+    // Far entrance guards (2 enemies) - well away from spawn
+    { x: 8, z: -5, patrol: true },
+    { x: -8, z: -5, patrol: true },
     
     // Mid-range patrol (3 enemies)
-    { x: -10, z: -5, patrol: true },
-    { x: -12, z: 5, patrol: true },
-    { x: -8, z: 10, patrol: true },
+    { x: -10, z: 5, patrol: true },
+    { x: -12, z: 10, patrol: true },
+    { x: -8, z: 15, patrol: true },
     
     // Guards around first clue location (2 enemies)
     { x: -18, z: 8, patrol: false },
@@ -2482,12 +2482,12 @@ function spawnMissionEnemies() {
     
     // Pursuit squad on escape route (3 enemies)
     { x: -15, z: 20, patrol: true },
-    { x: -5, z: 5, patrol: true },
-    { x: 5, z: -10, patrol: true },
+    { x: -5, z: 10, patrol: true },
+    { x: 5, z: 0, patrol: true },
     
     // Final blockers near extraction (2 enemies)
-    { x: 3, z: -25, patrol: false },
-    { x: -3, z: -30, patrol: false }
+    { x: 3, z: -15, patrol: false },
+    { x: -3, z: -20, patrol: false }
   ];
   
   const names = [...BOT_NAMES].sort(() => Math.random() - 0.5);
@@ -2704,9 +2704,9 @@ function showNextDialogue(onComplete) {
   if (dialogueSpeaker) dialogueSpeaker.textContent = line.speaker;
   if (dialogueText) dialogueText.textContent = line.text;
   
-  // Set portrait (simple colored box for now)
-  const colors = { rook: '#4488ff', raven: '#44ff88', sable: '#ff4488' };
-  if (dialoguePortrait) dialoguePortrait.style.background = colors[line.portrait] || '#888';
+  // Set portrait (monochrome style)
+  const portraitColors = { rook: '#666', raven: '#888', sable: '#555' };
+  if (dialoguePortrait) dialoguePortrait.style.background = portraitColors[line.portrait] || '#777';
   
   // Auto-advance after delay or click
   setTimeout(() => {
@@ -2805,7 +2805,7 @@ function updateMissionMarkers() {
   }
   
   if (targetX !== undefined) {
-    // Draw waypoint on radar
+    // Draw waypoint on radar (monochrome style)
     const wx = (targetX - player.pos.x) * scale;
     const wz = (targetZ - player.pos.z) * scale;
     
@@ -2813,13 +2813,13 @@ function updateMissionMarkers() {
     c.translate(S / 2, S / 2);
     c.rotate(player.yaw);
     
-    // Draw pulsing waypoint marker
+    // Draw pulsing waypoint marker (monochrome white)
     const pulse = (Math.sin(performance.now() * 0.005) + 1) * 0.5;
     
     // Outer ring with glow
     c.shadowBlur = 10;
-    c.shadowColor = '#ffaa00';
-    c.strokeStyle = `rgba(255, 170, 0, ${0.7 + pulse * 0.3})`;
+    c.shadowColor = '#ffffff';
+    c.strokeStyle = `rgba(255, 255, 255, ${0.7 + pulse * 0.3})`;
     c.lineWidth = 3;
     c.beginPath();
     c.arc(wx, wz, 8 + pulse * 3, 0, Math.PI * 2);
@@ -2827,7 +2827,7 @@ function updateMissionMarkers() {
     c.shadowBlur = 0;
     
     // Inner dot
-    c.fillStyle = '#ffaa00';
+    c.fillStyle = '#ffffff';
     c.beginPath();
     c.arc(wx, wz, 4, 0, Math.PI * 2);
     c.fill();

@@ -647,28 +647,30 @@ html, body {
 
 /* Dialogue Overlay */
 #dialogueOverlay {
-  position: fixed; inset: 0; z-index: 100;
-  background: rgba(10,10,12,.85);
-  display: flex; align-items: flex-end; justify-content: center;
-  padding: 40px 20px;
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 100;
+  background: transparent;
+  display: flex; align-items: center; justify-content: flex-end;
+  padding: 20px;
+  pointer-events: none;
 }
 .dialogue-box {
-  background: var(--card); border: 2px solid var(--line); border-radius: 12px;
-  padding: 24px; max-width: 600px; width: 100%;
-  display: flex; gap: 20px; align-items: flex-start;
-  box-shadow: 0 8px 32px rgba(0,0,0,.5);
+  background: rgba(20,20,24,.95); border: 1px solid rgba(255,255,255,.15); border-radius: 8px;
+  padding: 20px; max-width: 380px; width: 100%;
+  display: flex; gap: 16px; align-items: flex-start;
+  box-shadow: 0 4px 20px rgba(0,0,0,.6);
+  pointer-events: auto;
 }
 .dialogue-portrait {
-  width: 64px; height: 64px; border-radius: 8px; flex-shrink: 0;
-  background: var(--dim);
+  width: 48px; height: 48px; border-radius: 6px; flex-shrink: 0;
+  background: var(--dim); border: 1px solid rgba(255,255,255,.1);
 }
 .dialogue-content { flex: 1; }
 .dialogue-speaker {
-  font: 700 13px var(--m); letter-spacing: .1em; text-transform: uppercase;
-  color: var(--text); margin-bottom: 8px;
+  font: 700 11px var(--m); letter-spacing: .15em; text-transform: uppercase;
+  color: rgba(255,255,255,.7); margin-bottom: 6px;
 }
 .dialogue-text {
-  font: 400 15px var(--f); color: var(--text); line-height: 1.6;
+  font: 400 14px var(--f); color: rgba(255,255,255,.9); line-height: 1.5;
 }
 
 /* Mission Complete Screen */
