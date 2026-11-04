@@ -2423,22 +2423,86 @@ function spawnClue(x, z, type, id) {
 
 function spawnNPC(x, z, name, id) {
   const group = new THREE.Group();
-  
-  // Simple NPC representation (monochrome)
-  const body = new THREE.Mesh(
-    new THREE.BoxGeometry(0.5, 1.0, 0.3),
-    new THREE.MeshStandardMaterial({ color: 0x666666 })
-  );
-  body.position.y = 0.8;
-  group.add(body);
-  
-  const head = new THREE.Mesh(
-    new THREE.BoxGeometry(0.35, 0.35, 0.35),
-    new THREE.MeshStandardMaterial({ color: 0x999999 })
-  );
-  head.position.y = 1.5;
-  group.add(head);
-  
+  const dark = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.85 });
+  const mid = new THREE.MeshStandardMaterial({ color: 0x777777, roughness: 0.9 });
+  const light = new THREE.MeshStandardMaterial({ color: 0x999999, roughness: 0.9 });
+  const skin = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, roughness: 0.95 });
+  const accent = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.7 });
+
+  const part = (geo, mat, px, py, pz, parent = group) => {
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(px, py, pz); m.castShadow = true;
+    parent.add(m); return m;
+  };
+
+  // ── Legs (articulated, separate groups for future animation) ──
+  const legL = new THREE.Group(); legL.position.set(-0.12, 0.85, 0); group.add(legL);
+  const legR = new THREE.Group(); legR.position.set(0.12, 0.85, 0); group.add(legR);
+  part(new THREE.BoxGeometry(0.2, 0.85, 0.22), dark, 0, -0.425, 0, legL);
+  part(new THREE.BoxGeometry(0.2, 0.85, 0.22), dark, 0, -0.425, 0, legR);
+  // Boots
+  part(new THREE.BoxGeometry(0.22, 0.18, 0.3), accent, 0, -0.88, 0.02, legL);
+  part(new THREE.BoxGeometry(0.22, 0.18, 0.3), accent, 0, -0.88, 0.02, legR);
+
+  // ── Torso ──
+  part(new THREE.BoxGeometry(0.55, 0.65, 0.3), mid, 0, 1.2, 0);         // shirt
+  part(new THREE.BoxGeometry(0.58, 0.42, 0.34), accent, 0, 1.22, 0);    // tactical vest
+  // Vest pouches
+  part(new THREE.BoxGeometry(0.12, 0.1, 0.06), dark, -0.15, 1.1, 0.18);
+  part(new THREE.BoxGeometry(0.12, 0.1, 0.06), dark, 0.15, 1.1, 0.18);
+  part(new THREE.BoxGeometry(0.12, 0.1, 0.06), dark, 0, 1.1, 0.18);
+  // Chest rig strap
+  part(new THREE.BoxGeometry(0.5, 0.04, 0.36), dark, 0, 1.42, 0);
+
+  // ── Arms ──
+  const armL = new THREE.Group(); armL.position.set(-0.34, 1.35, 0); group.add(armL);
+  const armR = new THREE.Group(); armR.position.set(0.34, 1.35, 0); group.add(armR);
+  part(new THREE.BoxGeometry(0.14, 0.5, 0.16), mid, 0, -0.25, 0, armL);
+  part(new THREE.BoxGeometry(0.14, 0.5, 0.16), mid, 0, -0.25, 0, armR);
+  // Gloves
+  part(new THREE.BoxGeometry(0.14, 0.12, 0.16), dark, 0, -0.52, 0, armL);
+  part(new THREE.BoxGeometry(0.14, 0.12, 0.16), dark, 0, -0.52, 0, armR);
+  // Left arm slightly forward (injured/holding side)
+  armL.rotation.x = 0.15;
+  armR.rotation.x = -0.1;
+
+  // ── Head with hood/balaclava ──
+  const headGroup = new THREE.Group(); headGroup.position.set(0, 1.72, 0); group.add(headGroup);
+  part(new THREE.BoxGeometry(0.28, 0.3, 0.28), skin, 0, 0, 0, headGroup);   // face
+  part(new THREE.BoxGeometry(0.32, 0.18, 0.32), dark, 0, 0.12, 0, headGroup); // hood top
+  part(new THREE.BoxGeometry(0.32, 0.12, 0.08), dark, 0, 0.04, 0.14, headGroup); // hood brow
+  part(new THREE.BoxGeometry(0.28, 0.1, 0.04), accent, 0, -0.06, 0.15, headGroup); // mouth guard
+  // Eyes (small dark slits)
+  part(new THREE.BoxGeometry(0.06, 0.03, 0.02), accent, -0.07, 0.02, 0.15, headGroup);
+  part(new THREE.BoxGeometry(0.06, 0.03, 0.02), accent, 0.07, 0.02, 0.15, headGroup);
+
+  // ── Backpack / radio equipment ──
+  part(new THREE.BoxGeometry(0.35, 0.4, 0.15), dark, 0, 1.25, -0.22);     // pack body
+  part(new THREE.BoxGeometry(0.08, 0.2, 0.06), accent, 0.12, 1.35, -0.3);  // radio unit
+  part(new THREE.BoxGeometry(0.02, 0.25, 0.02), dark, 0.12, 1.55, -0.3);   // antenna
+  part(new THREE.BoxGeometry(0.04, 0.04, 0.04), light, 0.12, 1.68, -0.3);  // antenna tip
+
+  // ── Name tag floating above head ──
+  const tagCanvas = document.createElement('canvas');
+  tagCanvas.width = 256; tagCanvas.height = 64;
+  const tc = tagCanvas.getContext('2d');
+  tc.fillStyle = 'rgba(20,20,24,0.85)';
+  tc.fillRect(0, 0, 256, 64);
+  tc.strokeStyle = 'rgba(255,255,255,0.3)';
+  tc.lineWidth = 2;
+  tc.strokeRect(2, 2, 252, 60);
+  tc.fillStyle = '#ffffff';
+  tc.font = 'bold 28px system-ui, sans-serif';
+  tc.textAlign = 'center';
+  tc.textBaseline = 'middle';
+  tc.fillText(name, 128, 32);
+  const tagTex = new THREE.CanvasTexture(tagCanvas);
+  const tagMat = new THREE.SpriteMaterial({ map: tagTex, transparent: true, depthTest: true });
+  const tag = new THREE.Sprite(tagMat);
+  tag.scale.set(1.2, 0.3, 1);
+  tag.position.set(0, 2.3, 0);
+  group.add(tag);
+
   group.position.set(x, 0, z);
   group.userData = { type: 'npc', name: name, id: id };
   scene.add(group);
