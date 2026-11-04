@@ -2408,14 +2408,14 @@ function spawnMissionEntities() {
 }
 
 function spawnClue(x, z, type, id) {
-  const geo = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+  const geo = new THREE.BoxGeometry(0.4, 0.4, 0.4);
   const mat = new THREE.MeshStandardMaterial({ 
-    color: 0xffaa00, 
-    emissive: 0xffaa00, 
-    emissiveIntensity: 0.5 
+    color: 0x888888, 
+    emissive: 0x444444, 
+    emissiveIntensity: 0.3 
   });
   const clue = new THREE.Mesh(geo, mat);
-  clue.position.set(x, 1, z);
+  clue.position.set(x, 0.5, z);
   clue.userData = { type: 'clue', clueType: type, id: id };
   scene.add(clue);
   missionState.clues.push(clue);
@@ -2424,19 +2424,19 @@ function spawnClue(x, z, type, id) {
 function spawnNPC(x, z, name, id) {
   const group = new THREE.Group();
   
-  // Simple NPC representation (can be enhanced with full figure rig)
+  // Simple NPC representation (monochrome)
   const body = new THREE.Mesh(
-    new THREE.BoxGeometry(0.6, 1.2, 0.4),
-    new THREE.MeshStandardMaterial({ color: 0x4488ff })
+    new THREE.BoxGeometry(0.5, 1.0, 0.3),
+    new THREE.MeshStandardMaterial({ color: 0x666666 })
   );
-  body.position.y = 0.9;
+  body.position.y = 0.8;
   group.add(body);
   
   const head = new THREE.Mesh(
-    new THREE.BoxGeometry(0.4, 0.4, 0.4),
-    new THREE.MeshStandardMaterial({ color: 0xdddddd })
+    new THREE.BoxGeometry(0.35, 0.35, 0.35),
+    new THREE.MeshStandardMaterial({ color: 0x999999 })
   );
-  head.position.y = 1.7;
+  head.position.y = 1.5;
   group.add(head);
   
   group.position.set(x, 0, z);
@@ -2780,10 +2780,10 @@ function updateMissionMarkers() {
   const obj = currentMission.objectives[missionState.currentObjective];
   if (!obj || obj.completed) return;
   
-  // Draw waypoint on radar with enhanced visuals
   const c = radarCtx;
   const S = 170;
   const scale = 2.4;
+  const radarRadius = S / 2 - 4; // usable radius inside the radar circle
   
   let targetX, targetZ;
   
@@ -2791,7 +2791,7 @@ function updateMissionMarkers() {
     targetX = obj.zone.x;
     targetZ = obj.zone.z;
   } else if (obj.type === 'find_clue') {
-    const clue = missionState.clues.find(c => c.userData.id === obj.id);
+    const clue = missionState.clues.find(cl => cl.userData.id === obj.id);
     if (clue) {
       targetX = clue.position.x;
       targetZ = clue.position.z;
@@ -2804,36 +2804,81 @@ function updateMissionMarkers() {
     }
   }
   
-  if (targetX !== undefined) {
-    // Draw waypoint on radar (monochrome style)
-    const wx = (targetX - player.pos.x) * scale;
-    const wz = (targetZ - player.pos.z) * scale;
-    
-    c.save();
-    c.translate(S / 2, S / 2);
-    c.rotate(player.yaw);
-    
-    // Draw pulsing waypoint marker (monochrome white)
-    const pulse = (Math.sin(performance.now() * 0.005) + 1) * 0.5;
-    
-    // Outer ring with glow
+  if (targetX === undefined) return;
+  
+  // Waypoint position relative to player, in radar pixel coords
+  const wx = (targetX - player.pos.x) * scale;
+  const wz = (targetZ - player.pos.z) * scale;
+  const dist = Math.sqrt(wx * wx + wz * wz);
+  
+  c.save();
+  c.translate(S / 2, S / 2);
+  c.rotate(player.yaw);
+  
+  const pulse = (Math.sin(performance.now() * 0.005) + 1) * 0.5;
+  
+  if (dist <= radarRadius) {
+    // Objective is within minimap — draw waypoint marker directly
     c.shadowBlur = 10;
     c.shadowColor = '#ffffff';
     c.strokeStyle = `rgba(255, 255, 255, ${0.7 + pulse * 0.3})`;
-    c.lineWidth = 3;
+    c.lineWidth = 2.5;
     c.beginPath();
-    c.arc(wx, wz, 8 + pulse * 3, 0, Math.PI * 2);
+    c.arc(wx, wz, 7 + pulse * 3, 0, Math.PI * 2);
     c.stroke();
     c.shadowBlur = 0;
     
-    // Inner dot
     c.fillStyle = '#ffffff';
     c.beginPath();
-    c.arc(wx, wz, 4, 0, Math.PI * 2);
+    c.arc(wx, wz, 3.5, 0, Math.PI * 2);
     c.fill();
+  } else {
+    // Objective is off-minimap — draw a directional arrow at the edge
+    const angle = Math.atan2(wz, wx);
+    const arrowDist = radarRadius - 6; // sit just inside the circle edge
+    const ax = Math.cos(angle) * arrowDist;
+    const ay = Math.sin(angle) * arrowDist;
+    
+    // Pulsing arrowhead pointing toward objective
+    c.save();
+    c.translate(ax, ay);
+    c.rotate(angle); // point the arrow along the direction
+    
+    c.shadowBlur = 8;
+    c.shadowColor = '#ffffff';
+    c.fillStyle = `rgba(255, 255, 255, ${0.75 + pulse * 0.25})`;
+    c.strokeStyle = `rgba(255, 255, 255, ${0.75 + pulse * 0.25})`;
+    c.lineWidth = 2;
+    
+    // Arrowhead triangle
+    const sz = 7 + pulse * 2;
+    c.beginPath();
+    c.moveTo(sz, 0);           // tip
+    c.lineTo(-sz * 0.6, -sz * 0.55);
+    c.lineTo(-sz * 0.6,  sz * 0.55);
+    c.closePath();
+    c.fill();
+    c.stroke();
+    c.shadowBlur = 0;
     
     c.restore();
+    
+    // Small distance label near the arrow (in unrotated HUD space)
+    c.save();
+    // Undo the radar rotation for text so it stays upright
+    c.rotate(-player.yaw);
+    const labelX = ax * Math.cos(-player.yaw) - ay * Math.sin(-player.yaw);
+    const labelY = ax * Math.sin(-player.yaw) + ay * Math.cos(-player.yaw);
+    const worldDist = Math.round(dist / scale);
+    c.fillStyle = `rgba(255, 255, 255, ${0.6 + pulse * 0.3})`;
+    c.font = '600 9px system-ui, sans-serif';
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillText(`${worldDist}m`, labelX, labelY + 14);
+    c.restore();
   }
+  
+  c.restore();
 }
 
 function resetPlayer() {
