@@ -2137,7 +2137,7 @@ const MISSIONS = [
         type: 'find_npc',
         title: 'Find RAVEN',
         description: 'Locate RAVEN in the duplex buildings',
-        location: { x: -25, z: 35, radius: 4 },
+        location: { x: -33, z: 29, radius: 4 },
         npcName: 'RAVEN',
         triggerDistance: 3,
         completed: false,
@@ -2464,11 +2464,11 @@ function spawnMissionEnemies() {
     { x: 22, z: 23, patrol: false },
     { x: 18, z: 27, patrol: true },
     
-    // Heavy resistance near RAVEN (4 enemies)
-    { x: -20, z: 32, patrol: true },
-    { x: -28, z: 33, patrol: true },
-    { x: -23, z: 38, patrol: false },
-    { x: -27, z: 37, patrol: true },
+    // Heavy resistance near RAVEN's building (4 enemies)
+    { x: -30, z: 26, patrol: true },
+    { x: -36, z: 26, patrol: true },
+    { x: -30, z: 32, patrol: false },
+    { x: -36, z: 32, patrol: true },
     
     // Pursuit squad on escape route (3 enemies)
     { x: -15, z: 20, patrol: true },
