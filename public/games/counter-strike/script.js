@@ -2777,6 +2777,10 @@ function showMissionSelect() {
 function updateMissionMarkers() {
   if (!currentMission || !missionState.active) return;
   
+  // Clear the canvas and draw radar background (buildings, bots, player triangle)
+  // — in mission mode updateHud() is skipped, so drawRadar() never runs otherwise
+  drawRadar();
+  
   const obj = currentMission.objectives[missionState.currentObjective];
   if (!obj || obj.completed) return;
   
