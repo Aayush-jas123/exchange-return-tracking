@@ -2116,8 +2116,8 @@ const MISSIONS = [
         id: 'obj_1_2',
         type: 'find_clue',
         title: 'Investigate Signs of Struggle',
-        description: 'Find evidence of RAVEN\'s last stand',
-        location: { x: -15, z: 10, radius: 3 },
+        description: 'Investigate inside the southwest duplex',
+        location: { x: -33, z: -30, radius: 3 },
         clueType: 'spent_ammo',
         triggerDistance: 2.5,
         completed: false
@@ -2126,8 +2126,8 @@ const MISSIONS = [
         id: 'obj_1_3',
         type: 'find_clue',
         title: 'Locate Damaged Radio',
-        description: 'Track RAVEN\'s communication attempts',
-        location: { x: 20, z: 25, radius: 3 },
+        description: 'Track RAVEN\'s communication from the east bunker',
+        location: { x: 36, z: 0, radius: 3 },
         clueType: 'radio',
         triggerDistance: 2.5,
         completed: false
@@ -2136,7 +2136,7 @@ const MISSIONS = [
         id: 'obj_1_4',
         type: 'find_npc',
         title: 'Find RAVEN',
-        description: 'Locate RAVEN in the duplex buildings',
+        description: 'Locate RAVEN on the upper floor of the northwest duplex',
         location: { x: -33, z: 29, radius: 4 },
         npcName: 'RAVEN',
         triggerDistance: 3,
@@ -2449,56 +2449,50 @@ function spawnMissionEnemies() {
   if (!currentMission) return;
   
   // Strategic enemy placements along Mission 1 path
-  // Player spawns at z: -45 to -40, enemies start much further away (z: -5 and beyond)
+  // Player spawns in SW corner (-41, -41), objective route leads NE through buildings
+  // 7 enemies INSIDE buildings (both floors), 6 OUTSIDE
   const enemyPlacements = [
-    // Entrance guards (2)
-    { x: 8, z: -5, patrol: true },
-    { x: -8, z: -5, patrol: true },
+    // === INSIDE BUILDINGS — Ground Floor (4) ===
+    { x: -33, z: -30, patrol: false, inside: true },   // SW duplex ground floor (near clue 1)
+    { x: 36, z: -2, patrol: true, inside: true },      // E round duplex ground floor (near clue 2)
+    { x: -33, z: 29, patrol: false, inside: true },    // NW duplex ground floor (near RAVEN)
+    { x: 16, z: 3, patrol: false, inside: true },      // E center duplex ground floor
     
-    // Mid-range patrol (2)
-    { x: -10, z: 5, patrol: true },
-    { x: -8, z: 15, patrol: true },
+    // === INSIDE BUILDINGS — Upper Floor (3) ===
+    { x: -33, z: -30, patrol: false, inside: true, upperFloor: true },  // SW duplex upper floor
+    { x: 33, z: 29, patrol: true, inside: true, upperFloor: true },     // NE duplex upper floor
+    { x: -16, z: 3, patrol: false, inside: true, upperFloor: true },    // W center duplex upper floor
     
-    // First clue guard (1)
-    { x: -18, z: 8, patrol: false },
-    
-    // Between clues (2)
-    { x: 8, z: 18, patrol: true },
-    { x: 18, z: 28, patrol: true },
-    
-    // Second clue guard (1)
-    { x: 22, z: 23, patrol: false },
-    
-    // RAVEN building guards (2)
-    { x: -30, z: 26, patrol: true },
-    { x: -36, z: 32, patrol: true },
-    
-    // Escape route (2)
-    { x: -5, z: 10, patrol: true },
-    { x: 5, z: 0, patrol: true },
-    
-    // Final blocker (1)
-    { x: 3, z: -15, patrol: false }
+    // === OUTSIDE — Patrol & Guards (6) ===
+    { x: 8, z: -5, patrol: true },       // Entrance east
+    { x: -8, z: -5, patrol: true },      // Entrance west
+    { x: -10, z: 5, patrol: true },      // Mid-range
+    { x: 8, z: 18, patrol: true },       // Central avenue
+    { x: -5, z: 10, patrol: true },      // Escape route
+    { x: 3, z: -15, patrol: false }      // Final blocker
   ];
   
   const names = [...BOT_NAMES].sort(() => Math.random() - 0.5);
   
   enemyPlacements.forEach((placement, i) => {
-    // Check if position is free (not inside walls)
-    if (!isFree(placement.x, placement.z, 0.6)) {
-      // Try nearby position
-      for (let attempt = 0; attempt < 10; attempt++) {
-        const offsetX = (Math.random() - 0.5) * 4;
-        const offsetZ = (Math.random() - 0.5) * 4;
-        if (isFree(placement.x + offsetX, placement.z + offsetZ, 0.6)) {
-          placement.x += offsetX;
-          placement.z += offsetZ;
-          break;
+    // Skip ground-level isFree for inside/upperFloor placements — positions are pre-verified
+    if (!placement.inside) {
+      if (!isFree(placement.x, placement.z, 0.6)) {
+        for (let attempt = 0; attempt < 10; attempt++) {
+          const offsetX = (Math.random() - 0.5) * 4;
+          const offsetZ = (Math.random() - 0.5) * 4;
+          if (isFree(placement.x + offsetX, placement.z + offsetZ, 0.6)) {
+            placement.x += offsetX;
+            placement.z += offsetZ;
+            break;
+          }
         }
       }
     }
     
+    const spawnY = placement.upperFloor ? 3.8 : 0;
     const bot = new Bot(placement.x, placement.z, names[i % names.length]);
+    bot.pos.y = spawnY;
     bot.yaw = Math.PI;
     
     // Set patrol behavior
