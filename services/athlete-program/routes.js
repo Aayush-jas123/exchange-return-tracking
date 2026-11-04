@@ -1558,6 +1558,44 @@ module.exports = function mountAthleteRoutes(app) {
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
 
+  // ── Mission Progress (BLACKOUT Campaign) ──
+  app.get('/api/athlete/:token/missions/progress', authAthlete, async (req, res) => {
+    try {
+      const { influencerId, scope } = req.athleteScope;
+      if (scope !== 'PROGRESS') return res.status(403).json({ error: 'Wrong scope' });
+      
+      const { data: progress, error } = await req.supabase
+        .from('mission_progress')
+        .select('*')
+        .eq('athlete_id', influencerId)
+        .maybeSingle();
+      
+      if (error) throw error;
+      res.json({ success: true, progress: progress || { completed: [], bestTimes: {}, scores: {} } });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.post('/api/athlete/:token/missions/progress', authAthlete, async (req, res) => {
+    try {
+      const { influencerId, scope } = req.athleteScope;
+      if (scope !== 'PROGRESS') return res.status(403).json({ error: 'Wrong scope' });
+      
+      const { progress } = req.body;
+      if (!progress) return res.status(400).json({ error: 'progress is required' });
+      
+      const { data, error } = await req.supabase
+        .from('mission_progress')
+        .upsert({
+          athlete_id: influencerId,
+          progress: progress,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'athlete_id' });
+      
+      if (error) throw error;
+      res.json({ success: true, data });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
   // ── Coin Shop (balance, coin sources, open drops, this athlete's requests) ──
   app.get('/api/athlete/:token/shop', authAthlete, async (req, res) => {
     try {

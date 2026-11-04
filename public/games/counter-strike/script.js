@@ -1677,6 +1677,14 @@ class Bot {
       const d = this.moveToward(this.lastSeen.x, this.lastSeen.z, 3.6, dt);
       moveSpeed = 3.6;
       if (d < 1.2 || this.lostTimer > 7) { this.alert = false; this.target = null; }
+    } else if (this.patrolCenter) {
+      // Circular patrol behavior for mission enemies
+      this.patrolAngle += this.patrolSpeed * dt * 0.3;
+      const targetX = this.patrolCenter.x + Math.cos(this.patrolAngle) * this.patrolRadius;
+      const targetZ = this.patrolCenter.y + Math.sin(this.patrolAngle) * this.patrolRadius;
+      this.faceToward(targetX, targetZ, dt, 5);
+      const d = this.moveToward(targetX, targetZ, 2.4, dt);
+      moveSpeed = 2.4;
     } else {
       if (!this.target) this.pickWaypoint();
       this.faceToward(this.target.x, this.target.y, dt, 5);
@@ -2078,6 +2086,718 @@ document.addEventListener('pointerlockerror', () => {
 const ROUND_TIME = 130;
 const game = { state: 'menu', round: 0, ct: 0, t: 0, kills: 0, timeLeft: ROUND_TIME, endTimer: 0 };
 
+// ════════════════════════════════════════════════════════════
+//  MISSION SYSTEM — BLACKOUT Campaign
+//  Narrative-driven objectives with dialogue, triggers, and persistence
+// ════════════════════════════════════════════════════════════
+
+// ── Mission Data Structure ──
+const MISSIONS = [
+  {
+    id: 'mission_1',
+    codeName: 'BLACKOUT',
+    title: 'Hostage Rescue: The Man Who Stayed',
+    briefing: 'A dark command room. A satellite view of Greyhaven appears on a screen. SABLE briefs ROOK on the situation.',
+    map: 'industrial',
+    objectives: [
+      {
+        id: 'obj_1_1',
+        type: 'enter_zone',
+        title: 'Enter Greyhaven Complex',
+        description: 'Infiltrate the industrial complex through the main gate',
+        zone: { x: 0, z: -30, radius: 8 },
+        triggerDistance: 5,
+        completed: false
+      },
+      {
+        id: 'obj_1_2',
+        type: 'find_clue',
+        title: 'Investigate Signs of Struggle',
+        description: 'Find evidence of RAVEN\'s last stand',
+        location: { x: -15, z: 10, radius: 3 },
+        clueType: 'spent_ammo',
+        triggerDistance: 2.5,
+        completed: false
+      },
+      {
+        id: 'obj_1_3',
+        type: 'find_clue',
+        title: 'Locate Damaged Radio',
+        description: 'Track RAVEN\'s communication attempts',
+        location: { x: 20, z: 25, radius: 3 },
+        clueType: 'radio',
+        triggerDistance: 2.5,
+        completed: false
+      },
+      {
+        id: 'obj_1_4',
+        type: 'find_npc',
+        title: 'Find RAVEN',
+        description: 'Locate RAVEN in the duplex buildings',
+        location: { x: -25, z: 35, radius: 4 },
+        npcName: 'RAVEN',
+        triggerDistance: 3,
+        completed: false,
+        triggersDialogue: true
+      },
+      {
+        id: 'obj_1_5',
+        type: 'dialogue_sequence',
+        title: 'Extract Intelligence',
+        description: 'Learn what RAVEN discovered',
+        dialogueId: 'raven_extraction',
+        completed: false
+      },
+      {
+        id: 'obj_1_6',
+        type: 'escape_zone',
+        title: 'Escape the Complex',
+        description: 'Get RAVEN to the extraction point',
+        zone: { x: 0, z: -40, radius: 10 },
+        triggerDistance: 8,
+        requiresNPC: true,
+        completed: false
+      }
+    ],
+    dialogues: {
+      'opening': [
+        { speaker: 'SABLE', text: 'Your man went dark twelve hours ago.', portrait: 'sable' },
+        { speaker: 'ROOK', text: 'He isn\'t my man.', portrait: 'rook' },
+        { speaker: 'SABLE', text: 'You two still doing that?', portrait: 'sable' },
+        { speaker: 'ROOK', text: 'Apparently.', portrait: 'rook' },
+        { speaker: 'SABLE', text: 'Intelligence suggests an armed terrorist cell has occupied Greyhaven Industrial Complex. Former Veyra Defence Systems facility. Four years ago there was an incident — chemical leak, official story.', portrait: 'sable' },
+        { speaker: 'SABLE', text: 'Your mission: infiltrate the complex, locate RAVEN, extract him and any intelligence he\'s gathered. Be advised, Greyline operatives are on-site. Expect resistance.', portrait: 'sable' },
+        { speaker: 'ROOK', text: 'Copy. Moving to target.', portrait: 'rook' }
+      ],
+      'clue_1': [
+        { speaker: 'ROOK', text: 'Spent ammunition. Recent. He was here.', portrait: 'rook' },
+        { speaker: 'ROOK', text: 'Trail leads toward the duplex buildings.', portrait: 'rook' }
+      ],
+      'clue_2': [
+        { speaker: 'ROOK', text: 'Damaged radio. He tried to call for extraction.', portrait: 'rook' },
+        { speaker: 'ROOK', text: 'Must have been overwhelmed.', portrait: 'rook' }
+      ],
+      'raven_contact': [
+        { speaker: 'ROOK', text: 'RAVEN? You were supposed to stay alive.', portrait: 'rook' },
+        { speaker: 'RAVEN', text: 'I was getting around to it.', portrait: 'raven' },
+        { speaker: 'ROOK', text: 'You look like hell.', portrait: 'rook' },
+        { speaker: 'RAVEN', text: 'And you look expensive. Did they finally promote you?', portrait: 'raven' },
+        { speaker: 'ROOK', text: 'No. They just ran out of people.', portrait: 'rook' },
+        { speaker: 'ROOK', text: 'Why didn\'t you escape? The restraints were already broken.', portrait: 'rook' },
+        { speaker: 'RAVEN', text: 'Because I wasn\'t finished.', portrait: 'raven' },
+        { speaker: 'ROOK', text: 'With what?', portrait: 'rook' },
+        { speaker: 'RAVEN', text: 'Finding out what they\'re hiding. This facility wasn\'t just storing weapons, ROOK. It was manufacturing military guidance components. The "accident" four years ago — it was a cover-up.', portrait: 'raven' },
+        { speaker: 'ROOK', text: 'What kind of cover-up?', portrait: 'rook' },
+        { speaker: 'RAVEN', text: 'Unauthorized shipment. 40 missile guidance systems diverted through here. Someone disabled the safety systems to conceal the movement. People died. Innocent workers.', portrait: 'raven' },
+        { speaker: 'RAVEN', text: 'Greyline isn\'t just extracting weapons. They\'re destroying the evidence. All of it — records, witnesses, the facility itself.', portrait: 'raven' },
+        { speaker: 'ROOK', text: 'Then we need to move. Now.', portrait: 'rook' },
+        { speaker: 'RAVEN', text: 'One more thing.', portrait: 'raven' },
+        { speaker: 'ROOK', text: 'I hate those words.', portrait: 'rook' },
+        { speaker: 'RAVEN', text: 'They\'re not planning to leave this place standing. There\'s a charge planted in the main facility building. We have minutes.', portrait: 'raven' }
+      ],
+      'mission_complete': [
+        { speaker: 'SABLE', text: 'ROOK, status report.', portrait: 'sable' },
+        { speaker: 'ROOK', text: 'RAVEN extracted. We have intelligence on Greyline operations. Recommend immediate follow-up.', portrait: 'rook' },
+        { speaker: 'SABLE', text: 'Understood. Extraction team inbound. Good work.', portrait: 'sable' },
+        { speaker: 'RAVEN', text: 'This isn\'t over, ROOK. What happened here... it goes higher than Greyline.', portrait: 'raven' },
+        { speaker: 'ROOK', text: 'I know.', portrait: 'rook' }
+      ]
+    },
+    rewards: {
+      xp: 500,
+      coins: 100,
+      unlockNext: 'mission_2'
+    }
+  }
+];
+
+// ── Mission State ──
+let currentMission = null;
+let missionState = {
+  active: false,
+  currentObjective: 0,
+  startTime: 0,
+  elapsedTime: 0,
+  dialogueActive: false,
+  dialogueQueue: [],
+  npcs: [],
+  clues: [],
+  missionComplete: false
+};
+
+// ── Mission Progress Persistence ──
+const MISSION_STORAGE_KEY = 'cs_mission_progress';
+
+function loadMissionProgress() {
+  try {
+    const saved = localStorage.getItem(MISSION_STORAGE_KEY);
+    return saved ? JSON.parse(saved) : { completed: [], bestTimes: {}, scores: {} };
+  } catch (e) {
+    console.warn('[CS] Failed to load mission progress:', e);
+    return { completed: [], bestTimes: {}, scores: {} };
+  }
+}
+
+function saveMissionProgress(progress) {
+  try {
+    localStorage.setItem(MISSION_STORAGE_KEY, JSON.stringify(progress));
+    // Sync to cloud if athlete token available
+    syncMissionProgressToCloud(progress);
+  } catch (e) {
+    console.warn('[CS] Failed to save mission progress:', e);
+  }
+}
+
+async function syncMissionProgressToCloud(progress) {
+  if (typeof AthleteXP === 'undefined' || !AthleteXP.getToken) return;
+  const token = AthleteXP.getToken();
+  if (!token) return;
+  
+  try {
+    const res = await fetch(`/api/athlete/${token}/missions/progress`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(progress)
+    });
+    if (res.ok) console.log('[CS] Mission progress synced to cloud');
+  } catch (e) {
+    console.warn('[CS] Failed to sync mission progress:', e);
+  }
+}
+
+async function loadMissionProgressFromCloud() {
+  if (typeof AthleteXP === 'undefined' || !AthleteXP.getToken) return null;
+  const token = AthleteXP.getToken();
+  if (!token) return null;
+  
+  try {
+    const res = await fetch(`/api/athlete/${token}/missions/progress`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.progress) {
+        saveMissionProgress(data.progress);
+        return data.progress;
+      }
+    }
+  } catch (e) {
+    console.warn('[CS] Failed to load cloud progress:', e);
+  }
+  return null;
+}
+
+// ── Mission UI Elements ──
+const missionBriefingScreen = document.getElementById('missionBriefingScreen');
+const missionHud = document.getElementById('missionHud');
+const missionObjective = document.getElementById('missionObjective');
+const missionTimer = document.getElementById('missionTimer');
+const dialogueOverlay = document.getElementById('dialogueOverlay');
+const dialogueText = document.getElementById('dialogueText');
+const dialogueSpeaker = document.getElementById('dialogueSpeaker');
+const dialoguePortrait = document.getElementById('dialoguePortrait');
+const missionCompleteScreen = document.getElementById('missionCompleteScreen');
+
+// ── Mission System Functions ──
+function startMission(missionId) {
+  const mission = MISSIONS.find(m => m.id === missionId);
+  if (!mission) {
+    console.error('[CS] Mission not found:', missionId);
+    return;
+  }
+  
+  currentMission = mission;
+  missionState = {
+    active: true,
+    currentObjective: 0,
+    startTime: Date.now(),
+    elapsedTime: 0,
+    dialogueActive: false,
+    dialogueQueue: [],
+    npcs: [],
+    clues: [],
+    missionComplete: false
+  };
+  
+  // Reset objectives
+  mission.objectives.forEach(obj => obj.completed = false);
+  
+  // Set map
+  selectedMap = mission.map;
+  buildMap();
+  
+  // Show briefing
+  showMissionBriefing(mission);
+}
+
+function showMissionBriefing(mission) {
+  const titleEl = document.getElementById('briefingTitle');
+  const descEl = document.getElementById('briefingDesc');
+  const objListEl = document.getElementById('briefingObjectives');
+  
+  if (titleEl) titleEl.textContent = mission.title;
+  if (descEl) descEl.textContent = mission.briefing;
+  
+  if (objListEl) {
+    objListEl.innerHTML = mission.objectives.map((obj, i) => 
+      `<div class="briefing-obj">${i + 1}. ${obj.title}</div>`
+    ).join('');
+  }
+  
+  showScreen(missionBriefingScreen);
+}
+
+function beginMissionGameplay() {
+  showScreen(gameScreen);
+  resetPlayer();
+  clearBots();
+  
+  // Spawn mission-specific NPCs and clues
+  spawnMissionEntities();
+  
+  // Spawn enemies along the mission path
+  spawnMissionEnemies();
+  
+  // Start with opening dialogue
+  playDialogue('opening');
+  
+  // Update HUD
+  updateMissionHud();
+  missionHud.style.display = 'block';
+  
+  game.state = 'playing';
+  if (!isTouchDevice) renderer.domElement.requestPointerLock();
+}
+
+function spawnMissionEntities() {
+  if (!currentMission) return;
+  
+  // Spawn clues
+  currentMission.objectives.forEach(obj => {
+    if (obj.type === 'find_clue') {
+      spawnClue(obj.location.x, obj.location.z, obj.clueType, obj.id);
+    }
+  });
+  
+  // Spawn NPCs
+  currentMission.objectives.forEach(obj => {
+    if (obj.type === 'find_npc') {
+      spawnNPC(obj.location.x, obj.location.z, obj.npcName, obj.id);
+    }
+  });
+}
+
+function spawnClue(x, z, type, id) {
+  const geo = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+  const mat = new THREE.MeshStandardMaterial({ 
+    color: 0xffaa00, 
+    emissive: 0xffaa00, 
+    emissiveIntensity: 0.5 
+  });
+  const clue = new THREE.Mesh(geo, mat);
+  clue.position.set(x, 1, z);
+  clue.userData = { type: 'clue', clueType: type, id: id };
+  scene.add(clue);
+  missionState.clues.push(clue);
+}
+
+function spawnNPC(x, z, name, id) {
+  const group = new THREE.Group();
+  
+  // Simple NPC representation (can be enhanced with full figure rig)
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(0.6, 1.2, 0.4),
+    new THREE.MeshStandardMaterial({ color: 0x4488ff })
+  );
+  body.position.y = 0.9;
+  group.add(body);
+  
+  const head = new THREE.Mesh(
+    new THREE.BoxGeometry(0.4, 0.4, 0.4),
+    new THREE.MeshStandardMaterial({ color: 0xdddddd })
+  );
+  head.position.y = 1.7;
+  group.add(head);
+  
+  group.position.set(x, 0, z);
+  group.userData = { type: 'npc', name: name, id: id };
+  scene.add(group);
+  missionState.npcs.push(group);
+}
+
+function spawnMissionEnemies() {
+  if (!currentMission) return;
+  
+  // Strategic enemy placements along Mission 1 path
+  const enemyPlacements = [
+    // Guards at entrance (2 enemies)
+    { x: 5, z: -28, patrol: true },
+    { x: -5, z: -28, patrol: true },
+    
+    // Patrol between entrance and first clue (3 enemies)
+    { x: -8, z: -15, patrol: true },
+    { x: -12, z: -5, patrol: true },
+    { x: -10, z: 5, patrol: true },
+    
+    // Guards around first clue location (2 enemies)
+    { x: -18, z: 8, patrol: false },
+    { x: -12, z: 12, patrol: true },
+    
+    // Patrol between clues (4 enemies)
+    { x: 0, z: 15, patrol: true },
+    { x: 8, z: 18, patrol: true },
+    { x: 15, z: 22, patrol: true },
+    { x: 18, z: 28, patrol: true },
+    
+    // Guards around second clue (2 enemies)
+    { x: 22, z: 23, patrol: false },
+    { x: 18, z: 27, patrol: true },
+    
+    // Heavy resistance near RAVEN (4 enemies)
+    { x: -20, z: 32, patrol: true },
+    { x: -28, z: 33, patrol: true },
+    { x: -23, z: 38, patrol: false },
+    { x: -27, z: 37, patrol: true },
+    
+    // Pursuit squad on escape route (3 enemies)
+    { x: -15, z: 20, patrol: true },
+    { x: -5, z: 5, patrol: true },
+    { x: 5, z: -15, patrol: true },
+    
+    // Final blockers near extraction (2 enemies)
+    { x: 3, z: -38, patrol: false },
+    { x: -3, z: -42, patrol: false }
+  ];
+  
+  const names = [...BOT_NAMES].sort(() => Math.random() - 0.5);
+  
+  enemyPlacements.forEach((placement, i) => {
+    // Check if position is free (not inside walls)
+    if (!isFree(placement.x, placement.z, 0.6)) {
+      // Try nearby position
+      for (let attempt = 0; attempt < 10; attempt++) {
+        const offsetX = (Math.random() - 0.5) * 4;
+        const offsetZ = (Math.random() - 0.5) * 4;
+        if (isFree(placement.x + offsetX, placement.z + offsetZ, 0.6)) {
+          placement.x += offsetX;
+          placement.z += offsetZ;
+          break;
+        }
+      }
+    }
+    
+    const bot = new Bot(placement.x, placement.z, names[i % names.length]);
+    bot.yaw = Math.PI;
+    
+    // Set patrol behavior
+    if (placement.patrol) {
+      bot.patrolCenter = new THREE.Vector2(placement.x, placement.z);
+      bot.patrolRadius = 5 + Math.random() * 3;
+      bot.patrolAngle = Math.random() * Math.PI * 2;
+      bot.patrolSpeed = 1.5 + Math.random() * 0.5;
+    }
+    
+    bots.push(bot);
+  });
+  
+  console.log('[CS] Spawned', enemyPlacements.length, 'mission enemies');
+}
+
+function updateMissionHud() {
+  if (!currentMission || !missionState.active) return;
+  
+  const obj = currentMission.objectives[missionState.currentObjective];
+  if (obj && !obj.completed) {
+    missionObjective.textContent = obj.title;
+  }
+  
+  const elapsed = Math.floor((Date.now() - missionState.startTime) / 1000);
+  const mins = Math.floor(elapsed / 60);
+  const secs = elapsed % 60;
+  missionTimer.textContent = `${mins}:${String(secs).padStart(2, '0')}`;
+}
+
+function checkMissionObjectives() {
+  if (!currentMission || !missionState.active || missionState.dialogueActive) return;
+  
+  const obj = currentMission.objectives[missionState.currentObjective];
+  if (!obj || obj.completed) return;
+  
+  const playerPos = player.pos;
+  
+  switch (obj.type) {
+    case 'enter_zone':
+    case 'escape_zone':
+      const dist = Math.hypot(playerPos.x - obj.zone.x, playerPos.z - obj.zone.z);
+      if (dist < obj.triggerDistance) {
+        if (obj.requiresNPC && missionState.npcs.length === 0) {
+          // Need RAVEN to escape with
+          showMissionNotification('Get RAVEN to safety!');
+          return;
+        }
+        completeObjective(obj);
+      }
+      break;
+      
+    case 'find_clue':
+      const clue = missionState.clues.find(c => c.userData.id === obj.id);
+      if (clue) {
+        const cdist = Math.hypot(playerPos.x - clue.position.x, playerPos.z - clue.position.z);
+        if (cdist < obj.triggerDistance) {
+          completeObjective(obj);
+          // Show clue dialogue
+          const dialogueKey = `clue_${missionState.currentObjective}`;
+          if (currentMission.dialogues[dialogueKey]) {
+            playDialogue(dialogueKey);
+          }
+          // Remove clue from scene
+          scene.remove(clue);
+          missionState.clues = missionState.clues.filter(c => c.userData.id !== obj.id);
+        }
+      }
+      break;
+      
+    case 'find_npc':
+      const npc = missionState.npcs.find(n => n.userData.id === obj.id);
+      if (npc) {
+        const ndist = Math.hypot(playerPos.x - npc.position.x, playerPos.z - npc.position.z);
+        if (ndist < obj.triggerDistance) {
+          completeObjective(obj);
+          if (obj.triggersDialogue) {
+            playDialogue('raven_contact');
+          }
+        }
+      }
+      break;
+      
+    case 'dialogue_sequence':
+      // Auto-complete when dialogue finishes
+      if (!missionState.dialogueActive) {
+        completeObjective(obj);
+      }
+      break;
+  }
+}
+
+function completeObjective(obj) {
+  obj.completed = true;
+  missionState.currentObjective++;
+  
+  showMissionNotification(`Objective Complete: ${obj.title}`);
+  
+  // Check if mission complete
+  if (missionState.currentObjective >= currentMission.objectives.length) {
+    completeMission();
+  } else {
+    updateMissionHud();
+  }
+}
+
+function completeMission() {
+  missionState.missionComplete = true;
+  missionState.active = false;
+  missionState.elapsedTime = Date.now() - missionState.startTime;
+  
+  // Show final dialogue
+  playDialogue('mission_complete', () => {
+    showMissionCompleteScreen();
+  });
+}
+
+function showMissionCompleteScreen() {
+  const scoreEl = document.getElementById('missionScore');
+  const timeEl = document.getElementById('missionTime');
+  const xpEl = document.getElementById('missionXP');
+  
+  const score = calculateMissionScore();
+  const time = Math.floor(missionState.elapsedTime / 1000);
+  
+  if (scoreEl) scoreEl.textContent = score;
+  if (timeEl) timeEl.textContent = `${Math.floor(time / 60)}:${String(time % 60).padStart(2, '0')}`;
+  if (xpEl) xpEl.textContent = `+${currentMission.rewards.xp} XP`;
+  
+  // Save progress
+  const progress = loadMissionProgress();
+  if (!progress.completed.includes(currentMission.id)) {
+    progress.completed.push(currentMission.id);
+  }
+  progress.bestTimes[currentMission.id] = Math.min(
+    progress.bestTimes[currentMission.id] || Infinity,
+    time
+  );
+  progress.scores[currentMission.id] = Math.max(
+    progress.scores[currentMission.id] || 0,
+    score
+  );
+  saveMissionProgress(progress);
+  
+  // Award XP
+  if (typeof AthleteXP !== 'undefined' && AthleteXP.report) {
+    AthleteXP.report('counter-strike-mission', score);
+  }
+  
+  showScreen(missionCompleteScreen);
+}
+
+function calculateMissionScore() {
+  const time = missionState.elapsedTime / 1000;
+  const baseScore = 1000;
+  const timeBonus = Math.max(0, 500 - Math.floor(time));
+  const healthBonus = Math.floor(player.health * 2);
+  return baseScore + timeBonus + healthBonus;
+}
+
+function playDialogue(dialogueKey, onComplete) {
+  const dialogues = currentMission.dialogues[dialogueKey];
+  if (!dialogues || dialogues.length === 0) {
+    if (onComplete) onComplete();
+    return;
+  }
+  
+  missionState.dialogueQueue = [...dialogues];
+  missionState.dialogueActive = true;
+  dialogueOverlay.style.display = 'flex';
+  
+  showNextDialogue(onComplete);
+}
+
+function showNextDialogue(onComplete) {
+  if (missionState.dialogueQueue.length === 0) {
+    dialogueOverlay.style.display = 'none';
+    missionState.dialogueActive = false;
+    if (onComplete) onComplete();
+    return;
+  }
+  
+  const line = missionState.dialogueQueue.shift();
+  dialogueSpeaker.textContent = line.speaker;
+  dialogueText.textContent = line.text;
+  
+  // Set portrait (simple colored box for now)
+  const colors = { rook: '#4488ff', raven: '#44ff88', sable: '#ff4488' };
+  dialoguePortrait.style.background = colors[line.portrait] || '#888';
+  
+  // Auto-advance after delay or click
+  setTimeout(() => {
+    if (missionState.dialogueActive) {
+      showNextDialogue(onComplete);
+    }
+  }, 4000);
+}
+
+function showMissionNotification(text) {
+  let notif = document.getElementById('missionNotif');
+  if (!notif) {
+    notif = document.createElement('div');
+    notif.id = 'missionNotif';
+    notif.style.cssText = 'position:fixed;top:100px;left:50%;transform:translateX(-50%);' +
+      'background:rgba(10,10,12,.95);color:#fff;padding:12px 24px;border-radius:8px;' +
+      'border:1px solid rgba(255,255,255,.2);font:600 14px var(--f,system-ui);z-index:9999;' +
+      'opacity:0;transition:opacity .3s;pointer-events:none;';
+    document.body.appendChild(notif);
+  }
+  
+  notif.textContent = text;
+  notif.style.opacity = '1';
+  setTimeout(() => { notif.style.opacity = '0'; }, 3000);
+}
+
+// ── Mission Select UI ──
+function showMissionSelect() {
+  const progress = loadMissionProgress();
+  const missionList = document.getElementById('missionList');
+  
+  if (!missionList) return;
+  
+  missionList.innerHTML = MISSIONS.map(m => {
+    const completed = progress.completed.includes(m.id);
+    const bestTime = progress.bestTimes[m.id];
+    const score = progress.scores[m.id];
+    
+    return `
+      <div class="mission-card ${completed ? 'completed' : ''}" data-mission="${m.id}">
+        <div class="mission-code">${m.codeName}</div>
+        <div class="mission-title">${m.title}</div>
+        ${completed ? `
+          <div class="mission-stats">
+            <span>Best: ${Math.floor(bestTime / 60)}:${String(bestTime % 60).padStart(2, '0')}</span>
+            <span>Score: ${score}</span>
+          </div>
+        ` : ''}
+        <button class="mission-btn" ${completed ? '' : 'disabled'}>
+          ${completed ? 'REPLAY' : 'LOCKED'}
+        </button>
+      </div>
+    `;
+  }).join('');
+  
+  // Add click handlers
+  missionList.querySelectorAll('.mission-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const missionId = card.dataset.mission;
+      startMission(missionId);
+    });
+  });
+  
+  showScreen(document.getElementById('missionSelectScreen'));
+}
+
+// ── Mission Radar Markers ──
+function updateMissionMarkers() {
+  if (!currentMission || !missionState.active) return;
+  
+  const obj = currentMission.objectives[missionState.currentObjective];
+  if (!obj || obj.completed) return;
+  
+  // Draw waypoint on radar
+  const c = radarCtx;
+  const S = 170;
+  const scale = 2.4;
+  
+  let targetX, targetZ;
+  
+  if (obj.type === 'enter_zone' || obj.type === 'escape_zone') {
+    targetX = obj.zone.x;
+    targetZ = obj.zone.z;
+  } else if (obj.type === 'find_clue') {
+    const clue = missionState.clues.find(c => c.userData.id === obj.id);
+    if (clue) {
+      targetX = clue.position.x;
+      targetZ = clue.position.z;
+    }
+  } else if (obj.type === 'find_npc') {
+    const npc = missionState.npcs.find(n => n.userData.id === obj.id);
+    if (npc) {
+      targetX = npc.position.x;
+      targetZ = npc.position.z;
+    }
+  }
+  
+  if (targetX !== undefined) {
+    // Draw pulsing waypoint marker
+    const pulse = (Math.sin(performance.now() * 0.005) + 1) * 0.5;
+    const wx = (targetX - player.pos.x) * scale;
+    const wz = (targetZ - player.pos.z) * scale;
+    
+    c.save();
+    c.translate(S / 2, S / 2);
+    c.rotate(player.yaw);
+    
+    // Outer ring
+    c.strokeStyle = `rgba(255, 170, 0, ${0.5 + pulse * 0.5})`;
+    c.lineWidth = 2;
+    c.beginPath();
+    c.arc(wx, wz, 6 + pulse * 2, 0, Math.PI * 2);
+    c.stroke();
+    
+    // Inner dot
+    c.fillStyle = '#ffaa00';
+    c.beginPath();
+    c.arc(wx, wz, 3, 0, Math.PI * 2);
+    c.fill();
+    
+    c.restore();
+  }
+}
+
 function resetPlayer() {
   let x, z, tries = 0;
   const ctZMin = selectedMap === 'classic' ? -25 : -45;
@@ -2196,6 +2916,35 @@ if (btnBackFromLobby) {
       CSNet.leaveRoom();
     }
     showScreen(menuScreen);
+  });
+}
+
+// Menu → Missions button
+const btnMissions = document.getElementById('btnMissions');
+const btnBackFromMissions = document.getElementById('btnBackFromMissions');
+const btnStartBriefing = document.getElementById('btnStartBriefing');
+
+if (btnMissions) {
+  btnMissions.addEventListener('click', () => {
+    audio().resume();
+    // Load cloud progress if available
+    loadMissionProgressFromCloud().then(() => {
+      showMissionSelect();
+    }).catch(() => {
+      showMissionSelect();
+    });
+  });
+}
+
+if (btnBackFromMissions) {
+  btnBackFromMissions.addEventListener('click', () => {
+    showScreen(menuScreen);
+  });
+}
+
+if (btnStartBriefing) {
+  btnStartBriefing.addEventListener('click', () => {
+    beginMissionGameplay();
   });
 }
 
@@ -2457,13 +3206,25 @@ function frame() {
     updateHud(dt);
   } else if (!isOnline && isGameActive()) {
     // Single-player: local simulation
-    game.timeLeft -= dt;
-    if (game.timeLeft <= 0) endRound('T');
-    updatePlayer(dt);
-    for (const b of bots) b.update(dt);
-    updateWeapon(dt);
-    updateEffects(dt);
-    updateHud(dt);
+    if (missionState.active) {
+      // Mission mode — no round timer, objective-based progression
+      updatePlayer(dt);
+      for (const b of bots) b.update(dt);
+      updateWeapon(dt);
+      updateEffects(dt);
+      updateMissionHud();
+      checkMissionObjectives();
+      updateMissionMarkers();
+    } else {
+      // Classic round-based mode
+      game.timeLeft -= dt;
+      if (game.timeLeft <= 0) endRound('T');
+      updatePlayer(dt);
+      for (const b of bots) b.update(dt);
+      updateWeapon(dt);
+      updateEffects(dt);
+      updateHud(dt);
+    }
   } else if (game.state === 'roundEnd' && (isTouchDevice || locked)) {
     game.endTimer -= dt;
     updateEffects(dt);

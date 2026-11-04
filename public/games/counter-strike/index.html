@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
   <title>OFFCOMFRT &mdash; Counter Strike</title>
-  <link rel="stylesheet" href="style.css?v=14" />
+  <link rel="stylesheet" href="style.css?v=15" />
 </head>
 <body>
 
@@ -64,6 +64,10 @@
         <span class="mi">🎯</span>
         <span class="ml">Deploy<span class="ms">Eliminate all terrorists &mdash; survive every round</span></span>
       </button>
+      <button class="mode-btn" id="btnMissions">
+        <span class="mi">📋</span>
+        <span class="ml">Missions<span class="ms">BLACKOUT Campaign &mdash; Complete objectives, uncover the truth</span></span>
+      </button>
       <button class="mode-btn" id="btnMultiplayer">
         <span class="mi">👥</span>
         <span class="ml">Multiplayer<span class="ms">Team up with other athletes against terrorists</span></span>
@@ -96,6 +100,84 @@
     </div>
   </div>
 
+  <!-- ═══ Mission Select Screen ═══ -->
+  <div id="missionSelectScreen" class="screen">
+    <div class="mission-select-inner">
+      <div class="brand">
+        <div class="brand-logo">OC</div>
+        <span class="brand-eyebrow">OFFCOMFRT Arcade</span>
+        <h1>BLACKOUT Campaign</h1>
+      </div>
+      <div class="mission-list" id="missionList"></div>
+      <button class="mode-btn small" id="btnBackFromMissions">
+        <span class="mi">←</span>
+        <span class="ml">Back to Menu</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ═══ Mission Briefing Screen ═══ -->
+  <div id="missionBriefingScreen" class="screen">
+    <div class="briefing-inner">
+      <div class="briefing-header">
+        <div class="briefing-code" id="briefingCode">BLACKOUT</div>
+        <h2 id="briefingTitle">Mission Title</h2>
+      </div>
+      <div class="briefing-content">
+        <div class="briefing-section">
+          <h3>MISSION BRIEFING</h3>
+          <p id="briefingDesc">Mission description goes here.</p>
+        </div>
+        <div class="briefing-section">
+          <h3>OBJECTIVES</h3>
+          <div id="briefingObjectives"></div>
+        </div>
+      </div>
+      <button class="mode-btn primary" id="btnStartBriefing">
+        <span class="mi">▶</span>
+        <span class="ml">BEGIN MISSION</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ═══ Mission Complete Screen ═══ -->
+  <div id="missionCompleteScreen" class="screen">
+    <div class="mission-complete-inner">
+      <div class="mc-header">
+        <div class="mc-label">MISSION COMPLETE</div>
+        <h2 id="mcTitle">Operation Successful</h2>
+      </div>
+      <div class="mc-stats">
+        <div class="mc-stat">
+          <div class="mc-stat-val" id="missionScore">0</div>
+          <div class="mc-stat-label">Score</div>
+        </div>
+        <div class="mc-stat">
+          <div class="mc-stat-val" id="missionTime">0:00</div>
+          <div class="mc-stat-label">Time</div>
+        </div>
+        <div class="mc-stat">
+          <div class="mc-stat-val" id="missionXP">+0 XP</div>
+          <div class="mc-stat-label">Reward</div>
+        </div>
+      </div>
+      <div class="mc-btns">
+        <button class="mode-btn primary" id="btnNextMission">
+          <span class="mi">→</span>
+          <span class="ml">Next Mission</span>
+        </button>
+        <button class="mode-btn" id="btnReplayMission">
+          <span class="mi">↻</span>
+          <span class="ml">Replay</span>
+        </button>
+        <button class="mode-btn" id="btnBackToMenu">
+          <span class="mi">←</span>
+          <span class="ml">Main Menu</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- ═══ Game Screen ═══ -->
   <div id="gameScreen" class="screen">
     <div id="hud">
@@ -117,6 +199,23 @@
         <span id="ammo">30</span><span class="sep">/</span><span id="reserve">90</span>
       </div>
       <div id="kills-box">KILLS: <span id="kills">0</span></div>
+      
+      <!-- Mission HUD -->
+      <div id="missionHud" style="display:none;">
+        <div id="missionObjective">Objective</div>
+        <div id="missionTimer">0:00</div>
+      </div>
+    </div>
+
+    <!-- Dialogue Overlay -->
+    <div id="dialogueOverlay" style="display:none;">
+      <div class="dialogue-box">
+        <div class="dialogue-portrait" id="dialoguePortrait"></div>
+        <div class="dialogue-content">
+          <div class="dialogue-speaker" id="dialogueSpeaker">SPEAKER</div>
+          <div class="dialogue-text" id="dialogueText">Dialogue text goes here.</div>
+        </div>
+      </div>
     </div>
 
     <!-- Mobile Touch Controls -->
@@ -196,6 +295,6 @@
   <!-- Shared map geometry: the same module the hub requires, so client and server collide identically -->
   <script src="../cs-map.js?v=1"></script>
   <!-- Game engine loads as ES module (deferred by spec) -->
-  <script type="module" src="script.js?v=38"></script>
+  <script type="module" src="script.js?v=40"></script>
 </body>
 </html>
