@@ -132,9 +132,11 @@ module.exports = function mountAthleteRoutes(app) {
     try {
       const { id } = req.params;
       const { level_id, reason } = req.body;
+      if (!level_id) return res.status(400).json({ error: 'level_id is required' });
+      if (!reason || !String(reason).trim()) return res.status(400).json({ error: 'reason is required for level overrides' });
       await LevelEngine.override(parseInt(id), level_id, reason, req.adminToken);
       res.json({ success: true });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { res.status(err.status || 500).json({ error: err.message }); }
   });
 
   // ── Applications ──

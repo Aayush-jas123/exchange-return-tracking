@@ -926,7 +926,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);
             <div style="margin-top:1rem;display:flex;gap:.5rem">
               <button class="ah-btn ah-btn-sm ah-btn-outline" onclick="overrideResetStreak()">Reset Streak</button>
               <button class="ah-btn ah-btn-sm ah-btn-outline" onclick="openAwardBadgeModal()">Award Badge</button>
-              <button class="ah-btn ah-btn-sm ah-btn-outline" onclick="overrideLevel()">Override Level</button>
+              <button class="ah-btn ah-btn-sm ah-btn-outline" onclick="openLevelModal()">Change Level</button>
             </div>
             <input type="text" class="ah-input" style="margin-top:1rem" placeholder="Reason for override (optional)" id="overrideReason">
           </div>
@@ -990,6 +990,35 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);
     <button class="ah-drawer-close" onclick="closeDrawer()">&times;</button>
   </div>
   <div class="ah-drawer-body" id="drawerBody"></div>
+</div>
+
+<!-- CHANGE LEVEL MODAL -->
+<div class="ah-modal-overlay" id="levelModalOverlay">
+  <div class="ah-modal" style="max-width:440px">
+    <div class="ah-modal-head">
+      <h3>Change Athlete Level</h3>
+      <button class="ah-drawer-close" onclick="closeLevelModal()">&times;</button>
+    </div>
+    <div class="ah-modal-body">
+      <div id="levelModalAthlete" style="font-size:.75rem;color:var(--muted);margin-bottom:1rem"></div>
+      <div style="margin-bottom:1rem">
+        <label style="font-size:.6rem;color:var(--muted);display:block;margin-bottom:.35rem">Current Level</label>
+        <div id="levelModalCurrent" style="font-size:.75rem;font-weight:600"></div>
+      </div>
+      <div style="margin-bottom:1rem">
+        <label style="font-size:.6rem;color:var(--muted);display:block;margin-bottom:.35rem">New Level *</label>
+        <select class="ah-input" style="margin:0;padding:.45rem .75rem;font-size:.75rem;width:100%" id="levelModalSelect"></select>
+      </div>
+      <div style="margin-bottom:.5rem">
+        <label style="font-size:.6rem;color:var(--muted);display:block;margin-bottom:.35rem">Reason *</label>
+        <input type="text" class="ah-input" style="margin:0;padding:.45rem .75rem;font-size:.75rem" id="levelModalReason" placeholder="e.g. Manual promotion by admin">
+      </div>
+    </div>
+    <div class="ah-modal-foot">
+      <button class="ah-btn ah-btn-sm ah-btn-outline" onclick="closeLevelModal()">Cancel</button>
+      <button class="ah-btn ah-btn-sm" onclick="submitLevelChange()">Change Level</button>
+    </div>
+  </div>
 </div>
 
 <!-- TASK MODAL -->
@@ -1358,7 +1387,7 @@ function renderAthletes() {
     <td>${statusBadge(a.athlete_status)}</td>
     <td class="mono">${(a.coin_balance||0).toLocaleString()}</td>
     <td class="muted">${a.joined_at ? new Date(a.joined_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}) : '—'}</td>
-    <td><div style="display:flex;gap:.4rem;justify-content:flex-end"><button class="ah-btn ah-btn-sm ah-btn-outline" onclick="event.stopPropagation();openAthleteDrawer(${a.id})">View</button><button class="ah-btn ah-btn-sm" onclick="event.stopPropagation();openAthletePortal(${a.id})">Portal</button></div></td>
+    <td><div style="display:flex;gap:.4rem;justify-content:flex-end"><button class="ah-btn ah-btn-sm ah-btn-outline" onclick="event.stopPropagation();openLevelModal(${a.id})" title="Change Level" style="font-size:.6rem;padding:.2rem .45rem">Lv</button><button class="ah-btn ah-btn-sm ah-btn-outline" onclick="event.stopPropagation();openAthleteDrawer(${a.id})">View</button><button class="ah-btn ah-btn-sm" onclick="event.stopPropagation();openAthletePortal(${a.id})">Portal</button></div></td>
   </tr>`).join('');
 }
 
@@ -1938,7 +1967,7 @@ function openAthleteDrawer(id) {
     <div class="ah-drawer-section">
       <h4>Actions</h4>
       <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-        <button class="ah-btn ah-btn-sm ah-btn-outline" onclick="overrideLevel(${a.id})">Override Level</button>
+        <button class="ah-btn ah-btn-sm ah-btn-outline" onclick="openLevelModal(${a.id})">Change Level</button>
         <button class="ah-btn ah-btn-sm ah-btn-outline" onclick="changeStatus(${a.id},'SUSPENDED')">Suspend</button>
         <button class="ah-btn ah-btn-sm ah-btn-outline" onclick="changeStatus(${a.id},'ACTIVE')">Activate</button>
         <button class="ah-btn ah-btn-sm ah-btn-danger" onclick="changeStatus(${a.id},'DISCHARGED')">Discharge</button>
@@ -2001,14 +2030,8 @@ async function changeStatus(id, status) {
   await refreshData();
   closeDrawer();
 }
-async function overrideLevel(id) {
-  const lvlId = prompt('Level ID to override to:');
-  const reason = prompt('Reason (mandatory):');
-  if (!lvlId || !reason) return;
-  await fetch(`${API}/athletes/${id}/override-level`, { method: 'POST', headers: { 'Authorization': 'Bearer ' + adminToken, 'Content-Type': 'application/json' }, body: JSON.stringify({ level_id: parseInt(lvlId), reason }) });
-  await refreshData();
-  closeDrawer();
-}
+// overrideLevel kept for backward compat — now routes to modal
+function overrideLevel(id) { openLevelModal(id); }
 async function buildPayoutBatch() {
   const start = prompt('Period start (YYYY-MM-DD):');
   const end = prompt('Period end (YYYY-MM-DD):');
@@ -2138,8 +2161,9 @@ function copyToken(token) {
 document.getElementById('taskModalOverlay')?.addEventListener('click', e => { if (e.target === e.currentTarget) closeTaskModal(); });
 document.getElementById('assignModalOverlay')?.addEventListener('click', e => { if (e.target === e.currentTarget) closeAssignModal(); });
 document.getElementById('deleteModalOverlay')?.addEventListener('click', e => { if (e.target === e.currentTarget) closeDeleteModal(); });
+document.getElementById('levelModalOverlay')?.addEventListener('click', e => { if (e.target === e.currentTarget) closeLevelModal(); });
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeTaskModal(); closeAssignModal(); closeDeleteModal(); }
+  if (e.key === 'Escape') { closeTaskModal(); closeAssignModal(); closeDeleteModal(); closeLevelModal(); }
 });
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -3010,23 +3034,78 @@ async function overrideResetStreak() {
   } catch (err) { showToast('Network error', 'error'); }
 }
 
-async function overrideLevel() {
-  if (!selectedOverrideAthlete) return;
-  const levelId = parseInt(prompt('Level ID to set:'));
-  if (!levelId) return;
-  
+// ── CHANGE LEVEL MODAL ──
+let levelModalAthleteId = null;
+
+function openLevelModal(id) {
+  // If called from override panel (no id), use selectedOverrideAthlete
+  if (!id && selectedOverrideAthlete) id = selectedOverrideAthlete.id;
+  if (!id) { showToast('Select an athlete first', 'error'); return; }
+
+  const a = athletes.find(x => x.id === id);
+  if (!a) { showToast('Athlete not found', 'error'); return; }
+
+  levelModalAthleteId = id;
+
+  // Populate athlete info
+  document.getElementById('levelModalAthlete').innerHTML =
+    '<strong>' + esc(a.name) + '</strong> &mdash; ' + (a.athlete_no || 'ID: ' + a.id);
+
+  // Show current level
+  const curName = a.level_name || a.level?.display_name || 'Unranked';
+  const curOrd = a.level_ordinal || a.level?.ordinal || 0;
+  document.getElementById('levelModalCurrent').innerHTML =
+    levelBadge(a) + (curOrd ? ' <span style="font-size:.6rem;color:var(--muted)">(ordinal ' + curOrd + ')</span>' : '');
+
+  // Populate level dropdown
+  const sel = document.getElementById('levelModalSelect');
+  sel.innerHTML = '';
+  levels.sort((x, y) => x.ordinal - y.ordinal).forEach(l => {
+    const opt = document.createElement('option');
+    opt.value = l.id;
+    opt.textContent = l.display_name + (l.code ? ' (' + l.code + ')' : '') + ' — ord ' + l.ordinal;
+    if (l.id === a.level_id) opt.selected = true;
+    sel.appendChild(opt);
+  });
+
+  // Reset reason
+  document.getElementById('levelModalReason').value = '';
+
+  // Show modal
+  document.getElementById('levelModalOverlay').classList.add('active');
+}
+
+function closeLevelModal() {
+  document.getElementById('levelModalOverlay').classList.remove('active');
+  levelModalAthleteId = null;
+}
+
+async function submitLevelChange() {
+  if (!levelModalAthleteId) return;
+  const levelId = parseInt(document.getElementById('levelModalSelect').value);
+  const reason = document.getElementById('levelModalReason').value.trim();
+
+  if (!levelId) { showToast('Select a target level', 'error'); return; }
+  if (!reason) { showToast('Reason is mandatory', 'error'); document.getElementById('levelModalReason').focus(); return; }
+
+  const a = athletes.find(x => x.id === levelModalAthleteId);
+  if (a && levelId === a.level_id) {
+    if (!confirm('Athlete is already at this level. Continue anyway?')) return;
+  }
+
   try {
-    const res = await fetch(API + '/athletes/' + selectedOverrideAthlete.id + '/override-level', {
+    const res = await fetch(API + '/athletes/' + levelModalAthleteId + '/override-level', {
       method: 'POST',
       headers: { ...ah(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ level_id: levelId })
+      body: JSON.stringify({ level_id: levelId, reason })
     });
     const data = await res.json();
     if (data.success) {
-      showToast('Level overridden!', 'success');
-      refreshData();
+      showToast('Level changed!', 'success');
+      closeLevelModal();
+      await refreshData();
     } else {
-      showToast(data.error || 'Failed', 'error');
+      showToast(data.error || 'Failed to change level', 'error');
     }
   } catch (err) { showToast('Network error', 'error'); }
 }
