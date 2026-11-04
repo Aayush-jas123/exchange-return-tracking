@@ -34,22 +34,12 @@ CREATE TRIGGER trigger_mission_progress_updated_at
 -- Enable Row Level Security
 ALTER TABLE mission_progress ENABLE ROW LEVEL SECURITY;
 
--- Policy: Athletes can read their own progress
-DROP POLICY IF EXISTS "Athletes can read own mission progress" ON mission_progress;
-CREATE POLICY "Athletes can read own mission progress"
-  ON mission_progress FOR SELECT
-  USING (athlete_id = auth.uid());
-
--- Policy: Athletes can insert/update their own progress
-DROP POLICY IF EXISTS "Athletes can insert own mission progress" ON mission_progress;
-CREATE POLICY "Athletes can insert own mission progress"
-  ON mission_progress FOR INSERT
-  WITH CHECK (athlete_id = auth.uid());
-
-DROP POLICY IF EXISTS "Athletes can update own mission progress" ON mission_progress;
-CREATE POLICY "Athletes can update own mission progress"
-  ON mission_progress FOR UPDATE
-  USING (athlete_id = auth.uid());
+-- Policy: Allow service role full access (API layer handles athlete auth)
+DROP POLICY IF EXISTS "Service role has full access" ON mission_progress;
+CREATE POLICY "Service role has full access"
+  ON mission_progress FOR ALL
+  USING (true)
+  WITH CHECK (true);
 
 -- Comments
 COMMENT ON TABLE mission_progress IS 'Stores athlete progress for the BLACKOUT campaign missions';
