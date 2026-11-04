@@ -2346,25 +2346,34 @@ function showMissionBriefing(mission) {
 }
 
 function beginMissionGameplay() {
-  showScreen(gameScreen);
-  resetPlayer();
-  clearBots();
-  
-  // Spawn mission-specific NPCs and clues
-  spawnMissionEntities();
-  
-  // Spawn enemies along the mission path
-  spawnMissionEnemies();
-  
-  // Start with opening dialogue
-  playDialogue('opening');
-  
-  // Update HUD
-  updateMissionHud();
-  missionHud.style.display = 'block';
-  
-  game.state = 'playing';
-  if (!isTouchDevice) renderer.domElement.requestPointerLock();
+  try {
+    console.log('[CS] Beginning mission gameplay');
+    showScreen(gameScreen);
+    resetPlayer();
+    clearBots();
+    
+    // Spawn mission-specific NPCs and clues
+    spawnMissionEntities();
+    
+    // Spawn enemies along the mission path
+    spawnMissionEnemies();
+    
+    // Update HUD
+    if (missionHud) {
+      updateMissionHud();
+      missionHud.style.display = 'block';
+    }
+    
+    game.state = 'playing';
+    
+    // Start with opening dialogue
+    playDialogue('opening');
+    
+    if (!isTouchDevice) renderer.domElement.requestPointerLock();
+    console.log('[CS] Mission gameplay started successfully');
+  } catch (err) {
+    console.error('[CS] Error starting mission gameplay:', err);
+  }
 }
 
 function spawnMissionEntities() {
@@ -2654,26 +2663,26 @@ function playDialogue(dialogueKey, onComplete) {
   
   missionState.dialogueQueue = [...dialogues];
   missionState.dialogueActive = true;
-  dialogueOverlay.style.display = 'flex';
+  if (dialogueOverlay) dialogueOverlay.style.display = 'flex';
   
   showNextDialogue(onComplete);
 }
 
 function showNextDialogue(onComplete) {
   if (missionState.dialogueQueue.length === 0) {
-    dialogueOverlay.style.display = 'none';
+    if (dialogueOverlay) dialogueOverlay.style.display = 'none';
     missionState.dialogueActive = false;
     if (onComplete) onComplete();
     return;
   }
   
   const line = missionState.dialogueQueue.shift();
-  dialogueSpeaker.textContent = line.speaker;
-  dialogueText.textContent = line.text;
+  if (dialogueSpeaker) dialogueSpeaker.textContent = line.speaker;
+  if (dialogueText) dialogueText.textContent = line.text;
   
   // Set portrait (simple colored box for now)
   const colors = { rook: '#4488ff', raven: '#44ff88', sable: '#ff4488' };
-  dialoguePortrait.style.background = colors[line.portrait] || '#888';
+  if (dialoguePortrait) dialoguePortrait.style.background = colors[line.portrait] || '#888';
   
   // Auto-advance after delay or click
   setTimeout(() => {
