@@ -2451,43 +2451,34 @@ function spawnMissionEnemies() {
   // Strategic enemy placements along Mission 1 path
   // Player spawns at z: -45 to -40, enemies start much further away (z: -5 and beyond)
   const enemyPlacements = [
-    // Far entrance guards (2 enemies) - well away from spawn
+    // Entrance guards (2)
     { x: 8, z: -5, patrol: true },
     { x: -8, z: -5, patrol: true },
     
-    // Mid-range patrol (3 enemies)
+    // Mid-range patrol (2)
     { x: -10, z: 5, patrol: true },
-    { x: -12, z: 10, patrol: true },
     { x: -8, z: 15, patrol: true },
     
-    // Guards around first clue location (2 enemies)
+    // First clue guard (1)
     { x: -18, z: 8, patrol: false },
-    { x: -12, z: 12, patrol: true },
     
-    // Patrol between clues (4 enemies)
-    { x: 0, z: 15, patrol: true },
+    // Between clues (2)
     { x: 8, z: 18, patrol: true },
-    { x: 15, z: 22, patrol: true },
     { x: 18, z: 28, patrol: true },
     
-    // Guards around second clue (2 enemies)
+    // Second clue guard (1)
     { x: 22, z: 23, patrol: false },
-    { x: 18, z: 27, patrol: true },
     
-    // Heavy resistance near RAVEN's building (4 enemies)
+    // RAVEN building guards (2)
     { x: -30, z: 26, patrol: true },
-    { x: -36, z: 26, patrol: true },
-    { x: -30, z: 32, patrol: false },
     { x: -36, z: 32, patrol: true },
     
-    // Pursuit squad on escape route (3 enemies)
-    { x: -15, z: 20, patrol: true },
+    // Escape route (2)
     { x: -5, z: 10, patrol: true },
     { x: 5, z: 0, patrol: true },
     
-    // Final blockers near extraction (2 enemies)
-    { x: 3, z: -15, patrol: false },
-    { x: -3, z: -20, patrol: false }
+    // Final blocker (1)
+    { x: 3, z: -15, patrol: false }
   ];
   
   const names = [...BOT_NAMES].sort(() => Math.random() - 0.5);
