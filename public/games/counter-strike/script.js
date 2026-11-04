@@ -1642,7 +1642,7 @@ class Bot {
     const dist = Math.hypot(dx, dz);
 
     let sees = false;
-    if (player.alive && dist < 55) {
+    if (player.alive && dist < 30) {
       let ang = Math.atan2(dx, dz) - this.yaw;
       ang = Math.abs(Math.atan2(Math.sin(ang), Math.cos(ang)));
       if (this.alert || ang < 1.25 || dist < 3) sees = hasLOS(eye, playerChest);
