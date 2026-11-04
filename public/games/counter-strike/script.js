@@ -2204,7 +2204,7 @@ const MISSIONS = [
       ]
     },
     rewards: {
-      xp: 500,
+      xp: 10,
       coins: 100,
       unlockNext: 'mission_2'
     }
