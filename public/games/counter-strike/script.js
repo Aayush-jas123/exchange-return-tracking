@@ -3051,7 +3051,13 @@ btnRetry.addEventListener('click', () => {
     showScreen(lobbyScreen);
     return;
   }
-  startNewGame();
+  // If a mission was active, restart the mission instead of classic mode
+  if (currentMission) {
+    const missionId = currentMission.id;
+    startMission(missionId);
+  } else {
+    startNewGame();
+  }
 });
 
 // Game over → Back to menu
