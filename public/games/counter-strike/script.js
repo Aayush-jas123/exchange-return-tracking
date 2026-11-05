@@ -1322,8 +1322,15 @@ const FOOTSTEP_RANGE = 24;          // enemy steps beyond this are culled entire
 const footstepBus = { panner: null, gain: null, voices: [] };
 let stepFlip = 1;                   // alternates L/R so gait reads as walking
 
-function footstepNode(pos, dist) {
-  const a = audio();
+// The frame loop calls footsteps hundreds of times a second; a suspended context
+// freezes currentTime at 0, so every step would schedule at the same instant and
+// dump its whole backlog the moment the context resumed. Only speak when running.
+function audioLive() {
+  if (actx && actx.state === 'suspended') actx.resume().catch(() => {});
+  return actx && actx.state === 'running' ? actx : null;
+}
+
+function footstepNode(a, pos, dist) {
   if (!footstepBus.gain) {
     footstepBus.gain = a.createGain();
     footstepBus.gain.gain.value = 1;
@@ -1338,12 +1345,18 @@ function footstepNode(pos, dist) {
   stepFlip = -stepFlip;
   let src = footstepBus.panner;
   if (dist > 0.1) {
-    // Spatialise enemy steps; the player's own steps bypass the panner at unity gain
+    // Spatialise enemy steps; the player's own steps bypass the panner at unity gain.
+    // iOS Safari has no positionX/Y/Z AudioParams on PannerNode — writing them threw
+    // inside Bot.update and killed the whole frame, so fall back to setPosition.
     const p = a.createPanner();
     p.panningModel = 'HRTF';
     p.distanceModel = 'linear';
     p.refDistance = 1; p.maxDistance = FOOTSTEP_RANGE;
-    p.positionX.value = pos.x; p.positionZ.value = pos.z; p.positionY.value = (pos.y || 0) + 0.1;
+    if (p.positionX) {
+      p.positionX.value = pos.x; p.positionZ.value = pos.z; p.positionY.value = (pos.y || 0) + 0.1;
+    } else {
+      p.setPosition(pos.x, (pos.y || 0) + 0.1, pos.z);
+    }
     p.connect(footstepBus.gain);
     src = p;
   }
@@ -1357,8 +1370,10 @@ function footstepNode(pos, dist) {
 // profile: 'self' = crisp boot scuff right under the camera (your own steps)
 //          'enemy' = heavier, duller, lowpassed — instantly distinguishable
 function playFootstep(profile, pos, dist, volScale = 1) {
-  const a = audio(), t = a.currentTime;
-  const dest = footstepNode(pos, dist);
+  const a = audioLive();
+  if (!a) return;
+  const t = a.currentTime;
+  const dest = footstepNode(a, pos, dist);
   const self = profile === 'self';
   const vol = (self ? 0.10 : 0.55 * (1 - dist / FOOTSTEP_RANGE)) * volScale;
   if (!self && vol <= 0.004) return;
@@ -1789,7 +1804,7 @@ class Bot {
       this.stepDist = Math.hypot(this.pos.x - this.lastStepPos.x, this.pos.z - this.lastStepPos.z);
       if (this.stepDist > (moveSpeed > 3 ? 1.5 : 2.1)) {
         const sd = Math.hypot(this.pos.x - player.pos.x, this.pos.z - player.pos.z);
-        if (sd < FOOTSTEP_RANGE) playFootstep('enemy', this.pos, sd);
+        if (sd < FOOTSTEP_RANGE) { try { playFootstep('enemy', this.pos, sd); } catch (_) {} }
         this.lastStepPos.copy(this.pos);
       }
     } else {
@@ -3574,6 +3589,7 @@ if (btnBackFromMissions) {
 
 if (btnStartBriefing) {
   btnStartBriefing.addEventListener('click', () => {
+    audio().resume();
     beginMissionGameplay();
   });
 }
@@ -3666,7 +3682,7 @@ function updatePlayer(dt) {
     const walked = Math.hypot(player.pos.x - player._lastStepPos.x, player.pos.z - player._lastStepPos.z);
     const stride = player.eye < 1.4 ? 2.4 : player.speed > 3.4 ? 1.5 : 1.9;
     if (walked > stride) {
-      playFootstep('self', player.pos, 0, player.eye < 1.4 ? 0.5 : 1);
+      try { playFootstep('self', player.pos, 0, player.eye < 1.4 ? 0.5 : 1); } catch (_) {}
       player._lastStepPos.copy(player.pos);
     }
   } else if (player.alive) {
