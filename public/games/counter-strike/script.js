@@ -1325,10 +1325,21 @@ let stepFlip = 1;                   // alternates L/R so gait reads as walking
 // The frame loop calls footsteps hundreds of times a second; a suspended context
 // freezes currentTime at 0, so every step would schedule at the same instant and
 // dump its whole backlog the moment the context resumed. Only speak when running.
+let stepDiag = {};
 function audioLive() {
   if (actx && actx.state === 'suspended') actx.resume().catch(() => {});
   return actx && actx.state === 'running' ? actx : null;
 }
+
+// Autoplay unlock that does not depend on any one button remembering to call
+// resume(): the first pointer/touch gesture anywhere creates the context and
+// kicks it running, so footsteps and gunfire work on iOS from that frame on.
+function unlockAudioOnGesture() {
+  const a = audio();
+  if (a.state === 'suspended') a.resume().catch(() => {});
+}
+addEventListener('pointerdown', unlockAudioOnGesture, { capture: true, passive: true });
+addEventListener('touchstart', unlockAudioOnGesture, { capture: true, passive: true });
 
 function footstepNode(a, pos, dist) {
   if (!footstepBus.gain) {
@@ -1371,11 +1382,17 @@ function footstepNode(a, pos, dist) {
 //          'enemy' = heavier, duller, lowpassed — instantly distinguishable
 function playFootstep(profile, pos, dist, volScale = 1) {
   const a = audioLive();
+  const self = profile === 'self';
+  const vol = (self ? 0.16 : 0.55 * (1 - dist / FOOTSTEP_RANGE)) * volScale;
+  // One-shot diagnostics: the first step of each profile announces why it played
+  // or why it was culled, so a "no footsteps" report pinpoints its own branch.
+  if (!stepDiag[profile]) {
+    stepDiag[profile] = true;
+    console.log('[CS][steps]', profile, !a ? 'BLOCKED ctx=' + (actx ? actx.state : 'none') : 'OK dist=' + dist.toFixed(1) + ' vol=' + vol.toFixed(3));
+  }
   if (!a) return;
   const t = a.currentTime;
   const dest = footstepNode(a, pos, dist);
-  const self = profile === 'self';
-  const vol = (self ? 0.10 : 0.55 * (1 - dist / FOOTSTEP_RANGE)) * volScale;
   if (!self && vol <= 0.004) return;
   // Scuff: short filtered noise burst
   const src = a.createBufferSource();
