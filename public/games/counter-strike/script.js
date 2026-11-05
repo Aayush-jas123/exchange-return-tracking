@@ -2125,9 +2125,11 @@ function finishReload() {
 }
 
 // ── Player ──
+// Bumped from the original 100 — read this constant for the player's full health
+const PLAYER_MAX_HEALTH = 200;
 const player = {
   pos: new THREE.Vector3(), vel: new THREE.Vector3(), yaw: Math.PI, pitch: 0,
-  onGround: true, health: 150, alive: true, eye: 1.65, speed: 0,
+  onGround: true, health: PLAYER_MAX_HEALTH, alive: true, eye: 1.65, speed: 0,
 };
 const P_RADIUS = 0.35, P_HEIGHT = 1.8;
 
@@ -4226,7 +4228,7 @@ function checkMissionObjectives() {
             updateAmmoHud();
             showMissionNotification('AMMO RESTOCKED');
           } else {
-            player.health = Math.min(100, player.health + 40);
+            player.health = Math.min(PLAYER_MAX_HEALTH, player.health + 40);
             hud.health.textContent = Math.ceil(player.health);
             hud.healthBox.classList.toggle('low', player.health <= 25);
             showMissionNotification('HEALTH +40');
@@ -4693,9 +4695,9 @@ function resetPlayer() {
     player.vel.set(0, 0, 0);
     player.yaw = Math.PI; player.pitch = 0;
   }
-  player.health = 100; player.alive = true;
+  player.health = PLAYER_MAX_HEALTH; player.alive = true;
   player.onGround = true; player.eye = 1.65;
-  hud.health.textContent = 100;
+  hud.health.textContent = PLAYER_MAX_HEALTH;
   hud.healthBox.classList.remove('low');
   for (const w of Object.values(inventory)) { w.ammo = w.def.mag; w.reserve = w.def.reserve; }
   Object.assign(weaponState, { cooldown: 0, reloading: 0, switching: 0.3, recoil: 0, ads: 0 });
