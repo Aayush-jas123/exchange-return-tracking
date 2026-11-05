@@ -483,6 +483,8 @@
   function collide(colliders, pos, r, h, step = STEP) {
     for (const c of colliders) {
       if (c.maxY <= pos.y + step || c.minY >= pos.y + h) continue;
+      // Quick 2D reject: skip colliders whose extent cannot reach the mover
+      if (pos.x < c.minX - r || pos.x > c.maxX + r || pos.z < c.minZ - r || pos.z > c.maxZ + r) continue;
       const cx = clamp(pos.x, c.minX, c.maxX), cz = clamp(pos.z, c.minZ, c.maxZ);
       const dx = pos.x - cx, dz = pos.z - cz, d2 = dx * dx + dz * dz;
       if (d2 >= r * r) continue;
@@ -501,8 +503,12 @@
 
   function groundHeight(colliders, pos, r, step = STEP) {
     let g = 0;
+    const reach = r * 0.85;
     for (const c of colliders) {
-      if (c.maxY <= pos.y + step && c.maxY > g && circleHitsBox(pos.x, pos.z, r * 0.85, c)) g = c.maxY;
+      if (c.maxY <= pos.y + step || c.maxY <= g) continue;
+      // 2D quick-reject before circleHitsBox
+      if (pos.x < c.minX - reach || pos.x > c.maxX + reach || pos.z < c.minZ - reach || pos.z > c.maxZ + reach) continue;
+      if (circleHitsBox(pos.x, pos.z, reach, c)) g = c.maxY;
     }
     return g;
   }

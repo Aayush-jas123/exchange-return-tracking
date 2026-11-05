@@ -49,6 +49,9 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.autoUpdate = false; // throttle: manually flag every N frames below
+let _shadowFrame = 0;
+let _radarFrame = 0;
 renderer.autoClear = false;
 renderer.domElement.id = 'game';
 gameScreen.prepend(renderer.domElement);
@@ -56,6 +59,31 @@ gameScreen.prepend(renderer.domElement);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x2a2a2e); // lighter monochrome gray
 scene.fog = new THREE.Fog(0x2a2a2e, 50, 160);
+
+// Fast-path traversal: after the static freeze (matrixAutoUpdate=false on all
+// worldMeshes), skip the recursive matrix update for frozen nodes. This saves
+// ~1,000 function-call/branch evaluations per frame — the main source of jank
+// when rotating the view or moving fast through the map.
+scene.updateMatrixWorld = function (force) {
+  if (!force && !this.matrixWorldNeedsUpdate) {
+    // Static meshes are already finalized; only visit dynamic children.
+    for (let i = 0; i < this.children.length; i++) {
+      const c = this.children[i];
+      if (c.matrixAutoUpdate) c.updateMatrixWorld(true);
+    }
+    return;
+  }
+  // Full path (rare: first frame or forced update)
+  if (this.matrixAutoUpdate) this.updateMatrix();
+  if (this.matrixWorldNeedsUpdate || force) {
+    if (this.parent === null) this.matrixWorld.copy(this.matrix);
+    this.matrixWorldNeedsUpdate = false;
+    force = true;
+  }
+  for (let i = 0; i < this.children.length; i++) {
+    this.children[i].updateMatrixWorld(force);
+  }
+};
 
 const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.03, 300);
 camera.rotation.order = 'YXZ';
@@ -246,7 +274,7 @@ const mats = {
   fogBank: new THREE.MeshBasicMaterial({ color: 0x9a9a9e, transparent: true, opacity: 0.07, side: THREE.DoubleSide, depthWrite: false }),
   // Bog flood + mirror streaks: the sheet is the bayou surface, the reflection quads are the
   // dark smears trees draw on it. Both greyscale — the cabinet has no hue anywhere.
-  flood: new THREE.MeshStandardMaterial({ map: floodTex, color: 0x8c8c91, roughness: 0.16, metalness: 0.5, transparent: true, opacity: 0.42 }),
+  flood: new THREE.MeshStandardMaterial({ map: floodTex, color: 0x8c8c91, roughness: 0.16, metalness: 0.5, transparent: true, opacity: 0.42, depthWrite: false }),
   reflection: new THREE.MeshBasicMaterial({ color: 0x141417, transparent: true, opacity: 0.32, depthWrite: false, side: THREE.DoubleSide }),
 };
 
@@ -329,6 +357,18 @@ function addDecoCylinder(x, z, radius, height, mat, y = 0) {
   mesh.castShadow = mesh.receiveShadow = true;
   scene.add(mesh);
   worldMeshes.push(mesh);
+  return mesh;
+}
+
+// No-shadow deco variants: identical geometry/placement but castShadow = false. Use for interior
+// warehouse pieces (under a roof slab, invisible to the directional light), flat horizontal planes
+// (mud rings, fog banks — their shadow is sub-pixel at 2048² over 136 m), and other detail whose
+// shadow contribution is physically zero. Saves ~400 shadow-pass draw calls with no visual change.
+function addDecoBoxNS(x, z, w, d, h, mat, texScale = 2.5, y = 0) {
+  const mesh = new THREE.Mesh(scaledBox(w, h, d, texScale), mat);
+  mesh.position.set(x, y + h / 2, z);
+  mesh.receiveShadow = true;
+  scene.add(mesh); worldMeshes.push(mesh);
   return mesh;
 }
 
@@ -716,6 +756,11 @@ let reflectGeo = null;
 const _padInst = [];
 const _pebbleInst = [];
 const _reflectInst = [];
+// Instanced marsh mud rings and driftwood (filled by finalizeVegetation)
+let mudRingGeo = null;  // 1×1 PlaneGeometry, scaled per-instance
+const _mudRingInst = [];
+const _driftLogInst = [];
+const _driftBranchInst = [];
 
 // 0 = dry ground, 1 = ankle-deep margin, 2 = proper water. One cheap ellipse pass (~30 pools),
 // deliberately axis-aligned against the drawn squash axis — a few degrees of error at the shore
@@ -774,28 +819,25 @@ function addMarshDetail(p) {
       s: rand(0.5, 1.2), yaw: 0, tilt: -Math.PI / 2, roll: rand(0, Math.PI * 2),
     });
   }
-  // darker saturated ring hugging the pool — reads as wet mud between waterline and dry ground
-  addFlat(p.x, p.z, p.r * 2 * 1.32, p.r * 2 * p.squash * 1.32, 0.03, mats.mud, rand(0, Math.PI));
+  // darker saturated ring hugging the pool — instanced (1 plane geo, scaled per-pond)
+  if (!mudRingGeo) mudRingGeo = new THREE.PlaneGeometry(1, 1);
+  _mudRingInst.push({
+    p: [p.x, 0.03, p.z], s: [p.r * 2 * 1.32, p.r * 2 * p.squash * 1.32, 1],
+    yaw: rand(0, Math.PI), tilt: -Math.PI / 2,
+  });
   // driftwood: roughly every other pond gets a log slumped over its bank
   if (Math.random() < 0.55) {
     const a = rand(0, Math.PI * 2);
     const lx = p.x + Math.cos(a) * p.r * 1.15, lz = p.z + Math.sin(a) * p.r * p.squash * 1.15;
     if (isFree(lx, lz, 0.9)) {
-      const log = new THREE.Mesh(getCylGeo(0.2, 1), mats.cannabisStem);
-      log.scale.set(rand(0.7, 1.15), rand(1.8, 3.4), rand(0.7, 1.15));
-      // 'YZX' decomposes as Ry(heading)·Rz(tilt): the cylinder falls onto its side, then swings
-      // to a random horizontal heading. Default order would leave the log pointing one fixed way.
-      log.rotation.order = 'YZX';
-      log.rotation.set(0, rand(0, Math.PI * 2), Math.PI / 2);
-      log.position.set(lx, 0.16, lz);
-      log.castShadow = true; log.receiveShadow = true;
-      scene.add(log); worldMeshes.push(log);
-      // stubby broken branch rising off the log for silhouette
-      const br = new THREE.Mesh(getCylGeo(0.07, 0.5), mats.cannabisStem);
-      br.position.set(lx + rand(-0.5, 0.5), 0.35, lz + rand(-0.5, 0.5));
-      br.rotation.set(rand(-0.5, 0.5), rand(0, Math.PI), 0);
-      br.castShadow = true;
-      scene.add(br); worldMeshes.push(br);
+      _driftLogInst.push({
+        p: [lx, 0.16, lz], s: [rand(0.7, 1.15), rand(1.8, 3.4), rand(0.7, 1.15)],
+        yaw: rand(0, Math.PI * 2), tilt: 0, roll: Math.PI / 2,
+      });
+      _driftBranchInst.push({
+        p: [lx + rand(-0.5, 0.5), 0.35, lz + rand(-0.5, 0.5)], s: [1, 1, 1],
+        yaw: rand(0, Math.PI), tilt: rand(-0.5, 0.5), roll: 0,
+      });
     }
   }
   // bank pebbles: instanced squashed spheres around the shore — dense detail, one draw call,
@@ -901,52 +943,68 @@ function addWarehouse(bx, bz, w, d, h) {
   addBox(bx + hw, bz, wt, d, h, mats.wall2, 2.5, 0.3);                // east (solid)
   addDoorWall(bx - hw, bz, d, 'z', 0.3, h, 5.0, mats.metal);          // west roll-up door
   addDoorWall(bx, bz - hd + 3.2, 6, 'x', 0.3, 3.2, 2.4, mats.wall);   // interior N-bay partition
-  // Corrugation ribs: thin decorative strips flush on the wall face — NO collider impact they
-  // can see through, they ride inside the 0.6 m wall volume already registered above.
-  for (let i = 0; i <= 8; i++) {
-    const rx = bx - hw + 1.6 + i * (w - 3.2) / 8;
-    addDecoBox(rx, bz - hd - 0.02, 0.14, 0.1, h - 0.4, mats.metal, 1.2, 0.3);
-    addDecoBox(rx, bz + hd + 0.02, 0.14, 0.1, h - 0.4, mats.metal, 1.2, 0.3);
+  // Corrugation ribs: instanced — 18 identical boxes (same geo + material, only position varies)
+  {
+    const ribGeo = scaledBox(0.14, h - 0.4, 0.1, 1.2);
+    const ribIM = new THREE.InstancedMesh(ribGeo, mats.metal, 18);
+    const _m4 = new THREE.Matrix4(); let ri = 0;
+    for (let i = 0; i <= 8; i++) {
+      const rx = bx - hw + 1.6 + i * (w - 3.2) / 8;
+      _m4.setPosition(rx, (h - 0.4) / 2 + 0.3, bz - hd - 0.02); ribIM.setMatrixAt(ri++, _m4);
+      _m4.setPosition(rx, (h - 0.4) / 2 + 0.3, bz + hd + 0.02); ribIM.setMatrixAt(ri++, _m4);
+    }
+    ribIM.instanceMatrix.needsUpdate = true; ribIM.receiveShadow = true;
+    scene.add(ribIM); worldMeshes.push(ribIM);
   }
   // Cargo door rails + a half-raised shutter panel over the opening
-  addDecoBox(bx - hw - 0.1, bz - 2.4, 0.2, 0.3, h, mats.metal, 1.2, 0.3);
-  addDecoBox(bx - hw - 0.1, bz + 2.4, 0.2, 0.3, h, mats.metal, 1.2, 0.3);
-  addDecoBox(bx - hw, bz, wt, 5.0, 1.1, mats.metal, 1.5, h - 1.4);
+  addDecoBoxNS(bx - hw - 0.1, bz - 2.4, 0.2, 0.3, h, mats.metal, 1.2, 0.3);
+  addDecoBoxNS(bx - hw - 0.1, bz + 2.4, 0.2, 0.3, h, mats.metal, 1.2, 0.3);
+  addDecoBoxNS(bx - hw, bz, wt, 5.0, 1.1, mats.metal, 1.5, h - 1.4);
 
   // ── Support columns: the demolition targets (charges get planted here) ──
-  // Six I-beam-style pillars on a 2×3 grid inside the building. Each is a central web +
-  // two flanges, purely decorative (colliders come from cs-map.js main walls only).
+  // Nine I-beam pillars on a 3×3 grid, instanced per sub-part (5 InstancedMeshes instead of 45).
   const colX = [bx - hw + 3.5, bx - hw + 8.5, bx + hw - 3.5];
   const colZ = [bz - hd + 3.5, bz, bz + hd - 3.5];
-  for (const cx of colX) {
-    for (const cz of colZ) {
-      const px = cx, pz = cz;
-      // Web (thin vertical plate)
-      addDecoBox(px, pz, 0.18, 0.6, h - 0.3, mats.metal, 1, 0.3);
-      // Flanges (two horizontal plates)
-      addDecoBox(px, pz - 0.22, 0.6, 0.12, h - 0.3, mats.metal, 1, 0.3);
-      addDecoBox(px, pz + 0.22, 0.6, 0.12, h - 0.3, mats.metal, 1, 0.3);
-      // Base plate (thick footing at ground level)
-      addDecoBox(px, pz, 0.9, 0.9, 0.12, mats.concrete, 1, 0.3);
-      // Capital bracket connecting column to roof truss
-      addDecoBox(px, pz, 0.8, 0.8, 0.15, mats.metal, 1, h - 0.5);
+  {
+    const _m4 = new THREE.Matrix4(); let ci;
+    // Web (thin vertical plate)
+    const webGeo = scaledBox(0.18, h - 0.3, 0.6, 1);
+    const webIM = new THREE.InstancedMesh(webGeo, mats.metal, 9); ci = 0;
+    for (const cx2 of colX) for (const cz2 of colZ) { _m4.setPosition(cx2, (h - 0.3) / 2 + 0.3, cz2); webIM.setMatrixAt(ci++, _m4); }
+    webIM.instanceMatrix.needsUpdate = true; webIM.receiveShadow = true; scene.add(webIM); worldMeshes.push(webIM);
+    // Flanges (two per column — 18 instances in one mesh)
+    const flGeo = scaledBox(0.6, h - 0.3, 0.12, 1);
+    const flIM = new THREE.InstancedMesh(flGeo, mats.metal, 18); ci = 0;
+    for (const cx2 of colX) for (const cz2 of colZ) {
+      _m4.setPosition(cx2, (h - 0.3) / 2 + 0.3, cz2 - 0.22); flIM.setMatrixAt(ci++, _m4);
+      _m4.setPosition(cx2, (h - 0.3) / 2 + 0.3, cz2 + 0.22); flIM.setMatrixAt(ci++, _m4);
     }
+    flIM.instanceMatrix.needsUpdate = true; flIM.receiveShadow = true; scene.add(flIM); worldMeshes.push(flIM);
+    // Base plates
+    const bpGeo = scaledBox(0.9, 0.12, 0.9, 1);
+    const bpIM = new THREE.InstancedMesh(bpGeo, mats.concrete, 9); ci = 0;
+    for (const cx2 of colX) for (const cz2 of colZ) { _m4.setPosition(cx2, 0.06 + 0.3, cz2); bpIM.setMatrixAt(ci++, _m4); }
+    bpIM.instanceMatrix.needsUpdate = true; bpIM.receiveShadow = true; scene.add(bpIM); worldMeshes.push(bpIM);
+    // Capital brackets
+    const cbGeo = scaledBox(0.8, 0.15, 0.8, 1);
+    const cbIM = new THREE.InstancedMesh(cbGeo, mats.metal, 9); ci = 0;
+    for (const cx2 of colX) for (const cz2 of colZ) { _m4.setPosition(cx2, h - 0.5 + 0.075, cz2); cbIM.setMatrixAt(ci++, _m4); }
+    cbIM.instanceMatrix.needsUpdate = true; cbIM.receiveShadow = true; scene.add(cbIM); worldMeshes.push(cbIM);
   }
 
   // ── Overhead crane rail + trolley + hanging chains ──
   // Two parallel I-beam rails spanning the length at y=h-1, with a trolley box and chains.
   const railY = h - 0.8;
-  addDecoBox(bx, bz - hd + 2.5, w - 1.5, 0.25, 0.3, mats.metal, 2, railY);
-  addDecoBox(bx, bz + hd - 2.5, w - 1.5, 0.25, 0.3, mats.metal, 2, railY);
+  addDecoBoxNS(bx, bz - hd + 2.5, w - 1.5, 0.25, 0.3, mats.metal, 2, railY);
+  addDecoBoxNS(bx, bz + hd - 2.5, w - 1.5, 0.25, 0.3, mats.metal, 2, railY);
   // Trolley body
-  addDecoBox(bx + 1, bz, 1.2, 1.8, 0.5, mats.metal, 1.2, railY + 0.15);
+  addDecoBoxNS(bx + 1, bz, 1.2, 1.8, 0.5, mats.metal, 1.2, railY + 0.15);
   // Hanging chains (thin cylinders dangling from the trolley and from ceiling points)
   const chainPts = [[bx + 1, bz], [bx - 3, bz - hd + 2.5], [bx + 4, bz + hd - 2.5], [bx - hw + 2, bz]];
   for (const [chx, chz] of chainPts) {
     const chLen = rand(1.2, 2.8);
     const chain = new THREE.Mesh(getCylGeo(0.03, chLen), mats.metal);
     chain.position.set(chx, railY - chLen / 2, chz);
-    chain.castShadow = true;
     scene.add(chain); worldMeshes.push(chain);
     // Small hook at the bottom
     const hook = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.025, 6, 8, Math.PI * 1.4), mats.metal);
@@ -959,28 +1017,40 @@ function addWarehouse(bx, bz, w, d, h) {
   for (let i = 0; i < colX.length - 1; i++) {
     const x1 = colX[i], x2 = colX[i + 1];
     const span = x2 - x1;
-    addDecoBox((x1 + x2) / 2, bz - hd + 2.5, span, 0.12, 0.2, mats.metal, 1.5, h - 0.4);
-    addDecoBox((x1 + x2) / 2, bz + hd - 2.5, span, 0.12, 0.2, mats.metal, 1.5, h - 0.4);
+    addDecoBoxNS((x1 + x2) / 2, bz - hd + 2.5, span, 0.12, 0.2, mats.metal, 1.5, h - 0.4);
+    addDecoBoxNS((x1 + x2) / 2, bz + hd - 2.5, span, 0.12, 0.2, mats.metal, 1.5, h - 0.4);
     // Diagonal brace
-    addDecoBox((x1 + x2) / 2, bz, span * 0.7, 0.08, 0.15, mats.metal, 1, h - 1.2);
+    addDecoBoxNS((x1 + x2) / 2, bz, span * 0.7, 0.08, 0.15, mats.metal, 1, h - 1.2);
   }
 
   // ── Interior shelving racks (heavy-duty pallet racking) ──
-  // Three rows of double-sided shelving along the east half
-  for (let row = 0; row < 3; row++) {
-    const rz = bz - hd + 4 + row * 3.5;
-    // Uprights
-    for (let u = 0; u < 4; u++) {
-      const ux = bx + 1.5 + u * 1.8;
-      addDecoBox(ux, rz, 0.1, 0.1, 2.8, mats.metal, 1, 0.3);
+  // Three rows along the east half. Uprights and shelf beams are instanced (identical dims).
+  {
+    const _m4 = new THREE.Matrix4(); let ri;
+    // Uprights: 12 (3 rows × 4 per row)
+    const upGeo = scaledBox(0.1, 2.8, 0.1, 1);
+    const upIM = new THREE.InstancedMesh(upGeo, mats.metal, 12); ri = 0;
+    for (let row = 0; row < 3; row++) {
+      const rz = bz - hd + 4 + row * 3.5;
+      for (let u = 0; u < 4; u++) { _m4.setPosition(bx + 1.5 + u * 1.8, 1.4 + 0.3, rz); upIM.setMatrixAt(ri++, _m4); }
     }
-    // Shelf beams (3 levels)
-    for (let lv = 0; lv < 3; lv++) {
-      addDecoBox(bx + 4.2, rz, 5.6, 0.08, 0.12, mats.metal, 1.5, 0.9 + lv * 0.9);
-      // Boxes/cargo on shelves
-      for (let b = 0; b < 3; b++) {
-        const bxx = bx + 2 + b * 1.8;
-        addDecoBox(bxx, rz + rand(-0.2, 0.2), rand(0.5, 0.9), rand(0.4, 0.7), rand(0.3, 0.6), mats.crate, 1, 0.95 + lv * 0.9);
+    upIM.instanceMatrix.needsUpdate = true; upIM.receiveShadow = true; scene.add(upIM); worldMeshes.push(upIM);
+    // Shelf beams: 9 (3 rows × 3 levels)
+    const sbGeo = scaledBox(5.6, 0.12, 0.08, 1.5);
+    const sbIM = new THREE.InstancedMesh(sbGeo, mats.metal, 9); ri = 0;
+    for (let row = 0; row < 3; row++) {
+      const rz = bz - hd + 4 + row * 3.5;
+      for (let lv = 0; lv < 3; lv++) { _m4.setPosition(bx + 4.2, 0.9 + lv * 0.9 + 0.06, rz); sbIM.setMatrixAt(ri++, _m4); }
+    }
+    sbIM.instanceMatrix.needsUpdate = true; sbIM.receiveShadow = true; scene.add(sbIM); worldMeshes.push(sbIM);
+    // Cargo boxes: random dims so stay individual (but only 27 total, no shadow)
+    for (let row = 0; row < 3; row++) {
+      const rz = bz - hd + 4 + row * 3.5;
+      for (let lv = 0; lv < 3; lv++) {
+        for (let b = 0; b < 3; b++) {
+          const bxx = bx + 2 + b * 1.8;
+          addDecoBoxNS(bxx, rz + rand(-0.2, 0.2), rand(0.5, 0.9), rand(0.4, 0.7), rand(0.3, 0.6), mats.crate, 1, 0.95 + lv * 0.9);
+        }
       }
     }
   }
@@ -990,39 +1060,46 @@ function addWarehouse(bx, bz, w, d, h) {
   for (const [dx, dz] of drumPositions) {
     const drum = new THREE.Mesh(getCylGeo(0.35, 0.9), mats.metal);
     drum.position.set(dx + rand(-0.3, 0.3), 0.75, dz + rand(-0.3, 0.3));
-    drum.castShadow = true; drum.receiveShadow = true;
+    drum.receiveShadow = true;
     scene.add(drum); worldMeshes.push(drum);
   }
 
   // ── Wall-mounted cable trays (perforated channel along upper walls) ──
   for (const sgn of [-1, 1]) {
-    addDecoBox(bx, bz + sgn * (hd - 0.4), w - 2, 0.3, 0.1, mats.metal, 2, h - 1.5);
-    // Tray supports every 2m
-    for (let s = 0; s < Math.floor((w - 2) / 2); s++) {
-      addDecoBox(bx - hw + 1.5 + s * 2, bz + sgn * (hd - 0.4), 0.06, 0.06, 0.5, mats.metal, 1, h - 1.8);
+    addDecoBoxNS(bx, bz + sgn * (hd - 0.4), w - 2, 0.3, 0.1, mats.metal, 2, h - 1.5);
+  }
+  // Tray supports: instanced — 14 identical small brackets
+  {
+    const nSup = Math.floor((w - 2) / 2);
+    const supGeo = scaledBox(0.06, 0.5, 0.06, 1);
+    const supIM = new THREE.InstancedMesh(supGeo, mats.metal, nSup * 2); let si = 0;
+    const _m4 = new THREE.Matrix4();
+    for (const sgn of [-1, 1]) for (let s = 0; s < nSup; s++) {
+      _m4.setPosition(bx - hw + 1.5 + s * 2, h - 1.8 + 0.25, bz + sgn * (hd - 0.4)); supIM.setMatrixAt(si++, _m4);
     }
+    supIM.instanceMatrix.needsUpdate = true; supIM.receiveShadow = true; scene.add(supIM); worldMeshes.push(supIM);
   }
 
   // ── Loading dock bumpers + wheel chocks on the west face ──
-  addDecoBox(bx - hw - 0.15, bz - 1.8, 0.3, 0.6, 0.5, mats.cannabisStem, 1, 0.55);
-  addDecoBox(bx - hw - 0.15, bz + 1.8, 0.3, 0.6, 0.5, mats.cannabisStem, 1, 0.55);
+  addDecoBoxNS(bx - hw - 0.15, bz - 1.8, 0.3, 0.6, 0.5, mats.cannabisStem, 1, 0.55);
+  addDecoBoxNS(bx - hw - 0.15, bz + 1.8, 0.3, 0.6, 0.5, mats.cannabisStem, 1, 0.55);
   // Dock ramp (angled plate from ground to floor slab height)
-  const ramp = addDecoBox(bx - hw - 1.2, bz, 2.4, 4.5, 0.1, mats.concrete, 1.5, 0.15);
+  const ramp = addDecoBoxNS(bx - hw - 1.2, bz, 2.4, 4.5, 0.1, mats.concrete, 1.5, 0.15);
   ramp.rotation.z = 0.06;
 
   // ── Floor markings: painted safety lines (thin bright strips on the slab) ──
   const lineMat = new THREE.MeshBasicMaterial({ color: 0x7a7a7a });
   for (const lz of [bz - hd + 1.5, bz + hd - 1.5]) {
-    addDecoBox(bx, lz, w - 2, 0.12, 0.01, lineMat, 1, 0.31);
+    addDecoBoxNS(bx, lz, w - 2, 0.12, 0.01, lineMat, 1, 0.31);
   }
-  addDecoBox(bx - hw + 4, bz, 0.12, d - 3, 0.01, lineMat, 1, 0.31);
+  addDecoBoxNS(bx - hw + 4, bz, 0.12, d - 3, 0.01, lineMat, 1, 0.31);
 
   // ── Exterior vents + conduit pipes on east wall ──
   for (let v = 0; v < 3; v++) {
     const vz = bz - hd + 3 + v * 4;
-    addDecoBox(bx + hw + 0.2, vz, 0.4, 0.8, 0.6, mats.metal, 1, h - 1.5);
+    addDecoBoxNS(bx + hw + 0.2, vz, 0.4, 0.8, 0.6, mats.metal, 1, h - 1.5);
     // Conduit running down
-    addDecoBox(bx + hw + 0.15, vz, 0.1, 0.1, h - 2, mats.metal, 1, 0.3);
+    addDecoBoxNS(bx + hw + 0.15, vz, 0.1, 0.1, h - 2, mats.metal, 1, 0.3);
   }
 
   // Interior: crate stacks (the "weapons stockpile" that is really archive shelving)
@@ -1357,10 +1434,18 @@ function finalizeVegetation() {
   // off on the returned mesh or every reflection quad would darken the flood from the sun.
   const refl = _fillOriented(reflectGeo || bladeGeo, mats.reflection, _reflectInst, false);
   if (refl) { refl.castShadow = false; refl.receiveShadow = false; }
+  // Marsh mud rings: one InstancedMesh replaces ~50 individual addFlat planes
+  const mudR = _fillOriented(mudRingGeo || new THREE.PlaneGeometry(1, 1), mats.mud, _mudRingInst, false);
+  if (mudR) { mudR.castShadow = false; mudR.receiveShadow = false; mudR.renderOrder = 2; }
+  // Driftwood: 2 InstancedMeshes replace ~55 individual log+branch meshes
+  const driftLogs = _fillOriented(getCylGeo(0.2, 1), mats.cannabisStem, _driftLogInst, false);
+  if (driftLogs) { driftLogs.castShadow = false; driftLogs.receiveShadow = true; }
+  _fillOriented(getCylGeo(0.07, 0.5), mats.cannabisStem, _driftBranchInst, false);
   _trunkInst.length = 0; _leafInst.length = 0; _cannabisInst.length = 0;
   _stemInst.length = 0; _budInst.length = 0; _reedInst.length = 0; _grassInst.length = 0;
   _padInst.length = 0; _pebbleInst.length = 0;
   _cypressTrunkInst.length = 0; _cypressBaseInst.length = 0; _reflectInst.length = 0;
+  _mudRingInst.length = 0; _driftLogInst.length = 0; _driftBranchInst.length = 0;
 }
 
 // Oriented instancing for anything that carries a yaw/tilt/roll: cannabis leaves (with a per-leaf
@@ -1857,6 +1942,14 @@ function buildIndustrialMap() {
   crate(-20, 8, 1.5); crate(20, 8, 1.5);
   crate(-8, 30, 1.2); crate(8, 30, 1.2);
 
+  // Freeze per-frame world-matrix computation on every static world mesh. The scene graph
+  // traverses 1,200+ children calling updateMatrixWorld() each frame; since none of them move
+  // after build (only player/bots are dynamic and aren't in worldMeshes), baking the final matrix
+  // and disabling autoUpdate saves ~1,200 matrix multiplications per frame — the main reason
+  // rotation/movement felt laggy.
+  for (const m of worldMeshes) { m.updateMatrix(); m.updateMatrixWorld(true); m.matrixAutoUpdate = false; }
+  renderer.shadowMap.needsUpdate = true; // ensure shadow map populates on first frame after build
+
   console.log(`[CS] Industrial Complex: 6 duplexes + round towers, vehicles, pavement streets${EAST ? ` + eastern marshland (${marshPools.length} pools, 136x99)` : ' (99x99, no marsh)'}`);
 }
 
@@ -1897,6 +1990,8 @@ function buildClassicMap() {
   crate(-6, -6, 1.3); crate(6, 6, 1.3); crate(-3, 7, 1.1); crate(3, -8, 1.1);
   crate(-12, -24, 1.4); crate(12, 25, 1.4); crate(-28, -28, 1.6); crate(28, 28, 1.6);
   crate(-28, 2.5, 1.2); crate(28, -2.5, 1.2); crate(0, 22, 1.2); crate(0, -22, 1.2);
+  for (const m of worldMeshes) { m.updateMatrix(); m.updateMatrixWorld(true); m.matrixAutoUpdate = false; }
+  renderer.shadowMap.needsUpdate = true;
 }
 
 // ── Waypoints ──
@@ -2006,12 +2101,28 @@ buildMap();
 
 const rayLOS = new THREE.Raycaster();
 const _tmpDir = new THREE.Vector3();
+// Fast LOS: ray-vs-AABB slab test against the collider table (727 boxes).
+// 6 float ops per box vs ~200+ per mesh triangle intersection — critical because
+// 8 bots call this every frame (480×/sec × 1026 mesh tests was the worst CPU cost).
 function hasLOS(from, to) {
-  _tmpDir.subVectors(to, from);
-  const dist = _tmpDir.length();
-  rayLOS.set(from, _tmpDir.normalize());
-  rayLOS.far = dist;
-  return rayLOS.intersectObjects(worldMeshes, false).length === 0;
+  const dx = to.x - from.x, dy = to.y - from.y, dz = to.z - from.z;
+  const len = Math.sqrt(dx * dx + dy * dy + dz * dz);
+  if (len < 0.001) return true;
+  const invDx = 1 / dx, invDy = 1 / dy, invDz = 1 / dz;
+  for (let i = 0, n = colliders.length; i < n; i++) {
+    const c = colliders[i];
+    if (c.veg) continue; // vegetation doesn't block sight
+    // Slab method: compute entry/exit t values for each axis
+    let t1 = (c.minX - from.x) * invDx, t2 = (c.maxX - from.x) * invDx;
+    let tmin = Math.min(t1, t2), tmax = Math.max(t1, t2);
+    t1 = (c.minY - from.y) * invDy; t2 = (c.maxY - from.y) * invDy;
+    tmin = Math.max(tmin, Math.min(t1, t2)); tmax = Math.min(tmax, Math.max(t1, t2));
+    if (tmin > tmax) continue;
+    t1 = (c.minZ - from.z) * invDz; t2 = (c.maxZ - from.z) * invDz;
+    tmin = Math.max(tmin, Math.min(t1, t2)); tmax = Math.min(tmax, Math.max(t1, t2));
+    if (tmin <= tmax && tmax > 0 && tmin < 1) return false; // ray hits this collider
+  }
+  return true;
 }
 
 // ── Audio (synthesised) ──
@@ -5346,7 +5457,9 @@ function updateHud(dt) {
   if (hitTimer > 0) { hitTimer -= dt; if (hitTimer <= 0) hud.hit.style.opacity = 0; }
   damageFlash = Math.max(0, damageFlash - dt * 1.5);
   hud.damage.style.opacity = damageFlash;
-  drawRadar();
+  // Radar at 20 Hz: at 2.4× scale a bot moves ~3px between updates — imperceptible
+  _radarFrame = (_radarFrame + 1) % 3;
+  if (_radarFrame === 0) drawRadar();
 }
 
 function drawRadar() {
@@ -5356,7 +5469,11 @@ function drawRadar() {
   c.beginPath(); c.arc(S / 2, S / 2, S / 2 - 2, 0, Math.PI * 2); c.clip();
   c.translate(S / 2, S / 2); c.rotate(player.yaw);
   c.fillStyle = 'rgba(42,42,50,0.85)'; // monochrome dark
+  const half = S / (2 * scale); // world-space radius of the visible radar
   for (const col of colliders) {
+    // Cull colliders outside radar range before fillRect
+    if (col.minX - player.pos.x > half || col.maxX - player.pos.x < -half ||
+        col.minZ - player.pos.z > half || col.maxZ - player.pos.z < -half) continue;
     c.fillRect((col.minX - player.pos.x) * scale, (col.minZ - player.pos.z) * scale,
       (col.maxX - col.minX) * scale, (col.maxZ - col.minZ) * scale);
   }
@@ -5553,6 +5670,12 @@ function frame() {
     camera.position.set(Math.sin(t) * 40, 20, Math.cos(t) * 40);
     camera.lookAt(0, 0, 0);
   }
+
+  // Shadow map throttle: only re-render the ~800 shadow casters every 3rd frame.
+  // The scene is static except for bots/player whose shadows are a few pixels
+  // at 2048² resolution across a 116m frustum — visually identical at 60fps.
+  _shadowFrame = (_shadowFrame + 1) % 3;
+  if (_shadowFrame === 0) renderer.shadowMap.needsUpdate = true;
 
   renderer.clear();
   renderer.render(scene, camera);
