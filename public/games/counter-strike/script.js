@@ -2164,12 +2164,12 @@ const MISSIONS = [
         id: 'obj_1_6',
         type: 'escape_zone',
         title: 'Escape via NE Duplex Rooftop',
-        description: 'Get RAVEN to the extraction point — 90 seconds!',
+        description: 'Get RAVEN to the extraction point — 60 seconds!',
         zone: { x: 33, z: 29, radius: 6 },
         triggerDistance: 5,
         requiresNPC: true,
         escort: true,
-        timeLimit: 90,
+        timeLimit: 60,
         completed: false
       }
     ],
@@ -2212,7 +2212,7 @@ const MISSIONS = [
       'raven_extraction': [
         { speaker: 'ROOK', text: 'Move to the NE duplex. Extraction point is on the roof.', portrait: 'rook' },
         { speaker: 'RAVEN', text: 'After you.', portrait: 'raven' },
-        { speaker: 'ROOK', text: 'Stay close. We have 90 seconds before this place becomes a crater.', portrait: 'rook' }
+        { speaker: 'ROOK', text: 'Stay close. We have 60 seconds before this place becomes a crater.', portrait: 'rook' }
       ],
       'mission_complete': [
         { speaker: 'SABLE', text: 'ROOK, status report.', portrait: 'sable' },
@@ -2251,11 +2251,11 @@ let missionState = {
   extractionStartTime: 0
 };
 
-// Evidence spawn positions — 3 items scattered inside SW duplex (-33, -30)
+// Evidence spawn positions — scattered inside SW duplex (-33, -30) on both floors
 const EVIDENCE_POSITIONS = [
-  { x: -34.5, z: -31.5, type: 'shell_casings', label: 'Shell Casings' },
-  { x: -31.5, z: -29.0, type: 'bloody_cloth', label: 'Torn Fabric' },
-  { x: -33.0, z: -32.5, type: 'broken_radio', label: 'Broken Radio' }
+  { x: -35.5, z: -32.5, y: 0,   type: 'shell_casings', label: 'Shell Casings' },    // SW corner, ground floor
+  { x: -30.5, z: -27.5, y: 3.8, type: 'bloody_cloth',  label: 'Torn Fabric' },      // NE corner, upper floor
+  { x: -34.0, z: -29.0, y: 3.8, type: 'broken_radio',  label: 'Broken Radio' }      // NW area, upper floor
 ];
 
 // ── Mission Progress Persistence ──
@@ -2440,7 +2440,7 @@ function spawnMissionEntities() {
   currentMission.objectives.forEach(obj => {
     if (obj.type === 'collect_evidence') {
       EVIDENCE_POSITIONS.forEach((ep, i) => {
-        spawnEvidence(ep.x, ep.z, ep.type, obj.id + '_' + i, ep.label);
+        spawnEvidence(ep.x, ep.z, ep.y || 0, ep.type, obj.id + '_' + i, ep.label);
       });
     }
   });
@@ -2521,7 +2521,7 @@ function spawnClue(x, z, type, id) {
   missionState.clues.push(group);
 }
 
-function spawnEvidence(x, z, type, id, label) {
+function spawnEvidence(x, z, y, type, id, label) {
   const group = new THREE.Group();
   const dark = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.9 });
   const mid = new THREE.MeshStandardMaterial({ color: 0x666666, roughness: 0.85 });
@@ -2636,7 +2636,7 @@ function spawnEvidence(x, z, type, id, label) {
     spk.userData.isIndicator = true;
   }
 
-  group.position.set(x, 0, z);
+  group.position.set(x, y || 0, z);
   group.userData = { type: 'evidence', evidenceType: type, id: id, label: label };
   scene.add(group);
   missionState.evidence.push(group);
@@ -2978,8 +2978,8 @@ function checkMissionObjectives() {
       ravenNPC.userData.followMode = true;
     }
     missionState.extractionStartTime = Date.now();
-    missionState.extractionTimer = 90;
-    showMissionNotification('ESCORT RAVEN TO EXTRACTION — 90 SECONDS');
+    missionState.extractionTimer = 60;
+    showMissionNotification('ESCORT RAVEN TO EXTRACTION — 60 SECONDS');
     // Spawn extra enemies along the escape route (SW → NE diagonal)
     const escapeEnemies = [
       { x: -10, z: -5 }, { x: 5, z: 10 }, { x: 15, z: 15 },
