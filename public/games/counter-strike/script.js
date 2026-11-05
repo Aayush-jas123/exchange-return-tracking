@@ -1314,6 +1314,80 @@ function playShot(vol = 1, tone = 1) {
   o.stop(t + 0.15);
 }
 
+// ── Footsteps (synthesised, distance-aware) ──
+// One shared master gain + a PannerNode per footstep (distanceModel linear so it
+// hard-cuts at maxDistance) + a single HRTF panner for left/right steps.
+// Voice cap stops a 13-bot lobby from stacking 40 live nodes in one second.
+const FOOTSTEP_RANGE = 24;          // enemy steps beyond this are culled entirely
+const footstepBus = { panner: null, gain: null, voices: [] };
+let stepFlip = 1;                   // alternates L/R so gait reads as walking
+
+function footstepNode(pos, dist) {
+  const a = audio();
+  if (!footstepBus.gain) {
+    footstepBus.gain = a.createGain();
+    footstepBus.gain.gain.value = 1;
+    footstepBus.gain.connect(a.destination);
+  }
+  if (!footstepBus.panner) {
+    footstepBus.panner = a.createPanner();
+    footstepBus.panner.panningModel = 'equalpower';
+    footstepBus.panner.connect(footstepBus.gain);
+  }
+  footstepBus.panner.pan.value = clamp(stepFlip, -0.7, 0.7);
+  stepFlip = -stepFlip;
+  let src = footstepBus.panner;
+  if (dist > 0.1) {
+    // Spatialise enemy steps; the player's own steps bypass the panner at unity gain
+    const p = a.createPanner();
+    p.panningModel = 'HRTF';
+    p.distanceModel = 'linear';
+    p.refDistance = 1; p.maxDistance = FOOTSTEP_RANGE;
+    p.positionX.value = pos.x; p.positionZ.value = pos.z; p.positionY.value = (pos.y || 0) + 0.1;
+    p.connect(footstepBus.gain);
+    src = p;
+  }
+  // Voice cap: if too many steps are live, kill the oldest
+  const now = a.currentTime;
+  footstepBus.voices = footstepBus.voices.filter(v => v.end > now);
+  if (footstepBus.voices.length >= 6) { try { footstepBus.voices.shift().src.stop(); } catch (_) {} }
+  return src;
+}
+
+// profile: 'self' = crisp boot scuff right under the camera (your own steps)
+//          'enemy' = heavier, duller, lowpassed — instantly distinguishable
+function playFootstep(profile, pos, dist, volScale = 1) {
+  const a = audio(), t = a.currentTime;
+  const dest = footstepNode(pos, dist);
+  const self = profile === 'self';
+  const vol = (self ? 0.10 : 0.55 * (1 - dist / FOOTSTEP_RANGE)) * volScale;
+  if (!self && vol <= 0.004) return;
+  // Scuff: short filtered noise burst
+  const src = a.createBufferSource();
+  src.buffer = noiseBuf;
+  src.playbackRate.value = self ? rand(0.9, 1.1) : rand(0.55, 0.75);
+  const f = a.createBiquadFilter();
+  f.type = 'bandpass';
+  f.frequency.value = self ? rand(1600, 2400) : rand(500, 800);
+  f.Q.value = self ? 1.4 : 2.2;
+  const g = a.createGain();
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + (self ? 0.09 : 0.14));
+  src.connect(f).connect(g).connect(dest);
+  src.start(t, Math.random() * 0.5);
+  src.stop(t + 0.16);
+  // Heel thud: quick sine tap — enemies get the lower, heavier one
+  const o = a.createOscillator(), og = a.createGain();
+  o.frequency.setValueAtTime(self ? rand(150, 190) : rand(85, 110), t);
+  o.frequency.exponentialRampToValueAtTime(45, t + 0.08);
+  og.gain.setValueAtTime(vol * (self ? 0.8 : 1.1), t);
+  og.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+  o.connect(og).connect(dest);
+  o.start(t);
+  o.stop(t + 0.11);
+  footstepBus.voices.push({ src, end: t + 0.16 });
+}
+
 function playBeep(freq, dur = 0.05, vol = 0.15, type = 'square') {
   const a = audio(), t = a.currentTime;
   const o = a.createOscillator(), g = a.createGain();
@@ -1552,6 +1626,7 @@ class Bot {
     this.strafeDir = 0; this.strafeTimer = 0; this.target = null;
     this.stuckTimer = 0; this.stuckRef = this.pos.clone();
     this.walkPhase = Math.random() * 10; this.spotted = 0; this.parts = [];
+    this.stepDist = 0; this.lastStepPos = this.pos.clone();
 
     const g = this.group = new THREE.Group();
     const part = (geo, mat, x, y, z, partName, parent = g) => {
@@ -1707,6 +1782,19 @@ class Bot {
 
     collide(this.pos, 0.4, 1.8, STEP);
     this.pos.y = groundHeight(this.pos, 0.4);
+
+    // Footsteps: distance-triggered gait (same per-bot, no global rate limiter),
+    // culled completely beyond the audible range so idle bots cost nothing.
+    if (moveSpeed > 0.4) {
+      this.stepDist = Math.hypot(this.pos.x - this.lastStepPos.x, this.pos.z - this.lastStepPos.z);
+      if (this.stepDist > (moveSpeed > 3 ? 1.5 : 2.1)) {
+        const sd = Math.hypot(this.pos.x - player.pos.x, this.pos.z - player.pos.z);
+        if (sd < FOOTSTEP_RANGE) playFootstep('enemy', this.pos, sd);
+        this.lastStepPos.copy(this.pos);
+      }
+    } else {
+      this.lastStepPos.copy(this.pos);
+    }
     // Confinement has to come from the arena actually drawn — the old ±31.5 literal was written
     // for Classic and pushed the whole terrorist team back inside the walls of the 99m Industrial
     // Complex, so bots could never reach the buildings they were patrolling toward.
@@ -3570,6 +3658,20 @@ function updatePlayer(dt) {
   }
 
   player.speed = Math.hypot(player.vel.x, player.vel.z);
+
+  // Own footsteps: fire per distance walked (1.7u/step), so the cadence stays
+  // honest at any frame rate; crouch takes smaller quieter steps, airborne is silent.
+  if (player.alive && player.onGround && player.speed > 0.6) {
+    if (player._lastStepPos === undefined) player._lastStepPos = player.pos.clone();
+    const walked = Math.hypot(player.pos.x - player._lastStepPos.x, player.pos.z - player._lastStepPos.z);
+    const stride = player.eye < 1.4 ? 2.4 : player.speed > 3.4 ? 1.5 : 1.9;
+    if (walked > stride) {
+      playFootstep('self', player.pos, 0, player.eye < 1.4 ? 0.5 : 1);
+      player._lastStepPos.copy(player.pos);
+    }
+  } else if (player.alive) {
+    if (player._lastStepPos) player._lastStepPos.copy(player.pos);
+  }
   player.eye += ((crouch ? 1.15 : 1.65) - player.eye) * Math.min(1, dt * 12);
   camera.position.set(player.pos.x, player.pos.y + player.eye, player.pos.z);
   camera.rotation.set(player.pitch, player.yaw, 0);
