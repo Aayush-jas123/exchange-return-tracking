@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
   <title>OFFCOMFRT &mdash; Counter Strike</title>
-  <link rel="stylesheet" href="style.css?v=20" />
+  <link rel="stylesheet" href="style.css?v=21" />
 </head>
 <body>
 
@@ -205,6 +205,13 @@
         <div id="missionObjective">Objective</div>
         <div id="missionTimer">0:00</div>
         <div id="evidenceCounter" style="display:none;">EVIDENCE 0/3</div>
+        <div id="guardCounter" style="display:none;">GUARDS 4 LEFT</div>
+        <div id="chargeCounter" style="display:none;">CHARGES 0/3</div>
+        <div id="fuseHud" style="display:none;">
+          <span id="fuseLabel">FUSE</span>
+          <span id="fuseTimer">0:24</span>
+        </div>
+        <div id="resupplyCounter" style="display:none;">SUPPLIES 0/4</div>
         <div id="escortHud" style="display:none;">
           <span id="escortStatus">RAVEN STATUS: OK</span>
           <span id="extractionTimer">1:00</span>
@@ -298,8 +305,8 @@
   <!-- Network client for multiplayer -->
   <script src="counter-strike-net.js?v=13"></script>
   <!-- Shared map geometry: the same module the hub requires, so client and server collide identically -->
-  <script src="../cs-map.js?v=1"></script>
+  <script src="../cs-map.js?v=3"></script>
   <!-- Game engine loads as ES module (deferred by spec) -->
-  <script type="module" src="script.js?v=63"></script>
+  <script type="module" src="script.js?v=65"></script>
 </body>
 </html>

@@ -85,6 +85,110 @@
   const platform = (box, x, z, w, d, y) => box(x, z, w, d, 0.3, y);
   const pavement = (box, x, z, w, d) => box(x, z, w, d, 0.18);
 
+  // ── Mission-02 eastern structures (mirrored visually by buildIndustrialMap in script.js) ──
+  // Corrugated weapons warehouse: 16x12, 5 m clear height, big west roll-up door, ground slab so
+  // the interior floor is solid, east stair shaft to a roof, interior crates left clear of the
+  // door corridor and of the three demolition-charge spots.
+  function warehouseBuilding(box, bx, bz, w, d, h) {
+    const hw = w / 2, hd = d / 2;
+    platform(box, bx, bz, w, d, 0);                              // floor slab (0.3)
+    winWall(box, bx, bz - hd, w, 'x', 0.3, h, 2.4, 1.6, 1.2);    // north (glazed, matches drawn map)
+    winWall(box, bx, bz + hd, w, 'x', 0.3, h, 2.4, 1.6, 1.2);    // south
+    box(bx + hw, bz, WALL_T, d, h, 0.3);                         // east wall
+    doorWall(box, bx - hw, bz, d, 'z', 0.3, h, 5.0);             // west: roll-up cargo door
+    doorWall(box, bx, bz - hd + 3.2, 6, 'x', 0.3, 3.2, 2.4);     // interior partition (N bay)
+    crate(box, bx - hw + 2.5, bz - hd + 2.5, 2.0, 0.3);
+    crate(box, bx - hw + 2.5, bz - hd + 2.5, 1.4, 2.3);
+    crate(box, bx - hw + 5.0, bz + hd - 2.5, 2.2, 0.3);
+    crate(box, bx + hw - 2.4, bz + hd - 2.6, 2.0, 0.3);
+    crate(box, bx + hw - 2.4, bz + hd - 4.6, 1.6, 0.3);
+    box(bx + hw - 1.6, bz - 1.0, 1.4, 4.0, 2.4, 0.3);            // shelving run (east)
+    box(bx - 2.5, bz + 1.5, 2.6, 1.1, 0.9, 0.3);                 // archive filing table
+    const shaft = 3.4, slabEast = bx + hw - shaft;
+    const slabW = slabEast - (bx - hw);
+    box(bx - hw + slabW / 2, bz, slabW, d - WALL_T, 0.3, h);     // roof slab
+    stairs(box, slabEast + shaft / 2, bz + hd - 1.2, h + 0.3, 13, 2.8, 'N');
+    box(bx, bz - hd - 0.2, w + 0.6, 0.3, 0.7, h + 0.3);          // roof parapets (escape deck edge)
+    box(bx, bz + hd + 0.2, w + 0.6, 0.3, 0.7, h + 0.3);
+  }
+
+  // Workers' greenhouse: concrete kerb + corner posts + rails. The GLASS infill is drawn by the
+  // client but carries NO collider here — one collider per pane would add dozens of eye-height
+  // blockers around the plant beds and gridlock bot pathing through the marsh.
+  function greenhouseBuilding(box, bx, bz, w, d) {
+    const hw = w / 2, hd = d / 2, h = 3.2;
+    pavement(box, bx, bz, w, d);                                 // low kerb/slab, walkable
+    box(bx - hw, bz - hd, 0.35, 0.35, h); box(bx + hw, bz - hd, 0.35, 0.35, h);
+    box(bx - hw, bz + hd, 0.35, 0.35, h); box(bx + hw, bz + hd, 0.35, 0.35, h);
+    box(bx, bz - hd, w, 0.2, 0.3, 0.2); box(bx, bz + hd, w, 0.2, 0.3, 0.2);   // base rails
+    box(bx - hw, bz, 0.2, d, 0.3, 0.2); box(bx + hw, bz, 0.2, d, 0.3, 0.2);
+    box(bx, bz - hd, w, 0.2, 0.3, h - 0.5); box(bx, bz + hd, w, 0.2, 0.3, h - 0.5); // top rails
+    box(bx - hw, bz, 0.2, d, 0.3, h - 0.5); box(bx + hw, bz, 0.2, d, 0.3, h - 0.5);
+    box(bx, bz + 0.4, w - 1.2, 1.4, 1.0, 0.4); box(bx, bz, w, 0.3, 1.7, h - 0.3);  // ridge
+    doorWall(box, bx - hw, bz, 4, 'z', 0, h, 2.4);               // west door
+    crate(box, bx + 1.5, bz - 1.8, 1.6, 0.6);                    // potting bench
+    crate(box, bx - 1.0, bz + 2.0, 1.4, 0.6);                    // planter bed (bud sits on this)
+  }
+
+  // Eastern maintenance room: single-storey supply shed, west door, one interior partition.
+  function maintenanceRoom(box, bx, bz, w, d) {
+    const hw = w / 2, hd = d / 2, h = 3.2;
+    pavement(box, bx, bz, w, d);
+    box(bx, bz - hd, w, WALL_T, h, 0.2);
+    box(bx, bz + hd, w, WALL_T, h, 0.2);
+    box(bx + hw, bz, WALL_T, d, h, 0.2);
+    doorWall(box, bx - hw, bz, d, 'z', 0.2, h, 2.6);
+    box(bx + 2, bz - 1.2, WALL_T, 4.2, h, 0.2);                  // interior partition
+    crate(box, bx + hw - 1.4, bz - 1.6, 1.2, 0.2);               // locker bank
+    crate(box, bx + hw - 1.4, bz + 1.6, 1.2, 0.2);
+    box(bx, bz + hd + 0.4, w + 1.2, 2.4, 0.3, h);                // awning
+    box(bx - 2.2, bz + hd + 2.2, 1.6, 1.1, 0.9, 0);              // standby generator (solid)
+  }
+
+  // Administrative wing: two walkable floors like a duplex, but with a locked office on the upper
+  // level reached through a doorway in the east partition — Kessler's holding room.
+  function adminWingBuilding(box, bx, bz, w, d) {
+    const gfH = 3.5, slabT = 0.3, ufH = 2.8;
+    const upY = gfH + slabT, roofY = upY + ufH;
+    const hw = w / 2, hd = d / 2;
+    winWall(box, bx, bz - hd, w, 'x', 0, gfH, 2.4, 1.1, 1.1);
+    doorWall(box, bx, bz + hd, w, 'x', 0, gfH, 2.6);
+    box(bx - hw, bz, WALL_T, d, gfH);
+    winWall(box, bx + hw, bz, d, 'z', 0, gfH, 2.2, 1.1, 1.1);
+    doorWall(box, bx - 2, bz, d - 2, 'z', 0, gfH, 2.2);           // ground partition
+    crate(box, bx - hw + 2.2, bz - hd + 2.2, 1.6);
+    crate(box, bx - hw + 2.2, bz + hd - 2.2, 1.4);
+    box(bx - hw + 1.8, bz + 1.4, 2.4, 1.0, 0.8);                  // reception counter
+    const shaft = 3.5, slabEast = bx + hw - shaft;
+    const slabW = slabEast - (bx - hw);
+    box(bx - hw + slabW / 2, bz, slabW, d - WALL_T, slabT, gfH);
+    stairs(box, slabEast + shaft / 2, bz + hd - 0.8, upY, 11, 3.0, 'N');
+    winWall(box, bx, bz - hd, w, 'x', upY, ufH, 2.6, 0.9, 0.9);
+    winWall(box, bx, bz + hd, w, 'x', upY, ufH, 2.6, 0.9, 0.9);
+    box(bx - hw, bz, WALL_T, d, ufH, upY);
+    winWall(box, bx + hw, bz, d, 'z', upY, ufH, 2.2, 0.9, 0.9);
+    doorWall(box, bx - 2, bz, d - 2, 'z', upY, ufH, 2.2);         // upper partition (office door)
+    crate(box, bx + 3.0, bz - 2.0, 1.8, upY);                     // office desk
+    box(bx + 4.5, bz + 2.4, 2.2, 0.9, 0.8, upY);                  // filing cabinet
+    box(bx, bz, w + 0.6, d + 0.6, slabT, roofY);
+    box(bx, bz - hd - 0.2, w + 0.6, 0.3, 0.7, roofY + slabT);     // roof parapets
+    box(bx, bz + hd + 0.2, w + 0.6, 0.3, 0.7, roofY + slabT);
+  }
+
+  // NE service complex: single-storey bunker with a back room — the M02 extraction point.
+  function serviceComplex(box, bx, bz, w, d) {
+    const hw = w / 2, hd = d / 2, h = 3.8;
+    pavement(box, bx, bz, w, d);
+    box(bx, bz - hd, w, WALL_T, h, 0.2);
+    doorWall(box, bx, bz + hd, w, 'x', 0.2, h, 2.8);
+    box(bx - hw, bz, WALL_T, d, h, 0.2);
+    winWall(box, bx + hw, bz, d, 'z', 0.2, h, 2.4, 1.2, 1.0);     // east (glazed, matches drawn map)
+    doorWall(box, bx + 2, bz, d - 3, 'z', 0.2, h, 2.2);           // interior partition
+    crate(box, bx - hw + 2.0, bz - hd + 2.0, 1.5, 0.2);
+    box(bx, bz, w + 0.6, d + 0.6, 0.3, h);                       // roof
+    stairs(box, bx + hw - 1.8, bz + hd + 1.6, h + 0.3, 10, 2.4, 'N');
+  }
+
   function pillars(box, x, z, w, d, h, count = 4) {
     const pts = count === 4
       ? [[-w / 2 + 0.4, -d / 2 + 0.4], [w / 2 - 0.4, -d / 2 + 0.4], [-w / 2 + 0.4, d / 2 - 0.4], [w / 2 - 0.4, d / 2 - 0.4]]
@@ -194,15 +298,18 @@
     }
   }
 
-  // ══ INDUSTRIAL COMPLEX — 99x99 ════════════════════════════════════════════
+  // ══ INDUSTRIAL COMPLEX — 99x99 core ══════════════════════════════════════
   // Six square duplexes + two rounded ones around a central street, industrial filler,
   // pavement avenues, three lookouts and parked vehicles. Order and numbers match
-  // buildIndustrialMap() in counter-strike/script.js — change one, change the other.
-  function buildIndustrial(out) {
+  // buildIndustrialMap() in counter-strike/script.js.
+  // The perimeter's east side differs per variant: `industrial` keeps the original wall at
+  // x=49.5; `industrial_east` (Mission-02 only) replaces it with the marsh expansion below.
+  function buildIndustrialCore(out) {
     const box = makeSink(out), cylinder = cyl(out);
     const HALF = 49.5;
-    box(0, -HALF, 99, 1, 8); box(0, HALF, 99, 1, 8);
-    box(-HALF, 0, 1, 99, 8); box(HALF, 0, 1, 99, 8);
+    // West wall only: the N/S walls and the east side belong to the variant, because the marsh
+    // arena spans them at a different length/position than the plain 99x99 arena.
+    box(-HALF, 0, 1, 99, 8);
 
     duplexBuilding(box, -33, -33, 12, 9);
     duplexBuilding(box, 33, -33, 12, 9);
@@ -265,6 +372,53 @@
     crate(box, -8, 30, 1.2); crate(box, 8, 30, 1.2);
   }
 
+  // Plain arena: original symmetric 99x99 footprint, east wall back at x=49.5.
+  function buildIndustrial(out) {
+    buildIndustrialCore(out);
+    const box = makeSink(out);
+    box(0, -49.5, 99, 1, 8); box(0, 49.5, 99, 1, 8);
+    box(49.5, 0, 1, 99, 8);
+  }
+
+  // ════════════════════════════════════════════════════════════
+  //  MISSION-02 EASTERN MARSHLAND EXPANSION — 128x99 total
+  //  x from ~50 to 64: flooded ground (no colliders under water — the marsh stays
+  //  walkable so bots never gridlock), raised boardwalk lanes, and the five
+  //  mission structures. Only `industrial_east` (OPERATION BLACKOUT 02) uses this.
+  // ════════════════════════════════════════════════════════════
+  function buildIndustrialEast(out) {
+    buildIndustrialCore(out);
+    const box = makeSink(out), cylinder = cyl(out);
+    // One long run of N/S wall across both the core and the marsh, east wall at x=64.5 — drawn
+    // wall-for-wall by buildIndustrialMap (splitting the run here would drift from the meshes)
+    box(7.5, -49.5, 128, 1, 8); box(7.5, 49.5, 128, 1, 8);
+    box(64.5, 0, 1, 99, 8);
+
+    warehouseBuilding(box, 70, -18, 16, 12, 5.0);      // eastern weapons warehouse / archive
+    greenhouseBuilding(box, 48, 10, 10, 7);            // abandoned workers' greenhouse (Purple Bud)
+    maintenanceRoom(box, 72, 8, 8, 6);                 // emergency resupply shed
+    adminWingBuilding(box, 78, 26, 14, 10);            // administrative wing — Kessler's office
+    serviceComplex(box, 58, 40, 12, 9);                // NE service complex — extraction
+
+    // Boardwalk spine + arms. Keep the ~2 m gaps beside every run free so bots have lanes.
+    pavement(box, 56, 8, 4, 52);                       // N-S spine through the marsh
+    pavement(box, 63, -18, 12, 3);                     // W connector to the warehouse door
+    pavement(box, 58, 40, 10, 3);                      // S arm to the service complex
+    pavement(box, 71, 3, 12, 3);                       // warehouse <-> maintenance link
+    pavement(box, 76, 17, 3, 14);                      // maintenance <-> admin wing
+    pavement(box, 60, -30, 6, 2.5);                    // dock
+    pavement(box, 64, 20, 5, 2.5);                     // jetty
+    pavement(box, 52, -6, 2.5, 7);                     // side boardwalk
+
+    // Decaying industrial leftovers in the marsh (low, climbable cover)
+    container(box, 62, -38, 6, 'x');
+    container(box, 52, 34, 6, 'z');
+    cylinder(56, -42, 2.2, 2.4);                       // collapsed tank
+    cylinder(50, 40, 1.8, 1.8);                        // half-buried tank
+    crate(box, 58, -24, 1.4); crate(box, 66, 30, 1.6);
+    crate(box, 54, 20, 1.2); crate(box, 62, 44, 1.3);
+  }
+
   // ══ CLASSIC ARENA — 66x66 ════════════════════════════════════════════════
   function buildClassic(out) {
     const box = makeSink(out);
@@ -286,15 +440,24 @@
     crate(box, -28, 2.5, 1.2); crate(box, 28, -2.5, 1.2); crate(box, 0, 22, 1.2); crate(box, 0, -22, 1.2);
   }
 
-  const BUILDERS = { industrial: buildIndustrial, classic: buildClassic };
+  const BUILDERS = { industrial: buildIndustrial, industrial_east: buildIndustrialEast, classic: buildClassic };
+  // `industrial` is the classic symmetric 99x99 arena everyone (incl. co-op) plays. The marsh
+  // expansion lives in its OWN entry `industrial_east` — a 128x99 rect running x[-49.5, 64.5]
+  // (the west wall never moved) used ONLY by Mission 02. xMin/xMax describe that asymmetry;
+  // halfW stays the generic largest half-extent so older consumers keep working.
   const MAPS = {
     industrial: {
-      size: 99, half: 48,
+      size: 99, half: 48, halfW: 49.5, halfD: 49.5, xMin: -49.5, xMax: 49.5,
+      ct: { xMin: -8, xMax: 8, zMin: -45, zMax: -40 },
+      t: { xMin: -20, xMax: 20, zMin: 35, zMax: 45 },
+    },
+    industrial_east: {
+      size: 99, half: 48, halfW: 64.5, halfD: 49.5, xMin: -49.5, xMax: 64.5, east: true,
       ct: { xMin: -8, xMax: 8, zMin: -45, zMax: -40 },
       t: { xMin: -20, xMax: 20, zMin: 35, zMax: 45 },
     },
     classic: {
-      size: 66, half: 32,
+      size: 66, half: 32, halfW: 32.5, halfD: 32.5, xMin: -32.5, xMax: 32.5,
       ct: { xMin: -8, xMax: 8, zMin: -25, zMax: -20 },
       t: { xMin: -20, xMax: 20, zMin: 20, zMax: 25 },
     },
@@ -347,9 +510,15 @@
   // Footprint-only on purpose: isFree() gates spawn points, waypoints and where trees/bushes may
   // land, and the arena's owner wants thin raised pavement counted as occupied so vegetation never
   // spawns on a walkway. Passability over those low props comes from collide()'s step height, not
-  // from here.
-  function isFree(colliders, half, x, z, r) {
-    if (Math.abs(x) > half - r || Math.abs(z) > half - r) return false;
+  // from here. `bounds` is the map's {halfW, halfD} — industrial is a 128x99 rectangle after the
+  // eastern marsh expansion, so a single half-extent no longer describes the arena.
+  function isFree(colliders, bounds, x, z, r) {
+    const b = (bounds && (bounds.halfW !== undefined || bounds.xMin !== undefined))
+      ? bounds : { halfW: bounds, halfD: bounds };
+    const xLo = b.xMin !== undefined ? b.xMin : -b.halfW;
+    const xHi = b.xMax !== undefined ? b.xMax : b.halfW;
+    if (x < xLo + r || x > xHi - r) return false;
+    if (Math.abs(z) > b.halfD - r) return false;
     return !colliders.some(c => circleHitsBox(x, z, r, c));
   }
 
@@ -390,11 +559,12 @@
   // Hub-side patrol points. The client makes its own (THREE.Vector2), so this only serves cs-sim.
   function waypoints(name, count) {
     const m = info(name), col = collidersFor(name), out = [];
+    const xLo = (m.xMin !== undefined ? m.xMin : -m.halfW) + 3, xHi = (m.xMax !== undefined ? m.xMax : m.halfW) - 3;
     let guard = 0;
     while (out.length < count && guard++ < count * 200) {
-      const x = (Math.random() - 0.5) * 2 * (m.half - 3);
-      const z = (Math.random() - 0.5) * 2 * (m.half - 3);
-      if (isFree(col, m.half, x, z, 0.9)) out.push({ x, z });
+      const x = xLo + Math.random() * (xHi - xLo);
+      const z = (Math.random() - 0.5) * 2 * (m.halfD - 3);
+      if (isFree(col, m, x, z, 0.9)) out.push({ x, z });
     }
     return out;
   }

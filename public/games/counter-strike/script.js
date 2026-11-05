@@ -77,7 +77,7 @@ const sun = new THREE.DirectionalLight(0xffffff, 3.2);
 sun.position.set(30, 55, 18);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
-Object.assign(sun.shadow.camera, { left: -45, right: 45, top: 45, bottom: -45, near: 1, far: 160 });
+Object.assign(sun.shadow.camera, { left: -48, right: 68, top: 58, bottom: -58, near: 1, far: 180 });
 sun.shadow.bias = -0.0006;
 scene.add(sun);
 
@@ -204,6 +204,21 @@ const metalTex = makeTexture((g, s) => {
   }
 });
 
+// Monochrome marsh/water textures (Mission-02 eastern expansion)
+const waterTex = makeTexture((g, s) => {
+  speckle(g, s, '#232327', 0.07, 3000);
+  g.strokeStyle = 'rgba(255,255,255,0.10)';
+  g.lineWidth = 2;
+  for (let i = 0; i < 16; i++) {
+    const y = Math.random() * s, w = 20 + Math.random() * 90;
+    g.beginPath();
+    g.moveTo(Math.random() * s, y);
+    g.quadraticCurveTo(Math.random() * s, y + 5, Math.random() * s + w, y);
+    g.stroke();
+  }
+}, 512);
+waterTex.repeat.set(5, 5);
+
 const mats = {
   ground: new THREE.MeshStandardMaterial({ map: floorTex, roughness: 1 }),
   wall: new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.95 }),
@@ -218,6 +233,14 @@ const mats = {
   cannabis: new THREE.MeshStandardMaterial({ map: makeCannabisLeafTexture(), alphaTest: 0.5, side: THREE.DoubleSide, roughness: 1 }),
   cannabisStem: new THREE.MeshStandardMaterial({ color: 0x4a4a4a, roughness: 1 }),
   cannabisBud: new THREE.MeshStandardMaterial({ color: 0x8a8a8a, roughness: 1, flatShading: true }),
+  // Marsh palette — all greyscale, brand rule: no hue anywhere in the cabinet
+  water: new THREE.MeshStandardMaterial({ map: waterTex, color: 0x909095, roughness: 0.18, metalness: 0.45, transparent: true, opacity: 0.72 }),
+  mud: new THREE.MeshStandardMaterial({ color: 0x3f3f42, roughness: 1 }),
+  glass: new THREE.MeshStandardMaterial({ color: 0xa8b0b4, roughness: 0.12, metalness: 0.25, transparent: true, opacity: 0.24, side: THREE.DoubleSide }),
+  // Reed blades and grass tufts share ONE flat, double-sided quad geometry (one draw call each)
+  reed: new THREE.MeshStandardMaterial({ color: 0x5e625f, roughness: 1, side: THREE.DoubleSide }),
+  marshGrass: new THREE.MeshStandardMaterial({ color: 0x4f5250, roughness: 1, side: THREE.DoubleSide }),
+  fogBank: new THREE.MeshBasicMaterial({ color: 0x9a9a9e, transparent: true, opacity: 0.07, side: THREE.DoubleSide, depthWrite: false }),
 };
 
 // ── Map ──
@@ -280,6 +303,27 @@ function addCylinder(x, z, radius, height, mat, y = 0, rotation = 0) {
 }
 
 const crate = (x, z, s = 1.2, y = 0) => addBox(x, z, s, s, s, mats.crate, s, y);
+
+// Deco primitives: identical to addBox/addCylinder but register NO collider. Use them for
+// surface detail (corrugation ribs, door rails, antennas, vent stacks) that lives inside or above
+// a volume the shared table already carries — otherwise installSharedColliders() reads them as
+// drift against cs-map.js, and cs-map.js would grow colliders the bots never need.
+function addDecoBox(x, z, w, d, h, mat, texScale = 2.5, y = 0) {
+  const mesh = new THREE.Mesh(scaledBox(w, h, d, texScale), mat);
+  mesh.position.set(x, y + h / 2, z);
+  mesh.castShadow = mesh.receiveShadow = true;
+  scene.add(mesh);
+  worldMeshes.push(mesh);
+  return mesh;
+}
+function addDecoCylinder(x, z, radius, height, mat, y = 0) {
+  const mesh = new THREE.Mesh(getCylGeo(radius, height), mat);
+  mesh.position.set(x, y + height / 2, z);
+  mesh.castShadow = mesh.receiveShadow = true;
+  scene.add(mesh);
+  worldMeshes.push(mesh);
+  return mesh;
+}
 
 // Build the floor plane for a given map size (must be called inside each map builder after clearMap)
 function buildGround(size) {
@@ -507,16 +551,356 @@ function addPavement(x, z, w, d) {
   return addBox(x, z, w, d, 0.18, mats.concrete, 3);
 }
 
+// ════════════════════════════════════════════════════════════
+//  EASTERN MARSHLAND HELPERS (Mission-02 expansion, x ≥ 50)
+//  Water/mud/fog carry NO colliders and NO meshes that feed isFree() — the marsh stays fully
+//  walkable so the hub's waypoint sampling never gridlocks against a flooded floor.
+// ════════════════════════════════════════════════════════════
+function addFlat(x, z, w, d, y, mat, rotY = 0) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), mat);
+  m.rotation.x = -Math.PI / 2; m.rotation.z = rotY;
+  m.position.set(x, y, z);
+  m.receiveShadow = true;
+  scene.add(m); worldMeshes.push(m);
+  return m;
+}
+
+// Elliptical pool built from one rotated circle, so pools read organic instead of axial
+function addWaterPool(x, z, r, squash = 0.7, rotY = 0) {
+  const m = addFlat(x, z, r * 2, r * 2 * squash, 0.08, mats.water, rotY);
+  m.rotation.x = -Math.PI / 2;
+  return m;
+}
+
+// Reed blade: instanced quad, 1.1-2.2 m tall, leaning outward from its root. `col` stays
+// strictly greyscale (r==g==b) — instanceColor multiplies the material, hue would leak.
+function addReed(x, z, s = 1) {
+  const g = 0.34 + Math.random() * 0.34;
+  _reedInst.push({
+    p: [x, 0.02, z], s: [0.1 * s, 1.5 * s * rand(0.8, 1.5), 0.1],
+    yaw: Math.random() * Math.PI * 2, tilt: rand(0.04, 0.30), roll: rand(-0.12, 0.12),
+    col: Math.round(g * 255) * 0x010101,
+  });
+  // darker mid-blade paired with each reed thickens the stand for free (same draw call)
+  _reedInst.push({
+    p: [x + rand(-0.2, 0.2), 0.02, z + rand(-0.2, 0.2)], s: [0.07 * s, 1.1 * s * rand(0.7, 1.3), 0.07],
+    yaw: Math.random() * Math.PI * 2, tilt: rand(0.1, 0.4), roll: rand(-0.2, 0.2),
+    col: Math.round((g - 0.12) * 255) * 0x010101,
+  });
+}
+
+function addGrassTuft(x, z, s = 1) {
+  _grassInst.push({
+    p: [x, 0.01, z], s: [0.32 * s, 0.42 * s * rand(0.7, 1.4), 0.32],
+    yaw: Math.random() * Math.PI * 2, tilt: rand(0.05, 0.25), roll: rand(-0.3, 0.3),
+  });
+}
+
+function addFogBank(x, z, w, y = 1.6) {
+  const m = addFlat(x, z, w, w * 0.35, y, mats.fogBank, rand(-0.6, 0.6));
+  m.castShadow = false; m.receiveShadow = false;
+  return m;
+}
+
+// Ponds actually built by the last scatter — the wading physics reads this list every frame.
+// Mission-02 only: it stays empty on the plain 99x99 arena, so water drag can never leak
+// into rounds/co-op even if the collider table somehow did.
+let marshPools = [];
+let padGeo = null;
+let pebbleGeo = null;
+const _padInst = [];
+const _pebbleInst = [];
+
+// 0 = dry ground, 1 = ankle-deep margin, 2 = proper water. One cheap ellipse pass (~30 pools),
+// deliberately axis-aligned against the drawn squash axis — a few degrees of error at the shore
+// line is unnoticeable when the payoff is a per-frame call with zero allocations.
+function wadeDepth(x, z) {
+  let d = 0;
+  for (const p of marshPools) {
+    const dx = (x - p.x) / (p.r * 1.06), dz = (z - p.z) / (p.r * p.squash * 1.06);
+    const e = dx * dx + dz * dz;
+    if (e < 0.55) return 2;
+    if (e < 1) d = 1;
+  }
+  return d;
+}
+
+// Per-pond micro-detail: lily pads drifting on the surface (one instanced draw call), a wet mud
+// fringe around the shoreline, and occasionally a fallen log laid across the bank. All of it
+// collider-free — and pads/logs skip straight past isFree because they float or lie on top.
+function addMarshDetail(p) {
+  if (!padGeo) padGeo = new THREE.CircleGeometry(0.36, 7);
+  const n = 2 + Math.round(p.r * 1.6);
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, rr = p.r * Math.sqrt(Math.random()) * 0.78;
+    _padInst.push({
+      p: [p.x + Math.cos(a) * rr, 0.095, p.z + Math.sin(a) * rr * p.squash],
+      s: rand(0.5, 1.2), yaw: 0, tilt: -Math.PI / 2, roll: rand(0, Math.PI * 2),
+    });
+  }
+  // darker saturated ring hugging the pool — reads as wet mud between waterline and dry ground
+  addFlat(p.x, p.z, p.r * 2 * 1.32, p.r * 2 * p.squash * 1.32, 0.055, mats.mud, rand(0, Math.PI));
+  // driftwood: roughly every other pond gets a log slumped over its bank
+  if (Math.random() < 0.55) {
+    const a = rand(0, Math.PI * 2);
+    const lx = p.x + Math.cos(a) * p.r * 1.15, lz = p.z + Math.sin(a) * p.r * p.squash * 1.15;
+    if (isFree(lx, lz, 0.9)) {
+      const log = new THREE.Mesh(getCylGeo(0.2, 1), mats.cannabisStem);
+      log.scale.set(rand(0.7, 1.15), rand(1.8, 3.4), rand(0.7, 1.15));
+      // 'YZX' decomposes as Ry(heading)·Rz(tilt): the cylinder falls onto its side, then swings
+      // to a random horizontal heading. Default order would leave the log pointing one fixed way.
+      log.rotation.order = 'YZX';
+      log.rotation.set(0, rand(0, Math.PI * 2), Math.PI / 2);
+      log.position.set(lx, 0.16, lz);
+      log.castShadow = true; log.receiveShadow = true;
+      scene.add(log); worldMeshes.push(log);
+      // stubby broken branch rising off the log for silhouette
+      const br = new THREE.Mesh(getCylGeo(0.07, 0.5), mats.cannabisStem);
+      br.position.set(lx + rand(-0.5, 0.5), 0.35, lz + rand(-0.5, 0.5));
+      br.rotation.set(rand(-0.5, 0.5), rand(0, Math.PI), 0);
+      br.castShadow = true;
+      scene.add(br); worldMeshes.push(br);
+    }
+  }
+  // bank pebbles: instanced squashed spheres around the shore — dense detail, one draw call,
+  // zero physics cost (they never register colliders)
+  if (!pebbleGeo) pebbleGeo = new THREE.SphereGeometry(0.14, 6, 5);
+  for (let i = 0; i < Math.round(p.r * 2.4); i++) {
+    const a = Math.random() * Math.PI * 2, rr = p.r * rand(1.05, 1.5);
+    const px = p.x + Math.cos(a) * rr, pz = p.z + Math.sin(a) * rr * p.squash;
+    if (!isFree(px, pz, 0.5)) continue;
+    const s = rand(0.5, 1.5);
+    _pebbleInst.push({ p: [px, 0.02, pz], s: [s, s * rand(0.35, 0.6), s], yaw: rand(0, Math.PI * 2) });
+  }
+}
+
+// ══ Marsh scatter: ponds, reed stands, grass hummocks and fog across the eastern band. ══
+// Pure decoration — none of it registers colliders, so the flooded floor stays walkable and the
+// hub's waypoint sampling never sees the marsh at all. Rejection tests run through isFree() so a
+// pond never overlaps a structure or boardwalk, and blades never sprout on a walkway or a crate.
+// Density target: ~30 ponds in a continuous flooded band, every shore triple-banded with reeds,
+// ~3400 background blades, lily pads, mud fringes, driftwood and pebbles — reeds/grass/pads/
+// pebbles all land in instanced draw calls, so "dense and detailed" still costs almost no frame time.
+function scatterMarsh() {
+  const pools = [];
+  let guard = 0;
+  while (pools.length < 30 && guard++ < 6000) {
+    const x = rand(45.5, 62.5), z = rand(-47, 47);
+    const r = rand(1.4, 4.4);
+    const squash = rand(0.55, 0.85);
+    if (!isFree(x, z, r + 0.8)) continue;
+    if (pools.some(p => Math.hypot(p.x - x, p.z - z) < (p.r + r) * 1.12)) continue;
+    pools.push({ x, z, r, squash });
+    addWaterPool(x, z, r, squash, rand(0, Math.PI));
+  }
+  // Reed lines on every shore: bright tall blades at the waterline, a mid band behind them and a
+  // darker short backing row — three staggered rings read as thick layered growth, not a picket fence
+  for (const p of pools) {
+    for (let i = 0, n = Math.round(p.r * 16); i < n; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const rr = p.r * rand(0.9, 1.12);
+      addReed(p.x + Math.cos(a) * rr, p.z + Math.sin(a) * rr * p.squash, rand(0.9, 1.5));
+    }
+    for (let i = 0, n = Math.round(p.r * 9); i < n; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const rr = p.r * rand(1.16, 1.38);
+      addReed(p.x + Math.cos(a) * rr, p.z + Math.sin(a) * rr * p.squash, rand(0.55, 1.05));
+    }
+    for (let i = 0, n = Math.round(p.r * 7); i < n; i++) {
+      addGrassTuft(p.x + rand(-1.6, 1.6) * p.r, p.z + rand(-1.3, 1.3) * p.r * p.squash, rand(0.7, 1.4));
+    }
+    addMarshDetail(p);
+  }
+  // Background fill across the flooded strip — the ground between ponds should look like swamp
+  guard = 0;
+  let fill = 0;
+  while (fill < 3400 && guard++ < 22000) {
+    const x = rand(45.5, 64), z = rand(-48.8, 48.8);
+    if (pools.some(p => ((x - p.x) / p.r) ** 2 + ((z - p.z) / (p.r * p.squash)) ** 2 < 0.92)) continue;
+    if (!isFree(x, z, 0.5)) continue;
+    if (Math.random() < 0.62) addReed(x, z, rand(0.5, 1.3)); else addGrassTuft(x, z, rand(0.6, 1.3));
+    fill++;
+  }
+  // Cattail islands: small dry hummocks poking out of the bigger ponds — layered silhouette on open water
+  for (const p of pools) {
+    if (p.r < 2.6 || Math.random() < 0.35) continue;
+    const a = rand(0, Math.PI * 2), rr = p.r * rand(0.25, 0.55);
+    const ix = p.x + Math.cos(a) * rr, iz = p.z + Math.sin(a) * rr * p.squash;
+    addFlat(ix, iz, rand(0.8, 1.4), rand(0.6, 1.0), 0.1, mats.mud, rand(0, Math.PI));
+    for (let i = 0; i < 7; i++) addReed(ix + rand(-0.5, 0.5), iz + rand(-0.4, 0.4), rand(1.1, 1.6));
+  }
+  // Fog: a low bank over nearly every pond plus broad drifters along the boardwalk lanes
+  for (const p of pools) {
+    if (Math.random() < 0.8) addFogBank(p.x, p.z, Math.max(6, p.r * 3.0), rand(1.0, 1.7));
+  }
+  addFogBank(55, -6, 20, 1.8);
+  addFogBank(59, 31, 22, 1.5);
+  addFogBank(53, -41, 17, 1.4);
+  addFogBank(57, 12, 16, 1.2);
+  addFogBank(60, -20, 15, 1.5);
+  return pools;
+}
+
+// ════════════════════════════════════════════════════════════
+//  MISSION-02 EASTERN STRUCTURES — colliders mirrored in cs-map.js buildIndustrial()
+// ════════════════════════════════════════════════════════════
+function addWarehouse(bx, bz, w, d, h) {
+  const hw = w / 2, hd = d / 2, wt = 0.6;
+  addBox(bx, bz, w, d, 0.3, mats.concrete, 4);                       // floor slab
+  addWinWall(bx, bz - hd, w, 'x', 0.3, h, 2.4, 1.6, 1.2, mats.wall2); // north
+  addWinWall(bx, bz + hd, w, 'x', 0.3, h, 2.4, 1.6, 1.2, mats.wall2); // south
+  addBox(bx + hw, bz, wt, d, h, mats.wall2, 2.5, 0.3);                // east (solid)
+  addDoorWall(bx - hw, bz, d, 'z', 0.3, h, 5.0, mats.metal);          // west roll-up door
+  addDoorWall(bx, bz - hd + 3.2, 6, 'x', 0.3, 3.2, 2.4, mats.wall);   // interior N-bay partition
+  // Corrugation ribs: thin decorative strips flush on the wall face — NO collider impact they
+  // can see through, they ride inside the 0.6 m wall volume already registered above.
+  for (let i = 0; i <= 8; i++) {
+    const rx = bx - hw + 1.6 + i * (w - 3.2) / 8;
+    addDecoBox(rx, bz - hd - 0.02, 0.14, 0.1, h - 0.4, mats.metal, 1.2, 0.3);
+    addDecoBox(rx, bz + hd + 0.02, 0.14, 0.1, h - 0.4, mats.metal, 1.2, 0.3);
+  }
+  // Cargo door rails + a half-raised shutter panel over the opening
+  addDecoBox(bx - hw - 0.1, bz - 2.4, 0.2, 0.3, h, mats.metal, 1.2, 0.3);
+  addDecoBox(bx - hw - 0.1, bz + 2.4, 0.2, 0.3, h, mats.metal, 1.2, 0.3);
+  addDecoBox(bx - hw, bz, wt, 5.0, 1.1, mats.metal, 1.5, h - 1.4);
+  // Interior: crate stacks (the "weapons stockpile" that is really archive shelving)
+  crate(bx - hw + 2.5, bz - hd + 2.5, 2.0, 0.3); crate(bx - hw + 2.5, bz - hd + 2.5, 1.4, 2.3);
+  crate(bx - hw + 5.0, bz + hd - 2.5, 2.2, 0.3);
+  crate(bx + hw - 2.4, bz + hd - 2.6, 2.0, 0.3); crate(bx + hw - 2.4, bz + hd - 4.6, 1.6, 0.3);
+  addBox(bx + hw - 1.6, bz - 1.0, 1.4, 4.0, 2.4, mats.metal, 1.5, 0.3);  // shelving run
+  addBox(bx - 2.5, bz + 1.5, 2.6, 1.1, 0.9, mats.crate, 1.2, 0.3);       // filing table
+  // Roof + stair shaft (mirrors cs-map.js: 13 steps, east gallery)
+  const shaft = 3.4, slabEast = bx + hw - shaft, slabW = slabEast - (bx - hw);
+  addBox(bx - hw + slabW / 2, bz, slabW, d - wt, 0.3, mats.wall, 3, h);   // walkable roof slab
+  addStairs(slabEast + shaft / 2, bz + hd - 1.2, h + 0.3, 13, 2.8, 'N', mats.concrete);
+  addBox(bx, bz - hd - 0.2, w + 0.6, 0.3, 0.7, mats.wall, 2, h + 0.3);
+  addBox(bx, bz + hd + 0.2, w + 0.6, 0.3, 0.7, mats.wall, 2, h + 0.3);
+}
+
+function addGreenhouse(bx, bz, w, d) {
+  const hw = w / 2, hd = d / 2, h = 3.2;
+  addPavement(bx, bz, w, d);                                          // kerb/slab
+  // Glazing first: 16 panes total, drawn as ONE cached geometry type, and deliberately
+  // collider-free (cs-map.js registers frames only) so the marsh stays navigable.
+  const paneN = new THREE.PlaneGeometry(w - 0.7, h - 0.9);
+  for (const sgn of [-1, 1]) {
+    const m = new THREE.Mesh(paneN, mats.glass);
+    m.position.set(bx, 0.2 + (h - 0.9) / 2, bz + sgn * hd);
+    scene.add(m); worldMeshes.push(m);
+  }
+  const paneZ = new THREE.PlaneGeometry(d - 0.7, h - 0.9);
+  for (const sgn of [-1, 1]) {
+    const m = new THREE.Mesh(paneZ, mats.glass);
+    m.rotation.y = Math.PI / 2;
+    m.position.set(bx + sgn * hw, 0.2 + (h - 0.9) / 2, bz);
+    scene.add(m); worldMeshes.push(m);
+  }
+  // Sloped roof glazing (two planes meeting at the ridge)
+  const roofPane = new THREE.PlaneGeometry(w - 0.5, (hd + 0.4) * 1.15);
+  for (const sgn of [-1, 1]) {
+    const m = new THREE.Mesh(roofPane, mats.glass);
+    m.rotation.x = -Math.PI / 2 + sgn * 0.62;
+    m.position.set(bx, h + 0.55, bz + sgn * (hd / 2));
+    scene.add(m); worldMeshes.push(m);
+  }
+  // Frame: corner posts, base + top rails, ridge beam, gable ends
+  for (const [sx, sz] of [[-hw, -hd], [hw, -hd], [-hw, hd], [hw, hd]]) {
+    addBox(bx + sx, bz + sz, 0.35, 0.35, h, mats.metal, 1.2);
+  }
+  addBox(bx, bz - hd, w, 0.2, 0.3, mats.metal, 1.2, 0.2); addBox(bx, bz + hd, w, 0.2, 0.3, mats.metal, 1.2, 0.2);
+  addBox(bx - hw, bz, 0.2, d, 0.3, mats.metal, 1.2, 0.2); addBox(bx + hw, bz, 0.2, d, 0.3, mats.metal, 1.2, 0.2);
+  addBox(bx, bz - hd, w, 0.2, 0.3, mats.metal, 1.2, h - 0.5); addBox(bx, bz + hd, w, 0.2, 0.3, mats.metal, 1.2, h - 0.5);
+  addBox(bx - hw, bz, 0.2, d, 0.3, mats.metal, 1.2, h - 0.5); addBox(bx + hw, bz, 0.2, d, 0.3, mats.metal, 1.2, h - 0.5);
+  addBox(bx, bz, w, 0.3, 1.7, mats.metal, 1.5, h - 0.3);           // ridge beam
+  addBox(bx, bz + 0.4, w - 1.2, 1.4, 1.0, mats.wall, 2, 0.4);      // collapsed potting bench
+  addDoorWall(bx - hw, bz, 4, 'z', 0, h, 2.4, mats.metal);         // west door
+  crate(bx + 1.5, bz - 1.8, 1.6, 0.6);                              // potting bench
+  crate(bx - 1.0, bz + 2.0, 1.4, 0.6);                              // planter bed
+  // Broken panes: shards leaning on the frame (visual only)
+  for (let i = 0; i < 4; i++) {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.7), mats.glass);
+    m.position.set(bx + rand(-hw + 1, hw - 1), 0.4, bz + (i % 2 ? hd - 0.3 : -hd + 0.3));
+    m.rotation.set(-Math.PI / 2 + rand(-0.5, 0.5), 0, rand(-0.4, 0.4));
+    scene.add(m); worldMeshes.push(m);
+  }
+}
+
+function addMaintenanceRoom(bx, bz, w, d) {
+  const hw = w / 2, hd = d / 2, h = 3.2, wt = 0.6;
+  addPavement(bx, bz, w, d);
+  addBox(bx, bz - hd, w, wt, h, mats.wall2, 2, 0.2);
+  addBox(bx, bz + hd, w, wt, h, mats.wall2, 2, 0.2);
+  addBox(bx + hw, bz, wt, d, h, mats.wall2, 2, 0.2);
+  addDoorWall(bx - hw, bz, d, 'z', 0.2, h, 2.6, mats.metal);        // west door
+  addBox(bx + 2, bz - 1.2, wt, 4.2, h, mats.wall, 2, 0.2);          // interior partition
+  crate(bx + hw - 1.4, bz - 1.6, 1.2, 0.2);                         // locker bank
+  crate(bx + hw - 1.4, bz + 1.6, 1.2, 0.2);
+  // Supply detail (visual only, no colliders): wall pipes + a generator block outside
+  addDecoBox(bx + hw + 0.15, bz - 1.0, 0.12, 0.12, 2.4, mats.metal, 1, 0.4);
+  addDecoBox(bx + hw + 0.15, bz + 0.6, 0.12, 0.12, 1.8, mats.metal, 1, 0.4);
+  addBox(bx - 2.2, bz + hd + 2.2, 1.6, 1.1, 0.9, mats.metal, 1.2);
+  addBox(bx, bz + hd + 0.4, w + 1.2, 2.4, 0.3, mats.metal, 2, h);   // awning
+}
+
+function addAdminWing(bx, bz, w, d) {
+  const wt = 0.6, gfH = 3.5, slabT = 0.3, ufH = 2.8;
+  const upY = gfH + slabT, roofY = upY + ufH, hw = w / 2, hd = d / 2;
+  addWinWall(bx, bz - hd, w, 'x', 0, gfH, 2.4, 1.1, 1.1, mats.wall2);   // north GF
+  addDoorWall(bx, bz + hd, w, 'x', 0, gfH, 2.6, mats.wall);              // south entry
+  addBox(bx - hw, bz, wt, d, gfH, mats.wall2, 2.5);                      // west (solid)
+  addWinWall(bx + hw, bz, d, 'z', 0, gfH, 2.2, 1.1, 1.1, mats.wall2);    // east
+  addDoorWall(bx - 2, bz, d - 2, 'z', 0, gfH, 2.2, mats.wall);           // ground partition
+  crate(bx - hw + 2.2, bz - hd + 2.2, 1.6);
+  crate(bx - hw + 2.2, bz + hd - 2.2, 1.4);
+  addBox(bx - hw + 1.8, bz + 1.4, 2.4, 1.0, 0.8, mats.crate, 1.2);       // reception counter
+  const shaft = 3.5, slabEast = bx + hw - shaft, slabW = slabEast - (bx - hw);
+  addBox(bx - hw + slabW / 2, bz, slabW, d - wt, slabT, mats.concrete, 3, gfH);
+  addStairs(slabEast + shaft / 2, bz + hd - 0.8, upY, 11, 3.0, 'N', mats.concrete);
+  addWinWall(bx, bz - hd, w, 'x', upY, ufH, 2.6, 0.9, 0.9, mats.wall2);
+  addWinWall(bx, bz + hd, w, 'x', upY, ufH, 2.6, 0.9, 0.9, mats.wall2);
+  addBox(bx - hw, bz, wt, d, ufH, mats.wall2, 2.5, upY);
+  addWinWall(bx + hw, bz, d, 'z', upY, ufH, 2.2, 0.9, 0.9, mats.wall2);
+  addDoorWall(bx - 2, bz, d - 2, 'z', upY, ufH, 2.2, mats.wall);         // office doorway
+  crate(bx + 3.0, bz - 2.0, 1.8, upY);                                   // Kessler's desk
+  addBox(bx + 4.5, bz + 2.4, 2.2, 0.9, 0.8, mats.crate, 1.5, upY);       // filing cabinet
+  addBox(bx, bz, w + 0.6, d + 0.6, slabT, mats.wall, 3, roofY);          // roof
+  addBox(bx, bz - hd - 0.2, w + 0.6, 0.3, 0.7, mats.wall, 2, roofY + slabT);
+  addBox(bx, bz + hd + 0.2, w + 0.6, 0.3, 0.7, mats.wall, 2, roofY + slabT);
+}
+
+function addServiceComplex(bx, bz, w, d) {
+  const hw = w / 2, hd = d / 2, h = 3.8, wt = 0.6;
+  addPavement(bx, bz, w, d);
+  addBox(bx, bz - hd, w, wt, h, mats.wall2, 2.5, 0.2);
+  addDoorWall(bx, bz + hd, w, 'x', 0.2, h, 2.8, mats.metal);      // south door (entry)
+  addBox(bx - hw, bz, wt, d, h, mats.wall2, 2.5, 0.2);
+  addWinWall(bx + hw, bz, d, 'z', 0.2, h, 2.4, 1.2, 1.0, mats.wall2);
+  addDoorWall(bx + 2, bz, d - 3, 'z', 0.2, h, 2.2, mats.wall);    // back-room partition
+  crate(bx - hw + 2.0, bz - hd + 2.0, 1.5, 0.2);
+  addBox(bx, bz, w + 0.6, d + 0.6, 0.3, mats.wall, 3, h);         // roof
+  addStairs(bx + hw - 1.8, bz + hd + 1.6, h + 0.3, 10, 2.4, 'N', mats.concrete);
+  // Antenna mast + vent stacks for the extraction-point read (visual only)
+  addDecoCylinder(bx - hw + 1.2, bz + hd - 1.2, 0.08, 2.6, mats.metal, h + 0.3);
+  addDecoBox(bx + 2.0, bz - hd + 1.5, 0.7, 0.7, 0.8, mats.metal, 1.2, h + 0.3);
+  addDecoBox(bx - 1.0, bz - hd + 2.6, 0.5, 0.5, 0.6, mats.metal, 1.2, h + 0.3);
+}
+
 // ── Vegetation (INSTANCED: all foliage in one draw call, all trunks in one) ──
 // Shared low-poly geometry + InstancedMesh keeps GPU buffers/draw-calls flat no matter
 // how many trees/bushes scatter() places, so render RAM stays low.
 const foliageGeo = new THREE.SphereGeometry(1, 8, 6);
 const trunkGeo = new THREE.CylinderGeometry(0.3, 0.42, 2.2, 7);
+// Marsh blade: one vertical 1x1 double-sided quad with its base at y=0. Reeds and grass tufts
+// share this geometry (and the _fillOriented yaw/tilt/roll path used by cannabis leaves), so the
+// whole dense marsh costs two instanced draw calls, never a mesh per blade.
+const bladeGeo = (() => { const g = new THREE.PlaneGeometry(1, 1); g.translate(0, 0.5, 0); return g; })();
 const _leafInst = [];    // { p:[x,y,z], s:[sx,sy,sz] }
 const _trunkInst = [];   // { p:[x,y,z], s:[sx,sy,sz] }
 const _cannabisInst = []; // { p, s, yaw, tilt, roll, col } — one textured fan leaf per instance
 const _stemInst = [];     // { p, s } cannabis stalks (own list: different material from tree trunks)
 const _budInst = [];      // { p, s } terminal cola / bud clusters
+const _reedInst = [];     // { p, s, yaw, tilt, roll, col } marsh reed blades (instanced quads)
+const _grassInst = [];    // { p, s, yaw, tilt, roll } marsh grass tufts (instanced quads)
 // instanceColor MULTIPLIES the leaf map, so these must stay near-white or they would crush the
 // blade to black — and strictly greyscale (r==g==b) so a tinted leaf can never leak hue into the
 // monochrome arena. The variation they add is luminance only: some fans read dusty-pale, others shadowed.
@@ -701,8 +1085,13 @@ function finalizeVegetation() {
   _fillInstances(budGeo, mats.cannabisBud, _budInst);
   _fillOriented(stalkGeo, mats.cannabisStem, _stemInst, false);
   _fillOriented(cannabisLeafGeo, mats.cannabis, _cannabisInst, true);
+  _fillOriented(bladeGeo, mats.reed, _reedInst, true);
+  _fillOriented(bladeGeo, mats.marshGrass, _grassInst, false);
+  _fillOriented(padGeo || bladeGeo, mats.mud, _padInst, false);          // lily pads (marsh only)
+  _fillOriented(pebbleGeo || bladeGeo, mats.concrete, _pebbleInst, false); // shore pebbles
   _trunkInst.length = 0; _leafInst.length = 0; _cannabisInst.length = 0;
-  _stemInst.length = 0; _budInst.length = 0;
+  _stemInst.length = 0; _budInst.length = 0; _reedInst.length = 0; _grassInst.length = 0;
+  _padInst.length = 0; _pebbleInst.length = 0;
 }
 
 // Oriented instancing for anything that carries a yaw/tilt/roll: cannabis leaves (with a per-leaf
@@ -1000,17 +1389,24 @@ function clearMap() {
   }
   worldMeshes.length = 0;
   colliders.length = 0;
+  marshPools = [];   // wading physics must go dry until the next marsh actually gets built
 }
 
 function buildIndustrialMap() {
   // ════════════════════════════════════════════════════════════
-  //  ABANDONED INDUSTRIAL COMPLEX — 99x99 Arena (1.5x)
-  //  Six duplex buildings (2 walkable floors, interiors, internal
-  //  stairs, windows, roofs) around a central street, with
-  //  containers, tanks, silos and barriers for cover.
-  //  CT spawn band x[-8,8] z[-45,-40] and T spawn band x[-20,20]
-  //  z[35,45] are kept clear.
+  //  ABANDONED INDUSTRIAL COMPLEX. Two footprints share one core builder:
+  //   • industrial      — 99x99 (rounds, co-op, free play, Mission 01)
+  //   • industrial_east — 128x99: the same arena PLUS a 30 m eastern marshland
+  //     (five mission structures over dense flooded wetland). Mission 02
+  //     "Ashes of Evidence" is the ONLY consumer — the expansion, its water
+  //     physics and its scatter never load in any other mode.
+  //  Six duplex buildings (2 walkable floors, interiors, internal stairs,
+  //  windows, roofs) around a central street, containers, tanks, silos and
+  //  barriers for cover. CT spawn band x[-8,8] z[-45,-40] and T spawn band
+  //  x[-20,20] z[35,45] are kept clear.
   // ════════════════════════════════════════════════════════════
+
+  const EAST = selectedMap === 'industrial_east';
 
   buildGround(99);
 
@@ -1018,13 +1414,25 @@ function buildIndustrialMap() {
   createWallLogo(0, 3, -48.4, 0);
   createWallLogo(0, 3, 48.4, Math.PI);
   createWallLogo(-48.4, 3, 0, Math.PI / 2);
-  createWallLogo(48.4, 3, 0, -Math.PI / 2);
 
-  // ── Perimeter Walls ──
-  addBox(0, -49.5, 99, 1, 8, mats.wall);
-  addBox(0, 49.5, 99, 1, 8, mats.wall);
-  addBox(-49.5, 0, 1, 99, 8, mats.wall);
-  addBox(49.5, 0, 1, 99, 8, mats.wall);
+  if (EAST) {
+    // Eastern mud shelf: the branded floor plane stops at the old east wall (x=49.5) — the marsh
+    // strip gets its own darker, matte sheet so the expansion reads as different ground.
+    addFlat(57, 0, 15, 99, 0.02, mats.mud);
+    createWallLogo(63.4, 3, 0, -Math.PI / 2);        // east face moved with the wall to x=64.5
+    // ── Perimeter Walls ── (128x99 after the Mission-02 east expansion; the west wall never moved)
+    addBox(7.5, -49.5, 128, 1, 8, mats.wall);
+    addBox(7.5, 49.5, 128, 1, 8, mats.wall);
+    addBox(-49.5, 0, 1, 99, 8, mats.wall);
+    addBox(64.5, 0, 1, 99, 8, mats.wall);
+  } else {
+    // Original symmetric arena: 99x99 with the east wall standing back at x=49.5
+    createWallLogo(48.4, 3, 0, -Math.PI / 2);
+    addBox(0, -49.5, 99, 1, 8, mats.wall);
+    addBox(0, 49.5, 99, 1, 8, mats.wall);
+    addBox(-49.5, 0, 1, 99, 8, mats.wall);
+    addBox(49.5, 0, 1, 99, 8, mats.wall);
+  }
 
   // ════════════════════════════════════════════════════
   //  DUPLEX BUILDINGS (entry door faces south; internal stairs up east gallery)
@@ -1121,6 +1529,38 @@ function buildIndustrialMap() {
   addVehicle(30, -30, 'z', 'car');
 
   // ════════════════════════════════════════════════════
+  //  EASTERN MARSHLAND EXPANSION — OPERATION BLACKOUT 02 (x ≥ 43)
+  //  Five mission structures + boardwalk lanes, mirrored collider-for-collider in
+  //  cs-map.js buildIndustrialEast(). Water/reeds/grass/fog carry NO colliders at all:
+  //  the flooded floor stays fully walkable so bots never gridlock on decoration.
+  // ══════════════════════════════════════════════════════════
+  if (EAST) {
+  addWarehouse(70, -18, 16, 12, 5.0);        // eastern weapons warehouse / archive
+  addGreenhouse(48, 10, 10, 7);              // abandoned workers' greenhouse (Purple Bud)
+  addMaintenanceRoom(72, 8, 8, 6);           // emergency resupply shed
+  addAdminWing(78, 26, 14, 10);              // administrative wing — Kessler's office
+  addServiceComplex(58, 40, 12, 9);          // NE service complex — extraction point
+
+  // Boardwalk spine + arms. The ~2 m gaps beside every run stay free so bots keep lanes.
+  addPavement(56, 8, 4, 52);                 // N-S spine through the marsh
+  addPavement(63, -18, 12, 3);               // W connector to the warehouse door
+  addPavement(58, 40, 10, 3);                // S arm to the service complex
+  addPavement(71, 3, 12, 3);                 // warehouse <-> maintenance link
+  addPavement(76, 17, 3, 14);                // maintenance <-> admin wing
+  addPavement(60, -30, 6, 2.5);              // dock
+  addPavement(64, 20, 5, 2.5);               // jetty
+  addPavement(52, -6, 2.5, 7);               // side boardwalk
+
+  // Decaying industrial leftovers in the marsh (low, climbable cover)
+  addContainer(62, -38, 6, 'x');
+  addContainer(52, 34, 6, 'z');
+  addCylinder(56, -42, 2.2, 2.4, mats.metal);        // collapsed tank
+  addCylinder(50, 40, 1.8, 1.8, mats.metal);         // half-buried tank
+  crate(58, -24, 1.4); crate(66, 30, 1.6);
+  crate(54, 20, 1.2); crate(62, 44, 1.3);
+  }
+
+  // ════════════════════════════════════════════════════
   //  VEGETATION — fills open ground; trunks are thin & trees spaced so player/bots move easily
   //  (placed last so isFree() sees every structure/pavement already added)
   // ════════════════════════════════════════════════════
@@ -1134,14 +1574,19 @@ function buildIndustrialMap() {
   // anywhere in the arena instead of only in the corners. Spawn lanes stay clear via inSpawnBand().
   scatterCannabis(140);
 
-  finalizeVegetation();   // build the InstancedMeshes (trunks, foliage, cannabis leaves)
+  // The marsh itself: ponds, dense reed stands, grass hummocks and drifting fog across x ≥ 45.
+  // Placed after every structure so isFree() keeps water off buildings and boardwalks.
+  // Mission-02 only — the plain 99x99 arena has no wetland at all.
+  marshPools = EAST ? scatterMarsh() : [];
+
+  finalizeVegetation();   // build the InstancedMeshes (trunks, foliage, cannabis, reeds, grass)
 
   // Scattered crates for cover along the lanes
   crate(-8, -18, 1.4); crate(8, -18, 1.4);
   crate(-20, 8, 1.5); crate(20, 8, 1.5);
   crate(-8, 30, 1.2); crate(8, 30, 1.2);
 
-  console.log('[CS] Industrial Complex: 6 duplexes + round towers, vehicles, pavement streets (99x99)');
+  console.log(`[CS] Industrial Complex: 6 duplexes + round towers, vehicles, pavement streets${EAST ? ` + eastern marshland (${marshPools.length} pools, 128x99)` : ' (99x99, no marsh)'}`);
 }
 
 function buildClassicMap() {
@@ -1187,13 +1632,14 @@ function buildClassicMap() {
 const waypoints = [];
 function generateWaypoints() {
   waypoints.length = 0;
-  const count = selectedMap === 'classic' ? 60 : 100;
-  const range = selectedMap === 'classic' ? 30 : 45;
+  const b = mapBounds();
+  const count = selectedMap === 'classic' ? 60 : selectedMap === 'industrial_east' ? 190 : 140;
+  const xLo = b.xMin + 3, xHi = b.xMax - 3, zLo = -b.halfD + 3, zHi = b.halfD - 3;
   // Guarded: if a map edit ever makes free space scarce this must degrade to fewer waypoints rather
   // than spin the browser forever inside a while loop.
   let guard = 0;
   while (waypoints.length < count && guard++ < count * 300) {
-    const x = rand(-range, range), z = rand(-range, range);
+    const x = rand(xLo, xHi), z = rand(zLo, zHi);
     if (isFree(x, z, 0.9)) waypoints.push(new THREE.Vector2(x, z));
   }
 }
@@ -1233,7 +1679,9 @@ function buildMap() {
     console.log('[CS] Classic map loaded (66x66)');
   } else {
     buildIndustrialMap();
-    console.log('[CS] Industrial Complex map loaded (99x99)');
+    console.log(selectedMap === 'industrial_east'
+      ? '[CS] Industrial Complex map loaded (128x99, marsh east)'
+      : '[CS] Industrial Complex map loaded (99x99)');
   }
   installSharedColliders();
   generateWaypoints();
@@ -1261,8 +1709,25 @@ function groundHeight(pos, r) {
 
 function mapHalf() { return CSMap.info(selectedMap).half; }
 
+// Rectangular bounds accessor: industrial_east (Mission-02 marsh arena) runs x[-49.5, 64.5], so any
+// confinement clamp has to take xMin/xMax per axis instead of a symmetric half — same rule that
+// keeps spawn bands honest: derive from the shared table, never from a literal.
+function mapBounds() { return CSMap.info(selectedMap); }
+
 function isFree(x, z, r) {
-  return CSMap.isFree(colliders, mapHalf(), x, z, r);
+  return CSMap.isFree(colliders, mapBounds(), x, z, r);
+}
+
+// Nudge a desired spawn point to nearby open ground (footprint test), or null if nothing frees up
+// within 10 tries. Dynamic wave spawns use this so a tree trunk or boardwalk edge near the chosen
+// story beat never silently cancels the enemy.
+function findFreeNear(x, z, r) {
+  if (isFree(x, z, r)) return { x, z };
+  for (let i = 0; i < 10; i++) {
+    const nx = x + (Math.random() - 0.5) * 4, nz = z + (Math.random() - 0.5) * 4;
+    if (isFree(nx, nz, r)) return { x: nx, z: nz };
+  }
+  return null;
 }
 
 // Build initial map (industrial by default)
@@ -1420,6 +1885,61 @@ function playFootstep(profile, pos, dist, volScale = 1) {
   footstepBus.voices.push({ src, end: t + 0.16 });
 }
 
+// ══ Wading audio: a soft filtered-noise plip with a falling droplet tail — clearly water, ══
+// never a boot scuff. Same bus/voice-cap as footsteps so 30 ripples can never stack oscillators.
+function playSplash(pos, deep) {
+  const a = audioLive();
+  if (!a) return;
+  const t = a.currentTime;
+  const dest = footstepNode(a, pos, 0);
+  const src = a.createBufferSource();
+  src.buffer = noiseBuf;
+  src.playbackRate.value = rand(0.45, 0.8);
+  const f = a.createBiquadFilter();
+  f.type = 'lowpass';
+  f.frequency.setValueAtTime(deep ? 2600 : 1800, t);
+  f.frequency.exponentialRampToValueAtTime(300, t + 0.2);
+  const g = a.createGain();
+  g.gain.setValueAtTime(deep ? 0.2 : 0.13, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.24);
+  src.connect(f).connect(g).connect(dest);
+  src.start(t, Math.random() * 0.5);
+  src.stop(t + 0.26);
+  footstepBus.voices.push({ src, end: t + 0.26 });
+  // droplet tail: a short falling sine tick the ear reads as water dripping off a boot
+  const o = a.createOscillator(), og = a.createGain();
+  o.type = 'sine';
+  o.frequency.setValueAtTime(deep ? 620 : 480, t);
+  o.frequency.exponentialRampToValueAtTime(160, t + 0.14);
+  og.gain.setValueAtTime(0.05, t);
+  og.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+  o.connect(og).connect(dest);
+  o.start(t);
+  o.stop(t + 0.17);
+}
+
+// Expanding surface ring where a boot breaks the water. Geometry+material are per-ripple and
+// released by updateEffects on fade (it disposes both when `fade` is set — never share them here).
+function spawnWaterRipple(x, z, big) {
+  const m = new THREE.Mesh(
+    new THREE.RingGeometry(0.24, 0.32, 20),
+    new THREE.MeshBasicMaterial({ color: 0xd6d6da, transparent: true, opacity: 0.45, depthWrite: false, side: THREE.DoubleSide })
+  );
+  m.rotation.x = -Math.PI / 2;
+  m.position.set(x, 0.095, z);
+  scene.add(m);
+  effects.push({
+    obj: m, life: big ? 1.4 : 1.0, max: big ? 1.4 : 1.0, fade: 0.55,
+    grow: (e, k) => { const s = 0.3 + (1 - k) * (big ? 3.4 : 2.2); e.obj.scale.set(s, s, 1); },
+  });
+}
+
+// A few weightless grey droplets kicked up at the boot — same particle pool as impact sparks
+function spawnWadeSplash(pos, deep) {
+  spawnParticles(new THREE.Vector3(pos.x + rand(-0.25, 0.25), 0.12, pos.z + rand(-0.25, 0.25)),
+    null, mats.water, deep ? 5 : 3, deep ? 2.2 : 1.4);
+}
+
 function playBeep(freq, dur = 0.05, vol = 0.15, type = 'square') {
   const a = audio(), t = a.currentTime;
   const o = a.createOscillator(), g = a.createGain();
@@ -1477,6 +1997,7 @@ function updateEffects(dt) {
     const e = effects[i];
     e.life -= dt;
     if (e.vel) { e.vel.y -= 12 * dt; e.obj.position.addScaledVector(e.vel, dt); }
+    if (e.grow) e.grow(e, Math.max(0, e.life / e.max));
     if (e.fade) e.obj.material.opacity = Math.max(0, e.life / e.max) * 0.8;
     if (e.life <= 0) {
       scene.remove(e.obj);
@@ -1617,11 +2138,11 @@ function damagePlayer(amount, attacker) {
   hud.health.textContent = Math.ceil(player.health);
   hud.healthBox.classList.toggle('low', player.health <= 25);
   playBeep(90, 0.08, 0.2, 'sawtooth');
-  // Escort mode — RAVEN takes splash damage during firefight
+  // Escort mode — the escorted NPC takes splash damage during firefight
   if (missionState.escortActive && missionState.escortNPC) {
     missionState.escortHealth = Math.max(0, missionState.escortHealth - amount * 0.3);
     if (missionState.escortHealth <= 0) {
-      showMissionNotification('RAVEN DOWN — MISSION FAILED');
+      showMissionNotification(`${missionState.escortName} DOWN — MISSION FAILED`);
       missionState.escortActive = false;
       setTimeout(() => triggerGameOver(), 1500);
     }
@@ -1829,10 +2350,11 @@ class Bot {
     }
     // Confinement has to come from the arena actually drawn — the old ±31.5 literal was written
     // for Classic and pushed the whole terrorist team back inside the walls of the 99m Industrial
-    // Complex, so bots could never reach the buildings they were patrolling toward.
-    const edge = mapHalf() - 1.5;
-    this.pos.x = clamp(this.pos.x, -edge, edge);
-    this.pos.z = clamp(this.pos.z, -edge, edge);
+    // Complex, so bots could never reach the buildings they were patrolling toward. After the
+    // marsh expansion x is asymmetric, so clamp per xMin/xMax rather than ±half.
+    const b = mapBounds();
+    this.pos.x = clamp(this.pos.x, b.xMin + 1.5, b.xMax - 1.5);
+    this.pos.z = clamp(this.pos.z, -(b.halfD) + 1.5, b.halfD - 1.5);
 
     this.stuckTimer += dt;
     if (this.stuckTimer > 1.2) {
@@ -2347,6 +2869,155 @@ const MISSIONS = [
       coins: 10,
       unlockNext: 'mission_2'
     }
+  },
+  {
+    id: 'mission_2',
+    codeName: 'BLACKOUT 02',
+    title: 'Ashes of Evidence: Warehouse Demolition',
+    briefing: 'The eastern sector of Greyhaven — marshland the original surveys never mapped. RAVEN is stable but weak. A weapons warehouse burns tonight; Dr. Elias Kessler waits somewhere in the administrative wing.',
+    map: 'industrial_east',
+    requires: 'mission_1',
+    objectives: [
+      {
+        id: 'obj_2_1',
+        type: 'collect_item',
+        title: 'Retrieve the Purple Bud',
+        description: 'RAVEN needs a bud from the rare plant in the abandoned greenhouse',
+        location: { x: 47, z: 12, radius: 4 },
+        itemType: 'purple_bud',
+        triggerDistance: 2.0,
+        dialogueAfter: 'raven_recovered',
+        completed: false
+      },
+      {
+        id: 'obj_2_2',
+        type: 'enter_zone',
+        title: 'Reach the Eastern Warehouse',
+        description: 'Cross the marsh boardwalks to the weapons warehouse in the east sector',
+        zone: { x: 62, z: -18, radius: 6 },
+        triggerDistance: 5,
+        dialogueAfter: 'wrong_warehouse',
+        completed: false
+      },
+      {
+        id: 'obj_2_3',
+        type: 'eliminate_guards',
+        title: 'Eliminate the Warehouse Guards',
+        description: 'Clear the guards holding the warehouse before planting charges',
+        guardCount: 4,
+        completed: false
+      },
+      {
+        id: 'obj_2_4',
+        type: 'plant_charges',
+        title: 'Set the Demolition Charges',
+        description: 'Place 3 charges on the warehouse support columns',
+        chargeCount: 3,
+        triggerDistance: 2.2,
+        dialogueAfter: 'fuse_lit',
+        completed: false
+      },
+      {
+        id: 'obj_2_5',
+        type: 'escape_zone',
+        title: 'Escape the Blast Radius',
+        description: 'The fuse is lit — get clear of the warehouse!',
+        zone: { x: 44, z: -18, radius: 8 },
+        triggerDistance: 7,
+        fuse: true,
+        timeLimit: 24,
+        dialogueAfter: 'suspicion',
+        completed: false
+      },
+      {
+        id: 'obj_2_6',
+        type: 'resupply',
+        title: 'Emergency Resupply',
+        description: 'Kessler is heavily guarded — collect ammunition and medical supplies from the maintenance room',
+        location: { x: 72, z: 8, radius: 5 },
+        supplyCount: 4,
+        triggerDistance: 2.0,
+        completed: false
+      },
+      {
+        id: 'obj_2_7',
+        type: 'escort_npc',
+        title: 'Rescue Dr. Kessler',
+        description: 'Find Kessler in the administrative wing, then get him to the NE service complex',
+        npcName: 'KESSLER',
+        location: { x: 81, z: 26.5, radius: 4 },
+        triggerDistance: 3,
+        findDialogue: 'kessler_contact',
+        zone: { x: 58, z: 40, radius: 6 },
+        escort: true,
+        timeLimit: 75,
+        completed: false
+      }
+    ],
+    dialogues: {
+      'opening': [
+        { speaker: 'ROOK', text: 'You look worse than when I found you.', portrait: 'rook' },
+        { speaker: 'RAVEN', text: 'There\'s a purple plant in the old greenhouse. Bring me a bud.', portrait: 'raven' },
+        { speaker: 'ROOK', text: 'First a rescue, now gardening?', portrait: 'rook' },
+        { speaker: 'RAVEN', text: 'Just get it, smartass.', portrait: 'raven' }
+      ],
+      'raven_recovered': [
+        { speaker: 'ROOK', text: 'Better?', portrait: 'rook' },
+        { speaker: 'RAVEN', text: 'Enough to remember what I was going to tell you.', portrait: 'raven' },
+        { speaker: 'RAVEN', text: 'Find Dr. Elias Kessler. He\'s somewhere inside this complex. He knows what happened here.', portrait: 'raven' },
+        { speaker: 'SABLE', text: 'Rook, new assignment. We\'ve identified a weapons warehouse in the eastern sector. Destroy everything inside before the enemy relocates it.', portrait: 'sable' },
+        { speaker: 'ROOK', text: 'What about Kessler?', portrait: 'rook' },
+        { speaker: 'SABLE', text: 'He can wait. The weapons cannot.', portrait: 'sable' },
+        { speaker: 'ROOK', text: 'Understood.', portrait: 'rook' }
+      ],
+      'wrong_warehouse': [
+        { speaker: 'ROOK', text: 'Command, something\'s wrong. There\'s no weapons stockpile here.', portrait: 'rook' },
+        { speaker: 'SABLE', text: 'Explain.', portrait: 'sable' },
+        { speaker: 'ROOK', text: 'The building is full of old records and documents.', portrait: 'rook' },
+        { speaker: 'SABLE', text: 'Intelligence may be outdated. Complete the demolition.', portrait: 'sable' },
+        { speaker: 'ROOK', text: 'You want me to destroy an archive?', portrait: 'rook' },
+        { speaker: 'SABLE', text: 'That\'s an order, Rook.', portrait: 'sable' }
+      ],
+      'fuse_lit': [
+        { speaker: 'ROOK', text: 'Charges set. Time to be somewhere else.', portrait: 'rook' }
+      ],
+      'suspicion': [
+        { speaker: 'ROOK', text: 'Warehouse destroyed. Whatever was inside isn\'t going anywhere now.', portrait: 'rook' },
+        { speaker: 'ROOK', text: 'You were right about something being wrong. The warehouse wasn\'t holding weapons. It was an archive.', portrait: 'rook' },
+        { speaker: 'RAVEN', text: 'What was in it?', portrait: 'raven' },
+        { speaker: 'ROOK', text: 'Old incident reports. Kessler\'s name. Someone called Marek Voss.', portrait: 'rook' },
+        { speaker: 'RAVEN', text: 'Then Kessler is even more important than I thought. Find him. He\'s being kept somewhere in the administrative wing.', portrait: 'raven' },
+        { speaker: 'PATCH', text: 'Rook, I\'ve located Kessler. Administrative wing, second floor. He\'s got quite a few guards around him.', portrait: 'patch' },
+        { speaker: 'ROOK', text: 'How many?', portrait: 'rook' },
+        { speaker: 'PATCH', text: 'Enough to ruin your evening.', portrait: 'patch' },
+        { speaker: 'ROOK', text: 'It\'s already ruined.', portrait: 'rook' }
+      ],
+      'kessler_contact': [
+        { speaker: 'KESSLER', text: 'Did you destroy the eastern warehouse?', portrait: 'kessler' },
+        { speaker: 'ROOK', text: 'Yes. Why?', portrait: 'rook' },
+        { speaker: 'KESSLER', text: 'That wasn\'t a weapons warehouse. It was an archive.', portrait: 'kessler' },
+        { speaker: 'ROOK', text: 'I noticed. What was so important?', portrait: 'rook' },
+        { speaker: 'KESSLER', text: 'Four years ago, something happened at Greyhaven. The emergency systems were deliberately disabled. People died, and the investigation was buried.', portrait: 'kessler' },
+        { speaker: 'ROOK', text: 'Who was responsible?', portrait: 'rook' },
+        { speaker: 'KESSLER', text: 'I don\'t know everyone involved. But Marek Voss knows more than anyone.', portrait: 'kessler' },
+        { speaker: 'ROOK', text: 'Then you\'re coming with me.', portrait: 'rook' }
+      ],
+      'mission_complete': [
+        { speaker: 'RAVEN', text: 'You found him.', portrait: 'raven' },
+        { speaker: 'ROOK', text: 'Apparently, everyone here knows something I don\'t.', portrait: 'rook' },
+        { speaker: 'KESSLER', text: 'They destroyed the archive. Now they\'ll come after anyone who remembers what happened.', portrait: 'kessler' },
+        { speaker: 'ROOK', text: 'Kessler is secured. But I have a question. Why was an archive classified as a weapons warehouse?', portrait: 'rook' },
+        { speaker: 'SABLE', text: 'We\'ll discuss that later. Maintain your position.', portrait: 'sable' },
+        { speaker: 'ROOK', text: 'Right. Later.', portrait: 'rook' },
+        { speaker: 'RAVEN', text: 'You don\'t trust them anymore, do you?', portrait: 'raven' },
+        { speaker: 'ROOK', text: 'I\'m starting to wonder who I\'m actually working for.', portrait: 'rook' },
+        { speaker: 'ROOK', text: 'The warehouse is gone. The evidence is buried. But the questions have only just begun.', portrait: 'rook' }
+      ]
+    },
+    rewards: {
+      xp: 15,
+      coins: 15
+    }
   }
 ];
 
@@ -2363,6 +3034,16 @@ let missionState = {
   clues: [],
   evidence: [],
   evidenceCollected: 0,
+  items: [],                       // collect_item models (Mission 02 purple bud)
+  charges: [],                     // plant_charges anchors + planted charges (Mission 02)
+  chargesPlanted: 0,
+  supplies: [],                    // resupply pickups (Mission 02)
+  suppliesCollected: 0,
+  guardsKilled: 0,
+  fuseActive: false,
+  fuseTimeLeft: 0,
+  explosionDone: false,
+  escortName: 'RAVEN',
   missionComplete: false,
   escortActive: false,
   escortNPC: null,
@@ -2377,6 +3058,33 @@ const EVIDENCE_POSITIONS = [
   { x: -30.5, z: -27.5, y: 3.8, type: 'bloody_cloth',  label: 'Torn Fabric' },      // NE corner, upper floor
   { x: -34.0, z: -29.0, y: 3.8, type: 'broken_radio',  label: 'Broken Radio' }      // NW area, upper floor
 ];
+
+// Mission 02 — the Purple Bud sits ON TOP of the greenhouse planter bed: cs-map draws it as
+// crate(1.4) on a 0.6 base, so its lid is exactly y=2.0 (greenhouse floor itself is 0.18 kerb).
+const BUD_POSITION = { x: 47, z: 12, y: 2.0 };
+
+// Mission 02 — demolition charge anchors on the warehouse (70,-18) interior columns/walls.
+// Every spot is clear of the crate stacks, shelving run, filing table and N partition.
+// y=0.3 rests them on the warehouse floor slab (platform h 0.3).
+const CHARGE_POSITIONS = [
+  { x: 73.5, z: -22.8, y: 0.3, label: 'N Support Column' },
+  { x: 73.5, z: -13.2, y: 0.3, label: 'SE Support Column' },
+  { x: 69.5, z: -20.8, y: 0.3, label: 'W Support Column' }
+];
+
+// Mission 02 — resupply drops inside the maintenance room (72,8): west of the x=74 partition,
+// clear of the locker bank, generator and awning posts. Ammo crates top the rifle reserve, medkits
+// heal +40. Two of each. y=0.18 rides the room's pavement slab.
+const RESUPPLY_POSITIONS = [
+  { x: 69.3, z: 6.2,  type: 'ammo',   y: 0.18 },
+  { x: 72.3, z: 8.2,  type: 'medkit', y: 0.18 },
+  { x: 69.3, z: 9.6,  type: 'ammo',   y: 0.18 },
+  { x: 72.3, z: 5.9,  type: 'medkit', y: 0.18 }
+];
+
+// Mission 02 — blast radius around the warehouse centre; standing inside it when the fuse ends is fatal
+const BLAST_CENTER = { x: 70, z: -18 };
+const BLAST_RADIUS = 18;
 
 // ── Mission Progress Persistence ──
 const MISSION_STORAGE_KEY = 'cs_mission_progress';
@@ -2469,6 +3177,16 @@ function startMission(missionId) {
     clues: [],
     evidence: [],
     evidenceCollected: 0,
+    items: [],
+    charges: [],
+    chargesPlanted: 0,
+    supplies: [],
+    suppliesCollected: 0,
+    guardsKilled: 0,
+    fuseActive: false,
+    fuseTimeLeft: 0,
+    explosionDone: false,
+    escortName: 'RAVEN',
     missionComplete: false,
     escortActive: false,
     escortNPC: null,
@@ -2569,6 +3287,31 @@ function spawnMissionEntities() {
   currentMission.objectives.forEach(obj => {
     if (obj.type === 'find_npc') {
       spawnNPC(obj.location.x, obj.location.z, obj.npcName, obj.id);
+    }
+    // Mission 02: Kessler waits on the admin-wing upper floor (y=3.8, matches the EVIDENCE levels)
+    if (obj.type === 'escort_npc') {
+      spawnNPC(obj.location.x, obj.location.z, obj.npcName, obj.id, 3.8);
+    }
+  });
+
+  // Mission 02 — collect_item: the Purple Bud on the greenhouse planter
+  currentMission.objectives.forEach(obj => {
+    if (obj.type === 'collect_item') {
+      spawnPurpleBud(BUD_POSITION.x, BUD_POSITION.z, BUD_POSITION.y, obj.id);
+    }
+  });
+
+  // Mission 02 — plant_charges: three anchor brackets on the warehouse support columns
+  currentMission.objectives.forEach(obj => {
+    if (obj.type === 'plant_charges') {
+      CHARGE_POSITIONS.forEach((cp, i) => spawnChargeAnchor(cp.x, cp.z, cp.label, obj.id + '_' + i, cp.y));
+    }
+  });
+
+  // Mission 02 — resupply: ammo crates and medkits inside the maintenance room
+  currentMission.objectives.forEach(obj => {
+    if (obj.type === 'resupply') {
+      RESUPPLY_POSITIONS.forEach((sp, i) => spawnResupplyItem(sp.x, sp.z, sp.y || 0, sp.type, obj.id + '_' + i));
     }
   });
 }
@@ -2762,7 +3505,7 @@ function spawnEvidence(x, z, y, type, id, label) {
   missionState.evidence.push(group);
 }
 
-function spawnNPC(x, z, name, id) {
+function spawnNPC(x, z, name, id, y = 0) {
   const group = new THREE.Group();
   const dark = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.85 });
   const mid = new THREE.MeshStandardMaterial({ color: 0x777777, roughness: 0.9 });
@@ -2844,14 +3587,165 @@ function spawnNPC(x, z, name, id) {
   tag.position.set(0, 2.3, 0);
   group.add(tag);
 
-  group.position.set(x, 0, z);
+  group.position.set(x, y, z);
   group.userData = { type: 'npc', name: name, id: id };
   scene.add(group);
   missionState.npcs.push(group);
 }
 
+// ── Mission 02 props ──
+// The Purple Bud: potted rare plant on the greenhouse planter bed. "Purple" reads as a pale
+// crystalline tone — the whole cabinet stays greyscale, so the bud uses the same faceted
+// low-poly crystal trick as the cannabis buds, just taller and brighter.
+function spawnPurpleBud(x, z, y, id) {
+  const group = new THREE.Group();
+  const dark = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.9 });
+  const mid = new THREE.MeshStandardMaterial({ color: 0x6e6e6e, roughness: 0.85 });
+  const leaf = new THREE.MeshStandardMaterial({ color: 0x5c5c60, roughness: 0.95 });
+  const glow = new THREE.MeshStandardMaterial({ color: 0xb8b8b8, emissive: 0x666666, emissiveIntensity: 0.5 });
+
+  const part = (geo, mat, px, py, pz, rx = 0, ry = 0, rz = 0) => {
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(px, py, pz); m.rotation.set(rx, ry, rz); m.castShadow = true;
+    group.add(m); return m;
+  };
+
+  // Clay pot with rim and soil mound
+  part(new THREE.CylinderGeometry(0.16, 0.12, 0.2, 10), mid, 0, 0.1, 0);
+  part(new THREE.CylinderGeometry(0.18, 0.17, 0.04, 10), dark, 0, 0.21, 0);
+  part(new THREE.CylinderGeometry(0.14, 0.14, 0.03, 10), dark, 0, 0.22, 0);
+  // Main stalk
+  part(new THREE.CylinderGeometry(0.018, 0.03, 0.55, 6), leaf, 0, 0.5, 0);
+  // Two tiers of paired serrated leaves (flat boxes, tilted down like real fan leaves)
+  for (let tier = 0; tier < 2; tier++) {
+    const ty = 0.36 + tier * 0.18;
+    for (let k = 0; k < 2; k++) {
+      const side = k ? 1 : -1;
+      part(new THREE.BoxGeometry(0.26, 0.012, 0.09), leaf,
+        side * 0.13, ty, side * 0.04, 0, side * 0.5, side * -0.35);
+      part(new THREE.BoxGeometry(0.16, 0.012, 0.06), leaf,
+        side * 0.1, ty - 0.05, side * -0.09, 0, side * -0.9, side * -0.3);
+    }
+  }
+  // Terminal crystal bud — faceted pentagon sphere, brightest thing in the greenhouse
+  part(new THREE.SphereGeometry(0.09, 5, 3), glow, 0, 0.82, 0);
+  part(new THREE.SphereGeometry(0.055, 5, 3), glow, 0.03, 0.94, -0.01);
+  part(new THREE.SphereGeometry(0.035, 5, 3), glow, -0.02, 1.02, 0.02);
+  // Floating pickup indicator
+  part(new THREE.OctahedronGeometry(0.1, 0), glow, 0, 1.35, 0).userData.isIndicator = true;
+
+  group.position.set(x, y, z);
+  group.userData = { type: 'item', itemType: 'purple_bud', id: id };
+  scene.add(group);
+  missionState.items.push(group);
+}
+
+// Charge anchor: a steel bracket + stencilled label plate waiting for a charge. Once planted the
+// group gains the C4 block (handled in checkMissionObjectives) and the LED starts blinking in the
+// frame loop via userData.isIndicator.
+function spawnChargeAnchor(x, z, label, id, y = 0) {
+  const group = new THREE.Group();
+  const dark = new THREE.MeshStandardMaterial({ color: 0x3d3d3d, roughness: 0.85 });
+  const mid = new THREE.MeshStandardMaterial({ color: 0x6a6a6a, roughness: 0.6, metalness: 0.5 });
+  const pale = new THREE.MeshStandardMaterial({ color: 0xa8a8a8, roughness: 0.7 });
+  const glow = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, emissive: 0x555555, emissiveIntensity: 0.4 });
+
+  const part = (geo, mat, px, py, pz, rx = 0, ry = 0, rz = 0) => {
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(px, py, pz); m.rotation.set(rx, ry, rz); m.castShadow = true;
+    group.add(m); return m;
+  };
+
+  // Wall bracket: two straps and a nail plate
+  part(new THREE.BoxGeometry(0.5, 0.06, 0.08), mid, 0, 0.55, 0);
+  part(new THREE.BoxGeometry(0.5, 0.06, 0.08), mid, 0, 0.35, 0);
+  part(new THREE.BoxGeometry(0.12, 0.12, 0.05), dark, 0, 0.45, -0.02);
+  // Stencil plate
+  part(new THREE.BoxGeometry(0.42, 0.16, 0.02), pale, 0, 0.75, -0.01);
+  // Target marker hovering at chest height — the plant prompt
+  part(new THREE.OctahedronGeometry(0.12, 0), glow, 0, 1.0, 0.15).userData.isIndicator = true;
+  // Floor chalk ring
+  part(new THREE.TorusGeometry(0.42, 0.015, 4, 14), dark, 0, 0.015, 0.1, Math.PI / 2, 0, 0);
+
+  group.position.set(x, y, z);
+  group.userData = { type: 'charge', id: id, label: label, planted: false };
+  scene.add(group);
+  missionState.charges.push(group);
+}
+
+// Planted C4 block added onto a charge anchor once the player walks up to it
+function attachPlantedCharge(group) {
+  const dark = new THREE.MeshStandardMaterial({ color: 0x353535, roughness: 0.8 });
+  const mid = new THREE.MeshStandardMaterial({ color: 0x666666, roughness: 0.7 });
+  const led = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 1 });
+  const block = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.16, 0.12), mid);
+  block.position.set(0, 0.45, 0.1); block.castShadow = true;
+  block.name = 'chargeBlock';
+  group.add(block);
+  // Keypad face + two wire leads + blinking detonator LED
+  const pad = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.09, 0.02), dark);
+  pad.position.set(0, 0.45, 0.17); group.add(pad);
+  for (const side of [-1, 1]) {
+    const wire = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.18, 4), dark);
+    wire.position.set(side * 0.12, 0.5, 0.12); wire.rotation.z = Math.PI / 2.4 * side;
+    group.add(wire);
+  }
+  const dot = new THREE.Mesh(new THREE.SphereGeometry(0.02, 6, 6), led);
+  dot.position.set(0.1, 0.5, 0.17);
+  dot.name = 'chargeLed';
+  dot.userData.isIndicator = true;   // frame loop drives the blink while the fuse burns
+  group.add(dot);
+}
+
+// Resupply pickup: ammo crate (banding + visible rounds) or field medkit (cross plate).
+function spawnResupplyItem(x, z, y, type, id) {
+  const group = new THREE.Group();
+  const dark = new THREE.MeshStandardMaterial({ color: 0x3f3f3f, roughness: 0.85 });
+  const mid = new THREE.MeshStandardMaterial({ color: 0x6d6d6d, roughness: 0.8 });
+  const pale = new THREE.MeshStandardMaterial({ color: 0xb2b2b2, roughness: 0.6, metalness: 0.4 });
+  const glow = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, emissive: 0x555555, emissiveIntensity: 0.4 });
+
+  const part = (geo, mat, px, py, pz, rx = 0, ry = 0, rz = 0) => {
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(px, py, pz); m.rotation.set(rx, ry, rz); m.castShadow = true;
+    group.add(m); return m;
+  };
+
+  if (type === 'ammo') {
+    // Crate body with lid seam and carry latch
+    part(new THREE.BoxGeometry(0.46, 0.26, 0.3), mid, 0, 0.13, 0);
+    part(new THREE.BoxGeometry(0.47, 0.02, 0.31), dark, 0, 0.24, 0);
+    part(new THREE.BoxGeometry(0.1, 0.05, 0.02), pale, 0, 0.28, 0.15);
+    // Two brass bands around the crate
+    part(new THREE.BoxGeometry(0.47, 0.03, 0.31), pale, -0.12, 0.13, 0);
+    part(new THREE.BoxGeometry(0.47, 0.03, 0.31), pale, 0.12, 0.13, 0);
+    // A few rounds spilling across the lid
+    for (let i = 0; i < 4; i++) {
+      part(new THREE.CylinderGeometry(0.016, 0.016, 0.09, 6), pale,
+        -0.12 + i * 0.08, 0.28, 0.05 + rand(-0.04, 0.04), Math.PI / 2, 0, rand(-0.3, 0.3));
+    }
+  } else {
+    // Medkit: flat white case, cross plate, hinge and clasp
+    part(new THREE.BoxGeometry(0.4, 0.22, 0.26), pale, 0, 0.11, 0);
+    part(new THREE.BoxGeometry(0.41, 0.02, 0.27), dark, 0, 0.22, 0);
+    part(new THREE.BoxGeometry(0.16, 0.02, 0.05), mid, 0, 0.24, 0.1);
+    part(new THREE.BoxGeometry(0.12, 0.12, 0.015), dark, 0, 0.13, 0.136);   // cross base
+    part(new THREE.BoxGeometry(0.04, 0.1, 0.02), pale, 0, 0.13, 0.142);     // cross V
+    part(new THREE.BoxGeometry(0.1, 0.04, 0.02), pale, 0, 0.13, 0.142);     // cross H
+    part(new THREE.CylinderGeometry(0.015, 0.015, 0.12, 6), mid, 0, 0.22, -0.13, 0, 0, Math.PI / 2); // hinge
+  }
+  // Floating indicator
+  part(new THREE.OctahedronGeometry(0.09, 0), glow, 0, 0.75, 0).userData.isIndicator = true;
+
+  group.position.set(x, y, z);
+  group.userData = { type: 'supply', supplyType: type, id: id };
+  scene.add(group);
+  missionState.supplies.push(group);
+}
+
 function spawnMissionEnemies() {
   if (!currentMission) return;
+  if (currentMission.id === 'mission_2') { spawnMission2Enemies(); return; }
   
   // Strategic enemy placements — mostly INSIDE buildings (both floors)
   // Player spawns in SW corner (-41, -41), route leads through buildings NE
@@ -2914,6 +3808,68 @@ function spawnMissionEnemies() {
   console.log('[CS] Spawned', enemyPlacements.length, 'mission enemies');
 }
 
+// Mission 02 — east-sector order of battle: the warehouse holds the 4 tagged guards, the admin
+// wing holds Kessler's detail (two on the upper floor), and boardwalk patrols cover the long
+// walk from the SW spawn to the marsh. Reinforcements arrive later, on the fuse and escort beats.
+function spawnMission2Enemies() {
+  const enemyPlacements = [
+    // === WAREHOUSE GUARDS — tagged, counted by eliminate_guards (70,-18) ===
+    { x: 66.5, z: -19.5, inside: true, guard: true },   // W bay, by the crate stack
+    { x: 72,    z: -21.6, inside: true, guard: true },  // centre floor, clear of the shelving run
+    { x: 71,    z: -16,   inside: true, guard: true },  // behind the N partition
+    { x: 76.8,  z: -23,   inside: true, guard: true },  // NE corner by the shelving run
+
+    // === ADMIN WING — Kessler's detail (78,26) ===
+    { x: 75, z: 25, inside: true },                     // ground floor, by the partition door
+    { x: 79, z: 26, inside: true, upperFloor: true },   // office landing
+    { x: 83, z: 25.5, inside: true, upperFloor: true }, // behind the desk
+
+    // === MARSH PATROLS — along the route the player must walk ===
+    { x: 56, z: 2, patrol: true },      // boardwalk spine
+    { x: 50, z: 15, patrol: true },     // greenhouse approach
+    { x: 60, z: -30 },                  // dock watcher
+    { x: 63, z: 20, patrol: true },     // jetty
+    { x: 50, z: 44, patrol: true },     // service complex approach (N)
+    { x: 66, z: 36 },                  // service complex approach (E)
+    { x: 71, z: -4, patrol: true }      // warehouse <-> maintenance link
+  ];
+
+  const names = [...BOT_NAMES].sort(() => Math.random() - 0.5);
+
+  enemyPlacements.forEach((placement, i) => {
+    if (!placement.inside) {
+      if (!isFree(placement.x, placement.z, 0.6)) {
+        for (let attempt = 0; attempt < 10; attempt++) {
+          const offsetX = (Math.random() - 0.5) * 4;
+          const offsetZ = (Math.random() - 0.5) * 4;
+          if (isFree(placement.x + offsetX, placement.z + offsetZ, 0.6)) {
+            placement.x += offsetX;
+            placement.z += offsetZ;
+            break;
+          }
+        }
+      }
+    }
+
+    const spawnY = placement.upperFloor ? 3.8 : 0;
+    const bot = new Bot(placement.x, placement.z, names[i % names.length]);
+    bot.pos.y = spawnY;
+    bot.yaw = Math.PI;
+    if (placement.guard) bot.missionGuard = true;
+
+    if (placement.patrol) {
+      bot.patrolCenter = new THREE.Vector2(placement.x, placement.z);
+      bot.patrolRadius = 5 + Math.random() * 3;
+      bot.patrolAngle = Math.random() * Math.PI * 2;
+      bot.patrolSpeed = 1.5 + Math.random() * 0.5;
+    }
+
+    bots.push(bot);
+  });
+
+  console.log('[CS] Spawned', enemyPlacements.length, 'Mission-02 east-sector enemies');
+}
+
 // ── Escort System — RAVEN follows player during extraction ──
 function updateEscort(dt) {
   if (!missionState.escortActive || !missionState.escortNPC) return;
@@ -2947,8 +3903,88 @@ function updateEscort(dt) {
     npc.rotation.y = Math.atan2(dx, dz);
   }
 
-  // Keep RAVEN on ground level
-  npc.position.y = 0;
+  // Keep the escort descending to ground level as it follows (Kessler starts on the admin-wing
+  // upper floor — a steady 4 m/s drop reads as climbing down instead of teleporting)
+  if (npc.position.y > 0) npc.position.y = Math.max(0, npc.position.y - dt * 4);
+}
+
+// ── Mission 02 — demolition fuse ──
+// Burns only while no dialogue is playing (the 'fuse_lit' scene lights it AFTER the cutscene ends).
+// Reaching the escape zone detonates early and clean; expiry detonates with a lethal radius.
+function updateFuse(dt) {
+  if (!missionState.fuseActive || missionState.dialogueActive) return;
+  missionState.fuseTimeLeft = Math.max(0, missionState.fuseTimeLeft - dt);
+  if (missionState.fuseTimeLeft <= 0) detonateFuse(false);
+}
+
+function detonateFuse(early) {
+  if (missionState.explosionDone) return;
+  missionState.explosionDone = true;
+  missionState.fuseActive = false;
+  playExplosion();
+  spawnWarehouseBlastFX();
+  const dist = Math.hypot(player.pos.x - BLAST_CENTER.x, player.pos.z - BLAST_CENTER.z);
+  if (!early && dist < BLAST_RADIUS) {
+    showMissionNotification('TOO CLOSE TO THE BLAST');
+    damagePlayer(200, { name: 'Demolition Charge' });
+  } else {
+    showMissionNotification('WAREHOUSE DESTROYED');
+  }
+}
+
+// Deep two-layer rumble + crack — the cabinet only owns square/saw beeps, layered they read big
+function playExplosion() {
+  playBeep(38, 0.9, 0.3, 'sawtooth');
+  playBeep(57, 0.6, 0.22, 'sawtooth');
+  setTimeout(() => playBeep(120, 0.25, 0.18, 'square'), 90);
+}
+
+// One instanced-feel blast: debris cone, fireballs-as-white-fire, expanding shock ring, dust cloud.
+// Everything lives in effects[] so updateEffects() recycles it with zero extra bookkeeping.
+function spawnWarehouseBlastFX() {
+  const center = new THREE.Vector3(BLAST_CENTER.x, 1.2, BLAST_CENTER.z);
+  spawnParticles(center, null, sparkMat, 140, 16);          // white-hot core sparks
+  spawnParticles(center, null, dustMat, 120, 9);             // thrown concrete dust
+  spawnParticles(new THREE.Vector3(BLAST_CENTER.x, 0.4, BLAST_CENTER.z), null, bloodMat, 80, 6);  // dark debris
+  // Fast white flash over the whole arena (fades with the standard effect life loop)
+  const flashMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, depthWrite: false });
+  const flash = new THREE.Mesh(new THREE.SphereGeometry(6, 12, 8), flashMat);
+  flash.position.copy(center).setY(2.5);
+  scene.add(flash);
+  effects.push({ obj: flash, life: 0.35, max: 0.35, fade: true });
+  // Ground shock ring racing outward across the marsh
+  const ringMat = new THREE.MeshBasicMaterial({ color: 0xdddddd, transparent: true, opacity: 0.6, depthWrite: false });
+  const ring = new THREE.Mesh(new THREE.RingGeometry(1, 1.5, 32), ringMat);
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.set(BLAST_CENTER.x, 0.25, BLAST_CENTER.z);
+  scene.add(ring);
+  effects.push({
+    obj: ring, life: 0.8, max: 0.8, fade: true,
+    grow: (e, k) => e.obj.scale.setScalar(1 + 26 * (1 - k))   // grows as life falls
+  });
+  // Slow dust column hanging over the site for a few seconds
+  const cloudMat = new THREE.MeshBasicMaterial({ color: 0x777777, transparent: true, opacity: 0.35, depthWrite: false });
+  const cloud = new THREE.Mesh(new THREE.SphereGeometry(7, 10, 7), cloudMat);
+  cloud.position.set(BLAST_CENTER.x, 6, BLAST_CENTER.z);
+  scene.add(cloud);
+  effects.push({ obj: cloud, life: 4, max: 4, fade: true });
+}
+
+// Pushed while the fuse burns — pressure on the escape lane, not on the warehouse itself.
+// Points sit off the boardwalk pavements so the isFree() gate never silently drops a spawn.
+function spawnFuseReinforcements() {
+  const pts = [{ x: 51, z: -16 }, { x: 51, z: -21 }, { x: 57, z: -24 }, { x: 48, z: -14 }, { x: 51, z: -11 }];
+  const names = [...BOT_NAMES].sort(() => Math.random() - 0.5);
+  pts.forEach((ep, i) => {
+    const spot = findFreeNear(ep.x, ep.z, 0.6);
+    if (!spot) return;
+    const b = new Bot(spot.x, spot.z, names[i % names.length]);
+    b.patrolCenter = new THREE.Vector2(spot.x, spot.z);
+    b.patrolRadius = 5;
+    b.patrolAngle = Math.random() * Math.PI * 2;
+    b.patrolSpeed = 2.2;
+    bots.push(b);
+  });
 }
 
 function updateMissionHud() {
@@ -2975,6 +4011,53 @@ function updateMissionHud() {
     }
   }
 
+  // ── Mission 02 counters ──
+  const guardEl = document.getElementById('guardCounter');
+  if (guardEl) {
+    if (obj && obj.type === 'eliminate_guards' && !obj.completed) {
+      const alive = bots.filter(b => b.missionGuard && !b.dead).length;
+      guardEl.style.display = 'block';
+      guardEl.textContent = `GUARDS ${alive} LEFT`;
+    } else {
+      guardEl.style.display = 'none';
+    }
+  }
+
+  const chargeEl = document.getElementById('chargeCounter');
+  if (chargeEl) {
+    if (obj && obj.type === 'plant_charges' && !obj.completed) {
+      chargeEl.style.display = 'block';
+      chargeEl.textContent = `CHARGES ${missionState.chargesPlanted}/${obj.chargeCount}`;
+    } else {
+      chargeEl.style.display = 'none';
+    }
+  }
+
+  const fuseEl = document.getElementById('fuseHud');
+  if (fuseEl) {
+    if (missionState.fuseActive) {
+      fuseEl.style.display = 'flex';
+      const fuseT = document.getElementById('fuseTimer');
+      if (fuseT) {
+        const fl = Math.max(0, Math.ceil(missionState.fuseTimeLeft));
+        fuseT.textContent = `0:${String(fl).padStart(2, '0')}`;
+        fuseT.classList.toggle('urgent', fl <= 8);
+      }
+    } else {
+      fuseEl.style.display = 'none';
+    }
+  }
+
+  const supplyEl = document.getElementById('resupplyCounter');
+  if (supplyEl) {
+    if (obj && obj.type === 'resupply' && !obj.completed) {
+      supplyEl.style.display = 'block';
+      supplyEl.textContent = `SUPPLIES ${missionState.suppliesCollected}/${obj.supplyCount}`;
+    } else {
+      supplyEl.style.display = 'none';
+    }
+  }
+
   // Escort HUD visibility
   const escortEl = document.getElementById('escortHud');
   if (escortEl) {
@@ -2983,14 +4066,15 @@ function updateMissionHud() {
       const statusEl = document.getElementById('escortStatus');
       const timerEl = document.getElementById('extractionTimer');
       if (statusEl) {
+        const eName = missionState.escortName || 'RAVEN';
         if (missionState.escortHealth <= 30) {
-          statusEl.textContent = 'RAVEN STATUS: CRITICAL';
+          statusEl.textContent = `${eName} STATUS: CRITICAL`;
           statusEl.classList.add('danger');
         } else if (missionState.escortHealth <= 60) {
-          statusEl.textContent = 'RAVEN STATUS: INJURED';
+          statusEl.textContent = `${eName} STATUS: INJURED`;
           statusEl.classList.remove('danger');
         } else {
-          statusEl.textContent = 'RAVEN STATUS: OK';
+          statusEl.textContent = `${eName} STATUS: OK`;
           statusEl.classList.remove('danger');
         }
       }
@@ -3025,6 +4109,8 @@ function checkMissionObjectives() {
           return;
         }
         completeObjective(obj);
+        // Fused escape: reaching the safe line detonates the charges early, cleanly, no damage
+        if (obj.fuse && missionState.fuseActive) detonateFuse(true);
       }
       break;
       
@@ -3086,37 +4172,138 @@ function checkMissionObjectives() {
         }
       }
       break;
+
+    // ── Mission 02 objective types ──
+    case 'collect_item': {
+      const item = missionState.items.find(it => it.userData.id === obj.id);
+      if (item) {
+        const idist = Math.hypot(playerPos.x - item.position.x, playerPos.z - item.position.z);
+        if (idist < obj.triggerDistance) {
+          scene.remove(item);
+          missionState.items = missionState.items.filter(it => it.userData.id !== obj.id);
+          playBeep(880, 0.06, 0.12); playBeep(1320, 0.08, 0.1);
+          showMissionNotification('PURPLE BUD RETRIEVED');
+          completeObjective(obj);
+        }
+      }
+      break;
+    }
+
+    case 'eliminate_guards':
+      // Count tagged mission guards actually killed — recounted every frame so friendly-wave
+      // deaths never under-count and stragglers revive the objective.
+      missionState.guardsKilled = bots.filter(b => b.missionGuard && b.dead).length;
+      if (missionState.guardsKilled >= obj.guardCount) {
+        showMissionNotification('WAREHOUSE CLEARED');
+        completeObjective(obj);
+      }
+      break;
+
+    case 'plant_charges':
+      for (const ch of missionState.charges) {
+        if (ch.userData.planted) continue;
+        const cdist = Math.hypot(playerPos.x - ch.position.x, playerPos.z - ch.position.z);
+        if (cdist < obj.triggerDistance) {
+          ch.userData.planted = true;
+          attachPlantedCharge(ch);
+          missionState.chargesPlanted++;
+          playBeep(240, 0.08, 0.15, 'sawtooth');
+          showMissionNotification(`Charge set on ${ch.userData.label} — ${obj.chargeCount - missionState.chargesPlanted} to go`);
+          if (missionState.chargesPlanted >= obj.chargeCount) completeObjective(obj);
+          break;
+        }
+      }
+      break;
+
+    case 'resupply':
+      for (let si = 0; si < missionState.supplies.length; si++) {
+        const sp = missionState.supplies[si];
+        const sdist = Math.hypot(playerPos.x - sp.position.x, playerPos.z - sp.position.z);
+        if (sdist < obj.triggerDistance) {
+          if (sp.userData.supplyType === 'ammo') {
+            // Every weapon topped back to a full reserve — this is the "get loaded for Kessler" beat
+            for (const w of Object.values(inventory)) { w.reserve = w.def.reserve; }
+            updateAmmoHud();
+            showMissionNotification('AMMO RESTOCKED');
+          } else {
+            player.health = Math.min(100, player.health + 40);
+            hud.health.textContent = Math.ceil(player.health);
+            hud.healthBox.classList.toggle('low', player.health <= 25);
+            showMissionNotification('HEALTH +40');
+          }
+          playBeep(660, 0.05, 0.12);
+          scene.remove(sp);
+          missionState.supplies.splice(si, 1);
+          missionState.suppliesCollected++;
+          if (missionState.suppliesCollected >= obj.supplyCount) completeObjective(obj);
+          break;
+        }
+      }
+      break;
+
+    case 'escort_npc': {
+      if (!missionState.escortActive) {
+        // Find phase — walk up to Kessler, play his scene, then the escort begins
+        const npc = missionState.npcs.find(n => n.userData.id === obj.id);
+        if (npc) {
+          const kdist = Math.hypot(playerPos.x - npc.position.x, playerPos.z - npc.position.z);
+          if (kdist < obj.triggerDistance) {
+            playDialogue(obj.findDialogue, () => {
+              missionState._pendingEscortName = obj.npcName;
+              missionState._pendingEscortActivation = true;
+            });
+          }
+        }
+      } else {
+        // Escort phase — extraction zone reached with the NPC nearby
+        const edist = Math.hypot(playerPos.x - obj.zone.x, playerPos.z - obj.zone.z);
+        if (edist < obj.triggerDistance) {
+          const npcDist = missionState.escortNPC
+            ? Math.hypot(playerPos.x - missionState.escortNPC.position.x, playerPos.z - missionState.escortNPC.position.z)
+            : 999;
+          if (npcDist > 8) {
+            showMissionNotification(`Stay close to ${missionState.escortName}!`);
+            return;
+          }
+          completeObjective(obj);
+        }
+      }
+      break;
+    }
   }
 
-  // Check if escort should activate (after raven_extraction dialogue ends)
+  // Check if escort should activate (after raven_extraction / kessler_contact dialogue ends)
   if (missionState._pendingEscortActivation && !missionState.dialogueActive) {
     missionState._pendingEscortActivation = false;
     missionState.escortActive = true;
-    const ravenNPC = missionState.npcs.find(n => n.userData.name === 'RAVEN');
-    if (ravenNPC) {
-      missionState.escortNPC = ravenNPC;
-      ravenNPC.userData.followMode = true;
+    const escortName = missionState._pendingEscortName || 'RAVEN';
+    missionState._pendingEscortName = null;
+    missionState.escortName = escortName;
+    const escortNPC = missionState.npcs.find(n => n.userData.name === escortName);
+    if (escortNPC) {
+      missionState.escortNPC = escortNPC;
+      missionState.escortHealth = 100;
+      escortNPC.userData.followMode = true;
     }
     missionState.extractionStartTime = Date.now();
-    missionState.extractionTimer = 60;
-    showMissionNotification('ESCORT RAVEN TO EXTRACTION — 60 SECONDS');
-    // Spawn extra enemies along the escape route (SW → NE diagonal)
-    const escapeEnemies = [
-      { x: -10, z: -5 }, { x: 5, z: 10 }, { x: 15, z: 15 },
-      { x: 25, z: 20 }, { x: 28, z: 25 }
-    ];
+    missionState.extractionTimer = obj && obj.escort ? obj.timeLimit : 60;
+    showMissionNotification(`ESCORT ${escortName} TO EXTRACTION — ${missionState.extractionTimer} SECONDS`);
+    // Spawn extra enemies along the escape route (SW → NE diagonal for RAVEN, admin → service for KESSLER)
+    const escapeEnemies = escortName === 'KESSLER'
+      ? [{ x: 79, z: 32.5 }, { x: 71, z: 33 }, { x: 66, z: 35 }, { x: 65, z: 38 }, { x: 70, z: 12 }]
+      : [{ x: -10, z: -5 }, { x: 5, z: 10 }, { x: 15, z: 15 }, { x: 25, z: 20 }, { x: 28, z: 25 }];
     const eNames = [...BOT_NAMES].sort(() => Math.random() - 0.5);
     escapeEnemies.forEach((ep, i) => {
-      if (isFree(ep.x, ep.z, 0.6)) {
-        const b = new Bot(ep.x, ep.z, eNames[i % eNames.length]);
-        b.patrolCenter = new THREE.Vector2(ep.x, ep.z);
-        b.patrolRadius = 4;
-        b.patrolAngle = Math.random() * Math.PI * 2;
-        b.patrolSpeed = 2;
-        bots.push(b);
-      }
+      const spot = findFreeNear(ep.x, ep.z, 0.6);
+      if (!spot) return;
+      const b = new Bot(spot.x, spot.z, eNames[i % eNames.length]);
+      b.patrolCenter = new THREE.Vector2(spot.x, spot.z);
+      b.patrolRadius = 4;
+      b.patrolAngle = Math.random() * Math.PI * 2;
+      b.patrolSpeed = 2;
+      bots.push(b);
     });
-    console.log('[CS] Escort activated — RAVEN following, 90s countdown started');
+    console.log('[CS] Escort activated —', escortName, 'following,', missionState.extractionTimer + 's countdown');
   }
 }
 
@@ -3131,6 +4318,23 @@ function completeObjective(obj) {
   
   showMissionNotification(`Objective Complete: ${obj.title}`);
   
+  // Mission 02: the third charge lights the 24s fuse — but only once the 'fuse_lit' scene ends,
+  // so the timer never burns while the player is watching dialogue.
+  if (obj.dialogueAfter) {
+    if (obj.type === 'plant_charges') {
+      playDialogue(obj.dialogueAfter, () => {
+        missionState.fuseActive = true;
+        missionState.fuseTimeLeft = obj.timeLimit ||
+          (currentMission.objectives[missionState.currentObjective] || {}).timeLimit || 24;
+        showMissionNotification('FUSE LIT — GET CLEAR OF THE WAREHOUSE!');
+        // Greyline pushes reinforcements into the east sector while Rook runs for the blast line
+        spawnFuseReinforcements();
+      });
+      return;
+    }
+    playDialogue(obj.dialogueAfter);
+  }
+  
   // Check if mission complete
   if (missionState.currentObjective >= currentMission.objectives.length) {
     completeMission();
@@ -3143,6 +4347,7 @@ function completeMission() {
   missionState.missionComplete = true;
   missionState.active = false;
   missionState.escortActive = false;
+  missionState.fuseActive = false;
   missionState.elapsedTime = Date.now() - missionState.startTime;
   
   // Remove escort NPC from scene
@@ -3237,7 +4442,7 @@ function showNextDialogue(onComplete) {
   if (dialogueText) dialogueText.textContent = line.text;
   
   // Set portrait (monochrome style)
-  const portraitColors = { rook: '#666', raven: '#888', sable: '#555' };
+  const portraitColors = { rook: '#666', raven: '#888', sable: '#555', kessler: '#999', patch: '#5a5a5a' };
   if (dialoguePortrait) dialoguePortrait.style.background = portraitColors[line.portrait] || '#777';
   
   // Auto-advance after delay or click
@@ -3274,11 +4479,13 @@ function showMissionSelect() {
   
   missionList.innerHTML = MISSIONS.map(m => {
     const completed = progress.completed.includes(m.id);
+    // A mission carrying `requires` unlocks only once the prerequisite is in the completed list
+    const unlocked = !m.requires || progress.completed.includes(m.requires);
     const bestTime = progress.bestTimes[m.id];
     const score = progress.scores[m.id];
     
     return `
-      <div class="mission-card ${completed ? 'completed' : ''}" data-mission="${m.id}">
+      <div class="mission-card ${completed ? 'completed' : ''} ${!unlocked ? 'locked' : ''}" data-mission="${m.id}" data-unlocked="${unlocked ? '1' : '0'}">
         <div class="mission-code">${m.codeName}</div>
         <div class="mission-title">${m.title}</div>
         ${completed ? `
@@ -3286,9 +4493,11 @@ function showMissionSelect() {
             <span>Best: ${Math.floor(bestTime / 60)}:${String(bestTime % 60).padStart(2, '0')}</span>
             <span>Score: ${score}</span>
           </div>
+        ` : unlocked ? `
+          <div class="mission-stats"><span>${m.objectives.length} OBJECTIVES</span></div>
         ` : ''}
-        <button class="mission-btn" ${completed ? '' : 'disabled'}>
-          ${completed ? 'REPLAY' : 'LOCKED'}
+        <button class="mission-btn" ${unlocked ? '' : 'disabled'}>
+          ${completed ? 'REPLAY' : unlocked ? 'START' : 'LOCKED'}
         </button>
       </div>
     `;
@@ -3297,6 +4506,7 @@ function showMissionSelect() {
   // Add click handlers
   missionList.querySelectorAll('.mission-card').forEach(card => {
     card.addEventListener('click', () => {
+      if (card.dataset.unlocked !== '1') return;
       const missionId = card.dataset.mission;
       startMission(missionId);
     });
@@ -3347,6 +4557,42 @@ function updateMissionMarkers() {
       if (d < nearDist) { nearDist = d; nearest = ev; }
     }
     if (nearest) { targetX = nearest.position.x; targetZ = nearest.position.z; }
+  } else if (obj.type === 'collect_item') {
+    const item = missionState.items.find(it => it.userData.id === obj.id);
+    if (item) { targetX = item.position.x; targetZ = item.position.z; }
+  } else if (obj.type === 'eliminate_guards') {
+    // Nearest live tagged guard — the hunt marker follows the last man standing
+    let nearest = null, nearDist = Infinity;
+    for (const b of bots) {
+      if (b.dead || !b.missionGuard) continue;
+      const d = Math.hypot(b.pos.x - player.pos.x, b.pos.z - player.pos.z);
+      if (d < nearDist) { nearDist = d; nearest = b; }
+    }
+    if (nearest) { targetX = nearest.pos.x; targetZ = nearest.pos.z; }
+  } else if (obj.type === 'plant_charges') {
+    let nearest = null, nearDist = Infinity;
+    for (const ch of missionState.charges) {
+      if (ch.userData.planted) continue;
+      const d = Math.hypot(ch.position.x - player.pos.x, ch.position.z - player.pos.z);
+      if (d < nearDist) { nearDist = d; nearest = ch; }
+    }
+    if (nearest) { targetX = nearest.position.x; targetZ = nearest.position.z; }
+    else if (missionState.fuseActive) { targetX = obj.zone ? obj.zone.x : undefined; targetZ = obj.zone ? obj.zone.z : undefined; }
+  } else if (obj.type === 'resupply') {
+    let nearest = null, nearDist = Infinity;
+    for (const sp of missionState.supplies) {
+      const d = Math.hypot(sp.position.x - player.pos.x, sp.position.z - player.pos.z);
+      if (d < nearDist) { nearDist = d; nearest = sp; }
+    }
+    if (nearest) { targetX = nearest.position.x; targetZ = nearest.position.z; }
+  } else if (obj.type === 'escort_npc') {
+    // Find phase marks Kessler; once he is moving, the extraction zone takes over
+    if (missionState.escortActive) {
+      targetX = obj.zone.x; targetZ = obj.zone.z;
+    } else {
+      const npc = missionState.npcs.find(n => n.userData.id === obj.id);
+      if (npc) { targetX = npc.position.x; targetZ = npc.position.z; }
+    }
   }
   
   if (targetX === undefined) return;
@@ -3499,9 +4745,10 @@ const btnPlay = document.getElementById('btnPlay');
 
 function triggerGameOver() {
   game.state = 'gameOver';
-  // Clean up mission escort state
+  // Clean up mission escort/fuse state
   missionState.escortActive = false;
   missionState.escortNPC = null;
+  missionState.fuseActive = false;
   // Release pointer lock
   if (document.pointerLockElement) document.exitPointerLock();
   // Show game over screen with stats
@@ -3519,6 +4766,8 @@ function triggerGameOver() {
 }
 
 function startNewGame() {
+  // The marsh expansion belongs to Mission 02 alone — never carry it into fresh rounds
+  if (selectedMap === 'industrial_east') selectedMap = 'industrial';
   buildMap();
   if (hud.coopBoard) hud.coopBoard.innerHTML = '';
   game.round = 0; game.ct = 0; game.t = 0; game.kills = 0;
@@ -3532,9 +4781,22 @@ function startNewGame() {
   missionState.evidence.forEach(ev => scene.remove(ev));
   missionState.evidence = [];
   missionState.evidenceCollected = 0;
+  missionState.items.forEach(it => scene.remove(it));
+  missionState.items = [];
+  missionState.charges.forEach(ch => scene.remove(ch));
+  missionState.charges = [];
+  missionState.supplies.forEach(sp => scene.remove(sp));
+  missionState.supplies = [];
+  missionState.chargesPlanted = 0;
+  missionState.suppliesCollected = 0;
+  missionState.guardsKilled = 0;
+  missionState.fuseActive = false;
+  missionState.explosionDone = false;
   missionState.escortActive = false;
   missionState.escortNPC = null;
+  missionState.escortName = 'RAVEN';
   missionState._pendingEscortActivation = false;
+  missionState._pendingEscortName = null;
   
   // Hide mission HUD and restore round-based HUD
   if (missionHud) missionHud.style.display = 'none';
@@ -3666,14 +4928,24 @@ function updatePlayer(dt) {
 
   const crouch = isTouchDevice ? touch.crouch : (keys.KeyC || keys.ControlLeft);
   const walk = isTouchDevice ? false : (keys.ShiftLeft || keys.ShiftRight);
-  const speed = (crouch ? 2.2 : walk ? 3 : current.def.speed) * (1 - 0.4 * weaponState.ads);
-  const accel = player.onGround ? 12 : 2.5;
+  // Wading drag (Mission-02 marsh): ankle-deep shallows take the edge off, chest-deep water
+  // nearly halves pace. Dry maps have an empty pool list, so this is a no-op there.
+  const wade = marshPools.length ? wadeDepth(player.pos.x, player.pos.z) : 0;
+  player.wade = wade;
+  const drag = wade === 2 ? 0.5 : wade === 1 ? 0.78 : 1;
+  const speed = (crouch ? 2.2 : walk ? 3 : current.def.speed) * (1 - 0.4 * weaponState.ads) * drag;
+  const accel = player.onGround ? (wade ? 7 : 12) : 2.5;
   const k = Math.min(1, accel * dt);
   player.vel.x += (wish.x * speed - player.vel.x) * k;
   player.vel.z += (wish.z * speed - player.vel.z) * k;
 
   const jump = isTouchDevice ? touch.jump : keys.Space;
-  if (jump && player.onGround) { player.vel.y = 7; player.onGround = false; }
+  if (jump && player.onGround) {
+    // You can't leave the water the way you leave land — the jump is pulled down by the depth
+    if (wade) { try { playSplash(player.pos, wade === 2); spawnWaterRipple(player.pos.x, player.pos.z, wade === 2); } catch (_) {} }
+    player.vel.y = wade === 2 ? 4.4 : wade === 1 ? 5.8 : 7;
+    player.onGround = false;
+  }
   player.vel.y -= 20 * dt;
 
   player.pos.x += player.vel.x * dt;
@@ -3683,6 +4955,10 @@ function updatePlayer(dt) {
   player.pos.y += player.vel.y * dt;
   const gh = groundHeight(player.pos, P_RADIUS);
   if (player.pos.y <= gh) {
+    // splashing back in from a jump over the reeds deserves a proper belly-flop
+    if (wade && player.vel.y < -3.5) {
+      try { playSplash(player.pos, wade === 2); spawnWaterRipple(player.pos.x, player.pos.z, wade === 2); spawnWadeSplash(player.pos, true); } catch (_) {}
+    }
     player.pos.y = gh; player.vel.y = 0; player.onGround = true;
   } else if (player.onGround && player.vel.y <= 0 && player.pos.y - gh < STEP) {
     player.pos.y = gh; player.vel.y = 0;
@@ -3699,14 +4975,47 @@ function updatePlayer(dt) {
     const walked = Math.hypot(player.pos.x - player._lastStepPos.x, player.pos.z - player._lastStepPos.z);
     const stride = player.eye < 1.4 ? 2.4 : player.speed > 3.4 ? 1.5 : 1.9;
     if (walked > stride) {
-      try { playFootstep('self', player.pos, 0, player.eye < 1.4 ? 0.5 : 1); } catch (_) {}
+      try {
+        if (wade) {
+          // every wet step: plip + a spreading ring + a handful of kicked-up droplets
+          playSplash(player.pos, wade === 2);
+          spawnWaterRipple(player.pos.x, player.pos.z, wade === 2);
+          spawnWadeSplash(player.pos, wade === 2);
+        } else {
+          playFootstep('self', player.pos, 0, player.eye < 1.4 ? 0.5 : 1);
+        }
+      } catch (_) {}
       player._lastStepPos.copy(player.pos);
+    }
+    // constant trail of small ripples while moving through deep water, between the big strides
+    if (wade === 2) {
+      player._rippleAt = player._rippleAt || 0;
+      const now = performance.now() / 1000;
+      if (now - player._rippleAt > 0.45) { player._rippleAt = now; spawnWaterRipple(player.pos.x + rand(-0.3, 0.3), player.pos.z + rand(-0.3, 0.3), false); }
     }
   } else if (player.alive) {
     if (player._lastStepPos) player._lastStepPos.copy(player.pos);
   }
+  // Standing in water still disturbs it — slow breathing rings around the boots
+  if (wade && player.onGround && player.speed <= 0.6) {
+    player._rippleAt = player._rippleAt || 0;
+    const now = performance.now() / 1000;
+    if (now - player._rippleAt > 1.6) { player._rippleAt = now; spawnWaterRipple(player.pos.x, player.pos.z, false); }
+  }
+  // one notice per entry so the HUD doesn't chatter while you slosh around
+  if (wade && !player._wadeNotice) {
+    player._wadeNotice = true;
+    try { showMissionNotification(wade === 2 ? 'DEEP WATER — MOVEMENT SLOWED' : 'SHALLOW WATER — MIND THE DRAG'); } catch (_) {}
+  }
+  if (!wade) player._wadeNotice = false;
   player.eye += ((crouch ? 1.15 : 1.65) - player.eye) * Math.min(1, dt * 12);
-  camera.position.set(player.pos.x, player.pos.y + player.eye, player.pos.z);
+  // chest-deep wading: the horizon rocks with every careful step
+  let camSway = 0;
+  if (wade && player.onGround && player.speed > 0.4) {
+    const now = performance.now() * 0.001;
+    camSway = Math.sin(now * 4.2) * (wade === 2 ? 0.055 : 0.025);
+  }
+  camera.position.set(player.pos.x, player.pos.y + player.eye + camSway, player.pos.z);
   camera.rotation.set(player.pitch, player.yaw, 0);
 }
 
@@ -3862,6 +5171,15 @@ function frame() {
   requestAnimationFrame(frame);
   const dt = Math.min(clock.getDelta(), 0.05);
 
+  // Living water: the caustic texture creeps across every pond at once (one shared map) and the
+  // sheen breathes — marsh only, costs nothing on the dry arena.
+  if (marshPools.length) {
+    const wt = clock.elapsedTime;
+    waterTex.offset.x = Math.sin(wt * 0.11) * 0.015 + wt * 0.0035;
+    waterTex.offset.y = Math.cos(wt * 0.08) * 0.012 + wt * 0.0026;
+    mats.water.opacity = 0.7 + Math.sin(wt * 1.35) * 0.045;
+  }
+
   // Apply touch look on mobile
   if (isTouchDevice) applyTouchLook(dt);
 
@@ -3899,6 +5217,7 @@ function frame() {
       checkMissionObjectives();
       updateMissionMarkers();
       updateEscort(dt);
+      updateFuse(dt);
       // Animate evidence indicators (floating bob)
       const t = performance.now() * 0.001;
       for (const ev of missionState.evidence) {
@@ -3906,6 +5225,32 @@ function frame() {
           if (ch.userData.isIndicator) {
             ch.position.y = 0.9 + Math.sin(t * 2 + ev.position.x) * 0.1;
             ch.rotation.y = t * 1.5;
+          }
+        });
+      }
+      // Mission 02 props: bud/supply markers bob, charge anchors bob until planted,
+      // planted LEDs then blink fast while the fuse burns
+      const bobList = [[missionState.items, 1.35], [missionState.supplies, 0.75]];
+      for (const [list, baseY] of bobList) {
+        for (const it of list) {
+          it.children.forEach(ch => {
+            if (ch.userData.isIndicator) {
+              ch.position.y = baseY + Math.sin(t * 2 + it.position.x) * 0.1;
+              ch.rotation.y = t * 1.5;
+            }
+          });
+        }
+      }
+      for (const chG of missionState.charges) {
+        chG.children.forEach(m => {
+          if (!m.userData.isIndicator) return;
+          if (m.name === 'chargeLed') {
+            m.visible = missionState.fuseActive ? (t * 5) % 1 < 0.5 : true;
+          } else if (!chG.userData.planted) {
+            m.position.y = 1.0 + Math.sin(t * 2 + chG.position.x) * 0.1;
+            m.rotation.y = t * 1.5;
+          } else {
+            m.visible = false;
           }
         });
       }
@@ -4593,10 +5938,10 @@ function driveOwn(snapshot) {
 
   // Frame to frame the cabinet owns its own movement, so the echo is only used to correct a real
   // disagreement — snapping to every 10 Hz packet would rubber-band local movement.
-  const edge = mapHalf() - 1.2;
+  const b = mapBounds();
   if (player.alive && Math.hypot(player.pos.x - me.pos.x, player.pos.z - me.pos.z) > 3) {
-    player.pos.x = clamp(me.pos.x, -edge, edge);
-    player.pos.z = clamp(me.pos.z, -edge, edge);
+    player.pos.x = clamp(me.pos.x, b.xMin + 1.2, b.xMax - 1.2);
+    player.pos.z = clamp(me.pos.z, -(b.halfD) + 1.2, b.halfD - 1.2);
     player.pos.y = me.pos.y || 0;
     player.vel.set(0, 0, 0);
   }
@@ -4617,7 +5962,7 @@ function driveOwn(snapshot) {
   } else if (me.alive && (newRound || !player.alive)) {
     // New round: take the hub's fresh spawn instead of standing on the last round's spot.
     resetPlayer();
-    player.pos.set(clamp(me.pos.x, -edge, edge), me.pos.y || 0, clamp(me.pos.z, -edge, edge));
+    player.pos.set(clamp(me.pos.x, b.xMin + 1.2, b.xMax - 1.2), me.pos.y || 0, clamp(me.pos.z, -(b.halfD) + 1.2, b.halfD - 1.2));
     player.yaw = me.yaw || Math.PI;
     player.pitch = 0;
     camera.position.set(player.pos.x, player.pos.y + player.eye, player.pos.z);

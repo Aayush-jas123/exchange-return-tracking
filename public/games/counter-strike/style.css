@@ -650,6 +650,27 @@ html, body {
   padding: 4px 0; border-top: 1px solid rgba(255,255,255,.1);
   margin-top: 4px;
 }
+/* Mission-02 objective rows: same language as the evidence counter — greyscale, mono, uppercase */
+#guardCounter, #chargeCounter, #resupplyCounter {
+  font: 700 12px var(--m); color: rgba(255,255,255,.8); text-align: center;
+  letter-spacing: .1em; text-transform: uppercase;
+  padding: 4px 0; border-top: 1px solid rgba(255,255,255,.1);
+  margin-top: 4px;
+}
+#fuseHud {
+  display: flex; justify-content: space-between; gap: 12px;
+  padding: 4px 0; border-top: 1px solid rgba(255,255,255,.1);
+  margin-top: 4px;
+}
+#fuseLabel {
+  font: 600 11px var(--m); color: rgba(255,255,255,.7);
+  letter-spacing: .06em; text-transform: uppercase;
+}
+#fuseTimer {
+  font: 800 14px var(--m); color: #fff;
+  letter-spacing: .05em;
+}
+#fuseTimer.urgent { color: #ff5a4a; animation: timerBlink 0.5s ease-in-out infinite; }
 #escortHud {
   display: flex; justify-content: space-between; gap: 12px;
   padding: 4px 0; border-top: 1px solid rgba(255,255,255,.1);

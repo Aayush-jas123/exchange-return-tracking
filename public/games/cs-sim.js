@@ -83,7 +83,7 @@
   // All collision goes through cs-map.js so the hub and the browser agree bit for bit.
   const collide = (world, pos, r, h) => CSMap.collide(world.colliders, pos, r, h, CSMap.STEP);
   const ground = (world, pos, r) => CSMap.groundHeight(world.colliders, pos, r, CSMap.STEP);
-  const free = (world, x, z, r) => CSMap.isFree(world.colliders, world.half, x, z, r);
+  const free = (world, x, z, r) => CSMap.isFree(world.colliders, world, x, z, r);
   const los = (world, x1, z1, x2, z2) => CSMap.hasLOS(world.colliders, x1, z1, x2, z2);
 
   function pushFx(world, ev) {
@@ -241,9 +241,9 @@
       // Collision — height-aware, so a bot walks over pavement and low barriers exactly like the
       // player does instead of gridlocking on a 18 cm curb.
       collide(world, this.pos, 0.4, BOT_HEIGHT);
-      const edge = world.half - 1.5;
-      this.pos.x = clamp(this.pos.x, -edge, edge);
-      this.pos.z = clamp(this.pos.z, -edge, edge);
+      // x is asymmetric after the marsh expansion (west wall -49.5, east wall +64.5)
+      this.pos.x = clamp(this.pos.x, world.xMin + 1.5, world.xMax - 1.5);
+      this.pos.z = clamp(this.pos.z, -(world.halfD - 1.5), world.halfD - 1.5);
       this.pos.y = ground(world, this.pos, 0.4);
 
       // Stuck detection
@@ -355,8 +355,12 @@
     const world = {
       map,
       half: info.half,
+      halfW: info.halfW,
+      halfD: info.halfD,
+      xMin: info.xMin !== undefined ? info.xMin : -info.halfW,
+      xMax: info.xMax !== undefined ? info.xMax : info.halfW,
       colliders: CSMap.collidersFor(map),
-      waypoints: CSMap.waypoints(map, map === 'classic' ? 60 : 110),
+      waypoints: CSMap.waypoints(map, map === 'classic' ? 60 : 140),
       spawns: { ct: info.ct, t: info.t },
       round: 0,
       timeLeft: ROUND_TIME,
@@ -559,9 +563,8 @@
     // Collision, then keep the reported height honest with what the shared geometry says the
     // player is actually standing on.
     collide(world, p.pos, PLAYER_RADIUS, PLAYER_HEIGHT);
-    const edge = world.half - 1.2;
-    p.pos.x = clamp(p.pos.x, -edge, edge);
-    p.pos.z = clamp(p.pos.z, -edge, edge);
+    p.pos.x = clamp(p.pos.x, world.xMin + 1.2, world.xMax - 1.2);
+    p.pos.z = clamp(p.pos.z, -(world.halfD - 1.2), world.halfD - 1.2);
     const g = ground(world, p.pos, PLAYER_RADIUS);
     if (p.pos.y < g) p.pos.y = g;
     else if (p.pos.y - g > 1.6) p.pos.y = g; // no teleporting onto a roof you cannot reach
