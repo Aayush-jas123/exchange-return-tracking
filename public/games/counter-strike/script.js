@@ -218,6 +218,9 @@ const waterTex = makeTexture((g, s) => {
   }
 }, 512);
 waterTex.repeat.set(5, 5);
+// The continuous flood sheet tiles the same caustic far denser than the small ponds do
+const floodTex = waterTex.clone();
+floodTex.repeat.set(16, 16);
 
 const mats = {
   ground: new THREE.MeshStandardMaterial({ map: floorTex, roughness: 1 }),
@@ -241,6 +244,10 @@ const mats = {
   reed: new THREE.MeshStandardMaterial({ color: 0x5e625f, roughness: 1, side: THREE.DoubleSide }),
   marshGrass: new THREE.MeshStandardMaterial({ color: 0x4f5250, roughness: 1, side: THREE.DoubleSide }),
   fogBank: new THREE.MeshBasicMaterial({ color: 0x9a9a9e, transparent: true, opacity: 0.07, side: THREE.DoubleSide, depthWrite: false }),
+  // Bog flood + mirror streaks: the sheet is the bayou surface, the reflection quads are the
+  // dark smears trees draw on it. Both greyscale — the cabinet has no hue anywhere.
+  flood: new THREE.MeshStandardMaterial({ map: floodTex, color: 0x8c8c91, roughness: 0.16, metalness: 0.5, transparent: true, opacity: 0.68 }),
+  reflection: new THREE.MeshBasicMaterial({ color: 0x141417, transparent: true, opacity: 0.32, depthWrite: false, side: THREE.DoubleSide }),
 };
 
 // ── Map ──
@@ -569,6 +576,7 @@ function addFlat(x, z, w, d, y, mat, rotY = 0) {
 function addWaterPool(x, z, r, squash = 0.7, rotY = 0) {
   const m = addFlat(x, z, r * 2, r * 2 * squash, 0.08, mats.water, rotY);
   m.rotation.x = -Math.PI / 2;
+  m.renderOrder = 2;   // deeper patches paint above the continuous flood sheet, never sort under it
   return m;
 }
 
@@ -602,19 +610,128 @@ function addFogBank(x, z, w, y = 1.6) {
   return m;
 }
 
+// ══ CYPRESS SWAMP LAYER ══
+// The reference read: one continuous sheet of standing water, tall straight trees rising out of
+// it, dark mirror smears under every trunk, and low grass mounds breaking the surface. The old
+// pond-and-shore detail stays (it gives depth variation on top of the sheet) but the sheet is now
+// the floor of the whole band — floodRect also drives wadeDepth, so water drag covers the marsh.
+function addFloodSheet() {
+  const cx = (floodRect.x0 + floodRect.x1) / 2, cz = (floodRect.z0 + floodRect.z1) / 2;
+  const m = addFlat(cx, cz, floodRect.x1 - floodRect.x0, floodRect.z1 - floodRect.z0, 0.065, mats.flood);
+  // The sheet sits between the mud shelf (0.02) and the pond ellipses (0.08). Force the paint
+  // order so the two transparent layers never z-sort against each other.
+  m.renderOrder = 1;
+  return m;
+}
+
+// Cypress: a tall tapered trunk + a flared buttress at the waterline + a high sparse canopy, all
+// instanced/reused, plus a dark reflection smear drawn on the flood sheet. The trunk registers the
+// same client-only `veg` collider addTree uses — bots walk around it, cs-map.js never sees it.
+function addCypress(x, z, s = 1) {
+  const h = 9 * s;
+  _cypressTrunkInst.push({ p: [x, 0.35 * s, z], s: [s, h, s] });
+  _cypressBaseInst.push({ p: [x, 0.04, z], s: [s, s, s], yaw: rand(0, Math.PI * 2) });
+  // knee-like buttress root leaning off one side — the silhouette detail that sells a cypress
+  if (Math.random() < 0.7) {
+    _cypressBaseInst.push({
+      p: [x + rand(-0.5, 0.5) * s, 0.12, z + rand(-0.5, 0.5) * s],
+      s: [s * rand(0.5, 0.9), s * rand(0.4, 0.8), s * rand(0.5, 0.9)],
+      yaw: rand(0, Math.PI * 2), tilt: rand(0.15, 0.5),
+    });
+  }
+  // high, thin canopy — cypress over water grows straight up with little foliage low down
+  _leafInst.push({ p: [x, h * 0.92, z], s: [1.5 * s, 2.1 * s, 1.5 * s] });
+  if (Math.random() < 0.6) _leafInst.push({ p: [x + rand(-0.8, 0.8) * s, h * rand(0.72, 0.85), z + rand(-0.8, 0.8) * s], s: [0.9 * s, 1.2 * s, 0.9 * s] });
+  // mirror smear on the flood: a flat quad running N-S (the band is viewed from the west, so a
+  // length along z reads as a reflection from almost every angle you'd actually stand at
+  if (!reflectGeo) reflectGeo = new THREE.PlaneGeometry(1, 1);
+  const len = h * rand(0.5, 0.75);
+  _reflectInst.push({
+    p: [x + rand(-0.2, 0.2), 0.075, z + len * 0.28],
+    s: [0.55 * s, len, 1], yaw: 0, tilt: -Math.PI / 2, roll: rand(-0.12, 0.12),
+  });
+  colliders.push({ minX: x - 0.4 * s, maxX: x + 0.4 * s, minZ: z - 0.4 * s, maxZ: z + 0.4 * s, minY: 0, maxY: 2.4 * s, veg: true });
+}
+
+// Cypress instance collectors + shared geometries. Trunk is a tapered column normalised to height
+// 1 (instance scale.y IS tree height); the buttress is a flared cone with its origin at the mud.
+const _cypressTrunkInst = [];
+const _cypressBaseInst = [];
+const cypressTrunkGeo = (() => { const g = new THREE.CylinderGeometry(0.11, 0.34, 1, 7); g.translate(0, 0.5, 0); return g; })();
+const cypressBaseGeo = (() => { const g = new THREE.CylinderGeometry(0.16, 0.85, 1.05, 8); g.translate(0, 0.5, 0); return g; })();
+
+// Low grass hummock poking out of the bayou: a mud mound with a dense tuft cap, exactly the little
+// islands the reference scatters across open water. Decorative only — zero colliders.
+function addHummock(x, z, r = 1) {
+  const m = addFlat(x, z, r * 2.2, r * 2.2 * rand(0.6, 0.9), 0.09, mats.mud, rand(0, Math.PI));
+  m.renderOrder = 2;   // rides above the transparent flood sheet
+  for (let i = 0; i < Math.round(r * 7); i++) {
+    addGrassTuft(x + rand(-1, 1) * r, z + rand(-0.8, 0.8) * r, rand(0.8, 1.5));
+  }
+  for (let i = 0; i < Math.round(r * 2.5); i++) {
+    addReed(x + rand(-0.9, 0.9) * r, z + rand(-0.7, 0.7) * r, rand(0.7, 1.2));
+  }
+  return m;
+}
+
+// Fill the band with trees: dense but laned — a min-gap keeps bot lanes open through the trunks,
+// and isFree() (which now sees every structure, boardwalk AND the earlier veg colliders) guarantees
+// no trunk ever spawns inside a building or on a walkway.
+function scatterCypress(count = 85, minGap = 3.1) {
+  const placed = [];
+  let guard = 0;
+  while (placed.length < count && guard++ < count * 60) {
+    const x = rand(floodRect.x0 + 1.2, floodRect.x1 - 1.2);
+    const z = rand(floodRect.z0 + 1.5, floodRect.z1 - 1.5);
+    if (!isFree(x, z, 1.0)) continue;
+    if (placed.some(p => (p.x - x) ** 2 + (p.y - z) ** 2 < minGap * minGap)) continue;
+    placed.push({ x, z });
+    addCypress(x, z, rand(0.8, 1.5));
+  }
+  return placed.length;
+}
+
+function scatterHummocks(count = 40) {
+  let placed = 0, guard = 0;
+  while (placed < count && guard++ < count * 60) {
+    const x = rand(floodRect.x0 + 1.5, floodRect.x1 - 1.5);
+    const z = rand(floodRect.z0 + 2, floodRect.z1 - 2);
+    if (!isFree(x, z, 1.2)) continue;
+    addHummock(x, z, rand(0.6, 1.6));
+    placed++;
+  }
+  return placed;
+}
+
 // Ponds actually built by the last scatter — the wading physics reads this list every frame.
 // Mission-02 only: it stays empty on the plain 99x99 arena, so water drag can never leak
 // into rounds/co-op even if the collider table somehow did.
 let marshPools = [];
+// The continuous bayou surface (Mission-02 east band). Null everywhere else — every flood/wade
+// branch keys off this, so dry maps skip the new code paths entirely.
+let floodRect = null;
 let padGeo = null;
 let pebbleGeo = null;
+let reflectGeo = null;
 const _padInst = [];
 const _pebbleInst = [];
+const _reflectInst = [];
 
 // 0 = dry ground, 1 = ankle-deep margin, 2 = proper water. One cheap ellipse pass (~30 pools),
 // deliberately axis-aligned against the drawn squash axis — a few degrees of error at the shore
 // line is unnoticeable when the payoff is a per-frame call with zero allocations.
 function wadeDepth(x, z) {
+  // Continuous flood: the whole east band is wadeable, with a shallows gradient at the west
+  // edge where the bayou seeps under the old wall line. Boardwalks, slabs and building
+  // footprints sit on hardcoded dry rects — standing on pavement must never feel like wading.
+  if (floodRect && x > floodRect.x0 && x < floodRect.x1 && z > floodRect.z0 && z < floodRect.z1) {
+    for (const r of floodDry) {
+      if (x > r[0] && x < r[1] && z > r[2] && z < r[3]) return 0;
+    }
+    // Below-waist flood: the whole band is shallow (knee/ankle) — drag ×0.78, not the heavy ×0.5.
+    // Ponds still return 2 at their centres for deeper pockets within the shallow bayou.
+    return 1;
+  }
   let d = 0;
   for (const p of marshPools) {
     const dx = (x - p.x) / (p.r * 1.06), dz = (z - p.z) / (p.r * p.squash * 1.06);
@@ -624,6 +741,26 @@ function wadeDepth(x, z) {
   }
   return d;
 }
+
+// Dry pads inside the flood band: every east structure footprint + boardwalk, [minX,maxX,minZ,maxZ].
+// Deliberately a small hardcoded list — the rects are stable (they mirror cs-map.js), and a
+// per-frame loop over 14 tuples is cheaper than any isFree()-style lookup.
+const floodDry = [
+  [61.5, 78.5, -24.5, -11.5],   // warehouse
+  [42.5, 53.5, 6, 14],          // greenhouse
+  [67.5, 76.5, 4.5, 11.5],      // maintenance shed
+  [70.5, 85.5, 20.5, 31.5],     // admin wing
+  [51.5, 64.5, 35, 45],         // service complex
+  [54, 58, -18, 34],            // N-S boardwalk spine
+  [57, 69, -19.5, -16.5],       // warehouse connector
+  [53, 63, 38.5, 41.5],         // south arm
+  [65, 77, 1.5, 4.5],           // maintenance link
+  [74.5, 77.5, 10, 24],         // admin link
+  [57, 63, -31.25, -28.75],     // dock
+  [61.5, 66.5, 18.75, 21.25],   // jetty
+  [50.75, 53.25, -9.5, -2.5],   // side boardwalk
+  [49.5, 50.6, -49, 49],        // old east wall line — the seep stops at the brick
+];
 
 // Per-pond micro-detail: lily pads drifting on the surface (one instanced draw call), a wet mud
 // fringe around the shoreline, and occasionally a fallen log laid across the bank. All of it
@@ -682,6 +819,10 @@ function addMarshDetail(p) {
 // ~3400 background blades, lily pads, mud fringes, driftwood and pebbles — reeds/grass/pads/
 // pebbles all land in instanced draw calls, so "dense and detailed" still costs almost no frame time.
 function scatterMarsh() {
+  // The bayou first: one continuous flood across the whole east band, then the ponds get drawn on
+  // top of it as darker/deeper patches. wadeDepth keys off floodRect, so the entire band is water.
+  floodRect = { x0: 49.6, x1: 64.4, z0: -48.9, z1: 48.9 };
+  addFloodSheet();
   const pools = [];
   let guard = 0;
   while (pools.length < 30 && guard++ < 6000) {
@@ -726,9 +867,14 @@ function scatterMarsh() {
     if (p.r < 2.6 || Math.random() < 0.35) continue;
     const a = rand(0, Math.PI * 2), rr = p.r * rand(0.25, 0.55);
     const ix = p.x + Math.cos(a) * rr, iz = p.z + Math.sin(a) * rr * p.squash;
-    addFlat(ix, iz, rand(0.8, 1.4), rand(0.6, 1.0), 0.1, mats.mud, rand(0, Math.PI));
+    const isl = addFlat(ix, iz, rand(0.8, 1.4), rand(0.6, 1.0), 0.1, mats.mud, rand(0, Math.PI));
+    isl.renderOrder = 2;   // island must paint above the flood sheet
     for (let i = 0; i < 7; i++) addReed(ix + rand(-0.5, 0.5), iz + rand(-0.4, 0.4), rand(1.1, 1.6));
   }
+  // Cypress stand: the trees ARE the swamp — tall straight trunks rising out of the flood with
+  // buttressed bases and mirror smears, then grass hummocks to break the open surface.
+  const trees = scatterCypress(85);
+  const mounds = scatterHummocks(40);
   // Fog: a low bank over nearly every pond plus broad drifters along the boardwalk lanes
   for (const p of pools) {
     if (Math.random() < 0.8) addFogBank(p.x, p.z, Math.max(6, p.r * 3.0), rand(1.0, 1.7));
@@ -738,6 +884,7 @@ function scatterMarsh() {
   addFogBank(53, -41, 17, 1.4);
   addFogBank(57, 12, 16, 1.2);
   addFogBank(60, -20, 15, 1.5);
+  console.log(`[CS] Cypress swamp: flood sheet + ${trees} trees, ${mounds} hummocks`);
   return pools;
 }
 
@@ -1089,9 +1236,16 @@ function finalizeVegetation() {
   _fillOriented(bladeGeo, mats.marshGrass, _grassInst, false);
   _fillOriented(padGeo || bladeGeo, mats.mud, _padInst, false);          // lily pads (marsh only)
   _fillOriented(pebbleGeo || bladeGeo, mats.concrete, _pebbleInst, false); // shore pebbles
+  _fillInstances(cypressTrunkGeo, mats.wall, _cypressTrunkInst);          // swamp trunks
+  _fillOriented(cypressBaseGeo, mats.mud, _cypressBaseInst, false);       // buttresses + knees
+  // Mirror smears must NOT cast/receive shadows — _fillOriented force-enables both, so flip them
+  // off on the returned mesh or every reflection quad would darken the flood from the sun.
+  const refl = _fillOriented(reflectGeo || bladeGeo, mats.reflection, _reflectInst, false);
+  if (refl) { refl.castShadow = false; refl.receiveShadow = false; }
   _trunkInst.length = 0; _leafInst.length = 0; _cannabisInst.length = 0;
   _stemInst.length = 0; _budInst.length = 0; _reedInst.length = 0; _grassInst.length = 0;
   _padInst.length = 0; _pebbleInst.length = 0;
+  _cypressTrunkInst.length = 0; _cypressBaseInst.length = 0; _reflectInst.length = 0;
 }
 
 // Oriented instancing for anything that carries a yaw/tilt/roll: cannabis leaves (with a per-leaf
@@ -1121,6 +1275,7 @@ function _fillOriented(geo, mat, list, colored) {
   im.castShadow = true; im.receiveShadow = true;
   im.frustumCulled = true;
   scene.add(im); worldMeshes.push(im);
+  return im;   // callers may opt out of shadows (translucent reflection quads)
 }
 
 // Dense-but-passable grove: trees kept ≥ minGap apart so lanes stay walkable, and only placed
@@ -1390,6 +1545,7 @@ function clearMap() {
   worldMeshes.length = 0;
   colliders.length = 0;
   marshPools = [];   // wading physics must go dry until the next marsh actually gets built
+  floodRect = null;  // so must the continuous bayou surface
 }
 
 function buildIndustrialMap() {
@@ -1633,7 +1789,7 @@ const waypoints = [];
 function generateWaypoints() {
   waypoints.length = 0;
   const b = mapBounds();
-  const count = selectedMap === 'classic' ? 60 : selectedMap === 'industrial_east' ? 190 : 140;
+  const count = selectedMap === 'classic' ? 60 : selectedMap === 'industrial_east' ? 210 : 140;
   const xLo = b.xMin + 3, xHi = b.xMax - 3, zLo = -b.halfD + 3, zHi = b.halfD - 3;
   // Guarded: if a map edit ever makes free space scarce this must degrade to fewer waypoints rather
   // than spin the browser forever inside a while loop.
@@ -1926,7 +2082,8 @@ function spawnWaterRipple(x, z, big) {
     new THREE.MeshBasicMaterial({ color: 0xd6d6da, transparent: true, opacity: 0.45, depthWrite: false, side: THREE.DoubleSide })
   );
   m.rotation.x = -Math.PI / 2;
-  m.position.set(x, 0.095, z);
+  m.position.set(x, 0.11, z);   // above both the flood sheet (0.065) and the pond patches (0.08)
+  m.renderOrder = 3;
   scene.add(m);
   effects.push({
     obj: m, life: big ? 1.4 : 1.0, max: big ? 1.4 : 1.0, fade: 0.55,
@@ -1936,7 +2093,7 @@ function spawnWaterRipple(x, z, big) {
 
 // A few weightless grey droplets kicked up at the boot — same particle pool as impact sparks
 function spawnWadeSplash(pos, deep) {
-  spawnParticles(new THREE.Vector3(pos.x + rand(-0.25, 0.25), 0.12, pos.z + rand(-0.25, 0.25)),
+  spawnParticles(new THREE.Vector3(pos.x + rand(-0.25, 0.25), 0.14, pos.z + rand(-0.25, 0.25)),
     null, mats.water, deep ? 5 : 3, deep ? 2.2 : 1.4);
 }
 
@@ -5180,6 +5337,10 @@ function frame() {
     waterTex.offset.x = Math.sin(wt * 0.11) * 0.015 + wt * 0.0035;
     waterTex.offset.y = Math.cos(wt * 0.08) * 0.012 + wt * 0.0026;
     mats.water.opacity = 0.7 + Math.sin(wt * 1.35) * 0.045;
+    // the bayou sheet drifts on its own slower vector so pond patches and flood never pulse in lockstep
+    floodTex.offset.x = Math.sin(wt * 0.07) * 0.01 - wt * 0.0021;
+    floodTex.offset.y = Math.cos(wt * 0.05) * 0.008 + wt * 0.0017;
+    mats.flood.opacity = 0.66 + Math.sin(wt * 0.9 + 1.7) * 0.04;
   }
 
   // Apply touch look on mobile
