@@ -237,7 +237,7 @@ const mats = {
   cannabisStem: new THREE.MeshStandardMaterial({ color: 0x4a4a4a, roughness: 1 }),
   cannabisBud: new THREE.MeshStandardMaterial({ color: 0x8a8a8a, roughness: 1, flatShading: true }),
   // Marsh palette — all greyscale, brand rule: no hue anywhere in the cabinet
-  water: new THREE.MeshStandardMaterial({ map: waterTex, color: 0x909095, roughness: 0.18, metalness: 0.45, transparent: true, opacity: 0.72 }),
+  water: new THREE.MeshStandardMaterial({ map: waterTex, color: 0x909095, roughness: 0.18, metalness: 0.45, transparent: true, opacity: 0.55 }),
   mud: new THREE.MeshStandardMaterial({ color: 0x3f3f42, roughness: 1 }),
   glass: new THREE.MeshStandardMaterial({ color: 0xa8b0b4, roughness: 0.12, metalness: 0.25, transparent: true, opacity: 0.24, side: THREE.DoubleSide }),
   // Reed blades and grass tufts share ONE flat, double-sided quad geometry (one draw call each)
@@ -246,7 +246,7 @@ const mats = {
   fogBank: new THREE.MeshBasicMaterial({ color: 0x9a9a9e, transparent: true, opacity: 0.07, side: THREE.DoubleSide, depthWrite: false }),
   // Bog flood + mirror streaks: the sheet is the bayou surface, the reflection quads are the
   // dark smears trees draw on it. Both greyscale — the cabinet has no hue anywhere.
-  flood: new THREE.MeshStandardMaterial({ map: floodTex, color: 0x8c8c91, roughness: 0.16, metalness: 0.5, transparent: true, opacity: 0.68 }),
+  flood: new THREE.MeshStandardMaterial({ map: floodTex, color: 0x8c8c91, roughness: 0.16, metalness: 0.5, transparent: true, opacity: 0.42 }),
   reflection: new THREE.MeshBasicMaterial({ color: 0x141417, transparent: true, opacity: 0.32, depthWrite: false, side: THREE.DoubleSide }),
 };
 
@@ -574,7 +574,7 @@ function addFlat(x, z, w, d, y, mat, rotY = 0) {
 
 // Elliptical pool built from one rotated circle, so pools read organic instead of axial
 function addWaterPool(x, z, r, squash = 0.7, rotY = 0) {
-  const m = addFlat(x, z, r * 2, r * 2 * squash, 0.08, mats.water, rotY);
+  const m = addFlat(x, z, r * 2, r * 2 * squash, 0.05, mats.water, rotY);
   m.rotation.x = -Math.PI / 2;
   m.renderOrder = 2;   // deeper patches paint above the continuous flood sheet, never sort under it
   return m;
@@ -617,9 +617,9 @@ function addFogBank(x, z, w, y = 1.6) {
 // the floor of the whole band — floodRect also drives wadeDepth, so water drag covers the marsh.
 function addFloodSheet() {
   const cx = (floodRect.x0 + floodRect.x1) / 2, cz = (floodRect.z0 + floodRect.z1) / 2;
-  const m = addFlat(cx, cz, floodRect.x1 - floodRect.x0, floodRect.z1 - floodRect.z0, 0.065, mats.flood);
-  // The sheet sits between the mud shelf (0.02) and the pond ellipses (0.08). Force the paint
-  // order so the two transparent layers never z-sort against each other.
+  const m = addFlat(cx, cz, floodRect.x1 - floodRect.x0, floodRect.z1 - floodRect.z0, 0.035, mats.flood);
+  // The sheet sits just above the mud shelf (0.02) — a thin water film at the player's feet.
+  // Force the paint order so the transparent layers never z-sort against each other.
   m.renderOrder = 1;
   return m;
 }
@@ -647,7 +647,7 @@ function addCypress(x, z, s = 1) {
   if (!reflectGeo) reflectGeo = new THREE.PlaneGeometry(1, 1);
   const len = h * rand(0.5, 0.75);
   _reflectInst.push({
-    p: [x + rand(-0.2, 0.2), 0.075, z + len * 0.28],
+    p: [x + rand(-0.2, 0.2), 0.04, z + len * 0.28],
     s: [0.55 * s, len, 1], yaw: 0, tilt: -Math.PI / 2, roll: rand(-0.12, 0.12),
   });
   colliders.push({ minX: x - 0.4 * s, maxX: x + 0.4 * s, minZ: z - 0.4 * s, maxZ: z + 0.4 * s, minY: 0, maxY: 2.4 * s, veg: true });
@@ -663,7 +663,7 @@ const cypressBaseGeo = (() => { const g = new THREE.CylinderGeometry(0.16, 0.85,
 // Low grass hummock poking out of the bayou: a mud mound with a dense tuft cap, exactly the little
 // islands the reference scatters across open water. Decorative only — zero colliders.
 function addHummock(x, z, r = 1) {
-  const m = addFlat(x, z, r * 2.2, r * 2.2 * rand(0.6, 0.9), 0.09, mats.mud, rand(0, Math.PI));
+  const m = addFlat(x, z, r * 2.2, r * 2.2 * rand(0.6, 0.9), 0.055, mats.mud, rand(0, Math.PI));
   m.renderOrder = 2;   // rides above the transparent flood sheet
   for (let i = 0; i < Math.round(r * 7); i++) {
     addGrassTuft(x + rand(-1, 1) * r, z + rand(-0.8, 0.8) * r, rand(0.8, 1.5));
@@ -744,7 +744,7 @@ function wadeDepth(x, z) {
 
 // Dry pads inside the flood band: every east structure footprint + boardwalk, [minX,maxX,minZ,maxZ].
 // Deliberately a small hardcoded list — the rects are stable (they mirror cs-map.js), and a
-// per-frame loop over 14 tuples is cheaper than any isFree()-style lookup.
+// per-frame loop over 13 tuples is cheaper than any isFree()-style lookup.
 const floodDry = [
   [61.5, 78.5, -24.5, -11.5],   // warehouse
   [42.5, 53.5, 6, 14],          // greenhouse
@@ -759,7 +759,6 @@ const floodDry = [
   [57, 63, -31.25, -28.75],     // dock
   [61.5, 66.5, 18.75, 21.25],   // jetty
   [50.75, 53.25, -9.5, -2.5],   // side boardwalk
-  [49.5, 50.6, -49, 49],        // old east wall line — the seep stops at the brick
 ];
 
 // Per-pond micro-detail: lily pads drifting on the surface (one instanced draw call), a wet mud
@@ -771,12 +770,12 @@ function addMarshDetail(p) {
   for (let i = 0; i < n; i++) {
     const a = Math.random() * Math.PI * 2, rr = p.r * Math.sqrt(Math.random()) * 0.78;
     _padInst.push({
-      p: [p.x + Math.cos(a) * rr, 0.095, p.z + Math.sin(a) * rr * p.squash],
+      p: [p.x + Math.cos(a) * rr, 0.055, p.z + Math.sin(a) * rr * p.squash],
       s: rand(0.5, 1.2), yaw: 0, tilt: -Math.PI / 2, roll: rand(0, Math.PI * 2),
     });
   }
   // darker saturated ring hugging the pool — reads as wet mud between waterline and dry ground
-  addFlat(p.x, p.z, p.r * 2 * 1.32, p.r * 2 * p.squash * 1.32, 0.055, mats.mud, rand(0, Math.PI));
+  addFlat(p.x, p.z, p.r * 2 * 1.32, p.r * 2 * p.squash * 1.32, 0.03, mats.mud, rand(0, Math.PI));
   // driftwood: roughly every other pond gets a log slumped over its bank
   if (Math.random() < 0.55) {
     const a = rand(0, Math.PI * 2);
@@ -815,18 +814,19 @@ function addMarshDetail(p) {
 // Pure decoration — none of it registers colliders, so the flooded floor stays walkable and the
 // hub's waypoint sampling never sees the marsh at all. Rejection tests run through isFree() so a
 // pond never overlaps a structure or boardwalk, and blades never sprout on a walkway or a crate.
-// Density target: ~30 ponds in a continuous flooded band, every shore triple-banded with reeds,
-// ~3400 background blades, lily pads, mud fringes, driftwood and pebbles — reeds/grass/pads/
-// pebbles all land in instanced draw calls, so "dense and detailed" still costs almost no frame time.
+// Density target: ~50 ponds in a continuous flooded band, every shore triple-banded with reeds,
+// ~6000 background blades, 140 cypress, 70 hummocks, lily pads, mud fringes, driftwood and
+// pebbles — reeds/grass/pads/pebbles all land in instanced draw calls, so "dense and detailed"
+// still costs almost no frame time.
 function scatterMarsh() {
   // The bayou first: one continuous flood across the whole east band, then the ponds get drawn on
   // top of it as darker/deeper patches. wadeDepth keys off floodRect, so the entire band is water.
-  floodRect = { x0: 49.6, x1: 64.4, z0: -48.9, z1: 48.9 };
+  floodRect = { x0: 49.6, x1: 85.9, z0: -48.9, z1: 48.9 };
   addFloodSheet();
   const pools = [];
   let guard = 0;
-  while (pools.length < 30 && guard++ < 6000) {
-    const x = rand(45.5, 62.5), z = rand(-47, 47);
+  while (pools.length < 50 && guard++ < 9000) {
+    const x = rand(45.5, 84), z = rand(-47, 47);
     const r = rand(1.4, 4.4);
     const squash = rand(0.55, 0.85);
     if (!isFree(x, z, r + 0.8)) continue;
@@ -855,8 +855,8 @@ function scatterMarsh() {
   // Background fill across the flooded strip — the ground between ponds should look like swamp
   guard = 0;
   let fill = 0;
-  while (fill < 3400 && guard++ < 22000) {
-    const x = rand(45.5, 64), z = rand(-48.8, 48.8);
+  while (fill < 6000 && guard++ < 36000) {
+    const x = rand(45.5, 85), z = rand(-48.8, 48.8);
     if (pools.some(p => ((x - p.x) / p.r) ** 2 + ((z - p.z) / (p.r * p.squash)) ** 2 < 0.92)) continue;
     if (!isFree(x, z, 0.5)) continue;
     if (Math.random() < 0.62) addReed(x, z, rand(0.5, 1.3)); else addGrassTuft(x, z, rand(0.6, 1.3));
@@ -867,14 +867,14 @@ function scatterMarsh() {
     if (p.r < 2.6 || Math.random() < 0.35) continue;
     const a = rand(0, Math.PI * 2), rr = p.r * rand(0.25, 0.55);
     const ix = p.x + Math.cos(a) * rr, iz = p.z + Math.sin(a) * rr * p.squash;
-    const isl = addFlat(ix, iz, rand(0.8, 1.4), rand(0.6, 1.0), 0.1, mats.mud, rand(0, Math.PI));
+    const isl = addFlat(ix, iz, rand(0.8, 1.4), rand(0.6, 1.0), 0.055, mats.mud, rand(0, Math.PI));
     isl.renderOrder = 2;   // island must paint above the flood sheet
     for (let i = 0; i < 7; i++) addReed(ix + rand(-0.5, 0.5), iz + rand(-0.4, 0.4), rand(1.1, 1.6));
   }
   // Cypress stand: the trees ARE the swamp — tall straight trunks rising out of the flood with
   // buttressed bases and mirror smears, then grass hummocks to break the open surface.
-  const trees = scatterCypress(85);
-  const mounds = scatterHummocks(40);
+  const trees = scatterCypress(140);
+  const mounds = scatterHummocks(70);
   // Fog: a low bank over nearly every pond plus broad drifters along the boardwalk lanes
   for (const p of pools) {
     if (Math.random() < 0.8) addFogBank(p.x, p.z, Math.max(6, p.r * 3.0), rand(1.0, 1.7));
@@ -882,8 +882,10 @@ function scatterMarsh() {
   addFogBank(55, -6, 20, 1.8);
   addFogBank(59, 31, 22, 1.5);
   addFogBank(53, -41, 17, 1.4);
-  addFogBank(57, 12, 16, 1.2);
-  addFogBank(60, -20, 15, 1.5);
+  addFogBank(72, 12, 24, 1.6);
+  addFogBank(78, -20, 20, 1.5);
+  addFogBank(65, -35, 18, 1.3);
+  addFogBank(80, 30, 22, 1.4);
   console.log(`[CS] Cypress swamp: flood sheet + ${trees} trees, ${mounds} hummocks`);
   return pools;
 }
@@ -910,6 +912,119 @@ function addWarehouse(bx, bz, w, d, h) {
   addDecoBox(bx - hw - 0.1, bz - 2.4, 0.2, 0.3, h, mats.metal, 1.2, 0.3);
   addDecoBox(bx - hw - 0.1, bz + 2.4, 0.2, 0.3, h, mats.metal, 1.2, 0.3);
   addDecoBox(bx - hw, bz, wt, 5.0, 1.1, mats.metal, 1.5, h - 1.4);
+
+  // ── Support columns: the demolition targets (charges get planted here) ──
+  // Six I-beam-style pillars on a 2×3 grid inside the building. Each is a central web +
+  // two flanges, purely decorative (colliders come from cs-map.js main walls only).
+  const colX = [bx - hw + 3.5, bx - hw + 8.5, bx + hw - 3.5];
+  const colZ = [bz - hd + 3.5, bz, bz + hd - 3.5];
+  for (const cx of colX) {
+    for (const cz of colZ) {
+      const px = cx, pz = cz;
+      // Web (thin vertical plate)
+      addDecoBox(px, pz, 0.18, 0.6, h - 0.3, mats.metal, 1, 0.3);
+      // Flanges (two horizontal plates)
+      addDecoBox(px, pz - 0.22, 0.6, 0.12, h - 0.3, mats.metal, 1, 0.3);
+      addDecoBox(px, pz + 0.22, 0.6, 0.12, h - 0.3, mats.metal, 1, 0.3);
+      // Base plate (thick footing at ground level)
+      addDecoBox(px, pz, 0.9, 0.9, 0.12, mats.concrete, 1, 0.3);
+      // Capital bracket connecting column to roof truss
+      addDecoBox(px, pz, 0.8, 0.8, 0.15, mats.metal, 1, h - 0.5);
+    }
+  }
+
+  // ── Overhead crane rail + trolley + hanging chains ──
+  // Two parallel I-beam rails spanning the length at y=h-1, with a trolley box and chains.
+  const railY = h - 0.8;
+  addDecoBox(bx, bz - hd + 2.5, w - 1.5, 0.25, 0.3, mats.metal, 2, railY);
+  addDecoBox(bx, bz + hd - 2.5, w - 1.5, 0.25, 0.3, mats.metal, 2, railY);
+  // Trolley body
+  addDecoBox(bx + 1, bz, 1.2, 1.8, 0.5, mats.metal, 1.2, railY + 0.15);
+  // Hanging chains (thin cylinders dangling from the trolley and from ceiling points)
+  const chainPts = [[bx + 1, bz], [bx - 3, bz - hd + 2.5], [bx + 4, bz + hd - 2.5], [bx - hw + 2, bz]];
+  for (const [chx, chz] of chainPts) {
+    const chLen = rand(1.2, 2.8);
+    const chain = new THREE.Mesh(getCylGeo(0.03, chLen), mats.metal);
+    chain.position.set(chx, railY - chLen / 2, chz);
+    chain.castShadow = true;
+    scene.add(chain); worldMeshes.push(chain);
+    // Small hook at the bottom
+    const hook = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.025, 6, 8, Math.PI * 1.4), mats.metal);
+    hook.position.set(chx, railY - chLen - 0.05, chz);
+    hook.rotation.x = Math.PI / 2;
+    scene.add(hook); worldMeshes.push(hook);
+  }
+
+  // ── Roof trusses: diagonal cross-bracing between columns ──
+  for (let i = 0; i < colX.length - 1; i++) {
+    const x1 = colX[i], x2 = colX[i + 1];
+    const span = x2 - x1;
+    addDecoBox((x1 + x2) / 2, bz - hd + 2.5, span, 0.12, 0.2, mats.metal, 1.5, h - 0.4);
+    addDecoBox((x1 + x2) / 2, bz + hd - 2.5, span, 0.12, 0.2, mats.metal, 1.5, h - 0.4);
+    // Diagonal brace
+    addDecoBox((x1 + x2) / 2, bz, span * 0.7, 0.08, 0.15, mats.metal, 1, h - 1.2);
+  }
+
+  // ── Interior shelving racks (heavy-duty pallet racking) ──
+  // Three rows of double-sided shelving along the east half
+  for (let row = 0; row < 3; row++) {
+    const rz = bz - hd + 4 + row * 3.5;
+    // Uprights
+    for (let u = 0; u < 4; u++) {
+      const ux = bx + 1.5 + u * 1.8;
+      addDecoBox(ux, rz, 0.1, 0.1, 2.8, mats.metal, 1, 0.3);
+    }
+    // Shelf beams (3 levels)
+    for (let lv = 0; lv < 3; lv++) {
+      addDecoBox(bx + 4.2, rz, 5.6, 0.08, 0.12, mats.metal, 1.5, 0.9 + lv * 0.9);
+      // Boxes/cargo on shelves
+      for (let b = 0; b < 3; b++) {
+        const bxx = bx + 2 + b * 1.8;
+        addDecoBox(bxx, rz + rand(-0.2, 0.2), rand(0.5, 0.9), rand(0.4, 0.7), rand(0.3, 0.6), mats.crate, 1, 0.95 + lv * 0.9);
+      }
+    }
+  }
+
+  // ── Oil drums and barrels scattered inside ──
+  const drumPositions = [[bx - hw + 2, bz + hd - 2], [bx - hw + 3.5, bz + hd - 3], [bx - 1, bz - hd + 2]];
+  for (const [dx, dz] of drumPositions) {
+    const drum = new THREE.Mesh(getCylGeo(0.35, 0.9), mats.metal);
+    drum.position.set(dx + rand(-0.3, 0.3), 0.75, dz + rand(-0.3, 0.3));
+    drum.castShadow = true; drum.receiveShadow = true;
+    scene.add(drum); worldMeshes.push(drum);
+  }
+
+  // ── Wall-mounted cable trays (perforated channel along upper walls) ──
+  for (const sgn of [-1, 1]) {
+    addDecoBox(bx, bz + sgn * (hd - 0.4), w - 2, 0.3, 0.1, mats.metal, 2, h - 1.5);
+    // Tray supports every 2m
+    for (let s = 0; s < Math.floor((w - 2) / 2); s++) {
+      addDecoBox(bx - hw + 1.5 + s * 2, bz + sgn * (hd - 0.4), 0.06, 0.06, 0.5, mats.metal, 1, h - 1.8);
+    }
+  }
+
+  // ── Loading dock bumpers + wheel chocks on the west face ──
+  addDecoBox(bx - hw - 0.15, bz - 1.8, 0.3, 0.6, 0.5, mats.cannabisStem, 1, 0.55);
+  addDecoBox(bx - hw - 0.15, bz + 1.8, 0.3, 0.6, 0.5, mats.cannabisStem, 1, 0.55);
+  // Dock ramp (angled plate from ground to floor slab height)
+  const ramp = addDecoBox(bx - hw - 1.2, bz, 2.4, 4.5, 0.1, mats.concrete, 1.5, 0.15);
+  ramp.rotation.z = 0.06;
+
+  // ── Floor markings: painted safety lines (thin bright strips on the slab) ──
+  const lineMat = new THREE.MeshBasicMaterial({ color: 0x7a7a7a });
+  for (const lz of [bz - hd + 1.5, bz + hd - 1.5]) {
+    addDecoBox(bx, lz, w - 2, 0.12, 0.01, lineMat, 1, 0.31);
+  }
+  addDecoBox(bx - hw + 4, bz, 0.12, d - 3, 0.01, lineMat, 1, 0.31);
+
+  // ── Exterior vents + conduit pipes on east wall ──
+  for (let v = 0; v < 3; v++) {
+    const vz = bz - hd + 3 + v * 4;
+    addDecoBox(bx + hw + 0.2, vz, 0.4, 0.8, 0.6, mats.metal, 1, h - 1.5);
+    // Conduit running down
+    addDecoBox(bx + hw + 0.15, vz, 0.1, 0.1, h - 2, mats.metal, 1, 0.3);
+  }
+
   // Interior: crate stacks (the "weapons stockpile" that is really archive shelving)
   crate(bx - hw + 2.5, bz - hd + 2.5, 2.0, 0.3); crate(bx - hw + 2.5, bz - hd + 2.5, 1.4, 2.3);
   crate(bx - hw + 5.0, bz + hd - 2.5, 2.2, 0.3);
@@ -1552,7 +1667,7 @@ function buildIndustrialMap() {
   // ════════════════════════════════════════════════════════════
   //  ABANDONED INDUSTRIAL COMPLEX. Two footprints share one core builder:
   //   • industrial      — 99x99 (rounds, co-op, free play, Mission 01)
-  //   • industrial_east — 128x99: the same arena PLUS a 30 m eastern marshland
+  //   • industrial_east — 136x99: the same arena PLUS a 36 m eastern marshland
   //     (five mission structures over dense flooded wetland). Mission 02
   //     "Ashes of Evidence" is the ONLY consumer — the expansion, its water
   //     physics and its scatter never load in any other mode.
@@ -1572,15 +1687,15 @@ function buildIndustrialMap() {
   createWallLogo(-48.4, 3, 0, Math.PI / 2);
 
   if (EAST) {
-    // Eastern mud shelf: the branded floor plane stops at the old east wall (x=49.5) — the marsh
-    // strip gets its own darker, matte sheet so the expansion reads as different ground.
-    addFlat(57, 0, 15, 99, 0.02, mats.mud);
-    createWallLogo(63.4, 3, 0, -Math.PI / 2);        // east face moved with the wall to x=64.5
-    // ── Perimeter Walls ── (128x99 after the Mission-02 east expansion; the west wall never moved)
-    addBox(7.5, -49.5, 128, 1, 8, mats.wall);
-    addBox(7.5, 49.5, 128, 1, 8, mats.wall);
+    // Eastern mud shelf: the branded floor plane stops at x=49.5 — the marsh strip gets its own
+    // darker, matte sheet so the expansion reads as different ground all the way to the east wall.
+    addFlat(67.75, 0, 36.5, 99, 0.02, mats.mud);
+    createWallLogo(85, 3, 0, -Math.PI / 2);          // east face inner wall at x=86
+    // ── Perimeter Walls ── (136x99 after the Mission-02 east expansion; the west wall never moved)
+    addBox(18.25, -49.5, 135.5, 1, 8, mats.wall);
+    addBox(18.25, 49.5, 135.5, 1, 8, mats.wall);
     addBox(-49.5, 0, 1, 99, 8, mats.wall);
-    addBox(64.5, 0, 1, 99, 8, mats.wall);
+    addBox(86, 0, 1, 99, 8, mats.wall);
   } else {
     // Original symmetric arena: 99x99 with the east wall standing back at x=49.5
     createWallLogo(48.4, 3, 0, -Math.PI / 2);
@@ -1742,7 +1857,7 @@ function buildIndustrialMap() {
   crate(-20, 8, 1.5); crate(20, 8, 1.5);
   crate(-8, 30, 1.2); crate(8, 30, 1.2);
 
-  console.log(`[CS] Industrial Complex: 6 duplexes + round towers, vehicles, pavement streets${EAST ? ` + eastern marshland (${marshPools.length} pools, 128x99)` : ' (99x99, no marsh)'}`);
+  console.log(`[CS] Industrial Complex: 6 duplexes + round towers, vehicles, pavement streets${EAST ? ` + eastern marshland (${marshPools.length} pools, 136x99)` : ' (99x99, no marsh)'}`);
 }
 
 function buildClassicMap() {
@@ -1789,7 +1904,7 @@ const waypoints = [];
 function generateWaypoints() {
   waypoints.length = 0;
   const b = mapBounds();
-  const count = selectedMap === 'classic' ? 60 : selectedMap === 'industrial_east' ? 210 : 140;
+  const count = selectedMap === 'classic' ? 60 : selectedMap === 'industrial_east' ? 260 : 140;
   const xLo = b.xMin + 3, xHi = b.xMax - 3, zLo = -b.halfD + 3, zHi = b.halfD - 3;
   // Guarded: if a map edit ever makes free space scarce this must degrade to fewer waypoints rather
   // than spin the browser forever inside a while loop.
@@ -1836,7 +1951,7 @@ function buildMap() {
   } else {
     buildIndustrialMap();
     console.log(selectedMap === 'industrial_east'
-      ? '[CS] Industrial Complex map loaded (128x99, marsh east)'
+      ? '[CS] Industrial Complex map loaded (136x99, marsh east)'
       : '[CS] Industrial Complex map loaded (99x99)');
   }
   installSharedColliders();
@@ -2082,7 +2197,7 @@ function spawnWaterRipple(x, z, big) {
     new THREE.MeshBasicMaterial({ color: 0xd6d6da, transparent: true, opacity: 0.45, depthWrite: false, side: THREE.DoubleSide })
   );
   m.rotation.x = -Math.PI / 2;
-  m.position.set(x, 0.11, z);   // above both the flood sheet (0.065) and the pond patches (0.08)
+  m.position.set(x, 0.055, z);   // just above the flood sheet (0.035) and pond patches (0.05)
   m.renderOrder = 3;
   scene.add(m);
   effects.push({
@@ -2093,7 +2208,7 @@ function spawnWaterRipple(x, z, big) {
 
 // A few weightless grey droplets kicked up at the boot — same particle pool as impact sparks
 function spawnWadeSplash(pos, deep) {
-  spawnParticles(new THREE.Vector3(pos.x + rand(-0.25, 0.25), 0.14, pos.z + rand(-0.25, 0.25)),
+  spawnParticles(new THREE.Vector3(pos.x + rand(-0.25, 0.25), 0.06, pos.z + rand(-0.25, 0.25)),
     null, mats.water, deep ? 5 : 3, deep ? 2.2 : 1.4);
 }
 
@@ -5336,11 +5451,11 @@ function frame() {
     const wt = clock.elapsedTime;
     waterTex.offset.x = Math.sin(wt * 0.11) * 0.015 + wt * 0.0035;
     waterTex.offset.y = Math.cos(wt * 0.08) * 0.012 + wt * 0.0026;
-    mats.water.opacity = 0.7 + Math.sin(wt * 1.35) * 0.045;
+    mats.water.opacity = 0.52 + Math.sin(wt * 1.35) * 0.03;
     // the bayou sheet drifts on its own slower vector so pond patches and flood never pulse in lockstep
     floodTex.offset.x = Math.sin(wt * 0.07) * 0.01 - wt * 0.0021;
     floodTex.offset.y = Math.cos(wt * 0.05) * 0.008 + wt * 0.0017;
-    mats.flood.opacity = 0.66 + Math.sin(wt * 0.9 + 1.7) * 0.04;
+    mats.flood.opacity = 0.40 + Math.sin(wt * 0.9 + 1.7) * 0.025;
   }
 
   // Apply touch look on mobile

@@ -389,10 +389,10 @@
   function buildIndustrialEast(out) {
     buildIndustrialCore(out);
     const box = makeSink(out), cylinder = cyl(out);
-    // One long run of N/S wall across both the core and the marsh, east wall at x=64.5 — drawn
+    // One long run of N/S wall across both the core and the marsh, east wall at x=86 — drawn
     // wall-for-wall by buildIndustrialMap (splitting the run here would drift from the meshes)
-    box(7.5, -49.5, 128, 1, 8); box(7.5, 49.5, 128, 1, 8);
-    box(64.5, 0, 1, 99, 8);
+    box(18.25, -49.5, 135.5, 1, 8); box(18.25, 49.5, 135.5, 1, 8);
+    box(86, 0, 1, 99, 8);
 
     warehouseBuilding(box, 70, -18, 16, 12, 5.0);      // eastern weapons warehouse / archive
     greenhouseBuilding(box, 48, 10, 10, 7);            // abandoned workers' greenhouse (Purple Bud)
@@ -452,7 +452,7 @@
       t: { xMin: -20, xMax: 20, zMin: 35, zMax: 45 },
     },
     industrial_east: {
-      size: 99, half: 48, halfW: 64.5, halfD: 49.5, xMin: -49.5, xMax: 64.5, east: true,
+      size: 99, half: 48, halfW: 86, halfD: 49.5, xMin: -49.5, xMax: 86, east: true,
       ct: { xMin: -8, xMax: 8, zMin: -45, zMax: -40 },
       t: { xMin: -20, xMax: 20, zMin: 35, zMax: 45 },
     },
