@@ -5603,7 +5603,7 @@ function drawRadar() {
   }
   for (const b of bots) {
     if (!b.dead && b.spotted <= 0) continue;
-    c.fillStyle = b.dead ? 'rgba(120,120,120,0.8)' : '#f0f0f2'; // monochrome for enemies
+    c.fillStyle = b.dead ? 'rgba(120,120,120,0.8)' : '#ff4a4a'; // red for alive enemies, grey for dead
     c.beginPath();
     c.arc((b.pos.x - player.pos.x) * scale, (b.pos.z - player.pos.z) * scale, b.dead ? 2.5 : 4, 0, Math.PI * 2);
     c.fill();
@@ -5613,7 +5613,7 @@ function drawRadar() {
   if (isOnline) {
     for (const rig of onlineBots.values()) {
       if (!rig.alive) continue;
-      c.fillStyle = '#f0f0f2';
+      c.fillStyle = '#ff4a4a'; // red for online enemies
       c.beginPath();
       c.arc((rig.pos.x - player.pos.x) * scale, (rig.pos.z - player.pos.z) * scale, 4, 0, Math.PI * 2);
       c.fill();
