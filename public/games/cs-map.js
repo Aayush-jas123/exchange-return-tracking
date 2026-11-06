@@ -505,10 +505,9 @@
     let g = 0;
     const reach = r * 0.85;
     for (const c of colliders) {
-      if (c.maxY <= pos.y + step || c.maxY <= g) continue;
-      // 2D quick-reject before circleHitsBox
+      // 2D quick-reject before circleHitsBox: a box farther than reach from the centre cannot hit.
       if (pos.x < c.minX - reach || pos.x > c.maxX + reach || pos.z < c.minZ - reach || pos.z > c.maxZ + reach) continue;
-      if (circleHitsBox(pos.x, pos.z, reach, c)) g = c.maxY;
+      if (c.maxY <= pos.y + step && c.maxY > g && circleHitsBox(pos.x, pos.z, reach, c)) g = c.maxY;
     }
     return g;
   }
