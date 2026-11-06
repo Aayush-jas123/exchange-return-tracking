@@ -3265,7 +3265,7 @@ const MISSIONS = [
     id: 'mission_2',
     codeName: 'BLACKOUT 02',
     title: 'Ashes of Evidence: Warehouse Demolition',
-    briefing: 'The eastern sector of Greyhaven — marshland the original surveys never mapped. RAVEN is stable but weak. A weapons warehouse burns tonight; Dr. Elias Kessler waits somewhere in the administrative wing.',
+    briefing: 'The eastern sector of Greyhaven — marshland the original surveys never mapped. RAVEN is stable but weak. A weapons warehouse burns tonight; Dr. Elias Kessler is held somewhere inside the complex, away from the water.',
     map: 'industrial_east',
     requires: 'mission_1',
     objectives: [
@@ -3273,8 +3273,8 @@ const MISSIONS = [
         id: 'obj_2_1',
         type: 'collect_item',
         title: 'Retrieve the Purple Bud',
-        description: 'RAVEN needs a bud from the rare plant in the abandoned greenhouse',
-        location: { x: 47, z: 12, radius: 4 },
+        description: 'RAVEN needs a bud from the wild specimen growing in the shadow of the collapsed water tanks, far west of the marsh',
+        location: { x: -41, z: -21, radius: 4 },
         itemType: 'purple_bud',
         triggerDistance: 2.0,
         dialogueAfter: 'raven_recovered',
@@ -3324,8 +3324,8 @@ const MISSIONS = [
         id: 'obj_2_6',
         type: 'resupply',
         title: 'Emergency Resupply',
-        description: 'Kessler is heavily guarded — collect ammunition and medical supplies from the maintenance room',
-        location: { x: 72, z: 8, radius: 5 },
+        description: 'Kessler is heavily guarded — a support cache is stashed inside the old loading block at the NE compound. Collect ammunition and medical supplies',
+        location: { x: 33, z: -33, radius: 6 },
         supplyCount: 4,
         triggerDistance: 2.0,
         completed: false
@@ -3334,12 +3334,12 @@ const MISSIONS = [
         id: 'obj_2_7',
         type: 'escort_npc',
         title: 'Rescue Dr. Kessler',
-        description: 'Find Kessler in the administrative wing, then get him to the NE service complex',
+        description: 'Find Kessler held in the block west of the central plaza, then get him to the northern extraction lane',
         npcName: 'KESSLER',
-        location: { x: 81, z: 26.5, radius: 4 },
+        location: { x: -16, z: 3, radius: 4 },
         triggerDistance: 3,
         findDialogue: 'kessler_contact',
-        zone: { x: 58, z: 40, radius: 6 },
+        zone: { x: 0, z: -42, radius: 6 },
         escort: true,
         timeLimit: 75,
         completed: false
@@ -3348,7 +3348,7 @@ const MISSIONS = [
     dialogues: {
       'opening': [
         { speaker: 'ROOK', text: 'You look worse than when I found you.', portrait: 'rook' },
-        { speaker: 'RAVEN', text: 'There\'s a purple plant in the old greenhouse. Bring me a bud.', portrait: 'raven' },
+        { speaker: 'RAVEN', text: 'There\'s a purple plant gone wild out by the collapsed water tanks, west of the compound. Bring me a bud.', portrait: 'raven' },
         { speaker: 'ROOK', text: 'First a rescue, now gardening?', portrait: 'rook' },
         { speaker: 'RAVEN', text: 'Just get it, smartass.', portrait: 'raven' }
       ],
@@ -3377,8 +3377,8 @@ const MISSIONS = [
         { speaker: 'ROOK', text: 'You were right about something being wrong. The warehouse wasn\'t holding weapons. It was an archive.', portrait: 'rook' },
         { speaker: 'RAVEN', text: 'What was in it?', portrait: 'raven' },
         { speaker: 'ROOK', text: 'Old incident reports. Kessler\'s name. Someone called Marek Voss.', portrait: 'rook' },
-        { speaker: 'RAVEN', text: 'Then Kessler is even more important than I thought. Find him. He\'s being kept somewhere in the administrative wing.', portrait: 'raven' },
-        { speaker: 'PATCH', text: 'Rook, I\'ve located Kessler. Administrative wing, second floor. He\'s got quite a few guards around him.', portrait: 'patch' },
+        { speaker: 'RAVEN', text: 'Then Kessler is even more important than I thought. Find him. They\'re holding him in a block somewhere west of the marsh.', portrait: 'raven' },
+        { speaker: 'PATCH', text: 'Rook, I\'ve located Kessler. The block just west of the central plaza — they moved him out of the east wing. He\'s got quite a few guards around him.', portrait: 'patch' },
         { speaker: 'ROOK', text: 'How many?', portrait: 'rook' },
         { speaker: 'PATCH', text: 'Enough to ruin your evening.', portrait: 'patch' },
         { speaker: 'ROOK', text: 'It\'s already ruined.', portrait: 'rook' }
@@ -3450,9 +3450,10 @@ const EVIDENCE_POSITIONS = [
   { x: -34.0, z: -29.0, y: 3.8, type: 'broken_radio',  label: 'Broken Radio' }      // NW area, upper floor
 ];
 
-// Mission 02 — the Purple Bud sits ON TOP of the greenhouse planter bed: cs-map draws it as
-// crate(1.4) on a 0.6 base, so its lid is exactly y=2.0 (greenhouse floor itself is 0.18 kerb).
-const BUD_POSITION = { x: 47, z: 12, y: 2.0 };
+// Mission 02 — the Purple Bud gone wild sits on open ground in the NW tank yard, in the shelter of
+// the collapsed water tank at (-45,-24). Relocated out of the marsh so the side objectives spread
+// across the whole arena; ground level, nothing above it blocks the pickup.
+const BUD_POSITION = { x: -41, z: -21, y: 0 };
 
 // Mission 02 — demolition charge anchors on the warehouse (70,-18) interior columns/walls.
 // Every spot is clear of the crate stacks, shelving run, filing table and N partition.
@@ -3463,14 +3464,15 @@ const CHARGE_POSITIONS = [
   { x: 69.5, z: -20.8, y: 0.3, label: 'W Support Column' }
 ];
 
-// Mission 02 — resupply drops inside the maintenance room (72,8): west of the x=74 partition,
-// clear of the locker bank, generator and awning posts. Ammo crates top the rifle reserve, medkits
-// heal +40. Two of each. y=0.18 rides the room's pavement slab.
+// Mission 02 — resupply cache stashed inside the old loading block of the NE duplex (33,-33):
+// two drops on the ground floor either side of the partition, one up the east stair on the second-
+// floor slab (y=3.8), one by the loading doorway. Ammo crates top the rifle reserve, medkits heal
+// +40. Two of each.
 const RESUPPLY_POSITIONS = [
-  { x: 69.3, z: 6.2,  type: 'ammo',   y: 0.18 },
-  { x: 72.3, z: 8.2,  type: 'medkit', y: 0.18 },
-  { x: 69.3, z: 9.6,  type: 'ammo',   y: 0.18 },
-  { x: 72.3, z: 5.9,  type: 'medkit', y: 0.18 }
+  { x: 35,   z: -33,   type: 'ammo',   y: 0 },
+  { x: 32.8, z: -35.6, type: 'medkit', y: 0 },
+  { x: 30,   z: -33,   type: 'ammo',   y: 3.8 },
+  { x: 34.6, z: -30.4, type: 'medkit', y: 0 }
 ];
 
 // Mission 02 — blast radius around the warehouse centre; standing inside it when the fuse ends is fatal
@@ -3679,13 +3681,14 @@ function spawnMissionEntities() {
     if (obj.type === 'find_npc') {
       spawnNPC(obj.location.x, obj.location.z, obj.npcName, obj.id);
     }
-    // Mission 02: Kessler waits on the admin-wing upper floor (y=3.8, matches the EVIDENCE levels)
+    // Mission 02: Kessler is held on the upper floor of the central-west block (y=3.8, matches
+    // the duplex slab level — same convention as the EVIDENCE upper-floor props)
     if (obj.type === 'escort_npc') {
       spawnNPC(obj.location.x, obj.location.z, obj.npcName, obj.id, 3.8);
     }
   });
 
-  // Mission 02 — collect_item: the Purple Bud on the greenhouse planter
+  // Mission 02 — the Purple Bud gone wild sits on open ground in the NW tank yard
   currentMission.objectives.forEach(obj => {
     if (obj.type === 'collect_item') {
       spawnPurpleBud(BUD_POSITION.x, BUD_POSITION.z, BUD_POSITION.y, obj.id);
@@ -3699,7 +3702,7 @@ function spawnMissionEntities() {
     }
   });
 
-  // Mission 02 — resupply: ammo crates and medkits inside the maintenance room
+  // Mission 02 — resupply: ammo crates and medkits inside the NE loading block
   currentMission.objectives.forEach(obj => {
     if (obj.type === 'resupply') {
       RESUPPLY_POSITIONS.forEach((sp, i) => spawnResupplyItem(sp.x, sp.z, sp.y || 0, sp.type, obj.id + '_' + i));
@@ -3985,7 +3988,7 @@ function spawnNPC(x, z, name, id, y = 0) {
 }
 
 // ── Mission 02 props ──
-// The Purple Bud: potted rare plant on the greenhouse planter bed. "Purple" reads as a pale
+// The Purple Bud: potted rare plant, gone wild in the open. "Purple" reads as a pale
 // crystalline tone — the whole cabinet stays greyscale, so the bud uses the same faceted
 // low-poly crystal trick as the cannabis buds, just taller and brighter.
 function spawnPurpleBud(x, z, y, id) {
@@ -4199,27 +4202,41 @@ function spawnMissionEnemies() {
   console.log('[CS] Spawned', enemyPlacements.length, 'mission enemies');
 }
 
-// Mission 02 — east-sector order of battle: the warehouse holds the 4 tagged guards, the admin
-// wing holds Kessler's detail (two on the upper floor), and boardwalk patrols cover the long
-// walk from the SW spawn to the marsh. Reinforcements arrive later, on the fuse and escort beats.
+// Mission 02 — order of battle. The warehouse assault chain stays anchored in the eastern marsh
+// (4 guards + the two boardwalk chips that watch the approach). The SIDE objectives were pulled
+// out of the marsh, so their guards went with them: the west tank yard, the NE loading block and
+// Kessler's hold cell each get their own detail, and two roamers cover the avenues in between.
+// Reinforcements still arrive later, on the fuse and escort beats.
 function spawnMission2Enemies() {
   const enemyPlacements = [
-    // === WAREHOUSE GUARDS — tagged, counted by eliminate_guards (70,-18) ===
+    // === WAREHOUSE GUARDS — tagged, counted by eliminate_guards (70,-18). MAIN OBJECTIVE, marsh ===
     { x: 66.5, z: -19.5, inside: true, guard: true },   // W bay, by the crate stack
     { x: 72,    z: -21.6, inside: true, guard: true },  // centre floor, clear of the shelving run
     { x: 71,    z: -16,   inside: true, guard: true },  // behind the N partition
     { x: 76.8,  z: -23,   inside: true, guard: true },  // NE corner by the shelving run
 
-    // === ADMIN WING — Kessler's detail (78,26) ===
-    { x: 75, z: 25, inside: true },                     // ground floor, by the partition door
-    { x: 79, z: 26, inside: true, upperFloor: true },   // office landing
-    { x: 83, z: 25.5, inside: true, upperFloor: true }, // behind the desk
-
-    // === MARSH PATROLS — along the route the player must walk ===
+    // === MARSH APPROACH — two chips on the walk to the warehouse ===
     { x: 56, z: 2, patrol: true },      // boardwalk spine
     { x: 60, z: -30 },                  // dock watcher
-    { x: 63, z: 20, patrol: true },     // jetty
-    { x: 71, z: -4, patrol: true }      // warehouse <-> maintenance link
+
+    // === PURPLE BUD SITE — NW tank yard (-41,-21) ===
+    { x: -38, z: -24, patrol: true },   // circles the collapsed tank
+    { x: -44, z: -18, patrol: true },   // works the fence line by the bud
+
+    // === RESUPPLY CACHE — inside/around the NE loading block (33,-33) ===
+    { x: 35,    z: -30, inside: true },               // ground floor, by the doorway
+    { x: 30,    z: -36, inside: true },               // west room, by the crate
+    { x: 24,    z: -4,  patrol: true },               // NE avenue roamer, between sites
+
+    // === KESSLER HOLD CELL — central-west block (-16,3) ===
+    { x: -15.5, z: 4,    inside: true },              // ground floor, east side of the partition
+    { x: -17,   z: 4,    inside: true },              // west room, by the crate stack
+    { x: -14,   z: -0.3, inside: true, upperFloor: true }, // upstairs landing beside Kessler
+
+    // === CENTRAL PATROLS — avenues the player must cross to reach the sites ===
+    { x: -28, z: -8,  patrol: true },   // west lighthouse avenue
+    { x: -33, z: 20,  patrol: true },   // SW avenue
+    { x: 16,  z: 14,  patrol: true }    // SE lane, guards the long walk north
   ];
 
   const names = [...BOT_NAMES].sort(() => Math.random() - 0.5);
@@ -4291,7 +4308,7 @@ function updateEscort(dt) {
     npc.rotation.y = Math.atan2(dx, dz);
   }
 
-  // Keep the escort descending to ground level as it follows (Kessler starts on the admin-wing
+  // Keep the escort descending to ground level as it follows (Kessler starts on the hold-cell's
   // upper floor — a steady 4 m/s drop reads as climbing down instead of teleporting)
   if (npc.position.y > 0) npc.position.y = Math.max(0, npc.position.y - dt * 4);
 }
@@ -4678,10 +4695,11 @@ function checkMissionObjectives() {
     missionState.extractionStartTime = Date.now();
     missionState.extractionTimer = obj && obj.escort ? obj.timeLimit : 60;
     showMissionNotification(`ESCORT ${escortName} TO EXTRACTION — ${missionState.extractionTimer} SECONDS`);
-    // Spawn extra enemies along the escape route (SW → NE diagonal for RAVEN, admin → service for
-    // KESSLER). Trimmed 5→3 per escort so the extraction isn't a gauntlet on top of the field bots.
+    // Spawn extra enemies along the escape route. KESSLER's haul now runs from the central-west
+    // block to the northern extraction lane, so the interdiction chips sit along that north push.
+    // Trimmed 5→3 per escort so the extraction isn't a gauntlet on top of the field bots.
     const escapeEnemies = escortName === 'KESSLER'
-      ? [{ x: 79, z: 32.5 }, { x: 66, z: 35 }, { x: 70, z: 12 }]
+      ? [{ x: -8, z: -14 }, { x: 8, z: -20 }, { x: 12, z: -30 }]
       : [{ x: -10, z: -5 }, { x: 15, z: 15 }, { x: 28, z: 25 }];
     const eNames = [...BOT_NAMES].sort(() => Math.random() - 0.5);
     escapeEnemies.forEach((ep, i) => {
