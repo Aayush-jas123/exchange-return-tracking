@@ -2641,7 +2641,10 @@ class Bot {
     const moving = player.speed > 3.2 ? 0.18 : 0;
     const airborne = player.onGround ? 0 : 0.12;
     const crouchBonus = player.eye < 1.4 ? 0.06 : 0;
-    const chance = clamp(0.35 + game.round * 0.02 - dist * 0.009 - moving - airborne - crouchBonus, 0.08, 0.65);
+    // Accuracy eased a notch: base 0.35 -> 0.30 and the round-scaling ceiling 0.65 -> 0.55, so
+    // even late rounds cap lower. ~15% fewer landed shots; combined with the softer per-hit
+    // damage this is the second dial toward "less lethal" without making bots feel passive.
+    const chance = clamp(0.30 + game.round * 0.02 - dist * 0.009 - moving - airborne - crouchBonus, 0.06, 0.55);
     const hit = Math.random() < chance;
     const aim = playerEye.clone().add(new THREE.Vector3(0, -0.35, 0));
     if (!hit) aim.add(new THREE.Vector3(rand(-1, 1), rand(-0.6, 0.8), rand(-1, 1)).multiplyScalar(0.6 + dist * 0.02));
