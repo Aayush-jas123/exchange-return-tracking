@@ -3,8 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0a0a0c">
+  <link rel="manifest" href="manifest.json">
   <title>OFFCOMFRT &mdash; Counter Strike</title>
-  <link rel="stylesheet" href="style.css?v=21" />
+  <link rel="stylesheet" href="style.css?v=23" />
 </head>
 <body>
 
@@ -307,6 +312,6 @@
   <!-- Shared map geometry: the same module the hub requires, so client and server collide identically -->
   <script src="../cs-map.js?v=6"></script>
   <!-- Game engine loads as ES module (deferred by spec) -->
-  <script type="module" src="script.js?v=76"></script>
+  <script type="module" src="script.js?v=78"></script>
 </body>
 </html>
