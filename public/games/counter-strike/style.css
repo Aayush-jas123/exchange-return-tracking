@@ -284,7 +284,7 @@ html, body {
 .joystick-zone {
   position: absolute; bottom: 20px; left: 20px;
   width: 130px; height: 130px;
-  pointer-events: auto;
+  pointer-events: auto; z-index: 2;
 }
 .joystick-base {
   position: absolute; inset: 0;
@@ -302,18 +302,18 @@ html, body {
 }
 .joystick-stick.active { background: var(--text); }
 
-/* Look Zone (right side) */
+/* Look Zone (full-screen drag surface for camera control) */
 .look-zone {
-  position: absolute; bottom: 0; right: 0;
-  width: 45%; height: 50%;
-  pointer-events: auto;
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  width: 100%; height: 100%;
+  pointer-events: auto; z-index: 1;
 }
 
 /* Action Buttons */
 .action-buttons {
   position: absolute; bottom: 16px; right: 16px;
   display: flex; flex-direction: column; gap: 8px;
-  pointer-events: auto;
+  pointer-events: auto; z-index: 2;
 }
 .action-btn {
   width: 64px; height: 64px;
@@ -338,7 +338,7 @@ html, body {
 .weapon-switch {
   position: absolute; bottom: 160px; right: 20px;
   display: flex; flex-direction: column; gap: 6px;
-  pointer-events: auto;
+  pointer-events: auto; z-index: 2;
 }
 .weapon-btn {
   width: 48px; height: 48px;
@@ -357,7 +357,7 @@ html, body {
 .movement-buttons {
   position: absolute; bottom: 160px; left: 20px;
   display: flex; flex-direction: column; gap: 8px;
-  pointer-events: auto;
+  pointer-events: auto; z-index: 2;
 }
 .move-btn {
   width: 56px; height: 56px;
@@ -385,7 +385,7 @@ html, body {
   /* Left column: joystick at bottom, jump/crouch above it */
   .joystick-zone { width: 110px; height: 110px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); left: 16px; }
   .joystick-stick { width: 44px; height: 44px; }
-  .movement-buttons { bottom: calc(140px + env(safe-area-inset-bottom, 0px)); left: 16px; }
+  .movement-buttons { bottom: calc(150px + env(safe-area-inset-bottom, 0px)); left: 16px; }
   .move-btn { width: 52px; height: 52px; }
 
   /* Right column: fire/reload at bottom, weapon switch stacked vertically above */
@@ -406,7 +406,7 @@ html, body {
   /* Safe area insets for notched phones */
   .joystick-zone { bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
   .action-buttons { bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
-  .movement-buttons { bottom: calc(140px + env(safe-area-inset-bottom, 0px)); }
+  .movement-buttons { bottom: calc(150px + env(safe-area-inset-bottom, 0px)); }
   .weapon-switch { bottom: calc(290px + env(safe-area-inset-bottom, 0px)); }
 
   /* Disable backdrop-filter blur on mobile (GPU cost) */
