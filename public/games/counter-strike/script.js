@@ -2647,7 +2647,10 @@ class Bot {
     if (!hit) aim.add(new THREE.Vector3(rand(-1, 1), rand(-0.6, 0.8), rand(-1, 1)).multiplyScalar(0.6 + dist * 0.02));
     spawnTracer(muzzle, aim, 0xffc870);
     playShot(clamp(1.2 - dist / 40, 0.12, 0.8), 0.85);
-    if (hit) damagePlayer(Math.round(rand(5, 10) * (Math.random() < 0.06 ? 1.8 : 1)), this);
+    // Bot lethality tuned down a notch: base 5–10 → 4–8 and the headshot-style crit 6%/×1.8 →
+    // 5%/×1.6. Avg per hit ≈7.9 → ≈6.2 (~22% softer). Hit chance is left untouched so bots still
+    // land shots with the same frequency — each one just stings less.
+    if (hit) damagePlayer(Math.round(rand(4, 8) * (Math.random() < 0.05 ? 1.6 : 1)), this);
   }
 
   update(dt) {
@@ -4211,11 +4214,8 @@ function spawnMission2Enemies() {
 
     // === MARSH PATROLS — along the route the player must walk ===
     { x: 56, z: 2, patrol: true },      // boardwalk spine
-    { x: 50, z: 15, patrol: true },     // greenhouse approach
     { x: 60, z: -30 },                  // dock watcher
     { x: 63, z: 20, patrol: true },     // jetty
-    { x: 50, z: 44, patrol: true },     // service complex approach (N)
-    { x: 66, z: 36 },                  // service complex approach (E)
     { x: 71, z: -4, patrol: true }      // warehouse <-> maintenance link
   ];
 
@@ -4358,7 +4358,9 @@ function spawnWarehouseBlastFX() {
 // Pushed while the fuse burns — pressure on the escape lane, not on the warehouse itself.
 // Points sit off the boardwalk pavements so the isFree() gate never silently drops a spawn.
 function spawnFuseReinforcements() {
-  const pts = [{ x: 51, z: -16 }, { x: 51, z: -21 }, { x: 57, z: -24 }, { x: 48, z: -14 }, { x: 51, z: -11 }];
+  // Trimmed 5→3: the fuse is the frantic 24s sprint to the blast line, so the push has to stay
+  // survivable. Kept the three that flank the escape corridor (44,-18) rather than clustering.
+  const pts = [{ x: 51, z: -16 }, { x: 57, z: -24 }, { x: 48, z: -14 }];
   const names = [...BOT_NAMES].sort(() => Math.random() - 0.5);
   pts.forEach((ep, i) => {
     const spot = findFreeNear(ep.x, ep.z, 0.6);
@@ -4673,10 +4675,11 @@ function checkMissionObjectives() {
     missionState.extractionStartTime = Date.now();
     missionState.extractionTimer = obj && obj.escort ? obj.timeLimit : 60;
     showMissionNotification(`ESCORT ${escortName} TO EXTRACTION — ${missionState.extractionTimer} SECONDS`);
-    // Spawn extra enemies along the escape route (SW → NE diagonal for RAVEN, admin → service for KESSLER)
+    // Spawn extra enemies along the escape route (SW → NE diagonal for RAVEN, admin → service for
+    // KESSLER). Trimmed 5→3 per escort so the extraction isn't a gauntlet on top of the field bots.
     const escapeEnemies = escortName === 'KESSLER'
-      ? [{ x: 79, z: 32.5 }, { x: 71, z: 33 }, { x: 66, z: 35 }, { x: 65, z: 38 }, { x: 70, z: 12 }]
-      : [{ x: -10, z: -5 }, { x: 5, z: 10 }, { x: 15, z: 15 }, { x: 25, z: 20 }, { x: 28, z: 25 }];
+      ? [{ x: 79, z: 32.5 }, { x: 66, z: 35 }, { x: 70, z: 12 }]
+      : [{ x: -10, z: -5 }, { x: 15, z: 15 }, { x: 28, z: 25 }];
     const eNames = [...BOT_NAMES].sort(() => Math.random() - 0.5);
     escapeEnemies.forEach((ep, i) => {
       const spot = findFreeNear(ep.x, ep.z, 0.6);
