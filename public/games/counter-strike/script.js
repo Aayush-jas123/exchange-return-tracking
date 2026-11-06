@@ -1373,6 +1373,66 @@ function makeCannabisLeafGeo() {
   return geo;
 }
 const cannabisLeafGeo = makeCannabisLeafGeo();
+
+// ── The Mission-02 hero specimen's own surface maps ──
+// Deliberately NOT applied to mats.cannabisStem / mats.cannabisBud: those two are shared with the
+// instanced field crop, the marsh driftwood and two deco boxes, so texturing them would repaint
+// unrelated props. These are used by spawnPurpleBud alone.
+
+// Trichomes: a dense pale grain over the calyx surface. This is what makes a cola read as a resinous
+// bud rather than a smooth bead, and it is the only channel through which "purple" can be expressed
+// here at all — brand rule forbids hue anywhere in the cabinet, so the frost is carried by
+// luminance and roughness. Flat 0xFF would blow out under the sun, so the highlights stay mid-high.
+function makeCannabisFrostTexture(size = 256) {
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = size;
+  const g = cv.getContext('2d');
+  speckle(g, size, '#8f8f8f', 0.10, 900);
+  for (let i = 0; i < 2600; i++) {                      // glandular heads, most barely visible
+    const r = Math.random() < 0.06 ? 1.7 : 0.65;
+    g.fillStyle = `rgba(255,255,255,${0.05 + Math.random() * 0.22})`;
+    g.beginPath(); g.arc(Math.random() * size, Math.random() * size, r, 0, Math.PI * 2); g.fill();
+  }
+  for (let i = 0; i < 700; i++) {                       // shadowed crevices between calyxes
+    g.fillStyle = `rgba(0,0,0,${0.04 + Math.random() * 0.13})`;
+    g.beginPath(); g.arc(Math.random() * size, Math.random() * size, 1.1 + Math.random() * 2.4, 0, Math.PI * 2); g.fill();
+  }
+  const t = new THREE.CanvasTexture(cv);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+// Bark: the stalk is not a smooth pipe. Vertical fibres, node swellings and a few bright resin
+// streaks are what let a 12-triangle cylinder pass as woody at close range.
+function makeCannabisBarkTexture(size = 256) {
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = size;
+  const g = cv.getContext('2d');
+  speckle(g, size, '#4e4e4e', 0.07, 900);
+  for (let i = 0; i < 46; i++) {                        // fibre striations, uneven weight
+    const x = Math.random() * size;
+    g.strokeStyle = `rgba(0,0,0,${0.06 + Math.random() * 0.15})`;
+    g.lineWidth = 1 + Math.random() * 2.2;
+    g.beginPath(); g.moveTo(x, 0); g.lineTo(x + (Math.random() - 0.5) * 9, size); g.stroke();
+    g.strokeStyle = `rgba(255,255,255,${0.03 + Math.random() * 0.08})`;
+    g.beginPath(); g.moveTo(x + 2.5, 0); g.lineTo(x + 2.5 + (Math.random() - 0.5) * 9, size); g.stroke();
+  }
+  for (let i = 0; i < 5; i++) {                         // node bands where the branch pair emerged
+    const y = (i + 0.5) * size / 5 + (Math.random() - 0.5) * 8;
+    g.fillStyle = 'rgba(232,232,232,0.13)'; g.fillRect(0, y - 2, size, 4);
+    g.fillStyle = 'rgba(0,0,0,0.17)'; g.fillRect(0, y + 2, size, 2);
+  }
+  for (let i = 0; i < 26; i++) {                        // resin droplets
+    g.fillStyle = `rgba(255,255,255,${0.07 + Math.random() * 0.13})`;
+    g.beginPath(); g.arc(Math.random() * size, Math.random() * size, 1 + Math.random() * 2.6, 0, Math.PI * 2); g.fill();
+  }
+  const t = new THREE.CanvasTexture(cv);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
 // Open 5-sided cylinder, height 1, so an instance's scale.y IS the segment length. Used for the
 // main stalk and every branch. Low-poly sphere for the buds — both shared by the whole field.
 const stalkGeo = new THREE.CylinderGeometry(0.62, 1, 1, 5, 1, true);
@@ -1382,6 +1442,10 @@ const budGeo = new THREE.SphereGeometry(1, 5, 3);
 // silhouette. One multiplier over both bud placements (branch colas and the terminal stack) keeps
 // them proportional to each other and to the stalk, so this is the only knob to turn.
 const BUD_SCALE = 0.72;
+// Built once for the Mission-02 hero specimen (see makeCannabisFrostTexture above) — 256px canvases,
+// so 512 KB of GPU between the two of them, created at init and never regenerated per frame.
+const cannabisFrostTex = makeCannabisFrostTexture(256);
+const cannabisBarkTex = makeCannabisBarkTexture(256);
 // Only the top COLA_NODES branch nodes finish in a cola, and the terminal stack is 3 buds, so a
 // plant carries 2 nodes x 2 branches + 3 = 7. Lower branches still end in an upward tip leaf but no
 // bud, which is how a real canopy reads: the growth that reaches the light is what buds out, and the
@@ -3273,8 +3337,8 @@ const MISSIONS = [
         id: 'obj_2_1',
         type: 'collect_item',
         title: 'Retrieve the Purple Bud',
-        description: 'RAVEN needs a bud from the rare cannabis specimen growing in the shadow of the collapsed water tanks, far west of the marsh',
-        location: { x: -41, z: -21, radius: 4 },
+        description: 'RAVEN needs a bud from the rare cannabis specimen growing wild in the tanker lay-by at the far NE corner of the compound, clear across the map from the marsh',
+        location: { x: 42, z: -44, radius: 4 },
         itemType: 'purple_bud',
         triggerDistance: 2.0,
         dialogueAfter: 'raven_recovered',
@@ -3348,7 +3412,7 @@ const MISSIONS = [
     dialogues: {
       'opening': [
         { speaker: 'ROOK', text: 'You look worse than when I found you.', portrait: 'rook' },
-        { speaker: 'RAVEN', text: 'There\'s a purple plant gone wild out by the collapsed water tanks, west of the compound. Bring me a bud.', portrait: 'raven' },
+        { speaker: 'RAVEN', text: 'There\'s a purple plant gone wild up in the tanker lay-by, the far north-east corner. Bring me a bud.', portrait: 'raven' },
         { speaker: 'ROOK', text: 'First a rescue, now gardening?', portrait: 'rook' },
         { speaker: 'RAVEN', text: 'Just get it, smartass.', portrait: 'raven' }
       ],
@@ -3450,10 +3514,11 @@ const EVIDENCE_POSITIONS = [
   { x: -34.0, z: -29.0, y: 3.8, type: 'broken_radio',  label: 'Broken Radio' }      // NW area, upper floor
 ];
 
-// Mission 02 — the Purple Bud gone wild sits on open ground in the NW tank yard, in the shelter of
-// the collapsed water tank at (-45,-24). Relocated out of the marsh so the side objectives spread
-// across the whole arena; ground level, nothing above it blocks the pickup.
-const BUD_POSITION = { x: -41, z: -21, y: 0 };
+// Mission 02 — the Purple Bud gone wild sits on open ground in the far NE tanker lay-by,
+// ~80 m on the diagonal from the SW spawn band, the opposite side of the compound from the
+// marsh. Relocated again because the NW tank yard sat only ~20 m from where the player drops in.
+// Ground level, push-probe clear of every collider; nothing above it blocks the pickup.
+const BUD_POSITION = { x: 42, z: -44, y: 0 };
 
 // Mission 02 — demolition charge anchors on the warehouse (70,-18) interior columns/walls.
 // Every spot is clear of the crate stacks, shelving run, filing table and N partition.
@@ -3585,7 +3650,9 @@ function startMission(missionId) {
     escortNPC: null,
     escortHealth: 100,
     extractionTimer: 0,
-    extractionStartTime: 0
+    extractionStartTime: 0,
+    _findScenePlayed: false,
+    escNag: false
   };
   
   // Reset objectives
@@ -3688,7 +3755,7 @@ function spawnMissionEntities() {
     }
   });
 
-  // Mission 02 — the Purple Bud gone wild sits on open ground in the NW tank yard
+  // Mission 02 — the Purple Bud gone wild sits on open ground in the far NE tanker lay-by
   currentMission.objectives.forEach(obj => {
     if (obj.type === 'collect_item') {
       spawnPurpleBud(BUD_POSITION.x, BUD_POSITION.z, BUD_POSITION.y, obj.id);
@@ -3994,40 +4061,164 @@ function spawnNPC(x, z, name, id, y = 0) {
 // crystal. Rebuilt here as individual meshes because it's a one-off collectible, so it reads as a
 // real plant — decussate branch pairs, fan canopy, calyx colas — instead of the old flat-box sprig.
 // A hero specimen: taller than a wild shrub, topped by a pale crystalline cola ("purple" = brightest
-// greyscale tone; brand rule: no hue anywhere). Leaf quads don't cast shadows (thin alpha blades, ~40
-// of them) — only the wood, colas and soil do — so this adds detail without a shadow-pass tax.
+// greyscale tone; brand rule: no hue anywhere). Leaf quads don't cast shadows (thin alpha blades, ~76
+// of them) — only the wood and the calyxes do — so this adds detail without a shadow-pass tax.
 function spawnPurpleBud(x, z, y, id) {
+  // The single-sphere bud is gone: a real cola is a cluster of teardrop calyxes wearing frost and
+  // sprouting pistils. That detail means hundreds of tiny solids, and hundreds of Mesh objects is
+  // hundreds of draw calls plus hundreds of shadow-pass slots — the exact cost that made the old
+  // 93-part version worth complaining about. So every sub-part is pushed into shared vertex arrays
+  // and emitted as ONE merged BufferGeometry per material: the whole specimen is 8 objects — canopy,
+  // wood, ground litter, calyxes, the lit head, pistils, root ball, pickup marker — down from the 93
+  // Meshes this prop used to cost, and each of the 8 is only separate because it owns a material.
   const group = new THREE.Group();
-  const s = 1.18;                                    // hero scale → ~1.8 m tall, above the field shrubs
+  const s = 1.30;                                    // hero scale → ~2.0 m tall, above the field shrubs
   const H = 1.55 * s;
-  const glow = new THREE.MeshStandardMaterial({ color: 0xc2c2c2, emissive: 0x666666, emissiveIntensity: 0.55, flatShading: true });
+  // The specimen's own surfaces. mats.cannabisStem / mats.cannabisBud stay untouched because the
+  // instanced field crop, the marsh driftwood and two deco boxes all share them.
+  const bark = new THREE.MeshStandardMaterial({ map: cannabisBarkTex, roughness: 0.92, flatShading: true });
+  const frost = new THREE.MeshStandardMaterial({ map: cannabisFrostTex, roughness: 0.5, flatShading: true });
+  const cream = new THREE.MeshStandardMaterial({ color: 0xa6a6a6, roughness: 0.72, side: THREE.DoubleSide });
+  const glow = new THREE.MeshStandardMaterial({ color: 0xc2c2c2, map: cannabisFrostTex, emissive: 0x666666, emissiveIntensity: 0.55, flatShading: true });
 
-  const Y = new THREE.Vector3(0, 1, 0), XA = new THREE.Vector3(1, 0, 0), ZA = new THREE.Vector3(0, 0, 1);
-  const qy = new THREE.Quaternion(), qx = new THREE.Quaternion(), qz = new THREE.Quaternion();
-  const orient = (m, yaw, tilt, roll) => {
-    qy.setFromAxisAngle(Y, yaw); qx.setFromAxisAngle(XA, tilt); qz.setFromAxisAngle(ZA, roll || 0);
-    m.quaternion.copy(qy).multiply(qx).multiply(qz);
-  };
-  // woody stalk/branch segment from the base point outward `len`; returns its tip position
+  // Rotation by hand rather than through quaternions, because every part is now written into a
+  // vertex stream instead of onto a Mesh. Order matches the qy*qx*qz the shared field crop uses —
+  // tilt about X (leans +Z), then yaw about Y — so a batched blade and an instanced one agree.
+  // The sine/cosine locals are named _cy/_sy on purpose: a bare `s` would collide with this
+  // function's own scale constant and poison every `* s` expression below it.
+  const rotX = (a, v) => { const _cy = Math.cos(a), _sy = Math.sin(a); return [v[0], v[1] * _cy - v[2] * _sy, v[1] * _sy + v[2] * _cy]; };
+  const rotY = (a, v) => { const _cy = Math.cos(a), _sy = Math.sin(a); return [v[0] * _cy + v[2] * _sy, v[1], v[2] * _cy - v[0] * _sy]; };
+  const rotZ = (a, v) => { const _cx = Math.cos(a), _cz = Math.sin(a); return [v[0] * _cx - v[1] * _cz, v[0] * _cz + v[1] * _cx, v[2]]; };
+  // woody stalk/branch segment from the base point outward `len`; returns its tip position. Written
+  // into the wood stream with stalkGeo's 5-sided taper instead of becoming a Mesh per segment.
   const stem = (px, py, pz, len, yaw, tilt, r) => {
-    const m = new THREE.Mesh(stalkGeo, mats.cannabisStem);
-    m.scale.set(r, len, r); orient(m, yaw, tilt);
+    putTube(G.bark, [px, py, pz], len, yaw, tilt, r);
     const st = Math.sin(tilt), dx = st * Math.sin(yaw), dz = st * Math.cos(yaw);
-    m.position.set(px + dx * len / 2, py + Math.cos(tilt) * len / 2, pz + dz * len / 2);
-    m.castShadow = true; group.add(m);
     return [px + dx * len, py + Math.cos(tilt) * len, pz + dz * len];
   };
-  // textured fan leaf, pivoted at the petiole base so `tilt` swings the whole blade out from the wood
-  const fan = (px, py, pz, ls, yaw, tilt, roll) => {
-    const m = new THREE.Mesh(cannabisLeafGeo, mats.cannabis);
-    m.scale.setScalar(ls); orient(m, yaw, tilt, roll);
-    m.position.set(px, py, pz); m.castShadow = false; m.receiveShadow = true;
-    group.add(m);
+  // textured fan leaf, pivoted at the petiole base so `tilt` swings the whole blade out from the wood.
+  // Same signature as the old Mesh version so all ~76 call sites below are untouched.
+  const fan = (px, py, pz, ls, yaw, tilt, roll) => leafAt([px, py, pz], ls, yaw, tilt, roll);
+  // The blade is regenerated here instead of instanced from cannabisLeafGeo: same 3x5 grid, same V
+  // fold along the midrib, same tip droop — identical silhouette, one draw call for the whole canopy.
+  const leafAt = (b, ls, yaw, tilt, roll) => {
+    const g = G.leaf, base = g.p.length / 3;
+    for (let gy = 0; gy <= 4; gy++) {
+      for (let gx = 0; gx <= 2; gx++) {
+        const u = gx / 2 - 0.5, v = gy / 4;
+        let v3 = rotZ(roll, [u, v, -0.075 * Math.abs(u) * 2 + 0.055 * v * v]);
+        v3 = rotX(tilt, v3); v3 = rotY(yaw, v3);
+        g.p.push(b[0] + v3[0] * ls, b[1] + v3[1] * ls, b[2] + v3[2] * ls);
+        g.u.push(gx / 2, gy / 4);            // the serrated silhouette is an alpha map: it needs UVs
+      }
+    }
+    for (let k = 0; k < LEAF_IDX.length; k++) g.i.push(base + LEAF_IDX[k]);
   };
-  // calyx/bud crystal; `hero` ones use the pale emissive stone so the colas glow
-  const cola = (px, py, pz, r, hero) => {
-    const m = new THREE.Mesh(budGeo, hero ? glow : mats.cannabisBud);
-    m.scale.set(r, r * 1.4, r); m.position.set(px, py, pz); m.castShadow = true; group.add(m);
+  // calyx/bud crystal is no longer a single sphere — see budCluster below; `cola` was retired with it.
+
+  // ── batching collectors ──
+  // Every sub-part below is appended to these vertex streams instead of becoming a Mesh, and the
+  // streams are emitted as one merged BufferGeometry per material at the foot of this function.
+  // Shapes are authored in local space along +Y and pushed through the same tilt-then-yaw the leaf
+  // path uses, so a calyx leans off its branch exactly like a blade does. Each stream carries uv
+  // too: bark, frost and the leaf silhouette are texture maps, and a merged geometry without UVs
+  // would sample one texel and read as flat plastic.
+  const G = {                       // group: material, castsShadow, then the streams
+    leaf:    { p: [], u: [], i: [], m: mats.cannabis, cast: false },
+    bark:    { p: [], u: [], i: [], m: bark,          cast: true  },
+    soil:    { p: [], u: [], i: [], m: bark,          cast: false },  // pebbles share the bark map
+    bud:     { p: [], u: [], i: [], m: frost,         cast: true  },  // ordinary calyxes
+    budHero: { p: [], u: [], i: [], m: glow,          cast: true  },  // the lit terminal head
+    pistil:  { p: [], u: [], i: [], m: cream,         cast: false },
+  };
+  const colae = [];                 // cola sites, queued while the plant grows, built once after
+  // The blade template mirrors makeCannabisLeafGeo exactly — same 3x5 grid, same V fold along the
+  // midrib and same tip droop — so the merged canopy is shaped identically to the instanced field
+  // crop while costing one draw call instead of one Mesh per leaf.
+  const LEAF_IDX = [];
+  for (let _gy = 0; _gy < 4; _gy++) for (let _gx = 0; _gx < 2; _gx++) {
+    const a = _gy * 3 + _gx, b = a + 1, d = a + 3, e = a + 4;
+    LEAF_IDX.push(a, b, d); LEAF_IDX.push(b, e, d);
+  }
+  // Teardrop calyx — the actual bud unit: a four-corner mid ring with an apex below it (where it joins
+  // the branch) and a pointed tip above. 6 verts / 8 tris, closed, and wound outward by construction:
+  // (apexLo, next, cur) on the lower cone and (cur, next, apexHi) on the upper one both give normals
+  // that point away from the axis, which the geometry audit verifies triangle by triangle rather than
+  // trusting the derivation. The frost map plus flatShading is what makes it read as a crystal stud.
+  const CALYX = [], CALYX_I = [];
+  for (let k = 0; k < 4; k++) {
+    const a = k * Math.PI / 2 + Math.PI / 4;
+    CALYX.push(Math.sin(a) * 0.28, -0.06, Math.cos(a) * 0.28);
+  }
+  CALYX.push(0, -0.52, 0, 0, 0.46, 0);                     // 4 = stalk-end apex, 5 = the tip
+  for (let k = 0; k < 4; k++) { const n = (k + 1) % 4; CALYX_I.push(4, n, k, k, n, 5); }
+  // Pistil: a curved 2-tri ribbon sprouting out of the calyx neck. The cream material is DoubleSide,
+  // so a hair-thin strip still reads from every angle.
+  const PISTIL = [0, 0, 0, 0.022, 0.4, 0.012, 0.012, 0.79, -0.018, -0.018, 0.8, -0.05];
+  const PISTIL_I = [0, 1, 2, 0, 2, 3];
+  // place one authored shape: local → tilt (lean toward +Z) → yaw → world, with a per-site UV offset
+  // so a hundred repeated calyxes don't all sample the same patch of frost.
+  const put = (g, tpl, idx, b, yaw, tilt, sc) => {
+    const base = g.p.length / 3;
+    const ju = (b[0] * 0.37 + b[2] * 0.61) % 1, jv = (b[1] * 0.53) % 1;
+    for (let k = 0; k < tpl.length; k += 3) {
+      const lx = tpl[k] * sc, ly = tpl[k + 1] * sc, lz = tpl[k + 2] * sc;
+      const v = rotY(yaw, rotX(tilt, [lx, ly, lz]));
+      g.p.push(b[0] + v[0], b[1] + v[1], b[2] + v[2]);
+      g.u.push(0.5 + lx * 1.6 + ju, 0.5 + ly * 1.6 + jv);
+    }
+    for (let k = 0; k < idx.length; k++) g.i.push(base + idx[k]);
+  };
+  // 5-sided open tube with stalkGeo's taper (thick at the base, narrower at the top), 0..len along +Y.
+  // Winding is bottom-ring → top-ring so faces point outward, matching CylinderGeometry.
+  const putTube = (g, b, len, yaw, tilt, r) => {
+    const base = g.p.length / 3;
+    for (let ring = 0; ring < 2; ring++) {
+      const rr = ring === 0 ? r : r * 0.62, yy = ring === 0 ? 0 : len;
+      for (let k = 0; k < 5; k++) {
+        const a = k * Math.PI * 2 / 5;
+        const v = rotY(yaw, rotX(tilt, [Math.sin(a) * rr, yy, Math.cos(a) * rr]));
+        g.p.push(b[0] + v[0], b[1] + v[1], b[2] + v[2]);
+        g.u.push(a / (Math.PI * 2), yy / (len || 1));
+      }
+    }
+    for (let k = 0; k < 5; k++) {
+      const bo = base + k, to = base + 5 + k, bn = base + (k + 1) % 5, tn = base + 5 + (k + 1) % 5;
+      g.i.push(to, bo, tn, tn, bo, bn);
+    }
+  };
+  // Four-sided shard: pebbles and the squat resin nubs low on the stalk.
+  const putCone = (g, b, yaw, tilt, rad, len) => {
+    const base = g.p.length / 3;
+    const tip = rotY(yaw, rotX(tilt, [0, len, 0]));
+    g.p.push(b[0] + tip[0], b[1] + tip[1], b[2] + tip[2]); g.u.push(0.5, 1);
+    for (let k = 0; k < 4; k++) {
+      const a = k * Math.PI / 2 + yaw * 0.25;
+      const v = rotY(yaw, rotX(tilt, [Math.cos(a) * rad, 0, Math.sin(a) * rad]));
+      g.p.push(b[0] + v[0], b[1] + v[1], b[2] + v[2]); g.u.push(k / 4, 0);
+    }
+    for (let k = 0; k < 4; k++) g.i.push(base, base + 1 + ((k + 1) % 4), base + 1 + k);
+  };
+  // A cola is a ring of calyxes around a stacked centre, each throwing pistils. `r` is the calyx
+  // size, `n` how many surround the column, `hero` routes it onto the lit terminal-head material.
+  const budCluster = (b, yaw, tilt, r, n, hero) => {
+    const g = hero ? G.budHero : G.bud;
+    for (let k = 0; k < n; k++) {
+      const a = yaw + k * (Math.PI * 2 / n);
+      const off = [Math.sin(a) * r * 1.25, 0, Math.cos(a) * r * 1.25];
+      put(g, CALYX, CALYX_I, [b[0] + off[0], b[1] + off[1], b[2] + off[2]], a, tilt + 0.42, r * 1.9);
+    }
+    for (let j = 0; j < 2; j++) {
+      const yy = b[1] + j * r * 1.55;
+      put(g, CALYX, CALYX_I, [b[0], yy, b[2]], yaw + j * 1.1, tilt * 0.35, r * 2.15);
+    }
+    const pn = hero ? 10 : 7;
+    for (let k = 0; k < pn; k++) {
+      const a = yaw + k * (Math.PI * 2 / pn) + 0.4;
+      const h = b[1] + (k % 3) * r * 1.1 + r * 0.4;
+      put(G.pistil, PISTIL, PISTIL_I, [b[0] + Math.sin(a) * r * 0.9, h, b[2] + Math.cos(a) * r * 0.9],
+          a, tilt + 0.30 + (k % 2) * 0.28, r * 2.4);
+    }
   };
 
   // Root ball of dark soil so it reads as rooted in the open ground, not floating
@@ -4051,6 +4242,8 @@ function spawnPurpleBud(x, z, y, id) {
       fan(0, yy, 0, ls, pair + Math.PI / 2, 1.14, 0.06);
       fan(0, yy, 0, ls, pair - Math.PI / 2, 1.14, -0.06);
     }
+    // the woody collar where a branch pair leaves the stalk: a short, thicker tube segment
+    putTube(G.bark, [0, yy - 0.025 * s, 0], 0.05 * s, pair, 0, 0.043 * s);
     for (let k = 0; k < 2; k++) {                    // decussate branch pair, 90° from the last
       const yaw = pair + k * Math.PI;
       const bTilt = 1.06 - fn * 0.54;                // 61° out low, 30° near the apex
@@ -4067,15 +4260,63 @@ function spawnPurpleBud(x, z, y, id) {
         fan(lx, ly, lz, ls, lYaw + Math.PI, spread, -0.05);
       }
       fan(tip[0], tip[1], tip[2], 0.34 * s, yaw, bTilt - 0.30, 0);   // tip leaf rising to the branch end
-      if (i >= nodes - 2) cola(tip[0], tip[1] + 0.07 * s, tip[2], 0.085 * s * BUD_SCALE, i === nodes - 1);
+      // the two most terminal branch pairs set a real cola; the top pair gets the lit head material
+      if (i >= nodes - 2) colae.push([[tip[0], tip[1] + 0.07 * s, tip[2]], yaw, bTilt - 0.30, 0.085 * s * BUD_SCALE, 6, i === nodes - 1]);
+      // Lower canopy: a modest side cola where each mid branch forks off the stalk — what a real
+      // specimen sets after the main colas, and the detail that makes the silhouette read dense.
+      else if (fn > 0.18 && fn < 0.60) colae.push([[Math.sin(yaw) * 0.10 * s, yy + 0.05 * s, Math.cos(yaw) * 0.10 * s], yaw, 0.25, 0.055 * s * BUD_SCALE, 5, false]);
     }
   }
-  // Terminal cola: upright sugar leaves ringed around a stacked pale crystal head
+  // Terminal cola: two rings of upright sugar leaves around a stacked, frost-heavy crystal head —
+  // four courses of calyxes shrinking up the axis, each throwing pistils, all in one merged mesh.
   for (let k = 0; k < 4; k++) fan(0, H * (0.89 + k * 0.05), 0, 0.36 * s * (1 - k * 0.12), phase + k * 1.57, 0.50, 0);
-  for (let b = 0; b < 4; b++) cola(0, H + 0.03 + b * 0.10 * s, 0, 0.12 * s * BUD_SCALE * (1 - b * 0.16), true);
-  // Floating pickup indicator (bob + spin driven in the frame loop via userData.isIndicator)
+  for (let k = 0; k < 4; k++) fan(0, H * (0.82 + k * 0.05), 0, 0.28 * s * (1 - k * 0.12), phase + 0.79 + k * 1.57, 0.66, 0);
+  for (let cIdx = 0; cIdx < 4; cIdx++) {
+    const rr = 0.12 * s * BUD_SCALE * (1 - cIdx * 0.16);
+    colae.push([[0, H - 0.04 + cIdx * 0.105 * s, 0], phase + cIdx * 0.8, -0.05, rr, cIdx === 0 ? 8 : 7, true]);
+  }
+
+  // Build every cola that was queued while the plant grew. Doing it here rather than inline keeps the
+  // streams grouped, which costs nothing at render time and keeps the growth loop above readable.
+  for (const c of colae) budCluster(c[0], c[1], c[2], c[3], c[4], c[5]);
+
+  // Ground detail in the root zone: seeded pebbles and squat resin nubs, plus a scatter of fallen
+  // blades. Purely visual — none of it adds a collider, so the walkability map stays exactly 564/727.
+  for (let k = 0; k < 26; k++) {
+    const a = rand(0, Math.PI * 2), d = rand(0.5, 1.45) * s;
+    putCone(G.soil, [Math.sin(a) * d, 0.004, Math.cos(a) * d], a, rand(1.0, 1.5), rand(0.03, 0.07) * s, rand(0.04, 0.1) * s);
+  }
+  for (let k = 0; k < 9; k++) {
+    const a = rand(0, Math.PI * 2), d = rand(0.6, 1.5) * s;
+    putCone(G.soil, [Math.sin(a) * d, 0.002, Math.cos(a) * d], a, Math.PI / 2, 0.1 * s, 0.012 * s);
+  }
+
+  // ── merge ──
+  // One BufferGeometry per material stream, so the whole specimen is a handful of objects instead of
+  // a hundred. Normals are recomputed per vertex; the flatShading materials ignore them anyway, and
+  // the leaf stream wants them smooth exactly like makeCannabisLeafGeo did.
+  const mergeStream = (g, receive) => {
+    if (!g.p.length) return;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(g.p, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(g.u, 2));
+    geo.setIndex(g.i);
+    geo.computeVertexNormals();
+    const m = new THREE.Mesh(geo, g.m);
+    m.castShadow = g.cast; m.receiveShadow = receive;
+    group.add(m);
+  };
+  mergeStream(G.leaf, true);
+  mergeStream(G.bark, true);
+  mergeStream(G.soil, true);
+  mergeStream(G.bud, true);
+  mergeStream(G.budHero, true);
+  mergeStream(G.pistil, false);
+
+  // Floating pickup indicator (bob + spin driven in the frame loop via userData.isIndicator).
+  // The frame loop FORCES this child's y, so the bob baseY in the loop must match H + 0.58 below.
   const ind = new THREE.Mesh(new THREE.OctahedronGeometry(0.11, 0), glow);
-  ind.position.set(0, H + 0.55, 0); ind.userData.isIndicator = true; group.add(ind);
+  ind.position.set(0, H + 0.58, 0); ind.userData.isIndicator = true; group.add(ind);
 
   group.position.set(x, y, z);
   group.userData = { type: 'item', itemType: 'purple_bud', id: id };
@@ -4253,7 +4494,7 @@ function spawnMissionEnemies() {
 
 // Mission 02 — order of battle. The warehouse assault chain stays anchored in the eastern marsh
 // (4 guards + the two boardwalk chips that watch the approach). The SIDE objectives were pulled
-// out of the marsh, so their guards went with them: the west tank yard, the NE loading block and
+// out of the marsh, so their guards went with them: the NE tank yard, the loading block and
 // Kessler's hold cell each get their own detail, and two roamers cover the avenues in between.
 // Reinforcements still arrive later, on the fuse and escort beats.
 function spawnMission2Enemies() {
@@ -4268,9 +4509,9 @@ function spawnMission2Enemies() {
     { x: 56, z: 2, patrol: true },      // boardwalk spine
     { x: 60, z: -30 },                  // dock watcher
 
-    // === PURPLE BUD SITE — NW tank yard (-41,-21) ===
-    { x: -38, z: -24, patrol: true },   // circles the collapsed tank
-    { x: -44, z: -18, patrol: true },   // works the fence line by the bud
+    // === PURPLE BUD SITE — far NE tanker lay-by (42,-44) ===
+    { x: 41, z: -40, patrol: true },   // circles the lay-by right off the bud
+    { x: 44, z: -38, patrol: true },   // works the N wall fence line by the bud
 
     // === RESUPPLY CACHE — inside/around the NE loading block (33,-33) ===
     { x: 35,    z: -30, inside: true },               // ground floor, by the doorway
@@ -4348,18 +4589,47 @@ function updateEscort(dt) {
   const dz = player.pos.z - npc.position.z;
   const dist = Math.hypot(dx, dz);
   const followDist = 3;
+  const speed = 4.5 * dt;
 
-  if (dist > followDist) {
-    const speed = 4.5 * dt;
-    npc.position.x += (dx / dist) * speed;
-    npc.position.z += (dz / dist) * speed;
-    // Face toward player
+  // KESSLER starts on the hold cell's upper floor (y 3.8). The descent runs first and, while he is
+  // airborne, ignores the follow branch: resolving collisions mid-drop would catch him on the
+  // slab's 3.8 floor band and strand him upstairs, unable to reach the ground the player is on.
+  if (npc.position.y > 0) {
+    npc.position.y = Math.max(0, npc.position.y - dt * 4);
+    if (npc.position.y < 0.02) npc.position.y = 0;
+  } else if (dist > followDist) {
+    // On his own feet he follows like a bot. The old code wrote x/z with no collision at all, so
+    // Kessler could bury himself in a wall or a crate and never close the 8 m extraction window.
+    const probe = { x: npc.position.x, y: npc.position.y, z: npc.position.z };
+    collide(probe, P_RADIUS, P_HEIGHT, STEP);
+    const blocked = Math.hypot(probe.x - npc.position.x, probe.z - npc.position.z) > 0.01;
+    if (blocked) {
+      let best = null, bestD = Infinity;
+      for (const off of [0.9, -0.9, 1.7, -1.7]) {
+        const a = Math.atan2(dx, dz) + off;
+        const cand = { x: npc.position.x + Math.sin(a) * speed, y: npc.position.y, z: npc.position.z + Math.cos(a) * speed };
+        collide(cand, P_RADIUS, P_HEIGHT, STEP);
+        const d = Math.hypot(player.pos.x - cand.x, player.pos.z - cand.z);
+        if (d < bestD) { bestD = d; best = cand; }
+      }
+      if (best) { npc.position.x = best.x; npc.position.z = best.z; }
+    } else {
+      npc.position.x += (dx / dist) * speed;
+      npc.position.z += (dz / dist) * speed;
+    }
+    collide(npc.position, P_RADIUS, P_HEIGHT, STEP);
+    npc.position.y = groundHeight(npc.position, 0.4);
+    // Face toward the player
     npc.rotation.y = Math.atan2(dx, dz);
-  }
 
-  // Keep the escort descending to ground level as it follows (Kessler starts on the hold-cell's
-  // upper floor — a steady 4 m/s drop reads as climbing down instead of teleporting)
-  if (npc.position.y > 0) npc.position.y = Math.max(0, npc.position.y - dt * 4);
+    // A follow speed of 4.5 m/s loses a race against a sprinting player, and a Kessler stranded on
+    // the wrong side of a stairwell would mean an unwinnable escort. Past the soft-leash radius he
+    // is lifted to the player's own floor level and set down 3 m clear of the player.
+    if (dist > 12) {
+      npc.position.set(player.pos.x + (dx / dist) * -3, groundHeight(player.pos, 0.4), player.pos.z + (dz / dist) * -3);
+      collide(npc.position, P_RADIUS, P_HEIGHT, STEP);
+    }
+  }
 }
 
 // ── Mission 02 — demolition fuse ──
@@ -4699,11 +4969,14 @@ function checkMissionObjectives() {
 
     case 'escort_npc': {
       if (!missionState.escortActive) {
-        // Find phase — walk up to Kessler, play his scene, then the escort begins
+        // Find phase — walk up to Kessler, play his scene ONCE, then the escort begins. Without
+        // the flag the scene would re-play every time the queue drains while the player loiters
+        // inside triggerDistance; escortActive only flips after a scene finishes.
         const npc = missionState.npcs.find(n => n.userData.id === obj.id);
-        if (npc) {
+        if (npc && !missionState._findScenePlayed) {
           const kdist = Math.hypot(playerPos.x - npc.position.x, playerPos.z - npc.position.z);
           if (kdist < obj.triggerDistance) {
+            missionState._findScenePlayed = true;
             playDialogue(obj.findDialogue, () => {
               missionState._pendingEscortName = obj.npcName;
               missionState._pendingEscortActivation = true;
@@ -4718,7 +4991,13 @@ function checkMissionObjectives() {
             ? Math.hypot(playerPos.x - missionState.escortNPC.position.x, playerPos.z - missionState.escortNPC.position.z)
             : 999;
           if (npcDist > 8) {
-            showMissionNotification(`Stay close to ${missionState.escortName}!`);
+            // Proximity ping, throttled — this branch is re-entered every frame the player loiters
+            // in the zone with a lagging escort, so an unthrottled call repeated forever.
+            if (!missionState.escNag) {
+              missionState.escNag = true;
+              showMissionNotification(`Stay close to ${missionState.escortName}!`);
+              setTimeout(() => { missionState.escNag = false; }, 5000);
+            }
             return;
           }
           completeObjective(obj);
@@ -4879,7 +5158,12 @@ function playDialogue(dialogueKey, onComplete) {
     if (onComplete) onComplete();
     return;
   }
-  
+
+  // Re-entry guard. Proximity triggers fire from the objective check every frame — without this,
+  // standing next to Kessler restarts his scene endlessly ("the conversation just repeats"), and
+  // any completion dialogue could be chopped into by a wandering trigger.
+  if (missionState.dialogueActive) return;
+
   missionState.dialogueQueue = [...dialogues];
   missionState.dialogueActive = true;
   if (dialogueOverlay) dialogueOverlay.style.display = 'flex';
@@ -5697,9 +5981,9 @@ function frame() {
         });
       }
       // Mission 02 props: bud/supply markers bob, charge anchors bob until planted,
-      // planted LEDs then blink fast while the fuse burns. The bud is now a ~1.8 m hero cannabis
-      // specimen, so its marker hovers above the cola head (baseY tracks H+0.55 of the plant).
-      const bobList = [[missionState.items, 2.38], [missionState.supplies, 0.75]];
+      // planted LEDs then blink fast while the fuse burns. The bud is a ~2.0 m hero cannabis
+      // specimen, so its marker hovers above the cola head (baseY tracks H+0.58 of the plant).
+      const bobList = [[missionState.items, 2.63], [missionState.supplies, 0.75]];
       for (const [list, baseY] of bobList) {
         for (const it of list) {
           it.children.forEach(ch => {

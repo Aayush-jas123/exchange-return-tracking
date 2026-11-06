@@ -60,10 +60,9 @@
     }
 
     .field{position:absolute;inset:0;display:grid;grid-template-columns:repeat(12,1fr);grid-template-rows:repeat(24,1fr);z-index:0}
-    .bk{outline:.4px solid rgba(255,255,255,.045)}
-    .bk.on{background:rgba(255,255,255,.085)}
+    .bk{/* grid outlines and static lit cells retired — background is clear until a flash hits */}
     .bk.hit{animation:hit 1400ms ease-out}
-    @keyframes hit{0%{background:rgba(255,255,255,.42)}100%{background:rgba(255,255,255,.085)}}
+    @keyframes hit{0%{background:rgba(255,255,255,.42)}100%{background:transparent}}
 
     .screen{position:absolute;inset:0;z-index:1;display:none;flex-direction:column;overflow:hidden;color:var(--ink)}
     .screen.active{display:flex}
@@ -178,6 +177,22 @@
     .toast i{font-family:var(--m);font-style:normal;font-size:11px}
     .toast.show{animation:toast 2700ms cubic-bezier(.16,1,.3,1) forwards}
     @keyframes toast{0%{opacity:0;transform:translateY(-12px) scale(.97)}9%{opacity:1;transform:none}80%{opacity:1;transform:none}100%{opacity:0;transform:translateY(-8px) scale(.99)}}
+
+    /* Success overlay — shown after proof submission */
+    .success-overlay{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.82);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);opacity:0;pointer-events:none;transition:opacity .35s ease}
+    .success-overlay.show{opacity:1;pointer-events:auto}
+    .success-card{text-align:center;padding:32px 28px;max-width:320px;transform:scale(.88);transition:transform .4s cubic-bezier(.16,1,.3,1)}
+    .success-overlay.show .success-card{transform:scale(1)}
+    .success-check{width:64px;height:64px;margin:0 auto 20px}
+    .success-check svg{width:100%;height:100%}
+    .success-check circle{stroke-dasharray:150;stroke-dashoffset:150;animation:checkCircle .5s .15s ease-out forwards}
+    .success-check .success-tick{stroke-dasharray:60;stroke-dashoffset:60;animation:checkTick .35s .55s ease-out forwards}
+    @keyframes checkCircle{to{stroke-dashoffset:0}}
+    @keyframes checkTick{to{stroke-dashoffset:0}}
+    .success-title{font-size:18px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#fff;margin:0 0 8px}
+    .success-sub{font-family:var(--m);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.65);margin:0 0 6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:260px}
+    .success-meta{font-family:var(--m);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.38);margin:0}
+    @media(min-width:768px){.success-card{padding:40px 36px;max-width:380px}.success-check{width:76px;height:76px;margin-bottom:24px}.success-title{font-size:22px}.success-sub{font-size:11px;max-width:320px}.success-meta{font-size:10px}}
 
     .scroll{overflow:auto;margin-right:-7px;padding-right:7px;scrollbar-width:none}
     .scroll.flex{flex:1 1 auto}
@@ -1018,6 +1033,18 @@
     .duo b{display:block;font-size:21px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.15;letter-spacing:-.02em}
     @media(min-width:768px){.duo b{font-size:28px}}
     .duo em{font-style:normal;font-size:9.5px;color:var(--dim)}
+
+    /* ── XP bill: premium minimal panel (XP + coins) with a coin mark ── */
+    .xpbill{position:relative;flex:none;border:1px solid var(--line);background:#0c0c0c;padding:16px 18px 18px}
+    @media(min-width:768px){.xpbill{padding:20px 22px 22px}}
+    .xpbill-row{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:12px}
+    .xpbill-metric{display:flex;flex-direction:column;gap:8px}
+    .xpbill-metric.right{align-items:flex-end;text-align:right}
+    .xpbill .lab{margin:0;display:inline-flex;align-items:center;gap:6px}
+    .coin-ic{flex:none;color:#fff;opacity:.85}
+    .xpbill .xpv,.xpbill .xpc{display:block;font-size:36px;font-weight:900;line-height:1;color:#fff}
+    @media(min-width:768px){.xpbill .xpv,.xpbill .xpc{font-size:44px}}
+    .xpbill em{font-style:normal;display:block;margin-top:0;font-family:var(--m);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
     .settle{border:1px solid var(--line);padding:10px 11px;flex:none}
     .sr{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 0;font-size:11px;border-bottom:1px solid rgba(255,255,255,.07)}
     .sr:last-child{border-bottom:0}
@@ -1075,17 +1102,15 @@
     .dangerbtn:hover{border-color:#fff;color:#fff}
 
     /* Task tab — progress-first layout from FM-OFC-08 */
-    .banner{border:1px solid #fff;padding:9px 11px;display:grid;grid-template-columns:1fr auto;gap:9px;align-items:center;flex:none;cursor:pointer;margin-bottom:2px}
-    @media(min-width:768px){.banner{padding:14px 18px}}
+    .banner{border:1px solid #fff;padding:9px 11px;display:grid;grid-template-columns:1fr auto;gap:9px;align-items:center;flex:none;cursor:pointer;margin:0 0 22px}
+    @media(min-width:768px){.banner{padding:14px 18px;margin-bottom:32px}}
     .banner b{font-size:11.5px;font-weight:800;display:block}
     @media(min-width:768px){.banner b{font-size:14px}}
     .banner span{font-family:var(--m);font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
     .banner i{font-family:var(--m);font-style:normal;font-size:14px}
-    .pips{display:grid;grid-template-columns:repeat(10,1fr);gap:3px;flex:none;margin:18px 0 20px}
-    .pips i{height:10px;background:rgba(255,255,255,.14);display:block;border-radius:2px}
-    @media(min-width:768px){.pips{margin:24px 0 28px}.pips i{height:14px;border-radius:3px}}
-    .pips i.on{background:#fff}
-    .pips i.next{background:rgba(255,255,255,.14);box-shadow:inset 0 0 0 1px #fff}
+    .pips{position:relative;height:10px;flex:none;margin:18px 0 20px;border-radius:5px;background:linear-gradient(90deg,rgba(255,255,255,.1),rgba(255,255,255,.02))}
+    .pips i{position:absolute;left:0;top:0;bottom:0;width:100%;display:block;border-radius:5px;background:linear-gradient(90deg,rgba(255,255,255,.62) 0%,rgba(255,255,255,.28) 70%,rgba(255,255,255,0) 100%);-webkit-mask-image:linear-gradient(90deg,#000 82%,transparent 100%);mask-image:linear-gradient(90deg,#000 82%,transparent 100%);box-shadow:none}
+    @media(min-width:768px){.pips{margin:24px 0 28px;height:12px;border-radius:6px}}
     .donelist{display:flex;flex-direction:column;flex:none}
     .dr{display:grid;grid-template-columns:auto 1fr auto;gap:9px;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.07);font-size:11.5px}
     .dr:last-child{border-bottom:0}
@@ -1224,6 +1249,18 @@
     .pcheck .ptag{font-family:var(--m);font-size:7.5px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.34)}
     .pcheck button[aria-checked="true"] .ptag{color:rgba(255,255,255,.6)}
     .pcheck .pempty{padding:12px 2px;font-family:var(--m);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+    
+        /* ── Collapsible section inside the submit-proof sheet ── */
+    .sheet-acc{margin-top:16px;border:1px solid var(--sline);border-radius:8px;background:rgba(255,255,255,.02);overflow:hidden}
+    .sheet-acc-head{display:flex;align-items:center;justify-content:space-between;width:100%;background:none;border:0;cursor:pointer;padding:13px 14px;font:600 9.5px var(--m);letter-spacing:.14em;text-transform:uppercase;color:var(--sdim);transition:color .18s}
+    .sheet-acc-head:hover{color:#fff}
+    .sheet-acc-head i{font-style:normal;font-size:11px;transition:transform .3s cubic-bezier(.16,1,.3,1)}
+    .sheet-acc.open .sheet-acc-head{color:#fff}
+    .sheet-acc.open .sheet-acc-head i{transform:rotate(180deg)}
+    .sheet-acc-body{display:grid;grid-template-rows:0fr;transition:grid-template-rows .4s cubic-bezier(.16,1,.3,1)}
+    .sheet-acc.open .sheet-acc-body{grid-template-rows:1fr}
+    .sheet-acc-body>div{overflow:hidden;min-height:0}
+    .sheet-acc-body .pcheck{border-top:1px solid var(--sline);margin-top:0;padding:0 14px 8px}
 
     /* ── Mission utility actions under the CTA ── */
     .doss-acts{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:2px 0 4px}
@@ -1412,7 +1449,7 @@
       .row.bump,.row.gain v,.dotlive,.bk.hit{animation:none!important}
       .toast.show{animation:none!important;opacity:1;transform:none}
       .bar i{width:var(--pct)!important}
-      .footer video{display:none}
+            .footer video{display:none}
     }
 
     /* ── Desktop sidebar navigation ── */

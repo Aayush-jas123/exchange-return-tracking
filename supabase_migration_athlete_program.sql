@@ -359,6 +359,13 @@ CREATE INDEX IF NOT EXISTS idx_shipreq_reason ON shipment_requests(reason);
 
 -- 4b. shipments — physical consignment (enhance existing influencer_product_shipments)
 -- We keep the existing table and add new columns
+CREATE TABLE IF NOT EXISTS influencer_product_shipments (
+  id BIGSERIAL PRIMARY KEY,
+  influencer_id BIGINT REFERENCES influencers(id),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 ALTER TABLE influencer_product_shipments
   ADD COLUMN IF NOT EXISTS shipment_request_id BIGINT REFERENCES shipment_requests(id),
   ADD COLUMN IF NOT EXISTS shopify_order_id BIGINT,

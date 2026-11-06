@@ -149,16 +149,22 @@ addEventListener('unhandledrejection',e=>dbg(`Unhandled rejection: ${e.reason?.m
 
 function makeField(){
   const field=$('field'),frag=document.createDocumentFragment();
-  const order=[];
-  for(let r=23;r>=0;r--)for(let c=0;c<12;c++)order.push(r*12+c);
   for(let i=0;i<288;i++){const b=document.createElement('i');b.className='bk';frag.appendChild(b);S.bricks.push(b)}
   field.appendChild(frag);
-  order.slice(0,Math.round(288*.52)).forEach(i=>S.bricks[i].classList.add('on'));
 }
 function flash(n=1){if(reduce)return;for(let k=0;k<n;k++)setTimeout(()=>{const b=S.bricks[Math.floor(Math.random()*S.bricks.length)];b.classList.remove('hit');void b.offsetWidth;b.classList.add('hit')},k*85)}
 function count(id,to,ms=1200){if(reduce){$(id).textContent=Number(to||0).toLocaleString('en-IN');return}const start=performance.now();(function step(now){const p=Math.min(1,(now-start)/ms),e=1-Math.pow(1-p,3);$(id).textContent=Math.round(Number(to||0)*e).toLocaleString('en-IN');if(p<1)requestAnimationFrame(step)})(start)}
 function tick(id,month){const run=()=>{const d=new Date(),end=month?new Date(d.getFullYear(),d.getMonth()+1,1):new Date(d.getFullYear(),d.getMonth(),d.getDate(),23,59);let s=Math.max(0,Math.floor((end-d)/1000)),dd=Math.floor(s/86400),hh=String(Math.floor(s%86400/3600)).padStart(2,'0'),mm=String(Math.floor(s%3600/60)).padStart(2,'0'),ss=String(s%60).padStart(2,'0');$(id).innerHTML=(month?dd+'d ':'')+hh+':'+mm+'<span class="s">:'+ss+'</span>'};run();setInterval(run,1000)}
 function toast(msg,value=''){$('toastMessage').textContent=msg;$('toastValue').textContent=value;$('toast').classList.remove('show');void $('toast').offsetWidth;$('toast').classList.add('show')}
+function showSubmissionSuccess(taskTitle){
+  const ov=$('successOverlay');if(!ov)return;
+  const nameEl=$('successTaskName');if(nameEl)nameEl.textContent=taskTitle||'—';
+  // Restart SVG animations by cloning the check container
+  const check=ov.querySelector('.success-check');
+  if(check){const clone=check.cloneNode(true);check.parentNode.replaceChild(clone,check)}
+  ov.classList.add('show');
+  setTimeout(()=>ov.classList.remove('show'),2600);
+}
 
 // ── Avatar sheet ──
 let avScreen='menu'; // 'menu' | 'code' | 'cash' | 'ship' | 'card' | 'set' ('shop' jumps to the Shop screen)
@@ -759,14 +765,19 @@ function nextGate(a){
 function renderProfile(){
   const a=S.athlete||{},current=a.level||{},next=a.next_level||{},xp=a.xp_total||0;
   const pct=Math.min(100,Math.max(0,(xp-(current.min_xp||0))/Math.max(1,(next.min_xp||xp+100)-(current.min_xp||0))*100));
-  $('taskDial').textContent=current.display_number??'—';
-  $('taskLevel').innerHTML=esc(current.display_name||'Comfort Level').replace(' - ','<br>- ');
-  $('taskBar').style.width=pct+'%';
-  const gate=nextGate(a);
-  $('taskProgress').textContent=gate.max?'MAXIMUM COMFORT LEVEL':gate.label.toUpperCase();
-  count('taskXp',xp);
+  // Comfort-level row removed from the Tasks tab; render only if the nodes exist
+  if($('taskDial')){
+    $('taskDial').textContent=current.display_number??'—';
+    $('taskLevel').innerHTML=esc(current.display_name||'Comfort Level').replace(' - ','<br>- ');
+    $('taskBar').style.width=pct+'%';
+    const gate=nextGate(a);
+    $('taskProgress').textContent=gate.max?'MAXIMUM COMFORT LEVEL':gate.label.toUpperCase();
+    count('taskXp',xp);
+  }
   // Sync all .xpv elements
   document.querySelectorAll('.xpv').forEach(el=>{el.textContent=xp.toLocaleString('en-IN')});
+  // Coins metric (separate currency, never part of XP)
+  const xc=$('xpCoins');if(xc)xc.textContent=(a.coin_balance||0).toLocaleString('en-IN');
 }
 
 function renderTasks(){
@@ -779,15 +790,17 @@ function renderTasks(){
   // engine promotes on XP *and* schedule, so never render a negative delta.
   const gate=nextGate(a);
 
-  // Pips
+  // Pips — single faded fill bar sized to the fraction cleared at this level
   let pipsHTML='';
-  for(let i=0;i<totalAtLevel;i++) pipsHTML+=`<i class="${i<doneAtLevel?'on':i===doneAtLevel?'next':''}"></i>`;
+  const pipsPct=totalAtLevel?Math.min(100,Math.round(doneAtLevel/totalAtLevel*100)):0;
+  pipsHTML=`<i style="width:${pipsPct}%"></i>`;
   $('pips').innerHTML=pipsHTML;
 
   // Progress hero — name the gate that is holding, not just the XP delta
   $('xpLabel').textContent=gate.label;
   $('xpEarned').textContent=xp.toLocaleString('en-IN');
   $('xpToGo').textContent=gate.sub;
+  const xpMeter=$('xpMeter');if(xpMeter)xpMeter.style.setProperty('--pct',pipsPct+'%');
 
   // Categorize picked tasks by actual assignment status (pick_status now reflects assignment.status)
   const ACTIVE_STATUSES=['PICKED','ASSIGNED','IN_PROGRESS'];
@@ -802,10 +815,10 @@ function renderTasks(){
   // Submitted tasks section — show proof details (link, caption, status)
   const subKick=$('submittedKick'),subList=$('submittedlist');
   if(submitted.length||changesReq.length){
-    subKick.hidden=false;
-    subKick.textContent=`Submitted · ${submitted.length+changesReq.length} awaiting review`;
+    if(subKick){subKick.hidden=false;
+    subKick.textContent=`Submitted · ${submitted.length+changesReq.length} awaiting review`;}
     const allPending=[...submitted,...changesReq];
-    subList.innerHTML=allPending.map(t=>{
+    if(subList)subList.innerHTML=allPending.map(t=>{
       const s=t.submission||{};
       const isResubmit=t.pick_status==='CHANGES_REQUESTED';
       const statusLabel=isResubmit?'Changes requested':'Under review';
@@ -826,8 +839,8 @@ function renderTasks(){
       </div>`;
     }).join('');
   }else{
-    subKick.hidden=true;
-    subList.innerHTML='';
+    if(subKick)subKick.hidden=true;
+    if(subList)subList.innerHTML='';
   }
 
   // Cleared tasks (approved by admin)
@@ -896,7 +909,7 @@ function renderTasks(){
     $('bannerSub').textContent=`${picked.length} of 1 picked · closes midnight`;
   }
 
-  $('taskPicked').innerHTML=`${picked.length}<s>/1</s>`;
+  const tp=$('taskPicked');if(tp)tp.innerHTML=`${picked.length}<s>/1</s>`;
   const heroEl=$('taskHero');
   if(!focus){
     if(heroEl)heroEl.classList.remove('tight');
@@ -973,7 +986,7 @@ function renderDossier(t,pick){
     $('dossTags').innerHTML='';
     briefEl.textContent='Every mission is a small act against comfort. Open the pool above, read a brief, pick one.';
     briefEl.classList.add('plain');briefEl.classList.remove('open');
-    toggle.hidden=true;toggle.setAttribute('aria-expanded','false');
+    if(toggle){toggle.hidden=true;toggle.setAttribute('aria-expanded','false');}
     $('dossDue').textContent='—';$('taskTimeBar').style.width='0%';
     $('proofCheck').innerHTML='<div class="pempty">No mission picked yet</div>';
     $('proofKick').textContent='Proof checklist';
@@ -1019,11 +1032,13 @@ function renderDossier(t,pick){
   const brief=String(t.brief_md||'').trim()||'No brief attached — open the brief with your coach if anything is unclear.';
   briefEl.textContent=brief;
   briefEl.classList.remove('open');
-  toggle.setAttribute('aria-expanded','false');
-  toggle.innerHTML='Read full brief +';
   // Only offer the expander when the copy actually clips at four lines.
   const clipped=brief.length>175;
-  toggle.hidden=!clipped;
+  if(toggle){
+    toggle.setAttribute('aria-expanded','false');
+    toggle.innerHTML='Read full brief +';
+    toggle.hidden=!clipped;
+  }
   briefEl.classList.toggle('plain',!clipped);
 
   if(S.focusDue){
@@ -1379,7 +1394,7 @@ function renderClimb(){
 function renderBoard(){
   const list=[...S.leaderboard].sort((a,b)=>(b.xp_total||0)-(a.xp_total||0));
   const mine=list.findIndex(a=>a.id===S.athlete?.id);
-  if(mine>=0)$('taskRank').textContent='#'+(mine+1);
+  const tr=mine>=0?$('taskRank'):null;if(tr)tr.textContent='#'+(mine+1);
   renderLobby();
 }
 
@@ -1388,9 +1403,9 @@ function renderLobby(){
   // Lobbies of every cabinet share one hub — label each room with its game so the
   // Join button opens the right cabinet instead of always Rooftop Racing.
   const rooms=RACE.rooms||[];
-  $('lobbyWrap').hidden=!rooms.length;
-  $('lobbyCount').textContent=rooms.length?`${rooms.length} open`:'';
-  $('raceLobbies').innerHTML=rooms.map(r=>{
+  if($('lobbyWrap'))$('lobbyWrap').hidden=!rooms.length;
+  if($('lobbyCount'))$('lobbyCount').textContent=rooms.length?`${rooms.length} open`:'';
+  if($('raceLobbies'))$('raceLobbies').innerHTML=rooms.map(r=>{
     const full=r.n>=r.max,game=r.game||'rooftop-racing';
     return `<div class="arow on"><span class="aface">${r.n}</span><span class="am"><b>${esc((r.h||'Athlete').split(/\s+/)[0])}'s room</b><em>${esc(GAME_LABELS[game]||game)} &middot; ${esc(r.r)} &middot; ${r.n}/${r.max}</em></span><span class="aright"><span class="astat"><i></i>${r.s==='lobby'?'In lobby':'Playing'}</span><button class="invt${r.s==='lobby'&&!full?' w':''}" type="button" data-join="${esc(r.r)}" data-game="${esc(game)}"${full?' disabled':''}>${full?'Full':r.s==='lobby'?'Join':'Join next'}</button></span></div>`;
   }).join('');
@@ -2039,9 +2054,11 @@ async function submitProof(){
   const url=$('proofUrl').value.trim();
   if(!url)return toast('Post URL required');
   const btn=$('submitProof');btn.disabled=true;btn.textContent='Submitting…';
+  const focus=S.tasks.find(x=>x.assignment_id===S.assignment)||S.tasks.find(x=>x.picked);
+  const taskTitle=focus?focus.title:'';
   try{
     await api('/submissions/'+S.assignment,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({post_url:url,caption:$('proofCaption').value.trim(),disclosure_found:$('proofDisclosure').checked,platform:$('proofPlatform').value,notes:$('proofNotes').value.trim()})});
-    $('sheet').classList.remove('open');toast('Proof submitted');flash(12);await loadTasks();
+    $('sheet').classList.remove('open');showSubmissionSuccess(taskTitle);flash(12);await loadTasks();
   }catch(e){toast(e.message)}
   finally{btn.disabled=false;btn.textContent='Submit'}
 }
@@ -2117,7 +2134,7 @@ async function submitProductRequest(){
 async function loadTasks(){const data=await api('/daily-tasks');S.tasks=data?.tasks||[];S.picks=data?.picks||[];S.maxPicks=data?.maxPicks||5;renderTasks()}
 async function refreshBoard(){try{const board=await api('/leaderboard');if(JSON.stringify(board)!==JSON.stringify(S.leaderboard)){S.leaderboard=board||[];renderBoard();flash(2)}else{renderLobby()}}catch(e){}}
 
-function enterPortal(){$('loading').hidden=true;$('portal').classList.add('ready');show('tasks');linkGames();loadUnlocks();raceConnect();if(!reduce)setInterval(refreshBoard,30000)}
+function enterPortal(){if($('loading'))$('loading').hidden=true;$('portal')?.classList.add('ready');show('tasks');linkGames();loadUnlocks();raceConnect();if(!reduce)setInterval(refreshBoard,30000)}
 
 // ── Coin shop: spend-only currency earned from the arcade and level-ups. Coins
 // never feed XP, level or rank. Drops (photo + coin price) are listed by the
@@ -2333,10 +2350,10 @@ function showAuthError(keepToken){
   // overlay, so dropping .ready — the only thing that shows .portal — is what
   // actually hides them; the panels are also closed so they don't reappear
   // mid-slide on the next login.
-  $('portal').classList.remove('ready');
+  $('portal')?.classList.remove('ready');
   ['sidebarAcctSub','sidebarAcctHead','sidebarAcctMenu','sheet','avSheet'].forEach(id=>$(id)?.classList.remove('open'));
   $('avScrim')?.classList.remove('on');
-  $('loading').hidden=true;$('auth').hidden=false;
+  if($('loading'))$('loading').hidden=true;if($('auth'))$('auth').hidden=false;
   if(typeof resetOtpUI==='function')resetOtpUI();
 }
 // Every sign-out in the portal goes through here so both stores are emptied and
@@ -2370,7 +2387,7 @@ async function loadPortal(){
     console.log('[Avatar] Progress data loaded:', progress?.avatar_base, progress?.avatar_head, progress?.avatar_mark, progress?.avatar_ground, progress?.avatar_frame);
     Object.assign(S,{athlete:progress,streak:streak?.current_streak||0,leaderboard:board||[],climb,ranks,log:log||[],weekly,orders:orders||[],commissions:commissions||null,productRequests:productRequests||[]});
     dbg('all endpoints OK — entering portal','ok');
-    renderProfile();updateSidebarAcct();$('taskStreak').innerHTML=S.streak+'<s> days</s>';renderClimb();renderBoard();renderRanks();renderLog();renderShop();await loadTasks();enterPortal();
+    renderProfile();updateSidebarAcct();if($('taskStreak'))$('taskStreak').innerHTML=S.streak+'<s> days</s>';renderClimb();renderBoard();renderRanks();renderLog();renderShop();await loadTasks();enterPortal();
     // Render avatars in top bar buttons
     refreshAllAvatars();
     // Shop loads outside ENDPOINTS so a missing /shop route never blocks login.
@@ -2392,7 +2409,13 @@ document.addEventListener('DOMContentLoaded',()=>{
   $('sidebarToggle')?.addEventListener('click',()=>{$('sidebar').classList.toggle('collapsed')});
   // ── Mission dossier controls ──
   $('proofCheck').addEventListener('click',e=>{const b=e.target.closest('button[role="checkbox"]');if(b)toggleCheck(b)});
-  $('briefToggle').addEventListener('click',()=>{
+  // Collapsed proof-checklist accordion inside the submit-proof sheet
+  $('proofAccHead').addEventListener('click',()=>{
+    const acc=$('proofAccHead').closest('.sheet-acc');
+    const open=acc.classList.toggle('open');
+    $('proofAccHead').setAttribute('aria-expanded',open?'true':'false');
+  });
+  $('briefToggle')?.addEventListener('click',()=>{
     const open=$('dossBrief').classList.toggle('open');
     $('briefToggle').setAttribute('aria-expanded',open?'true':'false');
     $('briefToggle').innerHTML=open?'Show less -':'Read full brief +';
@@ -2457,7 +2480,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     // Guarded: a theme still on the previous template has no stay card, and a
     // half-finished upload must not break the rest of the login screen.
     if($('stayCard'))$('stayCard').hidden=true;
-    $('authForm').hidden=false;
+    if($('authForm'))$('authForm').hidden=false;
     if(otpResendTimer)clearInterval(otpResendTimer);
     if(otpExpiryTimer)clearInterval(otpExpiryTimer);
   }
@@ -2548,21 +2571,21 @@ document.addEventListener('DOMContentLoaded',()=>{
   function askStay(token){
     // No card in the deployed template yet: keep the old behaviour (straight in,
     // tab-only session) instead of stalling on a prompt that cannot render.
-    if(!$('stayCard')){saveToken(token,false);S.token=token;$('auth').hidden=true;$('loading').hidden=false;loadPortal();return}
+    if(!$('stayCard')){saveToken(token,false);S.token=token;if($('auth'))$('auth').hidden=true;if($('loading'))$('loading').hidden=false;loadPortal();return}
     pendingToken=token;
-    $('authForm').hidden=true;
-    $('stayCard').hidden=false;
+    if($('authForm'))$('authForm').hidden=true;
+    if($('stayCard'))$('stayCard').hidden=false;
     $('stayYes').focus();
   }
   function finishLogin(remember){
     const token=pendingToken;
     pendingToken=null;
-    $('stayCard').hidden=true;
-    if(!token){$('authForm').hidden=false;return}
+    if($('stayCard'))$('stayCard').hidden=true;
+    if(!token){if($('authForm'))$('authForm').hidden=false;return}
     const kept=saveToken(token,remember);
     S.token=token;
     dbg(kept?'token saved on this device — the next visit skips the OTP':'token kept for this tab only','ok');
-    $('auth').hidden=true;$('loading').hidden=false;
+    if($('auth'))$('auth').hidden=true;if($('loading'))$('loading').hidden=false;
     loadPortal();
   }
   $('stayYes').onclick=()=>finishLogin(true);
@@ -2597,5 +2620,5 @@ document.addEventListener('DOMContentLoaded',()=>{
   dbg('portal page loaded');
   const saved=readToken();
   if(saved){dbg(`saved token found · ${maskToken(saved)}${stayRemembered()?' · remembered device':''}`);S.token=saved;loadPortal()}
-  else{$('loading').hidden=true;$('auth').hidden=false;dbg('no saved token — auth screen')}
+  else{if($('loading'))$('loading').hidden=true;if($('auth'))$('auth').hidden=false;dbg('no saved token — auth screen')}
 });

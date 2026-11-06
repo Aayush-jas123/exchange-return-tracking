@@ -46,7 +46,20 @@ module.exports = function mountAthleteRoutes(app) {
     const { token } = req.params;
     if (!token) return res.status(401).json({ error: 'No token' });
 
-    const resolved = await TokenService.resolve(token);
+    // TokenService.resolve re-throws the PostgREST error object whenever the lookup
+    // itself fails (schema cache miss after a migration, pool exhaustion, transient
+    // 5xx). Express 4 never catches a rejection coming out of middleware, so that
+    // throw used to surface as an unhandled rejection and take the whole instance
+    // down. Answer 503 instead: the portal retries on its next poll, and a transient
+    // DB hiccup must not read as a bad token (401 would sign the athlete out).
+    let resolved;
+    try {
+      resolved = await TokenService.resolve(token);
+    } catch (err) {
+      console.error(`[athlete-auth] token lookup error ${req.method} ${req.originalUrl || req.url}:`,
+        (err && err.message) || (typeof err === 'object' ? JSON.stringify(err) : String(err)));
+      return res.status(503).json({ error: 'Sign-in check is temporarily unavailable, please retry' });
+    }
     if (!resolved) {
       console.warn(`[athlete-auth] rejected ${req.method} ${req.originalUrl || req.url} token=${String(token).slice(0, 4)}…(len ${token.length})`);
       return res.status(401).json({ error: 'Invalid or expired token' });

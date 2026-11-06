@@ -4,6 +4,39 @@ const winston = require('winston');
 const jwt = require('jsonwebtoken');
 const helmet = require('helmet');
 
+// ==================== PROCESS-LEVEL SAFETY NET ====================
+// Node >=15 defaults to --unhandled-rejections=throw, so one rejected promise with
+// no .catch() used to kill the whole instance and everything served by it. Worse,
+// the reason is usually a PostgREST error object (a plain object, not an Error), and
+// Node prints those as "#<Object>" with no stack, so the crash log never said which
+// call failed. Log the real reason and keep serving; the caller-level guards are the
+// actual fixes, this is only the backstop that stops one bad background path taking
+// the storefront down.
+function describeFatal(reason) {
+    if (reason instanceof Error) return reason.stack || `${reason.name}: ${reason.message}`;
+    if (reason && typeof reason === 'object') {
+        const parts = [];
+        ['message', 'error', 'details', 'hint', 'code', 'status', 'statusCode'].forEach(k => {
+            if (reason[k] !== undefined && reason[k] !== null) parts.push(`${k}=${JSON.stringify(reason[k])}`);
+        });
+        let whole = '';
+        try { whole = JSON.stringify(reason) || ''; } catch (e) { whole = ''; }
+        return `non-Error rejection { ${parts.join(' ') || Object.keys(reason).join(',') || '(empty)'} }${whole ? ' raw=' + whole.slice(0, 500) : ''}`;
+    }
+    return `non-Error rejection ${String(reason)}`;
+}
+
+process.on('unhandledRejection', (reason) => {
+    console.error('[unhandledRejection]', describeFatal(reason));
+});
+
+process.on('uncaughtException', (err) => {
+    // A synchronous throw from unknown state is not safe to keep serving, so still
+    // exit — but with the real error in the log rather than a bare stack fragment.
+    console.error('[uncaughtException]', describeFatal(err));
+    process.exit(1);
+});
+
 // Environment check
 const isProduction = process.env.NODE_ENV === 'production';
 
