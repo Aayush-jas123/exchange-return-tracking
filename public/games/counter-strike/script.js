@@ -3273,7 +3273,7 @@ const MISSIONS = [
         id: 'obj_2_1',
         type: 'collect_item',
         title: 'Retrieve the Purple Bud',
-        description: 'RAVEN needs a bud from the wild specimen growing in the shadow of the collapsed water tanks, far west of the marsh',
+        description: 'RAVEN needs a bud from the rare cannabis specimen growing in the shadow of the collapsed water tanks, far west of the marsh',
         location: { x: -41, z: -21, radius: 4 },
         itemType: 'purple_bud',
         triggerDistance: 2.0,
@@ -3988,45 +3988,94 @@ function spawnNPC(x, z, name, id, y = 0) {
 }
 
 // ── Mission 02 props ──
-// The Purple Bud: potted rare plant, gone wild in the open. "Purple" reads as a pale
-// crystalline tone — the whole cabinet stays greyscale, so the bud uses the same faceted
-// low-poly crystal trick as the cannabis buds, just taller and brighter.
+// The Purple Bud: a single rare Cannabis specimen grown out in the open. Built from the SAME
+// shared geometry + anatomy as the field crop (addCannabisPlant): the serrated fan-leaf quad
+// (mats.cannabis, textured alpha silhouette), the 5-sided stalk cylinder and the faceted bud
+// crystal. Rebuilt here as individual meshes because it's a one-off collectible, so it reads as a
+// real plant — decussate branch pairs, fan canopy, calyx colas — instead of the old flat-box sprig.
+// A hero specimen: taller than a wild shrub, topped by a pale crystalline cola ("purple" = brightest
+// greyscale tone; brand rule: no hue anywhere). Leaf quads don't cast shadows (thin alpha blades, ~40
+// of them) — only the wood, colas and soil do — so this adds detail without a shadow-pass tax.
 function spawnPurpleBud(x, z, y, id) {
   const group = new THREE.Group();
-  const dark = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.9 });
-  const mid = new THREE.MeshStandardMaterial({ color: 0x6e6e6e, roughness: 0.85 });
-  const leaf = new THREE.MeshStandardMaterial({ color: 0x5c5c60, roughness: 0.95 });
-  const glow = new THREE.MeshStandardMaterial({ color: 0xb8b8b8, emissive: 0x666666, emissiveIntensity: 0.5 });
+  const s = 1.18;                                    // hero scale → ~1.8 m tall, above the field shrubs
+  const H = 1.55 * s;
+  const glow = new THREE.MeshStandardMaterial({ color: 0xc2c2c2, emissive: 0x666666, emissiveIntensity: 0.55, flatShading: true });
 
-  const part = (geo, mat, px, py, pz, rx = 0, ry = 0, rz = 0) => {
-    const m = new THREE.Mesh(geo, mat);
-    m.position.set(px, py, pz); m.rotation.set(rx, ry, rz); m.castShadow = true;
-    group.add(m); return m;
+  const Y = new THREE.Vector3(0, 1, 0), XA = new THREE.Vector3(1, 0, 0), ZA = new THREE.Vector3(0, 0, 1);
+  const qy = new THREE.Quaternion(), qx = new THREE.Quaternion(), qz = new THREE.Quaternion();
+  const orient = (m, yaw, tilt, roll) => {
+    qy.setFromAxisAngle(Y, yaw); qx.setFromAxisAngle(XA, tilt); qz.setFromAxisAngle(ZA, roll || 0);
+    m.quaternion.copy(qy).multiply(qx).multiply(qz);
+  };
+  // woody stalk/branch segment from the base point outward `len`; returns its tip position
+  const stem = (px, py, pz, len, yaw, tilt, r) => {
+    const m = new THREE.Mesh(stalkGeo, mats.cannabisStem);
+    m.scale.set(r, len, r); orient(m, yaw, tilt);
+    const st = Math.sin(tilt), dx = st * Math.sin(yaw), dz = st * Math.cos(yaw);
+    m.position.set(px + dx * len / 2, py + Math.cos(tilt) * len / 2, pz + dz * len / 2);
+    m.castShadow = true; group.add(m);
+    return [px + dx * len, py + Math.cos(tilt) * len, pz + dz * len];
+  };
+  // textured fan leaf, pivoted at the petiole base so `tilt` swings the whole blade out from the wood
+  const fan = (px, py, pz, ls, yaw, tilt, roll) => {
+    const m = new THREE.Mesh(cannabisLeafGeo, mats.cannabis);
+    m.scale.setScalar(ls); orient(m, yaw, tilt, roll);
+    m.position.set(px, py, pz); m.castShadow = false; m.receiveShadow = true;
+    group.add(m);
+  };
+  // calyx/bud crystal; `hero` ones use the pale emissive stone so the colas glow
+  const cola = (px, py, pz, r, hero) => {
+    const m = new THREE.Mesh(budGeo, hero ? glow : mats.cannabisBud);
+    m.scale.set(r, r * 1.4, r); m.position.set(px, py, pz); m.castShadow = true; group.add(m);
   };
 
-  // Clay pot with rim and soil mound
-  part(new THREE.CylinderGeometry(0.16, 0.12, 0.2, 10), mid, 0, 0.1, 0);
-  part(new THREE.CylinderGeometry(0.18, 0.17, 0.04, 10), dark, 0, 0.21, 0);
-  part(new THREE.CylinderGeometry(0.14, 0.14, 0.03, 10), dark, 0, 0.22, 0);
-  // Main stalk
-  part(new THREE.CylinderGeometry(0.018, 0.03, 0.55, 6), leaf, 0, 0.5, 0);
-  // Two tiers of paired serrated leaves (flat boxes, tilted down like real fan leaves)
-  for (let tier = 0; tier < 2; tier++) {
-    const ty = 0.36 + tier * 0.18;
-    for (let k = 0; k < 2; k++) {
-      const side = k ? 1 : -1;
-      part(new THREE.BoxGeometry(0.26, 0.012, 0.09), leaf,
-        side * 0.13, ty, side * 0.04, 0, side * 0.5, side * -0.35);
-      part(new THREE.BoxGeometry(0.16, 0.012, 0.06), leaf,
-        side * 0.1, ty - 0.05, side * -0.09, 0, side * -0.9, side * -0.3);
+  // Root ball of dark soil so it reads as rooted in the open ground, not floating
+  const soil = new THREE.Mesh(new THREE.CylinderGeometry(0.46 * s, 0.6 * s, 0.18 * s, 12), mats.mud);
+  soil.position.set(0, 0.09 * s, 0); soil.receiveShadow = true; soil.castShadow = true; group.add(soil);
+
+  const phase = 0.7;
+  stem(0, 0.02 * s, 0, H, 0, 0, 0.032 * s);          // main stalk
+  const nodes = 6;
+  for (let i = 0; i < nodes; i++) {
+    const f = 0.08 + (i / (nodes - 1)) * 0.86;       // 8% → 94% up the stalk
+    const yy = f * H, pair = phase + i * Math.PI / 2;
+    const fn = (f - 0.24) / 0.70;                    // 0 at first branch node → 1 at apex
+    if (fn < 0) {                                    // skirt: the big lowest pair, no branches
+      fan(0, yy, 0, 0.74 * s, pair, 1.12, 0.08);
+      fan(0, yy, 0, 0.74 * s, pair + Math.PI, 1.12, -0.08);
+      continue;
+    }
+    if (fn < 0.5) {                                  // fork leaves, tapering as branches take over
+      const ls = 0.60 * s * (1 - fn * 0.6);
+      fan(0, yy, 0, ls, pair + Math.PI / 2, 1.14, 0.06);
+      fan(0, yy, 0, ls, pair - Math.PI / 2, 1.14, -0.06);
+    }
+    for (let k = 0; k < 2; k++) {                    // decussate branch pair, 90° from the last
+      const yaw = pair + k * Math.PI;
+      const bTilt = 1.06 - fn * 0.54;                // 61° out low, 30° near the apex
+      const bLen = H * (0.28 + 0.22 * Math.sin(Math.PI * (0.22 + fn * 0.62)));
+      const tip = stem(0, yy, 0, bLen, yaw, bTilt, 0.016 * s);
+      const pairs = (fn > 0.10 && fn < 0.80) ? 3 : 2;
+      for (let j = 0; j < pairs; j++) {
+        const t = 0.16 + (pairs > 1 ? j * (0.68 / (pairs - 1)) : 0.4);
+        const ls = 0.62 * s * (1 - (j / pairs) * 0.26);
+        const lx = tip[0] * t, ly = yy + (tip[1] - yy) * t, lz = tip[2] * t;
+        const lYaw = (j % 2 ? yaw : yaw + Math.PI / 2);
+        const spread = 1.05 + bTilt * 0.20 - (j / pairs) * 0.18;
+        fan(lx, ly, lz, ls, lYaw, spread, 0.05);
+        fan(lx, ly, lz, ls, lYaw + Math.PI, spread, -0.05);
+      }
+      fan(tip[0], tip[1], tip[2], 0.34 * s, yaw, bTilt - 0.30, 0);   // tip leaf rising to the branch end
+      if (i >= nodes - 2) cola(tip[0], tip[1] + 0.07 * s, tip[2], 0.085 * s * BUD_SCALE, i === nodes - 1);
     }
   }
-  // Terminal crystal bud — faceted pentagon sphere, brightest thing in the greenhouse
-  part(new THREE.SphereGeometry(0.09, 5, 3), glow, 0, 0.82, 0);
-  part(new THREE.SphereGeometry(0.055, 5, 3), glow, 0.03, 0.94, -0.01);
-  part(new THREE.SphereGeometry(0.035, 5, 3), glow, -0.02, 1.02, 0.02);
-  // Floating pickup indicator
-  part(new THREE.OctahedronGeometry(0.1, 0), glow, 0, 1.35, 0).userData.isIndicator = true;
+  // Terminal cola: upright sugar leaves ringed around a stacked pale crystal head
+  for (let k = 0; k < 4; k++) fan(0, H * (0.89 + k * 0.05), 0, 0.36 * s * (1 - k * 0.12), phase + k * 1.57, 0.50, 0);
+  for (let b = 0; b < 4; b++) cola(0, H + 0.03 + b * 0.10 * s, 0, 0.12 * s * BUD_SCALE * (1 - b * 0.16), true);
+  // Floating pickup indicator (bob + spin driven in the frame loop via userData.isIndicator)
+  const ind = new THREE.Mesh(new THREE.OctahedronGeometry(0.11, 0), glow);
+  ind.position.set(0, H + 0.55, 0); ind.userData.isIndicator = true; group.add(ind);
 
   group.position.set(x, y, z);
   group.userData = { type: 'item', itemType: 'purple_bud', id: id };
@@ -5648,8 +5697,9 @@ function frame() {
         });
       }
       // Mission 02 props: bud/supply markers bob, charge anchors bob until planted,
-      // planted LEDs then blink fast while the fuse burns
-      const bobList = [[missionState.items, 1.35], [missionState.supplies, 0.75]];
+      // planted LEDs then blink fast while the fuse burns. The bud is now a ~1.8 m hero cannabis
+      // specimen, so its marker hovers above the cola head (baseY tracks H+0.55 of the plant).
+      const bobList = [[missionState.items, 2.38], [missionState.supplies, 0.75]];
       for (const [list, baseY] of bobList) {
         for (const it of list) {
           it.children.forEach(ch => {
