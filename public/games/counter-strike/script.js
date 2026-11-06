@@ -43,12 +43,16 @@ mapOptions.forEach(btn => {
   });
 });
 
+// ── Mobile detection (needed before renderer setup) ──
+const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+const isMobile = isTouchDevice || innerWidth < 768;
+
 // ── Renderer / scene ──
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const renderer = new THREE.WebGLRenderer({ antialias: !isMobile });
+renderer.setPixelRatio(isMobile ? Math.min(devicePixelRatio, 1.5) : Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = isMobile ? THREE.BasicShadowMap : THREE.PCFSoftShadowMap;
 renderer.shadowMap.autoUpdate = false; // throttle: manually flag every N frames below
 let _shadowFrame = 0;
 let _radarFrame = 0;
@@ -104,7 +108,7 @@ scene.add(new THREE.HemisphereLight(0xffffff, 0x1a1a1e, 1.8));
 const sun = new THREE.DirectionalLight(0xffffff, 3.2);
 sun.position.set(30, 55, 18);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.mapSize.set(isMobile ? 1024 : 2048, isMobile ? 1024 : 2048);
 Object.assign(sun.shadow.camera, { left: -48, right: 68, top: 58, bottom: -58, near: 1, far: 180 });
 sun.shadow.bias = -0.0006;
 scene.add(sun);
@@ -2137,8 +2141,16 @@ function audio() {
   return actx;
 }
 
+// ── Shot voice cap: prevents rapid-fire from stacking dozens of live nodes ──
+const shotVoices = [];
+const SHOT_VOICE_CAP = 4;
 function playShot(vol = 1, tone = 1) {
   const a = audio(), t = a.currentTime;
+  // Cull expired voices
+  const now = t;
+  for (let i = shotVoices.length - 1; i >= 0; i--) { if (shotVoices[i] <= now) shotVoices.splice(i, 1); }
+  if (shotVoices.length >= SHOT_VOICE_CAP) return; // drop this shot
+  shotVoices.push(t + 0.3);
   const src = a.createBufferSource();
   src.buffer = noiseBuf;
   const f = a.createBiquadFilter();
@@ -2347,22 +2359,49 @@ const holeGeo = new THREE.CircleGeometry(0.06, 8);
 const holeMat = new THREE.MeshBasicMaterial({ color: 0x0a0a0a, polygonOffset: true, polygonOffsetFactor: -4 });
 const decals = [];
 
-function spawnTracer(from, to, color = 0xffffff) {
-  const geo = new THREE.BufferGeometry().setFromPoints([from, to]);
-  const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.8 });
+// ── Particle / tracer object pools (avoid per-frame GC) ──
+const PARTICLE_POOL_SIZE = 200;
+const TRACER_POOL_SIZE = 50;
+const particlePool = [];
+const tracerPool = [];
+for (let i = 0; i < PARTICLE_POOL_SIZE; i++) {
+  const p = new THREE.Mesh(sparkGeo, sparkMat);
+  p.visible = false;
+  scene.add(p);
+  particlePool.push(p);
+}
+for (let i = 0; i < TRACER_POOL_SIZE; i++) {
+  const geo = new THREE.BufferGeometry();
+  const mat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8 });
   const line = new THREE.Line(geo, mat);
+  line.visible = false;
   scene.add(line);
-  effects.push({ obj: line, life: 0.06, max: 0.06, fade: true });
+  tracerPool.push(line);
+}
+function getParticle(mat) {
+  for (const p of particlePool) { if (!p.visible) { p.material = mat; p.visible = true; return p; } }
+  return null; // pool exhausted
+}
+function getTracer(color) {
+  for (const l of tracerPool) { if (!l.visible) { l.material.color.setHex(color); l.visible = true; return l; } }
+  return null; // pool exhausted
+}
+
+function spawnTracer(from, to, color = 0xffffff) {
+  const line = getTracer(color);
+  if (!line) return;
+  line.geometry.setFromPoints([from, to]);
+  effects.push({ obj: line, life: 0.06, max: 0.06, fade: true, pooled: true });
 }
 
 function spawnParticles(point, normal, mat, count, speed) {
   for (let i = 0; i < count; i++) {
-    const p = new THREE.Mesh(sparkGeo, mat);
+    const p = getParticle(mat);
+    if (!p) break; // pool exhausted, skip remaining
     p.position.copy(point);
     const v = new THREE.Vector3(rand(-1, 1), rand(-0.2, 1), rand(-1, 1)).multiplyScalar(speed);
     if (normal) v.addScaledVector(normal, speed);
-    scene.add(p);
-    effects.push({ obj: p, vel: v, life: rand(0.2, 0.45) });
+    effects.push({ obj: p, vel: v, life: rand(0.2, 0.45), pooled: true });
   }
 }
 
@@ -2383,8 +2422,13 @@ function updateEffects(dt) {
     if (e.grow) e.grow(e, Math.max(0, e.life / e.max));
     if (e.fade) e.obj.material.opacity = Math.max(0, e.life / e.max) * 0.8;
     if (e.life <= 0) {
-      scene.remove(e.obj);
-      if (e.fade) { e.obj.geometry.dispose(); e.obj.material.dispose(); }
+      if (e.pooled) {
+        // Return to pool: hide but keep in scene for reuse
+        e.obj.visible = false;
+      } else {
+        scene.remove(e.obj);
+        if (e.fade) { e.obj.geometry.dispose(); e.obj.material.dispose(); }
+      }
       effects.splice(i, 1);
     }
   }
@@ -2401,6 +2445,7 @@ const hud = {
 };
 const radarCtx = hud.radar.getContext('2d');
 let centerTimer = 0, hitTimer = 0, damageFlash = 0;
+let lastTimerText = '', lastDamageOpacity = -1;
 
 function centerMsg(text, sub = '', time = 2.5) {
   hud.center.innerHTML = text + (sub ? `<small>${sub}</small>` : '');
@@ -2565,6 +2610,7 @@ class Bot {
     this.stuckTimer = 0; this.stuckRef = this.pos.clone();
     this.walkPhase = Math.random() * 10; this.spotted = 0; this.parts = [];
     this.stepDist = 0; this.lastStepPos = this.pos.clone();
+    this._losCounter = bots.length % 3; // stagger LOS checks across bots
 
     const g = this.group = new THREE.Group();
     const part = (geo, mat, x, y, z, partName, parent = g) => {
@@ -2648,7 +2694,7 @@ class Bot {
     const hit = Math.random() < chance;
     const aim = playerEye.clone().add(new THREE.Vector3(0, -0.35, 0));
     if (!hit) aim.add(new THREE.Vector3(rand(-1, 1), rand(-0.6, 0.8), rand(-1, 1)).multiplyScalar(0.6 + dist * 0.02));
-    spawnTracer(muzzle, aim, 0xffc870);
+    spawnTracer(muzzle, aim, 0xcccccc);
     playShot(clamp(1.2 - dist / 40, 0.12, 0.8), 0.85);
     // Bot lethality tuned down a notch: base 5–10 → 4–8 and the headshot-style crit 6%/×1.8 →
     // 5%/×1.6. Avg per hit ≈7.9 → ≈6.2 (~22% softer). Hit chance is left untouched so bots still
@@ -2673,7 +2719,12 @@ class Bot {
     if (player.alive && dist < 30) {
       let ang = Math.atan2(dx, dz) - this.yaw;
       ang = Math.abs(Math.atan2(Math.sin(ang), Math.cos(ang)));
-      if (this.alert || ang < 1.25 || dist < 3) sees = hasLOS(eye, playerChest);
+      // Throttle expensive LOS ray-march: each bot checks every 3rd frame, staggered
+      this._losCounter = (this._losCounter + 1) % 3;
+      const losDue = this._losCounter === 0;
+      if (losDue && (this.alert || ang < 1.25 || dist < 3)) sees = hasLOS(eye, playerChest);
+      else if (!losDue) sees = this._lastSees || false;
+      if (losDue) this._lastSees = sees;
     }
 
     const before = this.pos.clone();
@@ -2903,7 +2954,6 @@ document.addEventListener('contextmenu', e => e.preventDefault());
 document.addEventListener('wheel', () => { if (locked) setWeapon(current === inventory.rifle ? 'pistol' : 'rifle'); });
 
 // ── Mobile Touch Controls ──
-const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 const touchControls = document.getElementById('touchControls');
 const joystickZone = document.getElementById('joystickZone');
 const joystickStick = document.getElementById('joystickStick');
@@ -5523,13 +5573,14 @@ function updateWeapon(dt) {
 function updateHud(dt) {
   syncMouseHint();   // every mode, every frame: the hint is derived from the flags, never owned
   const t = Math.max(0, Math.ceil(game.timeLeft));
-  hud.timer.textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+  const timerText = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+  if (timerText !== lastTimerText) { hud.timer.textContent = timerText; lastTimerText = timerText; }
   hud.timer.classList.toggle('low', t <= 15);
 
   if (centerTimer > 0) { centerTimer -= dt; if (centerTimer <= 0) hud.center.classList.remove('show'); }
   if (hitTimer > 0) { hitTimer -= dt; if (hitTimer <= 0) hud.hit.style.opacity = 0; }
   damageFlash = Math.max(0, damageFlash - dt * 1.5);
-  hud.damage.style.opacity = damageFlash;
+  if (damageFlash !== lastDamageOpacity) { hud.damage.style.opacity = damageFlash; lastDamageOpacity = damageFlash; }
   // Radar at 20 Hz: at 2.4× scale a bot moves ~3px between updates — imperceptible
   _radarFrame = (_radarFrame + 1) % 3;
   if (_radarFrame === 0) drawRadar();
@@ -5552,7 +5603,7 @@ function drawRadar() {
   }
   for (const b of bots) {
     if (!b.dead && b.spotted <= 0) continue;
-    c.fillStyle = b.dead ? 'rgba(120,120,120,0.8)' : '#ff4a4a'; // red for enemies
+    c.fillStyle = b.dead ? 'rgba(120,120,120,0.8)' : '#f0f0f2'; // monochrome for enemies
     c.beginPath();
     c.arc((b.pos.x - player.pos.x) * scale, (b.pos.z - player.pos.z) * scale, b.dead ? 2.5 : 4, 0, Math.PI * 2);
     c.fill();
@@ -5562,7 +5613,7 @@ function drawRadar() {
   if (isOnline) {
     for (const rig of onlineBots.values()) {
       if (!rig.alive) continue;
-      c.fillStyle = '#ff4a4a';
+      c.fillStyle = '#f0f0f2';
       c.beginPath();
       c.arc((rig.pos.x - player.pos.x) * scale, (rig.pos.z - player.pos.z) * scale, 4, 0, Math.PI * 2);
       c.fill();
@@ -5630,6 +5681,26 @@ function syncMouseHint() {
 
 // ── Main render loop ──
 const clock = new THREE.Clock();
+
+// ── Adaptive quality: rolling FPS monitor that progressively reduces GPU load ──
+const fpsHistory = [];
+let qualityLevel = 0; // 0=full, 1=reduced shadows, 2=shorter fog, 3=fewer bots
+let _shadowThrottle = 3; // frames between shadow updates
+const FOG_FULL = 160, FOG_REDUCED = 100;
+function applyQualityLevel() {
+  if (qualityLevel >= 1) _shadowThrottle = 5; // shadows every 5th frame
+  if (qualityLevel >= 2) scene.fog.far = FOG_REDUCED; // cull distant geometry
+  console.log('[CS] Quality level', qualityLevel, '— shadow every', _shadowThrottle, 'frames, fog far', scene.fog.far);
+}
+function trackFPS(dt) {
+  if (dt <= 0) return;
+  fpsHistory.push(1 / dt);
+  if (fpsHistory.length > 120) fpsHistory.shift();
+  if (fpsHistory.length === 120) {
+    const avg = fpsHistory.reduce((a, b) => a + b) / fpsHistory.length;
+    if (avg < 30 && qualityLevel < 3) { qualityLevel++; applyQualityLevel(); }
+  }
+}
 
 function frame() {
   requestAnimationFrame(frame);
@@ -5745,11 +5816,12 @@ function frame() {
     camera.lookAt(0, 0, 0);
   }
 
-  // Shadow map throttle: only re-render the ~800 shadow casters every 3rd frame.
-  // The scene is static except for bots/player whose shadows are a few pixels
-  // at 2048² resolution across a 116m frustum — visually identical at 60fps.
-  _shadowFrame = (_shadowFrame + 1) % 3;
+  // Shadow map throttle: adaptive — every 3rd frame at full quality, every 5th when struggling.
+  _shadowFrame = (_shadowFrame + 1) % _shadowThrottle;
   if (_shadowFrame === 0) renderer.shadowMap.needsUpdate = true;
+
+  // Track FPS for adaptive quality scaling
+  trackFPS(dt);
 
   renderer.clear();
   renderer.render(scene, camera);

@@ -163,7 +163,7 @@ html, body {
   border-radius: 8px; min-width: 72px; text-align: center;
   backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
 }
-#timer.low { color: #ff5a4a; border-color: rgba(255,90,74,.4); }
+#timer.low { color: #ffffff; border-color: rgba(240,240,242,.5); text-shadow: 0 0 8px rgba(255,255,255,.5); }
 #round-info {
   position: absolute; top: 56px; left: 50%; transform: translateX(-50%);
   font: 600 11px var(--m); color: var(--dim); letter-spacing: .08em;
@@ -184,10 +184,10 @@ html, body {
 #hitmarker::before, #hitmarker::after { content: ""; position: absolute; background: var(--text); }
 #hitmarker::before { left: 10px; top: 0; width: 2px; height: 22px; }
 #hitmarker::after { top: 10px; left: 0; width: 22px; height: 2px; }
-#hitmarker.kill::before, #hitmarker.kill::after { background: #ff3b3b; }
+#hitmarker.kill::before, #hitmarker.kill::after { background: #ffffff; }
 
 /* Damage Flash */
-#damage { position: absolute; inset: 0; opacity: 0; background: radial-gradient(ellipse at center, transparent 45%, rgba(200,0,0,.75) 100%); }
+#damage { position: absolute; inset: 0; opacity: 0; background: radial-gradient(ellipse at center, transparent 45%, rgba(240,240,242,.4) 100%); }
 
 /* Kill Feed */
 #killfeed { position: absolute; top: 14px; right: 14px; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
@@ -198,7 +198,7 @@ html, body {
 }
 #killfeed .you { color: var(--text); }
 #killfeed .bot { color: var(--dim); }
-#killfeed .hs { color: #ff6a5a; font-weight: 700; }
+#killfeed .hs { color: #ffffff; font-weight: 700; }
 
 /* Center Message */
 #center-msg {
@@ -218,7 +218,7 @@ html, body {
 }
 #health-box { left: 18px; font: 700 28px var(--m); }
 #health-box .icon { color: var(--text); margin-right: 8px; }
-#health-box.low { color: #ff5a4a; border-color: rgba(255,90,74,.4); }
+#health-box.low { color: #ffffff; border-color: rgba(240,240,242,.5); text-shadow: 0 0 8px rgba(255,255,255,.5); }
 #ammo-box { right: 18px; font: 700 28px var(--m); }
 #ammo-box #weapon-name { font: 600 11px var(--m); opacity: .6; margin-right: 10px; vertical-align: middle; text-transform: uppercase; letter-spacing: .06em; }
 #ammo-box .sep { opacity: .4; margin: 0 3px; }
@@ -329,10 +329,10 @@ html, body {
 .action-btn:active { background: rgba(240,240,242,.3); border-color: var(--text); }
 .action-btn.fire {
   width: 64px; height: 64px;
-  background: rgba(255,90,74,.2); border-color: rgba(255,90,74,.5);
-  color: #ff5a4a;
+  background: rgba(240,240,242,.15); border-color: rgba(240,240,242,.5);
+  color: #f0f0f2;
 }
-.action-btn.fire:active { background: rgba(255,90,74,.4); }
+.action-btn.fire:active { background: rgba(240,240,242,.3); }
 
 /* Weapon Switch — right side, above action buttons (vertical stack) */
 .weapon-switch {
@@ -377,31 +377,45 @@ html, body {
   #radar { width: 90px; height: 90px; }
 
   /* HUD moves to top — clear of all controls */
-  #health-box, #ammo-box, #kills-box { top: 14px; bottom: auto; font-size: 20px; padding: 6px 12px; }
+  #health-box, #ammo-box, #kills-box { top: calc(14px + env(safe-area-inset-top, 0px)); bottom: auto; font-size: 20px; padding: 6px 12px; }
   #health-box { left: 14px; }
   #ammo-box { right: 14px; }
-  #kills-box { top: 56px; left: 50%; bottom: auto; }
+  #kills-box { top: calc(56px + env(safe-area-inset-top, 0px)); left: 50%; bottom: auto; }
 
   /* Left column: joystick at bottom, jump/crouch above it */
-  .joystick-zone { width: 110px; height: 110px; bottom: 16px; left: 16px; }
+  .joystick-zone { width: 110px; height: 110px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); left: 16px; }
   .joystick-stick { width: 44px; height: 44px; }
-  .movement-buttons { bottom: 140px; left: 16px; }
+  .movement-buttons { bottom: calc(140px + env(safe-area-inset-bottom, 0px)); left: 16px; }
   .move-btn { width: 52px; height: 52px; }
 
   /* Right column: fire/reload at bottom, weapon switch stacked vertically above */
-  .action-buttons { bottom: 16px; right: 16px; }
+  .action-buttons { bottom: calc(16px + env(safe-area-inset-bottom, 0px)); right: 16px; }
   .action-btn { width: 56px; height: 56px; font-size: 10px; }
   .action-btn.fire { width: 60px; height: 60px; }
-  .weapon-switch { flex-direction: column; bottom: 290px; right: 16px; gap: 6px; }
+  .weapon-switch { flex-direction: column; bottom: calc(290px + env(safe-area-inset-bottom, 0px)); right: 16px; gap: 6px; }
   .weapon-btn { width: 44px; height: 44px; font-size: 16px; }
 }
 
 /* ── Max-width fallback: HUD to top on narrow viewports (DevTools + real mobile) ── */
 @media (max-width: 768px) {
-  #health-box, #ammo-box, #kills-box { top: 14px; bottom: auto; font-size: 20px; padding: 6px 12px; }
+  #health-box, #ammo-box, #kills-box { top: calc(14px + env(safe-area-inset-top, 0px)); bottom: auto; font-size: 20px; padding: 6px 12px; }
   #health-box { left: 14px; }
   #ammo-box { right: 14px; }
-  #kills-box { top: 56px; left: 50%; bottom: auto; }
+  #kills-box { top: calc(56px + env(safe-area-inset-top, 0px)); left: 50%; bottom: auto; }
+
+  /* Safe area insets for notched phones */
+  .joystick-zone { bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+  .action-buttons { bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+  .movement-buttons { bottom: calc(140px + env(safe-area-inset-bottom, 0px)); }
+  .weapon-switch { bottom: calc(290px + env(safe-area-inset-bottom, 0px)); }
+
+  /* Disable backdrop-filter blur on mobile (GPU cost) */
+  #radar, #timer, #topbar .team, #killfeed div,
+  .joystick-base, .action-btn, .weapon-btn, .move-btn,
+  #health-box, #ammo-box, #kills-box {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
 }
 
 /* ── Responsive ── */
@@ -550,7 +564,7 @@ html, body {
   flex: 1; font: 500 14px var(--f); color: var(--text);
 }
 .athlete-status {
-  font: 400 11px var(--m); color: #4ade80;
+  font: 400 11px var(--m); color: var(--text);
 }
 .athlete-invite-btn {
   padding: 6px 14px; background: transparent; border: 1px solid var(--line);
@@ -579,7 +593,7 @@ html, body {
 }
 .mission-card:hover { border-color: rgba(255,255,255,.2); background: #16161c; }
 .mission-card:hover::before { background: var(--text); }
-.mission-card.completed::before { background: #4ade80; }
+.mission-card.completed::before { background: var(--text); }
 .mission-code {
   font: 700 10px var(--m); letter-spacing: .2em; text-transform: uppercase;
   color: var(--dim); margin-bottom: 6px;
@@ -670,7 +684,7 @@ html, body {
   font: 800 14px var(--m); color: #fff;
   letter-spacing: .05em;
 }
-#fuseTimer.urgent { color: #ff5a4a; animation: timerBlink 0.5s ease-in-out infinite; }
+#fuseTimer.urgent { color: #ffffff; text-shadow: 0 0 8px rgba(255,255,255,.5); animation: timerBlink 0.5s ease-in-out infinite; }
 #escortHud {
   display: flex; justify-content: space-between; gap: 12px;
   padding: 4px 0; border-top: 1px solid rgba(255,255,255,.1);
@@ -680,12 +694,12 @@ html, body {
   font: 600 11px var(--m); color: rgba(255,255,255,.7);
   letter-spacing: .06em; text-transform: uppercase;
 }
-#escortStatus.danger { color: #ff5a4a; }
+#escortStatus.danger { color: #ffffff; text-shadow: 0 0 8px rgba(255,255,255,.5); }
 #extractionTimer {
   font: 800 14px var(--m); color: #fff;
   letter-spacing: .05em;
 }
-#extractionTimer.urgent { color: #ff5a4a; animation: timerBlink 0.5s ease-in-out infinite; }
+#extractionTimer.urgent { color: #ffffff; text-shadow: 0 0 8px rgba(255,255,255,.5); animation: timerBlink 0.5s ease-in-out infinite; }
 @keyframes timerBlink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
@@ -728,7 +742,7 @@ html, body {
 .mc-header { margin-bottom: 40px; }
 .mc-label {
   font: 700 11px var(--m); letter-spacing: .25em; text-transform: uppercase;
-  color: #4ade80; margin-bottom: 12px;
+  color: var(--text); margin-bottom: 12px;
 }
 .mc-header h2 {
   font: 800 36px var(--f); color: var(--text); letter-spacing: -.02em;
