@@ -2746,6 +2746,10 @@ function spawnHole(point, normal) {
   if (decals.length > 80) scene.remove(decals.shift());
 }
 
+// Explosion camera shake state — applied once per frame just before render so it composes with
+// whichever camera owner (first-person, chase cam, menu fly-over) positioned the camera this frame.
+const camShake = { t: 0, mag: 0 };
+
 function updateEffects(dt) {
   for (let i = effects.length - 1; i >= 0; i--) {
     const e = effects[i];
@@ -2754,6 +2758,8 @@ function updateEffects(dt) {
     if (e.grow) e.grow(e, Math.max(0, e.life / e.max));
     if (e.fade) e.obj.material.opacity = Math.max(0, e.life / e.max) * 0.8;
     if (e.life <= 0) {
+      // Rockets and other armed effects detonate at their CURRENT position on expiry
+      if (e.onExpire) e.onExpire();
       if (e.pooled) {
         // Return to pool: hide but keep in scene for reuse
         e.obj.visible = false;
@@ -2996,6 +3002,16 @@ const P_RADIUS = 0.35, P_HEIGHT = 1.8;
 
 function damagePlayer(amount, attacker) {
   if (!player.alive || game.state !== 'playing') return;
+  // ── BULLETPROOF: Monster truck protects the player from all damage ──
+  if (playerInVehicle && activeMonsterTruck) {
+    // Spawn ricochet sparks at vehicle surface to show bullets bouncing off
+    if (activeMonsterTruck.group && Math.random() < 0.3) {
+      const sparkPos = activeMonsterTruck.pos.clone();
+      sparkPos.y += 1.5;
+      spawnRicochetSparks(sparkPos);
+    }
+    return;
+  }
   player.health = Math.max(0, player.health - amount);
   damageFlash = Math.min(1, damageFlash + 0.45);
   hud.health.textContent = Math.ceil(player.health);
@@ -3016,6 +3032,60 @@ function damagePlayer(amount, attacker) {
     // ── Portal integration: player death = game over ──
     triggerGameOver();
   }
+}
+
+// ── Ricochet sparks when bullets hit the bulletproof monster truck ──
+function spawnRicochetSparks(pos) {
+  const sparkCount = 6;
+  for (let i = 0; i < sparkCount; i++) {
+    const sparkMat = new THREE.MeshBasicMaterial({ 
+      color: 0xcccccc, 
+      transparent: true, 
+      opacity: 1.0, 
+      blending: THREE.AdditiveBlending, 
+      depthWrite: false 
+    });
+    const spark = new THREE.Mesh(new THREE.SphereGeometry(0.04, 4, 3), sparkMat);
+    spark.position.copy(pos);
+    spark.position.x += (Math.random() - 0.5) * 0.5;
+    spark.position.z += (Math.random() - 0.5) * 0.5;
+    spark.renderOrder = 5;
+    scene.add(spark);
+    
+    const vel = new THREE.Vector3(
+      (Math.random() - 0.5) * 8,
+      Math.random() * 6 + 2,
+      (Math.random() - 0.5) * 8
+    );
+    
+    effects.push({
+      obj: spark,
+      life: 0.3,
+      max: 0.3,
+      vel: vel,
+      grow: (e, k) => {
+        e.obj.position.addScaledVector(e.vel, 0.016);
+        e.vel.y -= 15 * 0.016; // gravity
+        e.obj.material.opacity = k;
+        e.obj.scale.setScalar(0.5 + k * 0.5);
+      }
+    });
+  }
+  
+  // Metallic clang sound
+  try {
+    const a = audio();
+    const osc = a.createOscillator();
+    const gain = a.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(2500, a.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(800, a.currentTime + 0.08);
+    gain.gain.setValueAtTime(0.15, a.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, a.currentTime + 0.08);
+    osc.connect(gain).connect(a.destination);
+    osc.start();
+    osc.stop(a.currentTime + 0.08);
+  } catch (_) {}
 }
 
 
@@ -3272,6 +3342,8 @@ const shootRay = new THREE.Raycaster();
 let mouseDown = false;
 
 function fire() {
+  // In the monster truck, mouse click fires rockets (handled by the truck's update loop), not normal weapons
+  if (playerInVehicle) return;
   const w = current, ws = weaponState;
   if (game.state !== 'playing' || !player.alive || ws.cooldown > 0 || ws.reloading > 0 || ws.switching > 0) return;
   if (w.ammo <= 0) {
@@ -3376,6 +3448,14 @@ const SENS = 0.0022;
 
 addEventListener('keydown', e => {
   keys[e.code] = true;
+  // ── Monster truck cheat code: type M-O-N-S-T-E-R (works anytime) ──
+  cheatBuffer.push(e.code);
+  if (cheatBuffer.length > CHEAT_CODE.length) cheatBuffer.shift();
+  if (cheatBuffer.length === CHEAT_CODE.length && cheatBuffer.every((c, i) => c === CHEAT_CODE[i])) {
+    console.log('[CS] MONSTER cheat code detected!');
+    spawnMonsterTruck();
+    cheatBuffer.length = 0;
+  }
   if (e.code === 'KeyR') reload();
   if (e.code === 'Digit1') setWeapon('rifle');
   if (e.code === 'Digit2') setWeapon('pistol');
@@ -3388,6 +3468,10 @@ addEventListener('keydown', e => {
     setWeapon(weaponKeys[(ci + 1) % weaponKeys.length]);
   }
   if (e.code === 'KeyG') throwGrenade();
+  if (e.code === 'KeyE') {
+    if (playerInVehicle) exitMonsterTruck();
+    else enterMonsterTruck();
+  }
   if (e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault();
 });
 addEventListener('keyup', e => { keys[e.code] = false; });
@@ -6242,6 +6326,32 @@ const _fwd = new THREE.Vector3();
 const _right = new THREE.Vector3();
 const _wish = new THREE.Vector3();
 function updatePlayer(dt) {
+  // ── Monster truck override: third-person chase cam parked behind the aim line ──
+  if (playerInVehicle && activeMonsterTruck) {
+    const truck = activeMonsterTruck;
+    player.pos.copy(truck.pos);
+    player.pos.y += 2.5;
+    player.eye = 1.65;
+    // Mouse owns the aim: the camera orbits behind the AIM direction (not the hull heading) and
+    // the roof turret tracks the same yaw/pitch. WASD still drives the hull independently.
+    const camDist = 9.5;
+    const camHeight = Math.max(3.0, 5.6 - player.pitch * 4);
+    const tx = truck.pos.x + Math.sin(player.yaw) * camDist;
+    const tz = truck.pos.z + Math.cos(player.yaw) * camDist;
+    const ty = truck.pos.y + camHeight;
+    // Exponential smoothing keeps the truck framed during hard turns and entry transitions
+    const k = Math.min(1, dt * 9);
+    camera.position.x += (tx - camera.position.x) * k;
+    camera.position.y += (ty - camera.position.y) * k;
+    camera.position.z += (tz - camera.position.z) * k;
+    // Look past the truck along the aim ray so the crosshair tracks where the turret points
+    camera.lookAt(
+      truck.pos.x - Math.sin(player.yaw) * 7,
+      truck.pos.y + 2.5 + player.pitch * 7,
+      truck.pos.z - Math.cos(player.yaw) * 7
+    );
+    return;
+  }
   if (!player.alive) {
     player.eye = Math.max(0.3, player.eye - dt * 2.5);
     camera.position.set(player.pos.x, player.pos.y + player.eye, player.pos.z);
@@ -6395,7 +6505,9 @@ function updateWeapon(dt) {
     VM_BASE.y + (current.def.adsY - VM_BASE.y) * a + bobY * hip - dip,
     VM_BASE.z - 0.16 * a + ws.kickAnim * 0.05 * hip);
   model.rotation.set(ws.kickAnim * 0.08 - tilt * 0.4, 0, tilt * 0.5);
-  model.visible = player.alive;
+  // In the monster truck the chase cam shows the truck itself — the first-person gun would float
+  // in the air behind it, so the view model is suppressed until the driver steps out.
+  model.visible = player.alive && !playerInVehicle;
 
   ws.flashTime -= dt;
   model.userData.flash.visible = ws.flashTime > 0;
@@ -6553,6 +6665,1039 @@ function updateGrenades(dt) {
       gr.group.children[0].material.dispose();
       grenades.splice(i, 1);
     }
+  }
+}
+
+// ── MONSTER TRUCK CHEAT CODE ──
+// Type "MONSTER" on keyboard to spawn a highly detailed monster truck with rocket launcher and rotating blade
+const monsterTrucks = [];
+let activeMonsterTruck = null;
+let playerInVehicle = false;
+const cheatBuffer = [];
+const CHEAT_CODE = ['KeyM', 'KeyO', 'KeyN', 'KeyS', 'KeyT', 'KeyE', 'KeyR'];
+
+// Central kill credit for every monster-truck damage source (blade, ram, rockets). The per-frame
+// truck sites were calling bot.damage() but skipping the bookkeeping the weapon path does — score,
+// killfeed, enemy counter, round-win check — so kills by truck never registered anywhere.
+function truckKillCheck(bot, killed, method) {
+  if (!killed) return;
+  game.kills++;
+  hud.kills.textContent = game.kills;
+  showHit(true); playBeep(1400, 0.04, 0.12);
+  killFeed(method, bot.name, false, false);
+  hud.enemies.textContent = aliveBots().length;
+  if (aliveBots().length === 0) endRound('CT');
+}
+
+class MonsterTruck {
+  constructor(x, z) {
+    this.pos = new THREE.Vector3(x, 0, z);
+    this.vel = new THREE.Vector3();
+    this.yaw = 0;
+    this.pitch = 0;
+    this.roll = 0;
+    this.speed = 0;
+    this.maxSpeed = 32;
+    this.acceleration = 22;
+    this.braking = 38;
+    this.turnSpeed = 2.6;
+    this.health = 1500;
+    this.maxHealth = 1500;
+    this.rocketCooldown = 0;
+    this.rocketMaxCooldown = 0.5;
+    this.turretYaw = 0;
+    this.turretPitch = 0.08;
+    this.bladeAngle = 0;
+    this.bladeSpeed = 18;
+    this.wheelRotation = 0;
+    this.suspensionTravel = [0, 0, 0, 0];
+    this.suspensionVel = [0, 0, 0, 0];
+    this.suspensionOffset = [0, 0, 0, 0];
+    this.engineRPM = 800;
+    this.engineMaxRPM = 8000;
+    this.exhaustTimer = 0;
+    this.dustTimer = 0;
+    this.damageState = 0;
+    this.active = true;
+    this.wheelBase = 3.4;
+    this.trackWidth = 2.7;
+    
+    const g = this.group = new THREE.Group();
+    
+    // Materials (monochrome)
+    const chassisMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2e, roughness: 0.7, metalness: 0.6 });
+    const armorMat = new THREE.MeshStandardMaterial({ color: 0x4a4a4e, roughness: 0.6, metalness: 0.7 });
+    const darkMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1e, roughness: 0.9, metalness: 0.3 });
+    const rimMat = new THREE.MeshStandardMaterial({ color: 0x7a7a7e, roughness: 0.3, metalness: 0.9 });
+    const chromeMat = new THREE.MeshStandardMaterial({ color: 0x9a9a9e, roughness: 0.15, metalness: 1.0 });
+    const bladeMat = new THREE.MeshStandardMaterial({ color: 0x8a8a8e, roughness: 0.2, metalness: 0.95 });
+    const rocketMat = new THREE.MeshStandardMaterial({ color: 0x3a3a3e, roughness: 0.5, metalness: 0.8 });
+    const rubberMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1e, roughness: 0.95 });
+    const glassMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2e, roughness: 0.1, transparent: true, opacity: 0.6 });
+    const lightMat = new THREE.MeshStandardMaterial({ color: 0xf0f0f0, emissive: 0xaaaaaa, emissiveIntensity: 0.8 });
+    const tailLightMat = new THREE.MeshStandardMaterial({ color: 0x5a5a5e, emissive: 0x3a3a3e, emissiveIntensity: 0.5 });
+    // Fibreglass body shell — glossier than the chassis steel so the silhouette reads as painted bodywork
+    const bodyMat = new THREE.MeshStandardMaterial({ color: 0x36363a, roughness: 0.32, metalness: 0.55 });
+    
+    // ── TUBE-FRAME CHASSIS (round rails, not boxes — the exposed skeleton of a real monster truck) ──
+    for (let side = -1; side <= 1; side += 2) {
+      const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 5.2, 10), chassisMat);
+      rail.rotation.x = Math.PI / 2;
+      rail.position.set(side * 0.85, 0.95, 0);
+      rail.castShadow = true;
+      g.add(rail);
+    }
+    for (let i = 0; i < 5; i++) {
+      const cross = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 1.7, 8), chassisMat);
+      cross.rotation.z = Math.PI / 2;
+      cross.position.set(0, 0.95, -2.2 + i * 1.1);
+      g.add(cross);
+    }
+    // Solid axles under both wheel pairs + driveshaft + transfer case
+    for (const az of [-1.4, 1.4]) {
+      const axle = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 2.3, 10), rimMat);
+      axle.rotation.z = Math.PI / 2;
+      axle.position.set(0, 0.95, az);
+      axle.castShadow = true;
+      g.add(axle);
+    }
+    const driveshaft = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.6, 8), chromeMat);
+    driveshaft.rotation.x = Math.PI / 2;
+    driveshaft.rotation.z = 0.12;
+    driveshaft.position.set(0, 0.9, 0.5);
+    g.add(driveshaft);
+    const transferBox = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.4, 0.5), darkMat);
+    transferBox.position.set(0, 1.0, -0.7);
+    g.add(transferBox);
+    
+    // ── FIBREGLASS PICKUP BODY SHELL — one extruded silhouette with real wheel arches ──
+    // Profile drawn in (length, height); extruded across the width with a bevel so every edge is
+    // soft like sheet metal instead of a hard box corner. Arch semicircles are part of the outline.
+    const prof = new THREE.Shape();
+    prof.moveTo(2.62, 1.72);
+    prof.lineTo(2.7, 2.0);
+    prof.lineTo(2.66, 2.32);
+    prof.lineTo(2.5, 2.44);
+    prof.lineTo(0.5, 2.62);
+    prof.lineTo(0.12, 3.18);
+    prof.lineTo(-0.8, 3.22);
+    prof.lineTo(-1.1, 3.16);
+    prof.lineTo(-1.42, 2.78);
+    prof.lineTo(-2.78, 2.72);
+    prof.lineTo(-2.92, 2.66);
+    prof.lineTo(-2.92, 1.72);
+    prof.lineTo(-2.2, 1.72);
+    prof.absarc(-1.4, 1.72, 0.75, Math.PI, 0, true);
+    prof.lineTo(0.65, 1.72);
+    prof.absarc(1.4, 1.72, 0.75, Math.PI, 0, true);
+    prof.lineTo(2.62, 1.72);
+    const shellGeo = new THREE.ExtrudeGeometry(prof, {
+      depth: 2.1, bevelEnabled: true, bevelThickness: 0.05, bevelSize: 0.05, bevelSegments: 2, steps: 1
+    });
+    shellGeo.translate(0, 0, -1.05);
+    const shell = new THREE.Mesh(shellGeo, bodyMat);
+    shell.rotation.y = Math.PI / 2;   // profile +X → truck -Z (front), extrude width → truck X
+    shell.castShadow = true;
+    g.add(shell);
+    
+    // Glass slightly proud of the shell: raked windshield, side windows, sloped rear window
+    const windshield = new THREE.Mesh(new THREE.BoxGeometry(1.85, 0.62, 0.04), glassMat);
+    windshield.position.set(0, 2.9, -0.28);
+    windshield.rotation.x = 0.6;
+    g.add(windshield);
+    for (let side = -1; side <= 1; side += 2) {
+      const sideGlass = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.48, 1.45), glassMat);
+      sideGlass.position.set(side * 1.11, 2.9, 0.35);
+      g.add(sideGlass);
+    }
+    const rearGlass = new THREE.Mesh(new THREE.BoxGeometry(1.78, 0.52, 0.04), glassMat);
+    rearGlass.position.set(0, 2.97, 1.26);
+    rearGlass.rotation.x = -0.75;
+    g.add(rearGlass);
+    
+    // Grille panel with chrome slats + recessed headlight housings on the front face
+    const grillePanel = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.55, 0.06), darkMat);
+    grillePanel.position.set(0, 2.05, -2.76);
+    g.add(grillePanel);
+    for (let i = 0; i < 3; i++) {
+      const slat = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.05, 0.08), chromeMat);
+      slat.position.set(0, 1.95 + i * 0.1, -2.78);
+      g.add(slat);
+    }
+    for (let side = -1; side <= 1; side += 2) {
+      const housing = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.12, 12), chromeMat);
+      housing.rotation.x = Math.PI / 2;
+      housing.position.set(side * 0.72, 2.06, -2.76);
+      g.add(housing);
+      const lens = new THREE.Mesh(new THREE.CircleGeometry(0.12, 12), lightMat);
+      lens.position.set(side * 0.72, 2.06, -2.83);
+      g.add(lens);
+    }
+    
+    // Tube bumpers front and rear with vertical supports
+    for (const [bz, dir] of [[-2.85, -1], [3.06, 1]]) {
+      const bumperTube = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 2.5, 10), chromeMat);
+      bumperTube.rotation.z = Math.PI / 2;
+      bumperTube.position.set(0, 1.95, bz);
+      bumperTube.castShadow = true;
+      g.add(bumperTube);
+      for (let side = -1; side <= 1; side += 2) {
+        const supp = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.55, 8), chromeMat);
+        supp.position.set(side, 1.78, bz + 0.05 * dir);
+        g.add(supp);
+      }
+    }
+    
+    // Bed rails, fuel cell with filler cap, nerf bars along the sills
+    for (let side = -1; side <= 1; side += 2) {
+      const bedRail = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.1, 1.45), armorMat);
+      bedRail.position.set(side * 0.95, 2.76, 2.1);
+      g.add(bedRail);
+      const nerf = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 3.2, 8), chromeMat);
+      nerf.rotation.x = Math.PI / 2;
+      nerf.position.set(side * 1.18, 1.75, 0);
+      nerf.castShadow = true;
+      g.add(nerf);
+    }
+    const fuelCell = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.5, 0.9), darkMat);
+    fuelCell.position.set(0, 2.15, 2.2);
+    g.add(fuelCell);
+    const fuelCap = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.06, 10), chromeMat);
+    fuelCap.position.set(0.25, 2.44, 2.2);
+    g.add(fuelCap);
+    
+    // ── SUPERCHARGED V8 poking through the hood (the classic monster-truck engine pose) ──
+    const engineBlock = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.75, 1.0), darkMat);
+    engineBlock.position.set(0, 1.95, -1.55);
+    engineBlock.castShadow = true;
+    g.add(engineBlock);
+    for (let side = -1; side <= 1; side += 2) {
+      const valve = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.15, 0.85), armorMat);
+      valve.position.set(side * 0.3, 2.38, -1.55);
+      g.add(valve);
+    }
+    const blower = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.45, 0.6), rimMat);
+    blower.position.set(0, 2.6, -1.5);
+    blower.castShadow = true;
+    g.add(blower);
+    for (let i = 0; i < 4; i++) {
+      const rib = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.04, 0.1), darkMat);
+      rib.position.set(0, 2.66 + (i % 2) * 0.14, -1.72 + i * 0.14);
+      g.add(rib);
+    }
+    const scoop = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.18, 0.66), darkMat);
+    scoop.position.set(0, 2.88, -1.5);
+    g.add(scoop);
+    const plenum = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.12, 0.72), darkMat);
+    plenum.position.set(0, 2.7, -1.55);
+    g.add(plenum);
+    for (let side = -1; side <= 1; side += 2) {
+      for (let i = 0; i < 4; i++) {
+        const stack = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.075, 0.14, 8), chromeMat);
+        stack.position.set(side * 0.38, 2.83, -1.83 + i * 0.19);
+        g.add(stack);
+      }
+    }
+    const hoodRing = new THREE.Mesh(new THREE.TorusGeometry(0.46, 0.04, 8, 20), armorMat);
+    hoodRing.rotation.x = Math.PI / 2;
+    hoodRing.position.set(0, 2.52, -1.5);
+    g.add(hoodRing);
+    
+    // Curved exhaust headers (tube sweeps from block down the sides) — one tube per runner
+    for (let side = -1; side <= 1; side += 2) {
+      for (let i = 0; i < 4; i++) {
+        const hp = [
+          new THREE.Vector3(side * 0.55, 2.05, -1.9 + i * 0.26),
+          new THREE.Vector3(side * 0.85, 1.95, -1.85 + i * 0.26),
+          new THREE.Vector3(side * 1.05, 1.8, -1.7 + i * 0.26)
+        ];
+        const header = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(hp), 12, 0.045, 6), chromeMat);
+        g.add(header);
+      }
+    }
+    
+    // Chrome side pipes sweeping along the sills, tips kicked up at the rear
+    for (let side = -1; side <= 1; side += 2) {
+      const ep = [
+        new THREE.Vector3(side * 1.05, 1.8, -0.5),
+        new THREE.Vector3(side * 1.2, 1.78, 0.8),
+        new THREE.Vector3(side * 1.16, 1.95, 1.9),
+        new THREE.Vector3(side * 1.02, 2.18, 2.65)
+      ];
+      const pipe = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(ep), 24, 0.07, 8), chromeMat);
+      pipe.castShadow = true;
+      g.add(pipe);
+    }
+    
+    // ── COILOVER SUSPENSION — visible dampers with real helical coil springs ──
+    const springPts = [];
+    for (let i = 0; i <= 40; i++) {
+      const t = i / 40, sa = t * Math.PI * 10;
+      springPts.push(new THREE.Vector3(Math.cos(sa) * 0.1, t * 0.42, Math.sin(sa) * 0.1));
+    }
+    const springGeo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(springPts), 80, 0.02, 6);
+    for (const wz of [-1.4, 1.4]) {
+      for (let side = -1; side <= 1; side += 2) {
+        const coilover = new THREE.Group();
+        coilover.position.set(side * 0.85, 1.15, wz);
+        coilover.rotation.z = -side * 0.25;
+        const damper = new THREE.Mesh(new THREE.CapsuleGeometry(0.065, 0.32, 4, 8), rimMat);
+        coilover.add(damper);
+        const spring = new THREE.Mesh(springGeo, chromeMat);
+        spring.position.y = 0.08;
+        coilover.add(spring);
+        g.add(coilover);
+      }
+    }
+    
+    // Mirrors on stalks + roof light bar + inner arch liners
+    for (let side = -1; side <= 1; side += 2) {
+      const stalk = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.22, 6), darkMat);
+      stalk.rotation.z = side * 0.5;
+      stalk.position.set(side * 1.14, 2.85, -0.5);
+      g.add(stalk);
+      const mirror = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.12, 0.05), darkMat);
+      mirror.position.set(side * 1.24, 2.92, -0.5);
+      g.add(mirror);
+    }
+    const lightBarRail = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.06, 0.12), darkMat);
+    lightBarRail.position.set(0, 3.28, -0.15);
+    g.add(lightBarRail);
+    for (let i = 0; i < 4; i++) {
+      const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 0.1, 10), lightMat);
+      lamp.rotation.z = Math.PI / 2;
+      lamp.position.set(-0.55 + i * 0.37, 3.36, -0.15);
+      g.add(lamp);
+    }
+    for (const az of [-1.4, 1.4]) {
+      for (let side = -1; side <= 1; side += 2) {
+        const liner = new THREE.Mesh(new THREE.CylinderGeometry(0.78, 0.78, 0.6, 14, 1, true, 0, Math.PI), darkMat);
+        liner.rotation.z = Math.PI / 2;
+        liner.rotation.y = Math.PI / 2;
+        liner.position.set(side * 0.85, 1.72, az);
+        g.add(liner);
+      }
+    }
+    
+    // ── WHEELS (4 massive off-road tires, beadlock rims, chevron lugs) ──
+    // children[0] of each wheel group is a "spin" Group holding everything that rotates;
+    // update() spins it on x. The axle stub stays static on the group. Rest height equals
+    // the tire radius so the treads kiss the ground when the truck body sits on terrain.
+    this.wheels = [];
+    const wheelPositions = [
+      { x: -1.3, y: 0.95, z: -1.4, name: 'FL' },
+      { x: 1.3, y: 0.95, z: -1.4, name: 'FR' },
+      { x: -1.3, y: 0.95, z: 1.4, name: 'RL' },
+      { x: 1.3, y: 0.95, z: 1.4, name: 'RR' }
+    ];
+
+    const tireGeo = new THREE.CylinderGeometry(0.95, 0.95, 0.62, 20);
+    const shoulderGeo = new THREE.TorusGeometry(0.88, 0.09, 8, 20);
+    const rimFaceGeo = new THREE.CylinderGeometry(0.5, 0.5, 0.06, 16);
+    const beadGeo = new THREE.TorusGeometry(0.53, 0.035, 6, 16);
+    const spokeGeo = new THREE.BoxGeometry(0.05, 0.84, 0.09);
+    const lugGeo = new THREE.BoxGeometry(0.66, 0.14, 0.18);
+    const boltGeo = new THREE.CylinderGeometry(0.028, 0.028, 0.05, 6);
+    const hubCapGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.05, 12);
+
+    wheelPositions.forEach((wp, idx) => {
+      const wheelGroup = new THREE.Group();
+      wheelGroup.position.set(wp.x, wp.y, wp.z);
+
+      const spin = new THREE.Group();
+      wheelGroup.add(spin);
+
+      // Tire carcass with rounded shoulders
+      const tire = new THREE.Mesh(tireGeo, rubberMat);
+      tire.rotation.z = Math.PI / 2;
+      tire.castShadow = true;
+      spin.add(tire);
+      for (const s of [-1, 1]) {
+        const shoulder = new THREE.Mesh(shoulderGeo, rubberMat);
+        shoulder.rotation.y = Math.PI / 2;
+        shoulder.position.x = s * 0.3;
+        spin.add(shoulder);
+      }
+
+      // Directional chevron lugs — 16 around, alternating attack angle
+      for (let i = 0; i < 16; i++) {
+        const lug = new THREE.Mesh(lugGeo, rubberMat);
+        const angle = (i / 16) * Math.PI * 2;
+        lug.position.set(0, Math.cos(angle) * 0.95, Math.sin(angle) * 0.95);
+        lug.rotation.x = angle;
+        lug.rotation.y = i % 2 ? 0.35 : -0.35;
+        spin.add(lug);
+      }
+
+      // Beadlock rim: face disc, locking ring, 10 bolts, 5 twin spokes and a hub cap per side
+      for (const s of [-1, 1]) {
+        const face = new THREE.Mesh(rimFaceGeo, rimMat);
+        face.rotation.z = Math.PI / 2;
+        face.position.x = s * 0.31;
+        spin.add(face);
+        const bead = new THREE.Mesh(beadGeo, chromeMat);
+        bead.rotation.y = Math.PI / 2;
+        bead.position.x = s * 0.335;
+        spin.add(bead);
+        for (let b = 0; b < 10; b++) {
+          const bolt = new THREE.Mesh(boltGeo, chromeMat);
+          const ba = (b / 10) * Math.PI * 2;
+          bolt.rotation.z = Math.PI / 2;
+          bolt.position.set(s * 0.35, Math.cos(ba) * 0.53, Math.sin(ba) * 0.53);
+          spin.add(bolt);
+        }
+        for (let sp = 0; sp < 5; sp++) {
+          const spoke = new THREE.Mesh(spokeGeo, rimMat);
+          spoke.position.set(s * 0.345, 0, 0);
+          spoke.rotation.x = (sp / 5) * Math.PI;
+          spin.add(spoke);
+        }
+        const hubCap = new THREE.Mesh(hubCapGeo, chromeMat);
+        hubCap.rotation.z = Math.PI / 2;
+        hubCap.position.x = s * 0.36;
+        spin.add(hubCap);
+      }
+
+      // Static axle stub bridging hub to the chassis axle
+      const stub = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.5, 8), rimMat);
+      stub.rotation.z = Math.PI / 2;
+      wheelGroup.add(stub);
+
+      g.add(wheelGroup);
+      this.wheels.push(wheelGroup);
+    });
+    
+    // ── ROCKET LAUNCHER (roof-mounted quad missile turret, mouse-aimed) ──
+    // Two pivots: rocketGroup yaws on the hull (turret ring), rocketElevation pitches the pod
+    // between the yoke arms. Both track the player's mouse aim in update().
+    const rocketGroup = new THREE.Group();
+    rocketGroup.position.set(0, 3.28, 0.5);
+    
+    // Turret base ring bolted to the roof, with 8 chrome bolt heads
+    const baseRing = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.5, 0.14, 16), darkMat);
+    baseRing.castShadow = true;
+    rocketGroup.add(baseRing);
+    for (let i = 0; i < 8; i++) {
+      const bolt = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.05, 6), chromeMat);
+      const ba = (i / 8) * Math.PI * 2;
+      bolt.position.set(Math.cos(ba) * 0.44, 0.08, Math.sin(ba) * 0.44);
+      rocketGroup.add(bolt);
+    }
+    
+    // Elevation yoke arms — the pod pivots between them
+    for (let side = -1; side <= 1; side += 2) {
+      const yoke = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.5, 0.3), armorMat);
+      yoke.position.set(side * 0.42, 0.32, 0.05);
+      yoke.castShadow = true;
+      rocketGroup.add(yoke);
+    }
+    
+    // Elevation pivot: the tube pod pitches here
+    const elevGroup = this.rocketElevation = new THREE.Group();
+    elevGroup.position.set(0, 0.45, 0);
+    rocketGroup.add(elevGroup);
+    
+    // Quad tube pod: 2x2 array of open launch tubes with rims, bores and rear caps
+    const tubeGeo = new THREE.CylinderGeometry(0.14, 0.14, 1.7, 12, 1, true);
+    for (let row = 0; row < 2; row++) {
+      for (let col = 0; col < 2; col++) {
+        const tx = (col - 0.5) * 0.34, ty = (row - 0.5) * 0.34;
+        const tube = new THREE.Mesh(tubeGeo, rocketMat);
+        tube.rotation.x = Math.PI / 2;
+        tube.position.set(tx, ty, -0.15);
+        tube.castShadow = true;
+        elevGroup.add(tube);
+        // Muzzle rim ring
+        const tr = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.025, 8, 16), rimMat);
+        tr.position.set(tx, ty, -1.0);
+        elevGroup.add(tr);
+        // Dark bore disc so the open tube reads as a hole
+        const bore = new THREE.Mesh(new THREE.CircleGeometry(0.13, 12), darkMat);
+        bore.position.set(tx, ty, -0.94);
+        bore.rotation.y = Math.PI;
+        elevGroup.add(bore);
+        // Rear cap
+        const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.06, 12), darkMat);
+        cap.rotation.x = Math.PI / 2;
+        cap.position.set(tx, ty, 0.72);
+        elevGroup.add(cap);
+      }
+    }
+    
+    // Clamp bands binding the four tubes together
+    for (let i = 0; i < 3; i++) {
+      const band = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.78, 0.06), armorMat);
+      band.position.set(0, 0, -0.7 + i * 0.55);
+      band.castShadow = true;
+      elevGroup.add(band);
+    }
+    
+    // Side armor plates on the pod
+    for (let side = -1; side <= 1; side += 2) {
+      const plate = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.75, 1.6), armorMat);
+      plate.position.set(side * 0.4, 0, -0.15);
+      plate.castShadow = true;
+      elevGroup.add(plate);
+    }
+    
+    // Ammo feed box with lid at the rear of the pod
+    const ammoBox = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.5, 0.5), darkMat);
+    ammoBox.position.set(0, -0.05, 0.95);
+    ammoBox.castShadow = true;
+    elevGroup.add(ammoBox);
+    const ammoLid = new THREE.Mesh(new THREE.BoxGeometry(0.64, 0.08, 0.54), armorMat);
+    ammoLid.position.set(0, 0.24, 0.95);
+    elevGroup.add(ammoLid);
+    
+    // Targeting sight box with lit lens on the pod top
+    const sight = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.22, 0.4), darkMat);
+    sight.position.set(0.28, 0.45, -0.3);
+    elevGroup.add(sight);
+    const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.06, 10), lightMat);
+    lens.rotation.x = Math.PI / 2;
+    lens.position.set(0.28, 0.45, -0.52);
+    elevGroup.add(lens);
+    
+    // Elevation piston under the pod
+    const piston = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.4, 8), chromeMat);
+    piston.position.set(0, -0.35, -0.35);
+    elevGroup.add(piston);
+    
+    g.add(rocketGroup);
+    this.rocketLauncher = rocketGroup;
+    
+    // ── ROTATING BLADE (front bumper) ──
+    const bladeGroup = new THREE.Group();
+    bladeGroup.position.set(0, 1.0, -3.55);
+    // Mount arms anchoring the blade hub ahead of the nose
+    for (let side = -1; side <= 1; side += 2) {
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.09, 0.9), darkMat);
+      arm.position.set(side * 0.32, 1.0, -3.1);
+      g.add(arm);
+    }
+    
+    // Blade hub
+    const hubGeo = new THREE.CylinderGeometry(0.25, 0.25, 0.3, 12);
+    const hub = new THREE.Mesh(hubGeo, rimMat);
+    hub.rotation.x = Math.PI / 2;
+    hub.castShadow = true;
+    bladeGroup.add(hub);
+    
+    // 6 blade arms
+    for (let i = 0; i < 6; i++) {
+      const armGeo = new THREE.BoxGeometry(0.08, 0.9, 0.15);
+      const arm = new THREE.Mesh(armGeo, bladeMat);
+      const angle = (i / 6) * Math.PI * 2;
+      arm.position.set(Math.cos(angle) * 0.45, Math.sin(angle) * 0.45, 0);
+      arm.rotation.z = angle;
+      arm.castShadow = true;
+      bladeGroup.add(arm);
+    }
+    
+    // Blade guard ring
+    const guardGeo = new THREE.TorusGeometry(0.95, 0.06, 8, 24);
+    const guard = new THREE.Mesh(guardGeo, armorMat);
+    guard.rotation.x = Math.PI / 2;
+    guard.castShadow = true;
+    bladeGroup.add(guard);
+    
+    g.add(bladeGroup);
+    this.blade = bladeGroup;
+    
+    // ── DETAIL ELEMENTS ──
+    // Tailgate LED bars (headlights live in the grille; exhaust exits through the side pipes)
+    const taillightMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2e, emissive: 0x666666, emissiveIntensity: 0.5 });
+    for (let side = -1; side <= 1; side += 2) {
+      const light = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.5, 0.06), taillightMat);
+      light.position.set(side * 0.85, 2.35, 3.0);
+      g.add(light);
+    }
+
+    // Roof whip antenna with a ball tip
+    const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.2, 4), rimMat);
+    antenna.position.set(0.65, 3.85, 0.7);
+    g.add(antenna);
+    const antTip = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), lightMat);
+    antTip.position.set(0.65, 4.48, 0.7);
+    g.add(antTip);
+    
+    // Set spawn height above ground
+    const spawnY = groundHeight(new THREE.Vector3(x, 0, z), 0.5) + 1.0;
+    this.pos.set(x, spawnY, z);
+    g.position.copy(this.pos);
+    scene.add(g);
+    console.log('[CS] MonsterTruck added to scene at', this.pos.x, this.pos.y, this.pos.z);
+    
+    // Engine sound (with error handling)
+    this.engineOsc = null;
+    this.engineGain = null;
+    try {
+      this._startEngineSound();
+      console.log('[CS] Engine sound started');
+    } catch (err) {
+      console.warn('[CS] Engine sound failed to start:', err.message);
+    }
+  }
+  
+  _startEngineSound() {
+    try {
+      const a = audio();
+      this.engineOsc = a.createOscillator();
+      this.engineOsc.type = 'sawtooth';
+      this.engineOsc.frequency.value = 80;
+      this.engineGain = a.createGain();
+      this.engineGain.gain.value = 0;
+      const filt = a.createBiquadFilter();
+      filt.type = 'lowpass';
+      filt.frequency.value = 400;
+      this.engineOsc.connect(filt).connect(this.engineGain).connect(a.destination);
+      this.engineOsc.start();
+    } catch (_) {}
+  }
+  
+  _updateEngineSound() {
+    if (!this.engineOsc || !this.engineGain) return;
+    const rpmNorm = Math.abs(this.speed) / this.maxSpeed;
+    const targetFreq = 80 + rpmNorm * 220;
+    const targetVol = playerInVehicle && activeMonsterTruck === this ? 0.08 + rpmNorm * 0.12 : 0;
+    this.engineOsc.frequency.linearRampToValueAtTime(targetFreq, audio().currentTime + 0.1);
+    this.engineGain.gain.linearRampToValueAtTime(targetVol, audio().currentTime + 0.1);
+  }
+  
+  update(dt) {
+    if (!this.active) return;
+    
+    // Rotate blade continuously
+    this.bladeAngle += this.bladeSpeed * dt;
+    this.blade.rotation.z = this.bladeAngle;
+    
+    // Turret aim: yaw trails the mouse relative to the hull, pitch elevates the pod. When nobody
+    // is driving the turret eases back to its stowed hull-forward pose.
+    if (playerInVehicle && activeMonsterTruck === this) {
+      const rel = player.yaw - this.yaw;
+      const dyaw = Math.atan2(Math.sin(rel - this.turretYaw), Math.cos(rel - this.turretYaw));
+      this.turretYaw += dyaw * Math.min(1, dt * 10);
+      this.turretPitch += (clamp(player.pitch, -0.45, 0.65) - this.turretPitch) * Math.min(1, dt * 10);
+    } else {
+      const stow = Math.min(1, dt * 2);
+      this.turretYaw -= this.turretYaw * stow;
+      this.turretPitch -= (this.turretPitch - 0.08) * stow;
+    }
+    this.rocketLauncher.rotation.y = this.turretYaw;
+    this.rocketElevation.rotation.x = this.turretPitch;
+    
+    // Wheel rotation based on speed
+    this.wheelRotation += this.speed * dt * 0.8;
+    this.wheels.forEach(w => {
+      w.children[0].rotation.x = this.wheelRotation;
+    });
+    
+    // Suspension bounce
+    const bounce = Math.sin(Date.now() * 0.008) * 0.05 * Math.abs(this.speed) / this.maxSpeed;
+    this.wheels.forEach((w, i) => {
+      this.suspensionOffset[i] = bounce * (i < 2 ? 1 : -1);
+      w.position.y = 0.95 + this.suspensionOffset[i];
+    });
+    
+    // Vehicle physics
+    if (playerInVehicle && activeMonsterTruck === this) {
+      // Acceleration
+      if (keys['KeyW'] || keys['ArrowUp'] || touch.moveY < -0.2) {
+        this.speed = Math.min(this.speed + this.acceleration * dt, this.maxSpeed);
+      } else if (keys['KeyS'] || keys['ArrowDown'] || touch.moveY > 0.2) {
+        this.speed = Math.max(this.speed - this.acceleration * 1.5 * dt, -this.maxSpeed * 0.4);
+      } else {
+        // Deceleration
+        if (this.speed > 0) this.speed = Math.max(0, this.speed - this.acceleration * 0.5 * dt);
+        else if (this.speed < 0) this.speed = Math.min(0, this.speed + this.acceleration * 0.5 * dt);
+      }
+      
+      // Steering
+      const turnAmount = this.turnSpeed * dt * (Math.abs(this.speed) / this.maxSpeed);
+      if (keys['KeyA'] || keys['ArrowLeft'] || touch.moveX < -0.2) this.yaw += turnAmount;
+      if (keys['KeyD'] || keys['ArrowRight'] || touch.moveX > 0.2) this.yaw -= turnAmount;
+      
+      // Fire rockets
+      if (this.rocketCooldown <= 0 && (mouseDown || touch.fire)) {
+        this.fireRocket();
+        this.rocketCooldown = this.rocketMaxCooldown;
+      }
+      this.rocketCooldown = Math.max(0, this.rocketCooldown - dt);
+    }
+    
+    // Apply velocity — the model faces -Z locally (blade at -2.3, headlights at -2.1, muzzle at
+    // -0.95), so forward in world space is (-sin, -cos). Driving along +sin/+cos made the truck
+    // visibly back into every wall it faced.
+    const moveX = -Math.sin(this.yaw) * this.speed * dt;
+    const moveZ = -Math.cos(this.yaw) * this.speed * dt;
+    this.pos.x += moveX;
+    this.pos.z += moveZ;
+    
+    // Ground height
+    this.pos.y = groundHeight(this.pos, 0.5);
+    
+    // Update group transform
+    this.group.position.copy(this.pos);
+    this.group.rotation.y = this.yaw;
+    
+    // Engine sound
+    this._updateEngineSound();
+    
+    // Dust particles when moving
+    if (Math.abs(this.speed) > 2) {
+      this.dustTimer += dt;
+      if (this.dustTimer > 0.08) {
+        this.dustTimer = 0;
+        for (let i = 0; i < 2; i++) {
+          const dustMat = new THREE.MeshBasicMaterial({ color: 0x6a6a6e, transparent: true, opacity: 0.4 });
+          const dust = new THREE.Mesh(new THREE.SphereGeometry(0.2, 6, 4), dustMat);
+          dust.position.copy(this.pos);
+          dust.position.x += (Math.random() - 0.5) * 2;
+          dust.position.z += (Math.random() - 0.5) * 2;
+          dust.position.y += 0.3;
+          scene.add(dust);
+          effects.push({
+            obj: dust,
+            life: 0.8,
+            max: 0.8,
+            grow: (e, k) => {
+              e.obj.scale.setScalar(1 + (1 - k) * 2);
+              e.obj.material.opacity = k * 0.4;
+              e.obj.position.y += dt * 0.5;
+            }
+          });
+        }
+      }
+    }
+    
+    // Vehicle collision with bots (run them over)
+    for (const bot of bots) {
+      if (bot.dead) continue;
+      const dist = bot.pos.distanceTo(this.pos);
+      if (dist < 2.5 && Math.abs(this.speed) > 5) {
+        truckKillCheck(bot, bot.damage(Math.abs(this.speed) * 8, 'body'), 'Monster Truck');
+        spawnParticles(bot.eye(), null, bloodMat, 12, 3);
+        // Knock back
+        const knockDir = bot.pos.clone().sub(this.pos).normalize();
+        bot.pos.addScaledVector(knockDir, 2);
+      }
+    }
+    
+    // Blade damage to bots
+    if (playerInVehicle && activeMonsterTruck === this) {
+      const bladePos = this.pos.clone();
+      bladePos.x -= Math.sin(this.yaw) * 3.55;
+      bladePos.z -= Math.cos(this.yaw) * 3.55;
+      
+      for (const bot of bots) {
+        if (bot.dead) continue;
+        const dist = bot.pos.distanceTo(bladePos);
+        if (dist < 1.5) {
+          truckKillCheck(bot, bot.damage(80 * dt, 'body'), 'Truck Blade');
+          spawnParticles(bot.eye(), null, bloodMat, 4, 1.5);
+        }
+      }
+    }
+  }
+  
+  fireRocket() {
+    // Fire along the AIM ray: the turret tracks the mouse, so the rocket leaves the elevated pod's
+    // muzzle in exactly the direction the driver is looking — not locked to the hull heading.
+    const aimYaw = player.yaw;
+    const aimPitch = clamp(player.pitch, -0.45, 0.65);
+    const rocketPos = new THREE.Vector3(
+      this.pos.x - Math.sin(aimYaw) * 1.5,
+      this.pos.y + 3.75 + Math.sin(aimPitch) * 1.2,
+      this.pos.z - Math.cos(aimYaw) * 1.5
+    );
+    
+    const dir = new THREE.Vector3(
+      -Math.sin(aimYaw) * Math.cos(aimPitch),
+      Math.sin(aimPitch),
+      -Math.cos(aimYaw) * Math.cos(aimPitch)
+    ).normalize();
+    
+    // Create rocket projectile
+    const rocketGeo = new THREE.CylinderGeometry(0.09, 0.09, 0.7, 8);
+    const rocketMat = new THREE.MeshStandardMaterial({ color: 0x4a4a4e, emissive: 0x55555a, emissiveIntensity: 0.9 });
+    const rocket = new THREE.Mesh(rocketGeo, rocketMat);
+    rocket.position.copy(rocketPos);
+    rocket.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+    rocket.castShadow = true;
+    scene.add(rocket);
+    
+    // Shared trail material — cloned per particle would leak; one shared instance is enough since
+    // pooled trail meshes only toggle visibility.
+    const trailMat = new THREE.MeshBasicMaterial({ color: 0x999999, transparent: true, opacity: 0.55, depthWrite: false });
+    const maxRangeSq = 130 * 130;
+    
+    effects.push({
+      obj: rocket,
+      life: 3.0,
+      max: 3.0,
+      vel: dir.clone().multiplyScalar(80),
+      grow: (e) => {
+        // Position integration happens once in updateEffects via e.vel; here only thrust
+        // compensation (soften the shared 12 u/s² gravity into a gentle arc) + impact checks.
+        e.vel.y += 9 * 0.016;
+        // ── Impact detection: ground/walls, bots, range ceiling ──
+        let hit = false;
+        if (e.obj.position.y <= groundHeight(e.obj.position, 0.2) + 0.05) hit = true;
+        if (!hit) {
+          for (const b of bots) {
+            if (b.dead) continue;
+            if (b.pos.distanceToSquared(e.obj.position) < 2.6) { hit = true; break; }
+          }
+        }
+        if (!hit && e.obj.position.distanceToSquared(rocketPos) > maxRangeSq) hit = true;
+        if (hit) { e.life = 0; return; }
+        // ── Dense exhaust trail (pooled spheres, shared material) ──
+        for (let i = 0; i < 2; i++) {
+          const trail = getParticle(trailMat);
+          if (!trail) break;
+          trail.position.copy(e.obj.position);
+          trail.scale.setScalar(rand(0.5, 0.9));
+          effects.push({
+            obj: trail,
+            life: 0.45,
+            max: 0.45,
+            pooled: true,
+            grow: (te, tk) => {
+              te.obj.scale.setScalar(0.5 + (1 - tk) * 1.6);
+              te.obj.material.opacity = tk * 0.55;
+            }
+          });
+        }
+      },
+      onExpire: () => {
+        // Detonate at the rocket's CURRENT position — the old code used the launch position,
+        // so even a fired rocket would have scorched the launcher it came from.
+        explodeRocket(rocket.position.clone());
+        scene.remove(rocket);
+        rocket.geometry.dispose();
+        rocket.material.dispose();
+      }
+    });
+    
+    // Sound: rocket whoosh
+    playRocketSound(rocketPos);
+  }
+}
+
+function explodeRocket(pos) {
+  // Lethal tuning: 300 peak damage flattens any bot inside ~9.6 m outright and still maims out to
+  // the 13 m rim; self-damage stays possible so point-blank wall shots punish the driver.
+  const RADIUS = 13, MAX_DMG = 300;
+  for (const b of aliveBots()) {
+    const d = b.pos.distanceTo(pos);
+    if (d < RADIUS) truckKillCheck(b, b.damage(MAX_DMG * (1 - d / RADIUS), 'body'), 'Rocket Blast');
+  }
+  const pd = player.pos.distanceTo(pos);
+  if (pd < RADIUS && !playerInVehicle) damagePlayer(Math.round(MAX_DMG * 0.25 * (1 - pd / RADIUS)), { name: 'Rocket Blast' });
+  
+  // Camera shake: hard punch when the blast lands close, fading to nothing past ~35 m
+  const shakeMag = Math.max(0, 0.55 - pd * 0.016);
+  if (shakeMag > 0.03) { camShake.t = 0.45; camShake.mag = shakeMag; }
+  
+  // Layer 1: Twin flash — searing white core inside a softer halo
+  const flashCoreMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 1.0, blending: THREE.AdditiveBlending, depthWrite: false });
+  const flashCore = new THREE.Mesh(new THREE.SphereGeometry(0.9, 14, 10), flashCoreMat);
+  flashCore.position.copy(pos); flashCore.renderOrder = 5;
+  scene.add(flashCore);
+  effects.push({ obj: flashCore, life: 0.18, max: 0.18, fade: true,
+    grow: (e, k) => { e.obj.scale.setScalar(1 + (1 - k) * 11); }
+  });
+  const flashHaloMat = new THREE.MeshBasicMaterial({ color: 0xcccccc, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false });
+  const flashHalo = new THREE.Mesh(new THREE.SphereGeometry(1.4, 12, 8), flashHaloMat);
+  flashHalo.position.copy(pos); flashHalo.renderOrder = 4;
+  scene.add(flashHalo);
+  effects.push({ obj: flashHalo, life: 0.3, max: 0.3, fade: true,
+    grow: (e, k) => { e.obj.scale.setScalar(1 + (1 - k) * 7); }
+  });
+  
+  // Layer 2: Fireball core — 42 bright additive particles punching outward from the blast heart
+  const fireMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false });
+  for (let i = 0; i < 42; i++) {
+    const p = getParticle(fireMat);
+    if (!p) break;
+    p.position.copy(pos);
+    p.scale.setScalar(rand(0.25, 0.65));
+    const v = new THREE.Vector3(rand(-1, 1), rand(0.1, 1.4), rand(-1, 1)).normalize().multiplyScalar(rand(9, 20));
+    effects.push({ obj: p, vel: v, life: rand(0.35, 0.75), pooled: true });
+  }
+  
+  // Layer 3: Double shockwave — a fast tight ring then a slower wide one chasing it
+  const ringMat = new THREE.MeshBasicMaterial({ color: 0xdddddd, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false });
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.5, 1.0, 32), ringMat);
+  ring.position.copy(pos); ring.position.y += 0.15;
+  ring.rotation.x = -Math.PI / 2;
+  ring.renderOrder = 3;
+  scene.add(ring);
+  effects.push({ obj: ring, life: 0.45, max: 0.45, fade: true,
+    grow: (e, k) => { const s = 1 + (1 - k) * 16; e.obj.scale.set(s, s, 1); }
+  });
+  const ring2Mat = new THREE.MeshBasicMaterial({ color: 0x888888, transparent: true, opacity: 0.6, side: THREE.DoubleSide, depthWrite: false });
+  const ring2 = new THREE.Mesh(new THREE.RingGeometry(0.8, 1.3, 32), ring2Mat);
+  ring2.position.copy(pos); ring2.position.y += 0.25;
+  ring2.rotation.x = -Math.PI / 2;
+  ring2.renderOrder = 2;
+  scene.add(ring2);
+  effects.push({ obj: ring2, life: 0.85, max: 0.85, fade: true,
+    grow: (e, k) => { const s = 1 + (1 - k) * 24; e.obj.scale.set(s, s, 1); }
+  });
+  
+  // Layer 4: Ground fire ring — burning halo licking outward along the floor
+  const gy = groundHeight(pos, 0.4);
+  const fireRingMat = new THREE.MeshBasicMaterial({ color: 0xbbbbbb, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false });
+  const fireRing = new THREE.Mesh(new THREE.RingGeometry(0.4, 1.1, 28), fireRingMat);
+  fireRing.rotation.x = -Math.PI / 2;
+  fireRing.position.set(pos.x, gy + 0.08, pos.z);
+  fireRing.renderOrder = 3;
+  scene.add(fireRing);
+  effects.push({ obj: fireRing, life: 0.7, max: 0.7, fade: true,
+    grow: (e, k) => { const s = 1 + (1 - k) * 13; e.obj.scale.set(s, s, 1); }
+  });
+  
+  // Layer 5: Smoke column — 30 rolling clouds that linger and mark the strike
+  const smokeMat = new THREE.MeshBasicMaterial({ color: 0x3a3a3e, transparent: true, opacity: 0.7, depthWrite: false });
+  for (let i = 0; i < 30; i++) {
+    const s = getParticle(smokeMat);
+    if (!s) break;
+    s.position.copy(pos);
+    s.position.x += rand(-1.2, 1.2);
+    s.position.z += rand(-1.2, 1.2);
+    s.position.y += rand(0, 0.8);
+    s.scale.setScalar(rand(0.8, 1.8));
+    const v = new THREE.Vector3(rand(-0.6, 0.6), rand(2.2, 5.5), rand(-0.6, 0.6));
+    effects.push({ obj: s, vel: v, life: rand(1.6, 3.0), pooled: true });
+  }
+  
+  // Layer 6: Debris — 40 tumbling chunks that bounce and settle before fading
+  for (let i = 0; i < 40; i++) {
+    const size = rand(0.08, 0.32);
+    const dMat = new THREE.MeshStandardMaterial({ color: 0x5a5a5e, roughness: 0.9 });
+    const d = new THREE.Mesh(new THREE.BoxGeometry(size, size, size), dMat);
+    d.position.copy(pos);
+    d.castShadow = true;
+    scene.add(d);
+    const vel = new THREE.Vector3(rand(-1, 1), rand(2, 7), rand(-1, 1)).normalize().multiplyScalar(rand(12, 28));
+    effects.push({ obj: d, life: rand(1.2, 2.2), max: rand(1.2, 2.2), vel, fade: true,
+      grow: (e) => {
+        e.obj.rotation.x += 8 * 0.016;
+        e.obj.rotation.y += 6 * 0.016;
+        if (e.obj.position.y < 0) { e.obj.position.y = 0; e.vel.y = Math.abs(e.vel.y) * 0.3; e.vel.x *= 0.6; e.vel.z *= 0.6; }
+      }
+    });
+  }
+  
+  // Layer 7: White-hot sparks — fast streaking fragments
+  spawnParticles(pos, null, sparkMat, 16, 8);
+  
+  // Layer 8: Ground scorch mark — charred crater scar that lingers 6 s
+  const scorchMat = new THREE.MeshBasicMaterial({ color: 0x0a0a0a, transparent: true, opacity: 0.75, depthWrite: false });
+  const scorch = new THREE.Mesh(new THREE.CircleGeometry(1.6, 20), scorchMat);
+  scorch.rotation.x = -Math.PI / 2;
+  scorch.position.set(pos.x, gy + 0.03, pos.z);
+  scorch.renderOrder = 2;
+  scene.add(scorch);
+  effects.push({ obj: scorch, life: 6.0, max: 6.0, fade: true });
+  
+  // Sound: massive layered explosion
+  playExplosionSound(pos);
+}
+
+function playRocketSound(pos) {
+  const a = audio();
+  const osc = a.createOscillator();
+  const gain = a.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(800, a.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(100, a.currentTime + 0.3);
+  gain.gain.setValueAtTime(0.25, a.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.01, a.currentTime + 0.3);
+  osc.connect(gain).connect(a.destination);
+  osc.start();
+  osc.stop(a.currentTime + 0.3);
+}
+
+function playExplosionSound(pos) {
+  const a = audio();
+  // Low frequency rumble
+  const osc = a.createOscillator();
+  const gain = a.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = 55;
+  gain.gain.setValueAtTime(0.4, a.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.01, a.currentTime + 0.8);
+  osc.connect(gain).connect(a.destination);
+  osc.start();
+  osc.stop(a.currentTime + 0.8);
+  
+  // Noise burst
+  const buf = a.createBuffer(1, a.sampleRate * 0.5, a.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (a.sampleRate * 0.15));
+  const src = a.createBufferSource();
+  src.buffer = buf;
+  const filt = a.createBiquadFilter();
+  filt.type = 'lowpass';
+  filt.frequency.setValueAtTime(1500, a.currentTime);
+  filt.frequency.exponentialRampToValueAtTime(80, a.currentTime + 0.5);
+  const gain2 = a.createGain();
+  gain2.gain.setValueAtTime(0.5, a.currentTime);
+  gain2.gain.exponentialRampToValueAtTime(0.01, a.currentTime + 0.5);
+  src.connect(filt).connect(gain2).connect(a.destination);
+  src.start();
+}
+
+function spawnMonsterTruck() {
+  console.log('[CS] spawnMonsterTruck called, activeMonsterTruck:', !!activeMonsterTruck);
+  if (activeMonsterTruck) {
+    // Already exists - teleport to player
+    activeMonsterTruck.pos.copy(player.pos);
+    activeMonsterTruck.yaw = player.yaw;
+    showMissionNotification('MONSTER TRUCK RECALLED');
+    console.log('[CS] Truck recalled to player position');
+  } else {
+    // Spawn new
+    console.log('[CS] Spawning new truck at', player.pos.x, player.pos.z);
+    const truck = new MonsterTruck(player.pos.x, player.pos.z);
+    monsterTrucks.push(truck);
+    activeMonsterTruck = truck;
+    showMissionNotification('MONSTER TRUCK SPAWNED - Press E to enter');
+    console.log('[CS] Truck spawned successfully');
+  }
+}
+
+function enterMonsterTruck() {
+  if (!activeMonsterTruck) return;
+  const dist = player.pos.distanceTo(activeMonsterTruck.pos);
+  if (dist < 4) {
+    playerInVehicle = true;
+    showMissionNotification('IN VEHICLE - WASD drive, MOUSE aim turret, CLICK rockets');
+  }
+}
+
+function exitMonsterTruck() {
+  if (!playerInVehicle) return;
+  playerInVehicle = false;
+  // Place player beside vehicle
+  const offset = new THREE.Vector3(2, 0, 0);
+  offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), activeMonsterTruck.yaw);
+  player.pos.copy(activeMonsterTruck.pos).add(offset);
+  showMissionNotification('EXITED VEHICLE');
+}
+
+function updateMonsterTrucks(dt) {
+  for (const truck of monsterTrucks) {
+    truck.update(dt);
+  }
+  
+  // Player follows vehicle if inside
+  if (playerInVehicle && activeMonsterTruck) {
+    player.pos.copy(activeMonsterTruck.pos);
+    player.pos.y += 2.5;
+    player.yaw = activeMonsterTruck.yaw;
   }
 }
 
@@ -6760,6 +7905,7 @@ function frame() {
     updateOnlinePlayers(dt);
     updateWeapon(dt);
     updateGrenades(dt);
+    updateMonsterTrucks(dt);
     updateEffects(dt);
     updateHud(dt);
   } else if (!isOnline && isGameActive()) {
@@ -6770,6 +7916,7 @@ function frame() {
       for (const b of bots) b.update(dt);
       updateWeapon(dt);
       updateGrenades(dt);
+      updateMonsterTrucks(dt);
       updateEffects(dt);
       updateMissionHud();
       checkMissionObjectives();
@@ -6821,6 +7968,7 @@ function frame() {
       for (const b of bots) b.update(dt);
       updateWeapon(dt);
       updateGrenades(dt);
+      updateMonsterTrucks(dt);
       updateEffects(dt);
       updateHud(dt);
     }
@@ -6842,6 +7990,16 @@ function frame() {
 
   // Track FPS for adaptive quality scaling
   trackFPS(dt);
+
+  // ── Explosion camera shake: offset whatever position the camera owners set this frame, then
+  // let the next frame's owner reset it — no cleanup needed, no fighting with the chase cam. ──
+  if (camShake.t > 0) {
+    camShake.t -= dt;
+    const m = camShake.mag * Math.max(0, camShake.t / 0.45);
+    camera.position.x += (Math.random() - 0.5) * m;
+    camera.position.y += (Math.random() - 0.5) * m;
+    camera.position.z += (Math.random() - 0.5) * m;
+  }
 
   // ── Direct render to canvas (no post-processing) ──
   renderer.clear();
