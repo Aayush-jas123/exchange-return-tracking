@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#0a0a0c">
   <link rel="manifest" href="manifest.json">
   <title>OFFCOMFRT &mdash; Counter Strike</title>
-  <link rel="stylesheet" href="style.css?v=23" />
+  <link rel="stylesheet" href="style.css?v=24" />
 </head>
 <body>
 
@@ -300,6 +300,28 @@
     </div>
   </div>
 
+  <!-- ═══ Mobile Immersive Gate ═══
+       Sits over everything while a phone is held portrait. script.js re-tries fullscreen
+       and the landscape orientation lock on every tap, so this card is what a player sees
+       until either the lock takes effect or they physically turn the device. -->
+  <div id="mobileGate" hidden>
+    <div class="gate-card">
+      <div class="gate-phone" aria-hidden="true"><i></i></div>
+      <div class="gate-eyebrow">OFFCOMFRT Arcade</div>
+      <h2>Landscape, full screen</h2>
+      <p>Counter Strike is played sideways. Turn your phone to deploy.</p>
+      <button class="mode-btn primary" type="button" id="btnGateImmersive">
+        <span class="mi"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 5.5v-4h4M10.5 1.5h4v4M14.5 10.5v4h-4M5.5 14.5h-4v-4"/></svg></span>
+        <span class="ml">Go full screen<span class="ms">Locks the game to landscape</span></span>
+      </button>
+      <div class="gate-note" id="gateNote" hidden>
+        iPhones can&rsquo;t put a website full screen. Use Share &rsaquo; Add to Home Screen,
+        then open Counter Strike from that icon for a borderless landscape view.
+      </div>
+      <button class="gate-skip" type="button" id="btnGateSkip">Play in portrait anyway</button>
+    </div>
+  </div>
+
   <!-- Import map for Three.js (ES module) -->
   <script type="importmap">
     { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
@@ -312,6 +334,6 @@
   <!-- Shared map geometry: the same module the hub requires, so client and server collide identically -->
   <script src="../cs-map.js?v=6"></script>
   <!-- Game engine loads as ES module (deferred by spec) -->
-  <script type="module" src="script.js?v=78"></script>
+  <script type="module" src="script.js?v=79"></script>
 </body>
 </html>

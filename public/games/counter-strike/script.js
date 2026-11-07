@@ -47,6 +47,108 @@ mapOptions.forEach(btn => {
 const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 const isMobile = isTouchDevice || innerWidth < 768;
 
+// ── Mobile immersive mode: a phone gets full screen, in landscape, before it gets a game ──
+// Both halves of that can only be asked for from inside a touch gesture, so the attempt rides
+// a capture-phase pointerdown (every tap re-tries until it sticks) plus the gate's own button.
+// Android Chrome honours the fullscreen request and the orientation lock. iOS Safari honours
+// neither — it has no element fullscreen API and no lock — so on that engine the gate degrades
+// to a rotate prompt that clears itself the moment the device is physically sideways, with a
+// note pointing at the one route that does give an iPhone a chromeless landscape frame.
+// Keyed off the coarse-pointer media query rather than isMobile, which also catches a narrow
+// desktop window and must never hijack that browser into fullscreen.
+const isPhone = isTouchDevice && matchMedia('(hover: none) and (pointer: coarse)').matches;
+const mobileGate = document.getElementById('mobileGate');
+const gateNote = document.getElementById('gateNote');
+const btnGateImmersive = document.getElementById('btnGateImmersive');
+const btnGateSkip = document.getElementById('btnGateSkip');
+
+const settle = (p) => { if (p && typeof p.catch === 'function') p.catch(() => {}); };
+const fullscreenOn = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+const standaloneOn = () => matchMedia('(display-mode: standalone)').matches
+  || matchMedia('(display-mode: fullscreen)').matches || navigator.standalone === true;
+const canFullscreen = () => !!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen);
+// screen.orientation.type is the only reading that survives a locked orientation, where
+// innerWidth/innerHeight can still report the old axis on some Android builds.
+const inLandscape = () => {
+  const t = (screen.orientation && screen.orientation.type) || '';
+  return t ? t.indexOf('landscape') === 0 : innerWidth >= innerHeight;
+};
+
+function lockLandscape() {
+  // Modern Android hangs the lock off screen.orientation; older WebKit put lockOrientation on
+  // screen itself. Try whichever exists, in that order.
+  const o = screen.orientation;
+  const candidates = [[o, o && (o.lock || o.webkitLock)],
+    [screen, screen.lockOrientation || screen.webkitLockOrientation || screen.mozLockOrientation]];
+  for (const [target, lock] of candidates) {
+    if (typeof lock !== 'function') continue;
+    // Rejected unless the document is already fullscreen, and absent outright on iOS. Either
+    // way the gate stays up and the athlete turns the phone, which is the fallback anyway.
+    try { settle(lock.call(target, 'landscape')); } catch (_) {}
+    return;
+  }
+}
+
+function requestImmersive() {
+  if (!isPhone || standaloneOn()) return;
+  if (!fullscreenOn()) {
+    const el = document.documentElement;
+    const req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (req) { try { settle(req.call(el, { navigationUI: 'hide' })); } catch (_) {} }
+  }
+  lockLandscape();
+}
+
+// "Play in portrait anyway" is the escape hatch: a device that genuinely cannot rotate
+// (a foldable in a stand, a keyboard phone) must not be locked out of its own game.
+let gateSkipped = false;
+try { gateSkipped = sessionStorage.getItem('csPortraitOK') === '1'; } catch (_) {}
+let gateShown = null;
+function syncMobileGate() {
+  if (!mobileGate) return;
+  const want = isPhone && !gateSkipped && !inLandscape();
+  if (want === gateShown) return;
+  gateShown = want;
+  mobileGate.hidden = !want;
+  if (!want) return;
+  // Which half of the card gets to speak depends on the engine. Where there is no element
+  // fullscreen API — every iPhone browser — the button could only ever lie, so it is removed
+  // and the install note takes over; where the API exists the note would send people hunting
+  // through a Share sheet for nothing, so it goes the other way.
+  const can = canFullscreen();
+  if (gateNote) gateNote.hidden = can;
+  if (btnGateImmersive) btnGateImmersive.hidden = !can;
+}
+
+if (isPhone) {
+  document.addEventListener('pointerdown', () => {
+    // Someone who chose portrait is done being asked, and a live round is not interrupted:
+    // the tap that deployed already did this work, so re-entering fullscreen after an athlete
+    // deliberately left it would be a hijack.
+    if (gateSkipped || (game.state === 'playing' && inLandscape())) return;
+    requestImmersive();
+  }, { capture: true });
+  ['fullscreenchange', 'webkitfullscreenchange'].forEach((ev) => document.addEventListener(ev, () => {
+    if (fullscreenOn()) lockLandscape(); // the lock only takes once we are actually in there
+    syncMobileGate();
+  }));
+  // Sync at once so the card disappears the moment the phone turns, and again after the
+  // viewport settles, because screen.orientation.type can land one tick behind the resize.
+  addEventListener('orientationchange', () => { lockLandscape(); syncMobileGate(); setTimeout(syncMobileGate, 260); });
+  addEventListener('resize', () => syncMobileGate());
+  if (btnGateImmersive) btnGateImmersive.addEventListener('click', () => {
+    audio().resume();
+    requestImmersive();
+    syncMobileGate();
+  });
+  if (btnGateSkip) btnGateSkip.addEventListener('click', () => {
+    gateSkipped = true;
+    try { sessionStorage.setItem('csPortraitOK', '1'); } catch (_) {}
+    syncMobileGate();
+  });
+  syncMobileGate();
+}
+
 // ── Renderer / scene ──
 const renderer = new THREE.WebGLRenderer({ antialias: !isMobile });
 renderer.setPixelRatio(isMobile ? Math.min(devicePixelRatio, 1.5) : Math.min(devicePixelRatio, 2));

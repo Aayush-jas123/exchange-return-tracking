@@ -396,6 +396,78 @@ html, body {
   .weapon-btn { width: 44px; height: 44px; font-size: 16px; }
 }
 
+/* ── Mobile Immersive Gate ──
+   Shown only while a phone reports a portrait orientation, and it dismisses itself the
+   instant the landscape lock takes or the athlete turns the device. No hue anywhere: the
+   card is built from the same greys as the menu screens. 110 rather than something modest:
+   a round that is interrupted by someone rotating their phone must show this and not the
+   mission dialogue box, which sits at 100 and would otherwise punch a card through it. */
+#mobileGate {
+  position: fixed; inset: 0; z-index: 110;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg);
+  /* In portrait the notch is a top edge, so only the top inset has real work to do here. */
+  padding: calc(24px + env(safe-area-inset-top, 0px)) 24px calc(24px + env(safe-area-inset-bottom, 0px));
+}
+#mobileGate[hidden], #mobileGate [hidden] { display: none; }
+.gate-card { width: 100%; max-width: 360px; text-align: center; }
+.gate-eyebrow {
+  display: block; font: 700 10px var(--m); letter-spacing: .18em; text-transform: uppercase;
+  color: var(--dim); margin-bottom: 10px;
+}
+.gate-card h2 { font: 800 26px var(--f); letter-spacing: -.01em; line-height: 1.15; }
+.gate-card > p { font: 400 14px/1.55 var(--f); color: #9a9a9a; margin: 8px 0 26px; }
+
+/* Rotating phone glyph — the instruction, drawn instead of explained */
+.gate-phone { position: relative; width: 88px; height: 88px; margin: 0 auto 22px; }
+.gate-phone i {
+  position: absolute; top: 50%; left: 50%; width: 36px; height: 58px;
+  margin: -29px 0 0 -18px;
+  border: 2px solid var(--text); border-radius: 8px;
+  background: linear-gradient(180deg, rgba(240,240,242,.14), rgba(240,240,242,.02));
+  animation: csGateTurn 2.8s cubic-bezier(.65, 0, .35, 1) infinite;
+}
+.gate-phone i::after {
+  content: ''; position: absolute; top: 6px; left: 50%; width: 10px; height: 2px;
+  margin-left: -5px; border-radius: 2px; background: rgba(240,240,242,.5);
+}
+@keyframes csGateTurn {
+  0%, 16% { transform: rotate(0deg); }
+  54%, 76% { transform: rotate(-90deg); }
+  100% { transform: rotate(0deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gate-phone i { animation: none; transform: rotate(-90deg); }
+}
+
+.gate-note {
+  margin: 18px auto 0; max-width: 300px;
+  font: 400 12px/1.5 var(--f); color: #7c7c7c;
+  border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px;
+  background: var(--card);
+}
+.gate-skip {
+  display: block; margin: 18px auto 0; padding: 8px 12px;
+  background: none; border: 0; cursor: pointer;
+  font: 600 11px var(--m); letter-spacing: .12em; text-transform: uppercase;
+  color: #636363; -webkit-tap-highlight-color: transparent;
+}
+.gate-skip:active { color: var(--text); }
+
+/* ── Landscape on a notched phone ──
+   Once the game is sideways the cutout moves to a side edge, so the control layer and the
+   corner HUD chips have to clear the left/right insets too. Heights are untouched: the
+   vertical stack already fits a landscape phone with the bottom inset applied. */
+@media (orientation: landscape) and (hover: none) and (pointer: coarse) {
+  .joystick-zone { left: max(16px, env(safe-area-inset-left, 0px)); }
+  .movement-buttons { left: max(16px, env(safe-area-inset-left, 0px)); }
+  .action-buttons { right: max(16px, env(safe-area-inset-right, 0px)); }
+  .weapon-switch { right: max(16px, env(safe-area-inset-right, 0px)); }
+  #radar { left: max(14px, env(safe-area-inset-left, 0px)); }
+  #health-box { left: max(14px, env(safe-area-inset-left, 0px)); }
+  #ammo-box { right: max(14px, env(safe-area-inset-right, 0px)); }
+}
+
 /* ── Max-width fallback: HUD to top on narrow viewports (DevTools + real mobile) ── */
 @media (max-width: 768px) {
   #health-box, #ammo-box, #kills-box { top: calc(14px + env(safe-area-inset-top, 0px)); bottom: auto; font-size: 20px; padding: 6px 12px; }
