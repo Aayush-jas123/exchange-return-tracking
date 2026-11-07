@@ -3642,39 +3642,18 @@ weaponBtns.forEach((btn, i) => {
 const btnGrenade = document.getElementById('btnGrenade');
 if (btnGrenade) bindPad(btnGrenade, () => throwGrenade());
 
-// ── Swipe-to-swap on the weapon carousel ──
-// A horizontal swipe across the strip cycles weapons with smooth scroll animation.
-// The CSS scroll-snap handles the deceleration; we just detect the swipe direction.
-// A slow drag doesn't trip the swipe detector — for that, scroll-end picks whichever
-// weapon settled nearest the right edge (the thumb position) and selects it.
+// ── Weapon carousel: drag to browse, tap to pick ──
+// The strip is a real native scroller, so NOTHING on it may preventDefault a touch — the pad
+// binder's touchstart veto is what made the carousel undraggable. Selection has exactly two
+// gestures, so they can never fight each other or the native scroll:
+//   - tapping a visible button selects it directly (bindWeaponButton filters real taps), and
+//   - when a drag's scroll settles, whichever button ended nearest the thumb anchor becomes
+//     the held weapon.
+// There is deliberately NO separate swipe detector on the strip: one that called setWeapon
+// from the pre-drag index and then let syncWeaponRail yank the strip back mid-momentum made
+// scrolling feel like it snapped shut. The scroll itself is the swipe.
 const weaponStrip = document.getElementById('weaponStrip');
 if (weaponStrip) {
-  let swipeStartX = 0, swipeStartY = 0, swipeTime = 0, swiping = false;
-  weaponStrip.addEventListener('touchstart', (e) => {
-    if (e.touches.length !== 1) return;
-    swipeStartX = e.touches[0].clientX;
-    swipeStartY = e.touches[0].clientY;
-    swipeTime = Date.now();
-    swiping = true;
-  }, { passive: true });
-  weaponStrip.addEventListener('touchend', (e) => {
-    if (!swiping) return;
-    swiping = false;
-    const touch = e.changedTouches[0];
-    const dx = touch.clientX - swipeStartX;
-    const dy = touch.clientY - swipeStartY;
-    const dt = Date.now() - swipeTime;
-    // Must be primarily horizontal (|dx| > |dy|) and fast enough (< 400ms)
-    if (Math.abs(dx) > 30 && Math.abs(dx) > Math.abs(dy) * 1.5 && dt < 400) {
-      const curIdx = weaponKeys.indexOf(Object.keys(inventory).find(k => inventory[k] === current));
-      if (dx < 0 && curIdx < weaponKeys.length - 1) {
-        setWeapon(weaponKeys[curIdx + 1]); // swipe left → next weapon
-      } else if (dx > 0 && curIdx > 0) {
-        setWeapon(weaponKeys[curIdx - 1]); // swipe right → prev weapon
-      }
-    }
-  }, { passive: true });
-
   // 3D depth while scrolling + select-on-settle after a manual drag
   weaponStrip.addEventListener('scroll', () => {
     updateCarousel3D();

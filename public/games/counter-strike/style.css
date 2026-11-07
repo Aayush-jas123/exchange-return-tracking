@@ -496,15 +496,16 @@ html, body {
   background: rgba(240,240,242,.2);
 }
 
-/* Grenade button — fixed at the right of the dock, beside the carousel */
+/* Grenade button — fixed at the right of the dock, beside the carousel. Same neutral panel
+   tokens as every other pad: the control layer carries no hue (monochrome-only palette). */
 #btnGrenade {
   pointer-events: auto; touch-action: none;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 3px;
   min-height: 56px; width: 56px; flex: 0 0 56px;
   padding: 6px 2px 4px;
-  background: rgba(16,16,20,.85); border: 1.5px solid rgba(240,180,100,.35); border-radius: 10px;
-  color: #a08060;
+  background: rgba(16,16,20,.85); border: 1.5px solid rgba(80,80,88,.4); border-radius: 10px;
+  color: #a8a8a8;
   -webkit-tap-highlight-color: transparent; cursor: pointer;
   transition: border-color .15s, color .15s, background .15s;
 }
@@ -514,10 +515,10 @@ html, body {
   line-height: 1; white-space: nowrap;
 }
 #btnGrenade:active {
-  background: rgba(240,180,100,.15);
+  background: rgba(240,240,242,.2);
 }
 .grenade-count {
-  font: 700 10px var(--m); color: #f0b464; margin-top: 1px; line-height: 1;
+  font: 700 10px var(--m); color: var(--text); margin-top: 1px; line-height: 1;
 }
 
 /* Pause — a phone has no pointer lock to lose, so it needs its own way out of a round */
