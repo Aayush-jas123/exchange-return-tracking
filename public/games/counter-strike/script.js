@@ -2414,50 +2414,50 @@ function playFootstep(profile, pos, dist, volScale = 1) {
   const dest = footstepNode(a, pos, dist);
   if (!self && vol <= 0.004) return;
 
-  // 1. Impact transient: sharp heel strike, very short broadband burst
+  // 1. Impact transient: dull heel strike, low-frequency thud (not a sharp click)
   const impact = a.createBufferSource();
   impact.buffer = noiseBuf;
-  impact.playbackRate.value = self ? rand(1.2, 1.5) : rand(0.7, 0.9);
+  impact.playbackRate.value = self ? rand(0.6, 0.8) : rand(0.4, 0.6);
   const impactFilt = a.createBiquadFilter();
-  impactFilt.type = 'highpass';
-  impactFilt.frequency.value = self ? rand(2000, 3500) : rand(800, 1500);
-  impactFilt.Q.value = 0.7;
+  impactFilt.type = 'lowpass';
+  impactFilt.frequency.value = self ? rand(400, 700) : rand(250, 500);
+  impactFilt.Q.value = 0.5;
   const impactGain = a.createGain();
   impactGain.gain.setValueAtTime(0, t);
-  impactGain.gain.linearRampToValueAtTime(vol * (self ? 0.6 : 0.9), t + 0.005);
-  impactGain.gain.exponentialRampToValueAtTime(0.001, t + (self ? 0.025 : 0.04));
+  impactGain.gain.linearRampToValueAtTime(vol * (self ? 0.5 : 0.7), t + 0.012);
+  impactGain.gain.exponentialRampToValueAtTime(0.001, t + (self ? 0.05 : 0.07));
   impact.connect(impactFilt).connect(impactGain).connect(dest);
   impact.start(t, Math.random() * 0.3);
-  impact.stop(t + 0.05);
+  impact.stop(t + 0.08);
 
-  // 2. Body resonance: low-mid thud, the "meat" of the footstep
+  // 2. Body resonance: dominant low thud, the weight of the footstep
   const bodyOsc = a.createOscillator();
   bodyOsc.type = 'sine';
-  bodyOsc.frequency.setValueAtTime(self ? rand(120, 160) : rand(70, 100), t);
-  bodyOsc.frequency.exponentialRampToValueAtTime(self ? rand(60, 80) : rand(40, 55), t + 0.08);
+  bodyOsc.frequency.setValueAtTime(self ? rand(80, 120) : rand(55, 85), t);
+  bodyOsc.frequency.exponentialRampToValueAtTime(self ? rand(45, 65) : rand(35, 50), t + 0.12);
   const bodyGain = a.createGain();
   bodyGain.gain.setValueAtTime(0, t);
-  bodyGain.gain.linearRampToValueAtTime(vol * (self ? 0.7 : 1.0), t + 0.008);
-  bodyGain.gain.exponentialRampToValueAtTime(0.001, t + (self ? 0.1 : 0.14));
+  bodyGain.gain.linearRampToValueAtTime(vol * (self ? 0.9 : 1.2), t + 0.01);
+  bodyGain.gain.exponentialRampToValueAtTime(0.001, t + (self ? 0.15 : 0.2));
   bodyOsc.connect(bodyGain).connect(dest);
   bodyOsc.start(t);
-  bodyOsc.stop(t + 0.15);
+  bodyOsc.stop(t + 0.22);
 
-  // 3. Surface contact: scuff/drag noise, longer tail with bandpass
+  // 3. Surface contact: subtle low scuff, not a bright scrape
   const scuff = a.createBufferSource();
   scuff.buffer = noiseBuf;
-  scuff.playbackRate.value = self ? rand(0.8, 1.0) : rand(0.5, 0.7);
+  scuff.playbackRate.value = self ? rand(0.5, 0.7) : rand(0.3, 0.5);
   const scuffFilt = a.createBiquadFilter();
-  scuffFilt.type = 'bandpass';
-  scuffFilt.frequency.value = self ? rand(1800, 2800) : rand(600, 1000);
-  scuffFilt.Q.value = self ? 1.2 : 1.8;
+  scuffFilt.type = 'lowpass';
+  scuffFilt.frequency.value = self ? rand(900, 1400) : rand(500, 900);
+  scuffFilt.Q.value = 0.8;
   const scuffGain = a.createGain();
-  scuffGain.gain.setValueAtTime(0, t + 0.01);
-  scuffGain.gain.linearRampToValueAtTime(vol * (self ? 0.35 : 0.5), t + 0.025);
-  scuffGain.gain.exponentialRampToValueAtTime(0.001, t + (self ? 0.12 : 0.18));
+  scuffGain.gain.setValueAtTime(0, t + 0.015);
+  scuffGain.gain.linearRampToValueAtTime(vol * (self ? 0.2 : 0.3), t + 0.035);
+  scuffGain.gain.exponentialRampToValueAtTime(0.001, t + (self ? 0.14 : 0.2));
   scuff.connect(scuffFilt).connect(scuffGain).connect(dest);
-  scuff.start(t + 0.01, Math.random() * 0.5);
-  scuff.stop(t + 0.2);
+  scuff.start(t + 0.015, Math.random() * 0.5);
+  scuff.stop(t + 0.22);
 
   footstepBus.voices.push({ src: impact, end: t + 0.2 });
 }
