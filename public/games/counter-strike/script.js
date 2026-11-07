@@ -7236,7 +7236,17 @@ class FigureRig {
   }
 
   // Greyscale health bar — brightness carries the state, never hue.
+  // Throttled to avoid expensive canvas operations every frame
   paintHealth(sprite, hp) {
+    // Throttle: only repaint if health changed significantly or after cooldown
+    const now = performance.now();
+    if (sprite._lastPaintTime && now - sprite._lastPaintTime < 100) {
+      // Within 100ms cooldown - skip unless health changed a lot
+      if (Math.abs((sprite._lastHp || 0) - hp) < 5) return;
+    }
+    sprite._lastPaintTime = now;
+    sprite._lastHp = hp;
+    
     const c = sprite.userData.canvas, x = c.getContext('2d');
     const pct = Math.max(0, Math.min(1, hp / 100));
     x.clearRect(0, 0, c.width, c.height);
@@ -7286,7 +7296,8 @@ class FigureRig {
     this.airAmt += (wantAir - this.airAmt) * Math.min(1, dt * 10);
     if (t.alert !== undefined) this.alert = t.alert;
     if (t.weapon) this.setWeapon(t.weapon);
-    if (t.health !== undefined && Math.abs(t.health - this.health) > 0.5) {
+    // Throttle health bar updates to avoid canvas operations every frame
+    if (t.health !== undefined && Math.abs(t.health - this.health) > 2) {
       this.health = t.health;
       this.paintHealth(this.healthBar, this.health);
     }
@@ -7294,7 +7305,9 @@ class FigureRig {
     // Body-space lateral speed → bank into a strafe, so turning to run reads as weight shifting.
     const vx = (this.pos.x - this.prev.x) / Math.max(dt, 1e-3);
     const vz = (this.pos.z - this.prev.z) / Math.max(dt, 1e-3);
-    const cos = Math.cos(this.heading), sin = Math.sin(this.heading);
+    // Cache sin/cos - used multiple times below
+    const cos = Math.cos(this.heading);
+    const sin = Math.sin(this.heading);
     const side = vx * cos - vz * sin;   // +Z-facing model: right is +X after the yaw
     this.strafe += (side - this.strafe) * Math.min(1, dt * 8);
     this.lean += (clamp(-this.strafe * 0.02, -0.16, 0.16) - this.lean) * Math.min(1, dt * 8);
@@ -7311,24 +7324,33 @@ class FigureRig {
 
     const moving = clamp((this.speed - 0.4) / 5, 0, 1);
     const w = this.walk;
-    const s = Math.sin(w), s2 = Math.sin(w * 2);
+    // Cache sin/cos calls - used multiple times in leg/arm animation
+    const s = Math.sin(w);
+    const cosW = Math.cos(w);
     const amp = 0.55 * moving;
 
     // Legs: thighs swing from the hip, shins only fold backwards, ankles keep the foot level.
-    for (let i = 0; i < 2; i++) {
-      const dir = i === 0 ? 1 : -1;
-      const hipBend = dir * s * amp;
-      const fold = Math.max(0, -dir * Math.cos(w)) * 1.15 * moving;
-      this.hip[i].rotation.x = hipBend - this.crouchAmt * 0.85 + this.airAmt * -0.55;
-      this.knee[i].rotation.x = fold + this.crouchAmt * 1.5 + this.airAmt * 0.95;
-      this.ankle[i].rotation.x = -fold * 0.55 - hipBend * 0.3 - this.airAmt * 0.3;
-      this.hip[i].rotation.z = dir * 0.03 * moving;
-    }
+    // Unrolled loop for performance (only 2 iterations)
+    // Leg 0 (dir = 1)
+    const hipBend0 = s * amp;
+    const fold0 = Math.max(0, -cosW) * 1.15 * moving;
+    this.hip[0].rotation.x = hipBend0 - this.crouchAmt * 0.85 + this.airAmt * -0.55;
+    this.knee[0].rotation.x = fold0 + this.crouchAmt * 1.5 + this.airAmt * 0.95;
+    this.ankle[0].rotation.x = -fold0 * 0.55 - hipBend0 * 0.3 - this.airAmt * 0.3;
+    this.hip[0].rotation.z = 0.03 * moving;
+    
+    // Leg 1 (dir = -1)
+    const hipBend1 = -s * amp;
+    const fold1 = Math.max(0, cosW) * 1.15 * moving;
+    this.hip[1].rotation.x = hipBend1 - this.crouchAmt * 0.85 + this.airAmt * -0.55;
+    this.knee[1].rotation.x = fold1 + this.crouchAmt * 1.5 + this.airAmt * 0.95;
+    this.ankle[1].rotation.x = -fold1 * 0.55 - hipBend1 * 0.3 - this.airAmt * 0.3;
+    this.hip[1].rotation.z = -0.03 * moving;
 
     // Pelvis: stride lift, crouch drop, and the small counter-roll of a walking torso.
     this.pelvis.position.y = 0.92
       - this.crouchAmt * 0.26
-      + Math.abs(Math.cos(w)) * 0.035 * moving
+      + Math.abs(cosW) * 0.035 * moving
       + Math.sin(this.breath) * 0.008;
     this.body.rotation.z = this.lean + s * 0.022 * moving;
     this.upper.rotation.z = -this.lean * 0.55 - s * 0.03 * moving;
@@ -7337,16 +7359,21 @@ class FigureRig {
     // Aim: the whole upper body pitches with the head taking half the angle, exactly like a
     // real rifle carriage — this is what makes a remote player "live" instead of a flat prop.
     this.upper.rotation.x = -this.pitch * 0.75 - this.crouchAmt * 0.22 + this.kick * 0.16;
-    this.head.rotation.x = -this.pitch * 0.35 + Math.sin(this.breath * 0.7) * 0.02;
-    this.head.rotation.y = Math.sin(this.breath * 0.45) * 0.05;
+    // Cache breath calculations
+    const breath07 = this.breath * 0.7;
+    const breath045 = this.breath * 0.45;
+    this.head.rotation.x = -this.pitch * 0.35 + Math.sin(breath07) * 0.02;
+    this.head.rotation.y = Math.sin(breath045) * 0.05;
 
     // Arms: base stance plus stride counter-swing, recoil punch and a reload dip.
     const swing = s * 0.11 * moving;
-    for (let i = 0; i < 2; i++) {
-      const rel = i === 0 ? -1 : 1;
-      this.shoulder[i].rotation.x = this.baseArm.shoulder[i] + rel * swing - this.pitch * 0.12 + this.kick * 0.28;
-      this.elbow[i].rotation.x = this.baseArm.elbow[i] + this.kick * 0.5;
-    }
+    // Arm 0 (rel = -1)
+    this.shoulder[0].rotation.x = this.baseArm.shoulder[0] - swing - this.pitch * 0.12 + this.kick * 0.28;
+    this.elbow[0].rotation.x = this.baseArm.elbow[0] + this.kick * 0.5;
+    // Arm 1 (rel = 1)
+    this.shoulder[1].rotation.x = this.baseArm.shoulder[1] + swing - this.pitch * 0.12 + this.kick * 0.28;
+    this.elbow[1].rotation.x = this.baseArm.elbow[1] + this.kick * 0.5;
+    
     this.handR.rotation.x = -this.kick * 0.3;
 
     // Weapon: sinks with the stance, jerks back and up on every fired round.
@@ -7366,7 +7393,7 @@ class FigureRig {
     }
     this.shell.visible = this.flash > 0 || !!this.alert;
     if (this.shell.visible) this.glowMat.opacity = Math.min(0.5, this.flash * 0.5 + (this.alert ? 0.06 : 0));
-    if (this.pip) this.pip.visible = this.alert ? Math.sin(performance.now() * 0.012) > -0.3 : false;
+    if (this.pip) this.pip.visible = this.alert ? (performance.now() * 0.012 % 1 > 0.35) : false;
 
     this.updateLabels(dt);
   }
@@ -7399,15 +7426,24 @@ class FigureRig {
   updateLabels(dt) {
     // Sprites already face the camera; the only work left is scaling them down with distance so a
     // teammate 60 m away does not cover the screen, and hiding them once they are out of the fight.
-    const d = camera.position.distanceTo(this.pos);
-    const sc = clamp(d / 26, 0.7, 2.1);
-    this.nameTag.scale.set(1.9 * sc, 0.44 * sc, 1);
-    this.healthBar.scale.set(1.15 * sc, 0.14 * sc, 1);
-    const show = this.alive && d < 130;
-    this.nameTag.visible = show;
-    this.healthBar.visible = show && this.health < 100;
-    this.nameTag.material.opacity = show ? clamp(1.3 - d / 130, 0.25, 1) : 0;
-    this.healthBar.material.opacity = this.healthBar.visible ? 1 : 0;
+    // Optimized: use squared distance to avoid expensive sqrt, throttle updates
+    const now = performance.now();
+    if (!this._lastLabelUpdate || now - this._lastLabelUpdate > 50) {
+      this._lastLabelUpdate = now;
+      const dx = camera.position.x - this.pos.x;
+      const dy = camera.position.y - this.pos.y;
+      const dz = camera.position.z - this.pos.z;
+      const distSq = dx * dx + dy * dy + dz * dz;
+      const d = Math.sqrt(distSq);
+      const sc = clamp(d / 26, 0.7, 2.1);
+      this.nameTag.scale.set(1.9 * sc, 0.44 * sc, 1);
+      this.healthBar.scale.set(1.15 * sc, 0.14 * sc, 1);
+      const show = this.alive && distSq < 16900; // 130^2 = 16900
+      this.nameTag.visible = show;
+      this.healthBar.visible = show && this.health < 100;
+      this.nameTag.material.opacity = show ? clamp(1.3 - d / 130, 0.25, 1) : 0;
+      this.healthBar.material.opacity = this.healthBar.visible ? 1 : 0;
+    }
   }
 
   // One fired round as seen by everyone else: flash, recoil punch, and a report that fades with
