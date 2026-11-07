@@ -7393,18 +7393,18 @@ class MonsterTruck {
       c.fillStyle = grad;
       c.fillRect(0, 0, 512, 128);
       // OFFCOMFRT text
-      c.font = 'bold 72px Arial, sans-serif';
+      c.font = 'bold 80px Arial, sans-serif';
       c.textAlign = 'center';
       c.textBaseline = 'middle';
       // Shadow
-      c.fillStyle = 'rgba(0,0,0,0.6)';
+      c.fillStyle = 'rgba(0,0,0,0.8)';
       c.fillText('OFFCOMFRT', 258, 66);
-      // Main text (monochrome grey)
-      c.fillStyle = 'rgba(180,180,184,1)';
+      // Main text (bright monochrome white-grey for visibility)
+      c.fillStyle = 'rgba(240,240,244,1)';
       c.fillText('OFFCOMFRT', 256, 64);
-      // Subtle highlight line
-      c.strokeStyle = 'rgba(220,220,224,0.4)';
-      c.lineWidth = 2;
+      // Highlight outline
+      c.strokeStyle = 'rgba(255,255,255,0.6)';
+      c.lineWidth = 3;
       c.strokeText('OFFCOMFRT', 256, 64);
       
       const brandTex = new THREE.CanvasTexture(bc);
@@ -7418,6 +7418,7 @@ class MonsterTruck {
       const frontGeo = new THREE.PlaneGeometry(1.5, 0.38);
       const frontDecal = new THREE.Mesh(frontGeo, brandMat);
       frontDecal.position.set(0, 2.05, -2.77);
+      frontDecal.rotation.y = Math.PI; // face forward (outward from grille)
       frontDecal.renderOrder = 3;
       g.add(frontDecal);
       
