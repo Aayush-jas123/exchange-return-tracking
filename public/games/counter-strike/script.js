@@ -7426,7 +7426,7 @@ class MonsterTruck {
       const backGeo = new THREE.PlaneGeometry(1.5, 0.38);
       const backDecal = new THREE.Mesh(backGeo, brandMat);
       backDecal.position.set(0, 2.35, 3.01);
-      backDecal.rotation.y = Math.PI; // face backward
+      // No rotation needed — PlaneGeometry default faces +Z, which is outward from the back
       backDecal.renderOrder = 3;
       g.add(backDecal);
     }
