@@ -3579,6 +3579,30 @@ function bindPad(btn, down, up) {
   if (up) ['touchend', 'touchcancel'].forEach((ev) => btn.addEventListener(ev, up));
 }
 
+// Weapon buttons live INSIDE a horizontally scrollable strip, so they must not preventDefault
+// the touchstart — that vetoes the native scroll gesture before it starts, which is exactly why
+// the carousel could not be dragged. Instead: let touches pass through (pan-x scrolls the strip)
+// and only fire the action when the finger stayed put — a genuine tap, not a drag that happened
+// to begin on a button.
+function bindWeaponButton(btn, action) {
+  if (!btn) return;
+  let sx = 0, sy = 0, st = 0;
+  btn.addEventListener('touchstart', (e) => {
+    const t = e.changedTouches[0];
+    sx = t.clientX; sy = t.clientY; st = Date.now();
+    // No preventDefault here — the strip must be allowed to scroll
+  }, { passive: true });
+  btn.addEventListener('touchend', (e) => {
+    const t = e.changedTouches[0];
+    const dx = t.clientX - sx, dy = t.clientY - sy;
+    // Tap = finger stayed within 12px and under 350ms; anything more was a scroll drag
+    if (Math.abs(dx) < 12 && Math.abs(dy) < 12 && Date.now() - st < 350) {
+      e.preventDefault(); // suppress the ghost click on a real tap only
+      action();
+    }
+  }, { passive: false });
+}
+
 // Fire pads. The press also shoots once here, which is what a single-shot pistol tap needs; the
 // rifle's sustained burst comes from updateWeapon reading touch.fire, exactly as it reads
 // mouseDown on a desktop.
@@ -3610,8 +3634,10 @@ bindPad(btnCrouch, () => { touch.crouch = true; }, () => { touch.crouch = false;
 
 // Weapon rail. Which slot is lit comes from the weapon actually held (syncWeaponRail), not from
 // the last pad tapped, so the mouse wheel and these buttons can never disagree.
+// Uses bindWeaponButton (NOT bindPad) — the buttons sit in the scrollable carousel, and a
+// preventDefault'd touchstart would block the very swipe gesture used to reach the other guns.
 weaponBtns.forEach((btn, i) => {
-  if (i < weaponKeys.length) bindPad(btn, () => setWeapon(weaponKeys[i]));
+  if (i < weaponKeys.length) bindWeaponButton(btn, () => setWeapon(weaponKeys[i]));
 });
 const btnGrenade = document.getElementById('btnGrenade');
 if (btnGrenade) bindPad(btnGrenade, () => throwGrenade());
@@ -7590,6 +7616,11 @@ function indexRows(rows) {
 const _indexA = new Map();
 const _indexB = new Map();
 
+// Stagger figure creation to avoid burst at match start
+const _pendingFigures = [];
+const MAX_FIGURES_PER_FRAME = 3;
+let _figuresCreatedThisFrame = 0;
+
 function blendRigs(store, rowsA, rowsB, u, dt, team, isHuman) {
   // Reuse pooled Maps instead of creating new ones every frame
   _indexA.clear();
@@ -7599,17 +7630,29 @@ function blendRigs(store, rowsA, rowsB, u, dt, team, isHuman) {
   
   const mine = String((typeof CSNet !== 'undefined' && CSNet.myId) || '');
   const seen = new Set();
+  
+  // Reset per-frame creation counter
+  _figuresCreatedThisFrame = 0;
+  
   for (const [id, rb] of _indexB) {
     if (isHuman && id === mine) continue; // first person: your own body is not drawn
     seen.add(id);
     const ra = _indexA.get(id) || rb;
     let rig = store.get(id);
     if (!rig) {
-      rig = new FigureRig(id, rb.name || (team === 'T' ? 'Terrorist' : 'Operator'), team, headingOf(rb, isHuman));
-      rig.pos.set(rb.pos.x, rb.pos.y || 0, rb.pos.z);
-      rig.prev.copy(rig.pos);
-      rig.walk = rb.walkPhase || 0;
-      store.set(id, rig);
+      // Stagger creation: only create MAX_FIGURES_PER_FRAME new figures per frame
+      if (_figuresCreatedThisFrame < MAX_FIGURES_PER_FRAME) {
+        rig = new FigureRig(id, rb.name || (team === 'T' ? 'Terrorist' : 'Operator'), team, headingOf(rb, isHuman));
+        rig.pos.set(rb.pos.x, rb.pos.y || 0, rb.pos.z);
+        rig.prev.copy(rig.pos);
+        rig.walk = rb.walkPhase || 0;
+        store.set(id, rig);
+        _figuresCreatedThisFrame++;
+      } else {
+        // Defer to next frame - queue it up
+        _pendingFigures.push({ store, id, rb, team, isHuman });
+        continue; // Skip drive() this frame for deferred figures
+      }
     }
     rig.drive(blendRow(ra, rb, u, isHuman), dt);
     if (!rb.alive && rig.deathT < 0) rig.kill();
@@ -7619,6 +7662,26 @@ function blendRigs(store, rowsA, rowsB, u, dt, team, isHuman) {
     if (seen.has(id)) continue;
     rig.dispose();
     store.delete(id);
+  }
+}
+
+// Process pending figure creations (called once per frame from updateOnlinePlayers)
+function processPendingFigures() {
+  if (_pendingFigures.length === 0) return;
+  
+  const toProcess = Math.min(_pendingFigures.length, MAX_FIGURES_PER_FRAME);
+  for (let i = 0; i < toProcess; i++) {
+    const pending = _pendingFigures.shift();
+    const { store, id, rb, team, isHuman } = pending;
+    
+    // Check if still needed (might have been removed)
+    if (!store.has(id)) {
+      const rig = new FigureRig(id, rb.name || (team === 'T' ? 'Terrorist' : 'Operator'), team, headingOf(rb, isHuman));
+      rig.pos.set(rb.pos.x, rb.pos.y || 0, rb.pos.z);
+      rig.prev.copy(rig.pos);
+      rig.walk = rb.walkPhase || 0;
+      store.set(id, rig);
+    }
   }
 }
 
@@ -7729,6 +7792,9 @@ function updateOnlinePlayers(dt) {
   blendRigs(onlinePlayers, a.data.players, b.data.players, u, dt, 'CT', true);
   blendRigs(onlineBots, a.data.bots, b.data.bots, u, dt, 'T', false);
   driveOwn(b.data);
+  
+  // Process pending figure creations (staggered to avoid burst at match start)
+  processPendingFigures();
 }
 
 function figureFor(id) {
@@ -7979,6 +8045,7 @@ window.startOnlineGame = function (roster, mapName) {
   snapshotBuffer.length = 0;
   fxWatermark = 0;
   resetSeenRound = null;
+  _pendingFigures.length = 0; // Clear any pending figure creations from previous match
 
   showScreen(gameScreen);
   audio().resume();
@@ -7997,13 +8064,14 @@ window.startOnlineGame = function (roster, mapName) {
 // would pay the athlete twice.
 window.endOnlineGame = function (rows) {
   isOnline = false;
-  clearInterval(countdownHandle);
+ clearInterval(countdownHandle);
   countdownHandle = null;
   const live = document.getElementById('csCountdown');
   if (live) live.style.display = 'none';
   clearOnlineFigures();
   snapshotBuffer.length = 0;
   resetSeenRound = null;
+  _pendingFigures.length = 0; // Clear any pending figure creations
   if (document.pointerLockElement) document.exitPointerLock();
   game.state = 'gameOver';
   syncMouseHint();   // no updateHud runs once the match is over, so the hint cannot retire itself
