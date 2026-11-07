@@ -3469,8 +3469,12 @@ addEventListener('keydown', e => {
   }
   if (e.code === 'KeyG') throwGrenade();
   if (e.code === 'KeyE') {
-    if (playerInVehicle) exitMonsterTruck();
-    else enterMonsterTruck();
+    // E is the 6th letter of MONSTER — don't enter/exit when this keystroke is part of typing the cheat
+    const midCheat = cheatBuffer.slice(-6).every((c, i) => c === CHEAT_CODE[i]);
+    if (!midCheat) {
+      if (playerInVehicle) exitMonsterTruck();
+      else enterMonsterTruck();
+    }
   }
   if (e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault();
 });
@@ -7463,6 +7467,11 @@ class MonsterTruck {
         this.rocketCooldown = this.rocketMaxCooldown;
       }
       this.rocketCooldown = Math.max(0, this.rocketCooldown - dt);
+    } else {
+      // No driver aboard: rolling friction bleeds the speed off so an abandoned or recalled
+      // truck coasts to a stop instead of driving off into the distance on its old momentum.
+      this.speed *= Math.max(0, 1 - dt * 3);
+      if (Math.abs(this.speed) < 0.05) this.speed = 0;
     }
     
     // Apply velocity — the model faces -Z locally (blade at -2.3, headlights at -2.1, muzzle at
@@ -7796,6 +7805,7 @@ function spawnMonsterTruck() {
     // Already exists - teleport to player
     activeMonsterTruck.pos.copy(player.pos);
     activeMonsterTruck.yaw = player.yaw;
+    activeMonsterTruck.speed = 0; // arrive parked — never resume an old runaway
     showMissionNotification('MONSTER TRUCK RECALLED');
     console.log('[CS] Truck recalled to player position');
   } else {
@@ -7821,6 +7831,8 @@ function enterMonsterTruck() {
 function exitMonsterTruck() {
   if (!playerInVehicle) return;
   playerInVehicle = false;
+  // Handbrake on the way out — an exited truck must never keep rolling on its old speed
+  if (activeMonsterTruck) activeMonsterTruck.speed = 0;
   // Place player beside vehicle
   const offset = new THREE.Vector3(2, 0, 0);
   offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), activeMonsterTruck.yaw);
