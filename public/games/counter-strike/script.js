@@ -1,5 +1,8 @@
 import * as THREE from 'three';
 
+// Build tag — bump alongside index.html's ?v= so a console glance proves which build a tab is running.
+console.log('[CS] build v112 — monster truck recall park-brake active');
+
 // ════════════════════════════════════════════════════════════
 //  OFFCOMFRT Arcade — Counter Strike
 //  Portal-integrated FPS engine · Three.js v0.160
@@ -6701,6 +6704,7 @@ class MonsterTruck {
     this.pitch = 0;
     this.roll = 0;
     this.speed = 0;
+    this.parkTimer = 0; // set on summon/recall — drive input is ignored while > 0 so the stop sticks
     this.maxSpeed = 32;
     this.acceleration = 22;
     this.braking = 38;
@@ -7445,6 +7449,14 @@ class MonsterTruck {
     
     // Vehicle physics
     if (playerInVehicle && activeMonsterTruck === this) {
+      if (this.parkTimer > 0) {
+        // Park brake after a summon/recall: bleeds the speed to zero and ignores drive input for a
+        // short window, so the truck visibly stops and STAYS stopped even with W still held (or a
+        // key stuck down) while the cheat was being typed. Driving resumes when the window expires.
+        this.parkTimer -= dt;
+        this.speed *= Math.max(0, 1 - dt * 3);
+        if (Math.abs(this.speed) < 0.05) this.speed = 0;
+      } else
       // Acceleration
       if (keys['KeyW'] || keys['ArrowUp'] || touch.moveY < -0.2) {
         this.speed = Math.min(this.speed + this.acceleration * dt, this.maxSpeed);
@@ -7806,6 +7818,7 @@ function spawnMonsterTruck() {
     activeMonsterTruck.pos.copy(player.pos);
     activeMonsterTruck.yaw = player.yaw;
     activeMonsterTruck.speed = 0; // arrive parked — never resume an old runaway
+    activeMonsterTruck.parkTimer = 1.5; // hold the brake briefly so the stop sticks even with W still down
     showMissionNotification('MONSTER TRUCK RECALLED');
     console.log('[CS] Truck recalled to player position');
   } else {
@@ -7814,6 +7827,7 @@ function spawnMonsterTruck() {
     const truck = new MonsterTruck(player.pos.x, player.pos.z);
     monsterTrucks.push(truck);
     activeMonsterTruck = truck;
+    truck.parkTimer = 1.5; // freshly summoned trucks also hold the brake through any stray keypress
     showMissionNotification('MONSTER TRUCK SPAWNED - Press E to enter');
     console.log('[CS] Truck spawned successfully');
   }
