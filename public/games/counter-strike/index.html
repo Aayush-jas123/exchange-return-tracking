@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#0a0a0c">
   <link rel="manifest" href="manifest.json">
   <title>OFFCOMFRT &mdash; Counter Strike</title>
-  <link rel="stylesheet" href="style.css?v=25" />
+  <link rel="stylesheet" href="style.css?v=26" />
 </head>
 <body>
 
@@ -235,42 +235,55 @@
       </div>
     </div>
 
-    <!-- Mobile Touch Controls -->
+    <!-- Mobile Touch Controls
+         Two thumb zones and nothing else: the left half steers (the stick materialises under the
+         thumb wherever it lands) and the right half aims. FIRE is duplicated on both sides so a
+         burst can be held with the spare thumb instead of dropping aim to reach a single button,
+         and every secondary sits in one 2x2 grid stacked above the right fire pad. -->
     <div class="touch-controls" id="touchControls">
-      <!-- Movement Joystick -->
-      <div class="joystick-zone" id="joystickZone">
-        <div class="joystick-base"></div>
-        <div class="joystick-stick" id="joystickStick"></div>
+      <!-- Left thumb: movement -->
+      <div class="move-zone" id="moveZone">
+        <div class="joystick-zone" id="joystickZone">
+          <div class="joystick-base"></div>
+          <div class="joystick-stick" id="joystickStick"></div>
+        </div>
       </div>
 
-      <!-- Look/Aim Zone -->
+      <!-- Right thumb: look/aim drag surface -->
       <div class="look-zone" id="lookZone"></div>
 
-      <!-- Action Buttons -->
+      <!-- Fire with whichever thumb is free -->
+      <button class="action-btn fire left" id="btnFireLeft" aria-label="Fire">FIRE</button>
+
       <div class="action-buttons">
-        <button class="action-btn fire" id="btnFire">FIRE</button>
-        <button class="action-btn" id="btnReload">RLD</button>
+        <button class="action-btn" id="btnJump">JUMP</button>
+        <button class="action-btn" id="btnCrouch">CROUCH</button>
+        <button class="action-btn" id="btnAds">AIM</button>
+        <button class="action-btn" id="btnReload">RELOAD</button>
       </div>
 
-      <!-- Weapon Switch -->
+      <button class="action-btn fire" id="btnFire" aria-label="Fire">FIRE</button>
+
+      <!-- Weapon rail: only what the inventory can actually hold (there is no third weapon) -->
       <div class="weapon-switch">
-        <button class="weapon-btn active" data-weapon="0" id="btnWep0">1</button>
-        <button class="weapon-btn" data-weapon="1" id="btnWep1">2</button>
-        <button class="weapon-btn" data-weapon="2" id="btnWep2">3</button>
+        <button class="weapon-btn active" data-weapon="0" id="btnWep0"><span class="ws-num">1</span><span class="ws-name">Rifle</span></button>
+        <button class="weapon-btn" data-weapon="1" id="btnWep1"><span class="ws-num">2</span><span class="ws-name">Pistol</span></button>
       </div>
 
-      <!-- Movement Buttons -->
-      <div class="movement-buttons">
-        <button class="move-btn" id="btnJump">↑</button>
-        <button class="move-btn" id="btnCrouch">↓</button>
-      </div>
+      <button class="tc-pause" id="btnPause" aria-label="Pause">
+        <svg width="12" height="14" viewBox="0 0 12 14" fill="currentColor" aria-hidden="true"><rect x="1" y="1" width="3.4" height="12" rx="1"/><rect x="7.6" y="1" width="3.4" height="12" rx="1"/></svg>
+      </button>
     </div>
 
-    <!-- Pause overlay -->
+    <!-- Pause overlay: on a phone this is the only way out of a round, so it carries the exits -->
     <div id="pauseOverlay" class="pause-overlay hidden">
       <div class="pause-panel">
         <h2>PAUSED</h2>
         <p>Tap to resume</p>
+        <div class="pause-btns">
+          <button class="go-btn primary" id="btnResume" type="button">Resume</button>
+          <button class="go-btn" id="btnQuitRound" type="button">Quit to Menu</button>
+        </div>
       </div>
     </div>
   </div>
@@ -334,6 +347,6 @@
   <!-- Shared map geometry: the same module the hub requires, so client and server collide identically -->
   <script src="../cs-map.js?v=6"></script>
   <!-- Game engine loads as ES module (deferred by spec) -->
-  <script type="module" src="script.js?v=79"></script>
+  <script type="module" src="script.js?v=80"></script>
 </body>
 </html>

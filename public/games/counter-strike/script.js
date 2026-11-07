@@ -2690,13 +2690,20 @@ const VM_BASE = new THREE.Vector3(0.19, -0.2, -0.56);
 const weaponState = { cooldown: 0, reloading: 0, switching: 0, recoil: 0, kickAnim: 0, flashTime: 0, bob: 0, ads: 0 };
 let aiming = false;
 
+// The weapon rail lights from the weapon actually held, not from the pad that was last tapped —
+// the mouse wheel on a desktop and the rail on a phone then cannot disagree.
+function syncWeaponRail() {
+  const pistol = current === inventory.pistol;
+  document.querySelectorAll('.weapon-btn').forEach((b, i) => b.classList.toggle('active', i === (pistol ? 1 : 0)));
+}
+
 function setWeapon(key) {
   const next = inventory[key];
   if (!next || next === current) return;
   current.model.visible = false;
   current = next; current.model.visible = true;
   weaponState.reloading = 0; weaponState.switching = 0.45;
-  playBeep(220, 0.04, 0.08); updateAmmoHud();
+  playBeep(220, 0.04, 0.08); updateAmmoHud(); syncWeaponRail();
 }
 
 function updateAmmoHud() {
@@ -3120,14 +3127,23 @@ document.addEventListener('contextmenu', e => e.preventDefault());
 document.addEventListener('wheel', () => { if (locked) setWeapon(current === inventory.rifle ? 'pistol' : 'rifle'); });
 
 // ── Mobile Touch Controls ──
+// Two thumb zones, a fire pad on each side, and a stick that appears where the thumb lands
+// rather than where a stylesheet parked it. Every pad writes into the same flags the keyboard
+// and mouse write into, so no input path is special-cased inside the simulation.
 const touchControls = document.getElementById('touchControls');
+const moveZone = document.getElementById('moveZone');
 const joystickZone = document.getElementById('joystickZone');
 const joystickStick = document.getElementById('joystickStick');
 const lookZone = document.getElementById('lookZone');
 const btnFire = document.getElementById('btnFire');
+const btnFireLeft = document.getElementById('btnFireLeft');
 const btnReload = document.getElementById('btnReload');
+const btnAds = document.getElementById('btnAds');
 const btnJump = document.getElementById('btnJump');
 const btnCrouch = document.getElementById('btnCrouch');
+const btnPause = document.getElementById('btnPause');
+const btnResume = document.getElementById('btnResume');
+const btnQuitRound = document.getElementById('btnQuitRound');
 const weaponBtns = document.querySelectorAll('.weapon-btn');
 
 // Touch state
@@ -3141,48 +3157,71 @@ const touch = {
   lookActive: false,
   lastLookX: 0, lastLookY: 0
 };
+// Both fire pads drive the one `fire` flag, and each remembers who is still holding it — lifting
+// the thumb that is NOT shooting must not cancel a burst the other one is still pressing.
+const firePads = { right: false, left: false };
+let touchPaused = false;
 
-// Joystick handling
+// Joystick handling. The listeners live on the whole left zone, not on the pad, which is what
+// lets the pad be summoned under the finger instead of being aimed at.
 let joystickTouch = null;
 const joystickBase = joystickZone.querySelector('.joystick-base');
 
-joystickZone.addEventListener('touchstart', e => {
+// .move-zone is pinned to the viewport's left edge and full height, so a clientX/clientY is
+// already a local offset and the pad can be re-pinned in plain px.
+function placeStick(t) {
+  const r = joystickZone.offsetWidth / 2;
+  joystickZone.style.left = `${t.clientX - r}px`;
+  joystickZone.style.top = `${t.clientY - r}px`;
+  joystickZone.style.bottom = 'auto';
+}
+function parkStick() {
+  joystickZone.style.left = joystickZone.style.top = joystickZone.style.bottom = '';
+}
+
+moveZone.addEventListener('touchstart', e => {
   e.preventDefault();
   if (joystickTouch !== null) return;
   const t = e.changedTouches[0];
   joystickTouch = t.identifier;
   touch.joystickActive = true;
+  joystickZone.classList.add('grabbed');
   joystickStick.classList.add('active');
+  placeStick(t);
   updateJoystick(t);
 }, { passive: false });
 
-joystickZone.addEventListener('touchmove', e => {
+moveZone.addEventListener('touchmove', e => {
   e.preventDefault();
   for (const t of e.changedTouches) {
     if (t.identifier === joystickTouch) updateJoystick(t);
   }
 }, { passive: false });
 
-joystickZone.addEventListener('touchend', e => {
+moveZone.addEventListener('touchend', e => {
   for (const t of e.changedTouches) {
     if (t.identifier === joystickTouch) {
       joystickTouch = null;
       touch.joystickActive = false;
       touch.moveX = 0;
       touch.moveY = 0;
+      joystickZone.classList.remove('grabbed');
       joystickStick.classList.remove('active');
       joystickStick.style.transform = 'translate(-50%, -50%)';
+      parkStick();
     }
   }
 });
 
-joystickZone.addEventListener('touchcancel', e => {
+moveZone.addEventListener('touchcancel', e => {
   joystickTouch = null;
   touch.joystickActive = false;
   touch.moveX = 0;
   touch.moveY = 0;
+  joystickZone.classList.remove('grabbed');
   joystickStick.classList.remove('active');
   joystickStick.style.transform = 'translate(-50%, -50%)';
+  parkStick();
 });
 
 function updateJoystick(t) {
@@ -3240,55 +3279,45 @@ lookZone.addEventListener('touchcancel', e => {
   touch.lookActive = false;
 });
 
-// Fire button
-btnFire.addEventListener('touchstart', e => {
-  e.preventDefault();
-  touch.fire = true;
-  if (game.state === 'playing') fire();
-}, { passive: false });
+// Small helper so a pad can own its press and its release without six near-identical listeners.
+function bindPad(btn, down, up) {
+  if (!btn) return;
+  btn.addEventListener('touchstart', (e) => { e.preventDefault(); down(); }, { passive: false });
+  if (up) ['touchend', 'touchcancel'].forEach((ev) => btn.addEventListener(ev, up));
+}
 
-btnFire.addEventListener('touchend', e => {
-  touch.fire = false;
-});
+// Fire pads. The press also shoots once here, which is what a single-shot pistol tap needs; the
+// rifle's sustained burst comes from updateWeapon reading touch.fire, exactly as it reads
+// mouseDown on a desktop.
+function bindFirePad(btn, key) {
+  bindPad(btn, () => {
+    firePads[key] = true;
+    touch.fire = true;
+    if (game.state === 'playing' && !touchPaused) fire();
+  }, () => {
+    firePads[key] = false;
+    if (!firePads.right && !firePads.left) touch.fire = false;
+  });
+}
+bindFirePad(btnFire, 'right');
+bindFirePad(btnFireLeft, 'left');
 
 // Reload button
-btnReload.addEventListener('touchstart', e => {
-  e.preventDefault();
-  if (game.state === 'playing') reload();
-}, { passive: false });
+bindPad(btnReload, () => { if (game.state === 'playing' && !touchPaused) reload(); });
 
-// Jump button
-btnJump.addEventListener('touchstart', e => {
-  e.preventDefault();
-  touch.jump = true;
-}, { passive: false });
+// Aim down sights — on a desktop this is the right mouse button, a control a phone does not have,
+// so the whole accuracy/FOV mechanic was unreachable from the touch layer until this pad existed.
+bindPad(btnAds,
+  () => { aiming = true; if (btnAds) btnAds.classList.add('on'); },
+  () => { aiming = false; if (btnAds) btnAds.classList.remove('on'); });
 
-btnJump.addEventListener('touchend', e => {
-  touch.jump = false;
-});
+// Jump / crouch
+bindPad(btnJump, () => { touch.jump = true; }, () => { touch.jump = false; });
+bindPad(btnCrouch, () => { touch.crouch = true; }, () => { touch.crouch = false; });
 
-// Crouch button
-btnCrouch.addEventListener('touchstart', e => {
-  e.preventDefault();
-  touch.crouch = true;
-}, { passive: false });
-
-btnCrouch.addEventListener('touchend', e => {
-  touch.crouch = false;
-});
-
-// Weapon switch buttons
-weaponBtns.forEach(btn => {
-  btn.addEventListener('touchstart', e => {
-    e.preventDefault();
-    const idx = parseInt(btn.dataset.weapon);
-    if (idx === 0) setWeapon('rifle');
-    else if (idx === 1) setWeapon('pistol');
-    else if (idx === 2 && inventory.awp) setWeapon('awp');
-    weaponBtns.forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-  }, { passive: false });
-});
+// Weapon rail. Which slot is lit comes from the weapon actually held (syncWeaponRail), not from
+// the last pad tapped, so the mouse wheel and these buttons can never disagree.
+weaponBtns.forEach((btn, i) => bindPad(btn, () => setWeapon(i === 0 ? 'rifle' : 'pistol')));
 
 // Apply touch look to player
 function applyTouchLook(dt) {
@@ -3302,9 +3331,45 @@ function applyTouchLook(dt) {
 
 // Override locked check for mobile
 function isGameActive() {
-  if (isTouchDevice) return game.state === 'playing';
+  // A touch session has no capture state to hold it open, so the game state alone decides —
+  // minus the pause pad, which is the phone's only substitute for losing pointer lock.
+  if (isTouchDevice) return game.state === 'playing' && !touchPaused;
   return game.state === 'playing' && locked;
 }
+
+// ── Pause on touch ──
+// The overlay used to be driven entirely by pointerlockchange, an event a phone never fires, so
+// on a phone it could neither be opened nor escaped and there was no way back to the menu from
+// inside a round. This flag is the touch half of that same state.
+function releaseHeldPads() {
+  firePads.right = firePads.left = false;
+  touch.fire = touch.jump = touch.crouch = false;
+  touch.joystickActive = false;
+  touch.moveX = touch.moveY = 0;
+  joystickTouch = null;
+  aiming = false;
+  if (btnAds) btnAds.classList.remove('on');
+  joystickZone.classList.remove('grabbed');
+  joystickStick.classList.remove('active');
+  joystickStick.style.transform = 'translate(-50%, -50%)';
+  parkStick();
+}
+
+function setTouchPaused(on) {
+  if (touchPaused === on) return;
+  touchPaused = on;
+  pauseOverlay.classList.toggle('hidden', !on);
+  if (on) releaseHeldPads();
+}
+
+if (btnPause) btnPause.addEventListener('click', () => { if (game.state === 'playing') setTouchPaused(true); });
+if (btnResume) btnResume.addEventListener('click', (e) => { e.stopPropagation(); setTouchPaused(false); });
+if (btnQuitRound) btnQuitRound.addEventListener('click', (e) => {
+  e.stopPropagation();
+  setTouchPaused(false);
+  quitToMenu();
+});
+pauseOverlay.addEventListener('click', () => { if (isTouchDevice) setTouchPaused(false); });
 
 // Pointer lock: request when clicking the game screen during play
 // This is the primary way to engage pointer lock on desktop
@@ -3845,12 +3910,15 @@ function beginMissionGameplay() {
     // Hide round-based HUD elements during mission
     const roundInfo = document.getElementById('round-info');
     const killsBox = document.getElementById('kills-box');
-    const scoreboard = document.getElementById('scoreboard');
+    // The element is #topbar; the old id here matched nothing, so the CT/T scorebar stayed on
+    // screen and the mission panel drew itself straight over the round timer.
+    const scoreboard = document.getElementById('topbar');
     const centerMsg = document.getElementById('center-msg');
     if (roundInfo) roundInfo.style.display = 'none';
     if (killsBox) killsBox.style.display = 'none';
     if (scoreboard) scoreboard.style.display = 'none';
     if (centerMsg) centerMsg.style.display = 'none';
+    if (isTouchDevice) setTouchPaused(false);
     
     // Spawn mission-specific NPCs and clues
     spawnMissionEntities();
@@ -5286,7 +5354,7 @@ function showMissionCompleteScreen() {
   // Restore round-based HUD elements
   const roundInfo = document.getElementById('round-info');
   const killsBox = document.getElementById('kills-box');
-  const scoreboard = document.getElementById('scoreboard');
+  const scoreboard = document.getElementById('topbar');
   const centerMsgEl = document.getElementById('center-msg');
   if (roundInfo) roundInfo.style.display = '';
   if (killsBox) killsBox.style.display = '';
@@ -5597,6 +5665,9 @@ function resetPlayer() {
   current = inventory.rifle;
   current.model.visible = true;
   updateAmmoHud();
+  // The rail is re-painted here rather than only in setWeapon: this path assigns the rifle
+  // directly, so a round started with the pistol out would otherwise leave slot 2 lit.
+  syncWeaponRail();
 }
 
 function startRound() {
@@ -5696,7 +5767,7 @@ function startNewGame() {
   if (missionHud) missionHud.style.display = 'none';
   const roundInfo = document.getElementById('round-info');
   const killsBox = document.getElementById('kills-box');
-  const scoreboard = document.getElementById('scoreboard');
+  const scoreboard = document.getElementById('topbar');
   const centerMsgEl = document.getElementById('center-msg');
   if (roundInfo) roundInfo.style.display = '';
   if (killsBox) killsBox.style.display = '';
@@ -5784,15 +5855,18 @@ btnRetry.addEventListener('click', () => {
   }
 });
 
-// Game over → Back to menu
-btnBackMenu.addEventListener('click', () => {
+// Back to menu — shared by the game-over panel and the pause panel's Quit, because a phone needs
+// an exit from inside a round as well and both paths have to leave a co-op room the same way.
+function quitToMenu() {
   game.state = 'menu';
   isOnline = false;
   clearOnlineFigures();
   if (hud.coopBoard) hud.coopBoard.innerHTML = '';
   if (typeof CSNet !== 'undefined' && CSNet.room) CSNet.leaveRoom();
+  setTouchPaused(false);
   showScreen(menuScreen);
-});
+}
+btnBackMenu.addEventListener('click', quitToMenu);
 
 // ── Update loop ──
 function updatePlayer(dt) {
@@ -5917,13 +5991,16 @@ function updateWeapon(dt) {
   const ws = weaponState, model = current.model;
   ws.cooldown = Math.max(0, ws.cooldown - dt);
   ws.switching = Math.max(0, ws.switching - dt);
-  ws.recoil = Math.max(0, ws.recoil - dt * (mouseDown ? 0.05 : 0.18));
+  // `mouseDown` alone meant a held trigger only ever fired one round on a phone: the touch layer
+  // sets touch.fire, and nothing read it. Desktop behaviour is unchanged.
+  const firing = mouseDown || (isTouchDevice && touch.fire);
+  ws.recoil = Math.max(0, ws.recoil - dt * (firing ? 0.05 : 0.18));
   ws.kickAnim = Math.max(0, ws.kickAnim - dt * 12);
   if (ws.reloading > 0) {
     ws.reloading -= dt;
     if (ws.reloading <= 0) { ws.reloading = 0; finishReload(); }
   }
-  if (mouseDown && current.def.auto) fire();
+  if (firing && current.def.auto) fire();
 
   ws.bob += dt * player.speed * (player.onGround ? 1.6 : 0);
   const bobX = Math.sin(ws.bob) * 0.012 * Math.min(1, player.speed / 3);
@@ -6091,6 +6168,15 @@ function trackFPS(dt) {
 function frame() {
   requestAnimationFrame(frame);
   const dt = Math.min(clock.getDelta(), 0.05);
+
+  // On a phone there is no lost lock to clear the input flags, so a round that ends under a thumb
+  // still pressing FIRE would carry the flag into the next one, and a pause would sit on top of
+  // the game-over screen. Both let go the moment the state leaves 'playing'.
+  if (isTouchDevice && game.state !== 'playing' &&
+      (touchPaused || touch.fire || touch.jump || touch.crouch || touch.joystickActive)) {
+    setTouchPaused(false);
+    releaseHeldPads();
+  }
 
   // Living water: the caustic texture creeps across every pond at once (one shared map) and the
   // sheen breathes — marsh only, costs nothing on the dry arena.

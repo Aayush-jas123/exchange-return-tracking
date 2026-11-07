@@ -11,6 +11,14 @@
   --dim: #8888a0;
   --f: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
   --m: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  /* Safe-area insets are declared once here because both layers need them: the control pads live
+     in .touch-controls and the HUD chips live in #hud, so a variable scoped to either one would
+     be invalid at computed-value time in the other and its `top`/`left` would silently fall back
+     to auto. */
+  --inset-l: env(safe-area-inset-left, 0px);
+  --inset-r: env(safe-area-inset-right, 0px);
+  --inset-t: env(safe-area-inset-top, 0px);
+  --inset-b: env(safe-area-inset-bottom, 0px);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -292,9 +300,13 @@ html, body {
   z-index: 10;
 }
 .pause-overlay.hidden { display: none; }
-.pause-panel { text-align: center; padding: 32px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; }
+.pause-panel { text-align: center; padding: 32px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; min-width: 240px; }
 .pause-panel h2 { font: 800 28px var(--f); letter-spacing: 2px; color: var(--text); margin-bottom: 8px; }
 .pause-panel p { font: 600 11px var(--m); color: var(--dim); letter-spacing: .1em; text-transform: uppercase; }
+/* The overlay used to offer nothing but the words "tap to resume", which left a phone with no way
+   out of a round at all. Same two exits the game-over panel gives, same button family. */
+.pause-btns { display: flex; flex-direction: column; gap: 8px; margin-top: 22px; }
+.pause-btns .go-btn { padding: 11px 18px; font-size: 13px; }
 
 /* ── Game Over Screen ── */
 #gameOverScreen {
@@ -334,123 +346,171 @@ html, body {
 .go-btn.primary { background: var(--text); color: var(--bg); border-color: var(--text); }
 .go-btn.primary:hover { background: #ddd; }
 
-/* ── Mobile Touch Controls ── */
-.touch-controls { display: none; position: fixed; inset: 0; pointer-events: none; z-index: 3; }
-
-/* Virtual Joystick */
-.joystick-zone {
-  position: absolute; bottom: 20px; left: 20px;
-  width: 130px; height: 130px;
-  pointer-events: auto; z-index: 2;
+/* ── Mobile Touch Controls ──
+   One layout rule for the whole layer: every control is placed from a screen edge by the same
+   `--gutter`, added to whichever safe-area inset that edge owns. That is what makes the pads
+   line up as a set instead of drifting a few pixels apart, and it is the reason the notch can be
+   handled once in the insets rather than per button.
+   Zones: the left half belongs to the steering thumb and the right half to the aiming thumb.
+   The stick is not a fixed pad any more — it appears under the thumb wherever it lands inside
+   the left zone, which is how every competitive shooter does it, because a thumb that has to
+   find a parked circle first is a thumb that is not yet moving.
+   FIRE is duplicated: one under each thumb, so a burst can be held while the other thumb is
+   steering or aiming instead of choosing between them. */
+.touch-controls {
+  --gutter: 16px;
+  display: none; position: fixed; inset: 0; pointer-events: none; z-index: 3;
 }
+
+/* Thumb zones (z1) sit under the pads (z3) so a tap always reaches a button first */
+.move-zone {
+  position: absolute; left: 0; bottom: 0; width: 46%; height: 100%;
+  pointer-events: auto; z-index: 1; touch-action: none;
+}
+.look-zone {
+  position: absolute; top: 0; right: 0; width: 54%; height: 100%;
+  pointer-events: auto; z-index: 1; touch-action: none;
+}
+
+/* Virtual Joystick — rest position only; while held, script.js pins it to the touch point */
+.joystick-zone {
+  position: absolute; left: 24px; bottom: calc(24px + var(--inset-b));
+  width: 132px; height: 132px;
+  opacity: .5; transition: opacity .18s ease;
+}
+.joystick-zone.grabbed { opacity: 1; }
 .joystick-base {
   position: absolute; inset: 0;
-  background: rgba(20,20,24,.6); border: 2px solid var(--line);
+  background: rgba(20,20,24,.55); border: 1px solid rgba(240,240,242,.3);
   border-radius: 50%;
-  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+}
+/* Inner ring: the dead-zone marker, drawn rather than labelled */
+.joystick-base::after {
+  content: ''; position: absolute; inset: 32%; border-radius: 50%;
+  border: 1px dashed rgba(240,240,242,.16);
 }
 .joystick-stick {
   position: absolute; top: 50%; left: 50%;
-  width: 50px; height: 50px;
-  background: rgba(240,240,242,.8); border: 2px solid var(--text);
+  width: 52px; height: 52px;
+  background: rgba(240,240,242,.82); border: 1px solid var(--text);
   border-radius: 50%;
   transform: translate(-50%, -50%);
   transition: background .1s;
 }
 .joystick-stick.active { background: var(--text); }
 
-/* Look Zone (full-screen drag surface for camera control) */
-.look-zone {
-  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-  width: 100%; height: 100%;
-  pointer-events: auto; z-index: 1;
-}
-
-/* Action Buttons */
+/* Secondaries: one 2×2 grid stacked above the right fire pad, in thumb-reach order — the bottom
+   row (AIM/RELOAD) is nearest the firing thumb because those are the two pressed mid-fight. */
 .action-buttons {
-  position: absolute; bottom: 16px; right: 16px;
-  display: flex; flex-direction: column; gap: 8px;
-  pointer-events: auto; z-index: 2;
+  position: absolute; z-index: 3;
+  right: calc(var(--gutter) + var(--inset-r));
+  bottom: calc(140px + var(--gutter) + var(--inset-b));
+  display: grid; grid-template-columns: repeat(2, 56px); grid-template-rows: repeat(2, 56px);
+  gap: 10px; pointer-events: none;
 }
 .action-btn {
-  width: 64px; height: 64px;
-  background: rgba(20,20,24,.8); border: 2px solid var(--line);
-  border-radius: 16px;
+  pointer-events: auto; touch-action: none;
   display: flex; align-items: center; justify-content: center;
-  font: 700 11px var(--m); color: var(--text);
-  text-transform: uppercase; letter-spacing: .06em;
-  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
-  -webkit-tap-highlight-color: transparent;
-  cursor: pointer;
+  width: 56px; height: 56px;
+  background: rgba(20,20,24,.72); border: 1px solid var(--line); border-radius: 14px;
+  color: #a8a8a8;
+  font: 700 10px var(--m); letter-spacing: .08em; text-transform: uppercase;
+  -webkit-tap-highlight-color: transparent; cursor: pointer;
 }
-.action-btn:active { background: rgba(240,240,242,.3); border-color: var(--text); }
+.action-btn:active { background: rgba(240,240,242,.14); border-color: rgba(240,240,242,.45); color: var(--text); }
+.action-btn.on { border-color: rgba(240,240,242,.55); color: var(--text); background: rgba(240,240,242,.1); }
+
+/* Fire pads: same circle twice, one at the inboard end of each thumb arc. They are children of
+   the layer rather than of the grid, so they need the grid's z-index too — without it a positioned
+   element at z auto sits under .look-zone and the aim surface swallows every trigger tap. */
 .action-btn.fire {
-  width: 64px; height: 64px;
-  background: rgba(240,240,242,.15); border-color: rgba(240,240,242,.5);
-  color: #f0f0f2;
+  position: absolute; z-index: 3;
+  right: calc(var(--gutter) + var(--inset-r));
+  bottom: calc(var(--gutter) + var(--inset-b));
+  width: 84px; height: 84px; border-radius: 50%;
+  background: rgba(240,240,242,.13); border: 1px solid rgba(240,240,242,.55);
+  color: var(--text); font: 700 12px var(--m); letter-spacing: .16em;
 }
 .action-btn.fire:active { background: rgba(240,240,242,.3); }
+.action-btn.fire.left {
+  right: auto; left: calc(var(--gutter) + var(--inset-l) + 176px);
+  width: 68px; height: 68px; font-size: 11px;
+}
 
-/* Weapon Switch — right side, above action buttons (vertical stack) */
+/* Weapon rail — a horizontal strip under the ammo chip, not a column stranded mid-screen */
 .weapon-switch {
-  position: absolute; bottom: 160px; right: 20px;
-  display: flex; flex-direction: column; gap: 6px;
-  pointer-events: auto; z-index: 2;
+  position: absolute; z-index: 3;
+  top: calc(54px + var(--inset-t));
+  right: calc(14px + var(--inset-r));
+  display: flex; flex-direction: row; gap: 6px; pointer-events: none;
 }
 .weapon-btn {
-  width: 48px; height: 48px;
-  background: rgba(20,20,24,.8); border: 1px solid var(--line);
-  border-radius: 10px;
-  display: flex; align-items: center; justify-content: center;
-  font: 700 18px var(--m); color: var(--dim);
-  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
-  -webkit-tap-highlight-color: transparent;
-  cursor: pointer;
+  pointer-events: auto; touch-action: none;
+  display: flex; align-items: baseline; gap: 5px;
+  height: 28px; padding: 0 9px;
+  background: rgba(20,20,24,.72); border: 1px solid var(--line); border-radius: 8px;
+  color: #636363;
+  -webkit-tap-highlight-color: transparent; cursor: pointer;
 }
-.weapon-btn:active { background: rgba(240,240,242,.2); }
-.weapon-btn.active { border-color: var(--text); color: var(--text); }
+.weapon-btn .ws-num { font: 700 9px var(--m); }
+.weapon-btn .ws-name { font: 600 9px var(--m); letter-spacing: .08em; text-transform: uppercase; }
+.weapon-btn.active { border-color: rgba(240,240,242,.5); color: var(--text); background: rgba(240,240,242,.1); }
 
-/* Jump/Crouch — left side, above joystick */
-.movement-buttons {
-  position: absolute; bottom: 160px; left: 20px;
-  display: flex; flex-direction: column; gap: 8px;
-  pointer-events: auto; z-index: 2;
-}
-.move-btn {
-  width: 56px; height: 56px;
-  background: rgba(20,20,24,.8); border: 1px solid var(--line);
-  border-radius: 12px;
+/* Pause — a phone has no pointer lock to lose, so it needs its own way out of a round */
+.tc-pause {
+  position: absolute; z-index: 3;
+  top: calc(14px + var(--inset-t)); right: calc(14px + var(--inset-r));
+  width: 34px; height: 34px; border-radius: 9px;
   display: flex; align-items: center; justify-content: center;
-  font: 700 20px var(--m); color: var(--dim);
-  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
-  -webkit-tap-highlight-color: transparent;
-  cursor: pointer;
+  background: rgba(20,20,24,.72); border: 1px solid var(--line);
+  color: #a8a8a8; pointer-events: auto; touch-action: none;
+  -webkit-tap-highlight-color: transparent; cursor: pointer;
 }
-.move-btn:active { background: rgba(240,240,242,.2); border-color: var(--text); }
+.tc-pause:active { color: var(--text); border-color: rgba(240,240,242,.45); }
+
+/* A landscape viewport under ~380px tall (the old 4-inch phones) is shorter than the stack wants
+   to be: at the numbers above the secondary grid would reach the weapon rail. So the whole right
+   cluster tightens instead of overlapping. Sizes stay above the 44px tap minimum. */
+@media (hover: none) and (pointer: coarse) and (max-height: 380px) {
+  .action-buttons {
+    bottom: calc(112px + var(--gutter) + var(--inset-b));
+    grid-template-columns: repeat(2, 48px); grid-template-rows: repeat(2, 48px); gap: 8px;
+  }
+  .action-btn { width: 48px; height: 48px; font-size: 9px; }
+  .action-btn.fire { width: 72px; height: 72px; }
+  .action-btn.fire.left { width: 60px; height: 60px; }
+  .joystick-zone { width: 112px; height: 112px; }
+}
 
 /* Show touch controls only on touch devices */
 @media (hover: none) and (pointer: coarse) {
   .touch-controls { display: block; }
-  #radar { width: 90px; height: 90px; }
+}
 
-  /* HUD moves to top — clear of all controls */
-  #health-box, #ammo-box, #kills-box { top: calc(14px + env(safe-area-inset-top, 0px)); bottom: auto; font-size: 20px; padding: 6px 12px; }
-  #health-box { left: 14px; }
-  #ammo-box { right: 14px; }
-  #kills-box { top: calc(56px + env(safe-area-inset-top, 0px)); left: 50%; bottom: auto; }
-
-  /* Left column: joystick at bottom, jump/crouch above it */
-  .joystick-zone { width: 110px; height: 110px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); left: 16px; }
-  .joystick-stick { width: 44px; height: 44px; }
-  .movement-buttons { bottom: calc(150px + env(safe-area-inset-bottom, 0px)); left: 16px; }
-  .move-btn { width: 52px; height: 52px; }
-
-  /* Right column: fire/reload at bottom, weapon switch stacked vertically above */
-  .action-buttons { bottom: calc(16px + env(safe-area-inset-bottom, 0px)); right: 16px; }
-  .action-btn { width: 56px; height: 56px; font-size: 10px; }
-  .action-btn.fire { width: 60px; height: 60px; }
-  .weapon-switch { flex-direction: column; bottom: calc(290px + env(safe-area-inset-bottom, 0px)); right: 16px; gap: 6px; }
-  .weapon-btn { width: 44px; height: 44px; font-size: 16px; }
+/* ── Top strip: three columns that each own their half of the edge ──
+   Left  = radar, then the kill counter under it.
+   Centre = scorebar, then the round line.
+   Right = ammo chip (kept clear of the pause button at the corner), then the weapon rail.
+   Previously health and radar were both parked at top/left 14px and painted one over the other,
+   and kills and round-info were both centred on the same 56px line.
+   The narrow-viewport arm of this query is what a shallow desktop window or DevTools gets, so
+   the same strip is drawn there — without the control layer, which stays coarse-pointer only. */
+@media (hover: none) and (pointer: coarse), (max-width: 768px) {
+  #radar { width: 76px; height: 76px; }
+  #radar { top: calc(14px + var(--inset-t)); left: calc(14px + var(--inset-l)); }
+  #health-box { top: calc(14px + var(--inset-t)); bottom: auto; left: calc(100px + var(--inset-l)); font-size: 20px; padding: 6px 12px; }
+  #kills-box {
+    top: calc(98px + var(--inset-t)); bottom: auto;
+    left: calc(14px + var(--inset-l)); transform: none;
+    font: 700 11px var(--m); letter-spacing: .08em;
+  }
+  #killfeed {
+    top: calc(132px + var(--inset-t)); right: auto; bottom: auto;
+    left: calc(14px + var(--inset-l)); align-items: flex-start;
+  }
+  #topbar { top: calc(12px + var(--inset-t)); }
+  #round-info { top: calc(52px + var(--inset-t)); }
+  #ammo-box { top: calc(14px + var(--inset-t)); bottom: auto; right: calc(56px + var(--inset-r)); font-size: 20px; padding: 6px 12px; }
 }
 
 /* ── Mobile Immersive Gate ──
@@ -465,7 +525,7 @@ html, body {
   overflow: hidden auto;
   background: var(--bg);
   /* In portrait the notch is a top edge, so only the top inset has real work to do here. */
-  padding: calc(24px + env(safe-area-inset-top, 0px)) 24px calc(24px + env(safe-area-inset-bottom, 0px));
+  padding: calc(24px + var(--inset-t)) 24px calc(24px + var(--inset-b));
 }
 #mobileGate[hidden], #mobileGate [hidden] { display: none; }
 .gate-card { width: 100%; max-width: 360px; text-align: center; margin: auto; }
@@ -513,35 +573,16 @@ html, body {
 .gate-skip:active { color: var(--text); }
 
 /* ── Landscape on a notched phone ──
-   Once the game is sideways the cutout moves to a side edge, so the control layer and the
-   corner HUD chips have to clear the left/right insets too. Heights are untouched: the
-   vertical stack already fits a landscape phone with the bottom inset applied. */
-@media (orientation: landscape) and (hover: none) and (pointer: coarse) {
-  .joystick-zone { left: max(16px, env(safe-area-inset-left, 0px)); }
-  .movement-buttons { left: max(16px, env(safe-area-inset-left, 0px)); }
-  .action-buttons { right: max(16px, env(safe-area-inset-right, 0px)); }
-  .weapon-switch { right: max(16px, env(safe-area-inset-right, 0px)); }
-  #radar { left: max(14px, env(safe-area-inset-left, 0px)); }
-  #health-box { left: max(14px, env(safe-area-inset-left, 0px)); }
-  #ammo-box { right: max(14px, env(safe-area-inset-right, 0px)); }
-}
+   Nothing here any more. The cutout moves to a side edge when the device turns, and every
+   control and corner chip above already adds its own edge's inset through --inset-l/r, so the
+   layer clears the notch in both orientations from one set of numbers. The old block re-pinned
+   four selectors with max() overrides, which is exactly the drift the gutter variable removes. */
 
-/* ── Max-width fallback: HUD to top on narrow viewports (DevTools + real mobile) ── */
+/* ── Narrow viewports: drop the blur, keep the layout ── */
 @media (max-width: 768px) {
-  #health-box, #ammo-box, #kills-box { top: calc(14px + env(safe-area-inset-top, 0px)); bottom: auto; font-size: 20px; padding: 6px 12px; }
-  #health-box { left: 14px; }
-  #ammo-box { right: 14px; }
-  #kills-box { top: calc(56px + env(safe-area-inset-top, 0px)); left: 50%; bottom: auto; }
-
-  /* Safe area insets for notched phones */
-  .joystick-zone { bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
-  .action-buttons { bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
-  .movement-buttons { bottom: calc(150px + env(safe-area-inset-bottom, 0px)); }
-  .weapon-switch { bottom: calc(290px + env(safe-area-inset-bottom, 0px)); }
-
   /* Disable backdrop-filter blur on mobile (GPU cost) */
   #radar, #timer, #topbar .team, #killfeed div,
-  .joystick-base, .action-btn, .weapon-btn, .move-btn,
+  .joystick-base, .action-btn, .weapon-btn, .tc-pause,
   #health-box, #ammo-box, #kills-box {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
