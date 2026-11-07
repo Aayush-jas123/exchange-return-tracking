@@ -2396,6 +2396,9 @@ function footstepNode(a, pos, dist) {
 
 // profile: 'self' = crisp boot scuff right under the camera (your own steps)
 //          'enemy' = heavier, duller, lowpassed — instantly distinguishable
+// Real footstep = three layered components: impact transient (heel strike), body
+// resonance (low thud), and surface contact (scuff tail). Each gets its own
+// oscillator/noise source with natural envelopes for a convincing footstep.
 function playFootstep(profile, pos, dist, volScale = 1) {
   const a = audioLive();
   const self = profile === 'self';
@@ -2410,30 +2413,53 @@ function playFootstep(profile, pos, dist, volScale = 1) {
   const t = a.currentTime;
   const dest = footstepNode(a, pos, dist);
   if (!self && vol <= 0.004) return;
-  // Scuff: short filtered noise burst
-  const src = a.createBufferSource();
-  src.buffer = noiseBuf;
-  src.playbackRate.value = self ? rand(0.9, 1.1) : rand(0.55, 0.75);
-  const f = a.createBiquadFilter();
-  f.type = 'bandpass';
-  f.frequency.value = self ? rand(1600, 2400) : rand(500, 800);
-  f.Q.value = self ? 1.4 : 2.2;
-  const g = a.createGain();
-  g.gain.setValueAtTime(vol, t);
-  g.gain.exponentialRampToValueAtTime(0.001, t + (self ? 0.09 : 0.14));
-  src.connect(f).connect(g).connect(dest);
-  src.start(t, Math.random() * 0.5);
-  src.stop(t + 0.16);
-  // Heel thud: quick sine tap — enemies get the lower, heavier one
-  const o = a.createOscillator(), og = a.createGain();
-  o.frequency.setValueAtTime(self ? rand(150, 190) : rand(85, 110), t);
-  o.frequency.exponentialRampToValueAtTime(45, t + 0.08);
-  og.gain.setValueAtTime(vol * (self ? 0.8 : 1.1), t);
-  og.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
-  o.connect(og).connect(dest);
-  o.start(t);
-  o.stop(t + 0.11);
-  footstepBus.voices.push({ src, end: t + 0.16 });
+
+  // 1. Impact transient: sharp heel strike, very short broadband burst
+  const impact = a.createBufferSource();
+  impact.buffer = noiseBuf;
+  impact.playbackRate.value = self ? rand(1.2, 1.5) : rand(0.7, 0.9);
+  const impactFilt = a.createBiquadFilter();
+  impactFilt.type = 'highpass';
+  impactFilt.frequency.value = self ? rand(2000, 3500) : rand(800, 1500);
+  impactFilt.Q.value = 0.7;
+  const impactGain = a.createGain();
+  impactGain.gain.setValueAtTime(0, t);
+  impactGain.gain.linearRampToValueAtTime(vol * (self ? 0.6 : 0.9), t + 0.005);
+  impactGain.gain.exponentialRampToValueAtTime(0.001, t + (self ? 0.025 : 0.04));
+  impact.connect(impactFilt).connect(impactGain).connect(dest);
+  impact.start(t, Math.random() * 0.3);
+  impact.stop(t + 0.05);
+
+  // 2. Body resonance: low-mid thud, the "meat" of the footstep
+  const bodyOsc = a.createOscillator();
+  bodyOsc.type = 'sine';
+  bodyOsc.frequency.setValueAtTime(self ? rand(120, 160) : rand(70, 100), t);
+  bodyOsc.frequency.exponentialRampToValueAtTime(self ? rand(60, 80) : rand(40, 55), t + 0.08);
+  const bodyGain = a.createGain();
+  bodyGain.gain.setValueAtTime(0, t);
+  bodyGain.gain.linearRampToValueAtTime(vol * (self ? 0.7 : 1.0), t + 0.008);
+  bodyGain.gain.exponentialRampToValueAtTime(0.001, t + (self ? 0.1 : 0.14));
+  bodyOsc.connect(bodyGain).connect(dest);
+  bodyOsc.start(t);
+  bodyOsc.stop(t + 0.15);
+
+  // 3. Surface contact: scuff/drag noise, longer tail with bandpass
+  const scuff = a.createBufferSource();
+  scuff.buffer = noiseBuf;
+  scuff.playbackRate.value = self ? rand(0.8, 1.0) : rand(0.5, 0.7);
+  const scuffFilt = a.createBiquadFilter();
+  scuffFilt.type = 'bandpass';
+  scuffFilt.frequency.value = self ? rand(1800, 2800) : rand(600, 1000);
+  scuffFilt.Q.value = self ? 1.2 : 1.8;
+  const scuffGain = a.createGain();
+  scuffGain.gain.setValueAtTime(0, t + 0.01);
+  scuffGain.gain.linearRampToValueAtTime(vol * (self ? 0.35 : 0.5), t + 0.025);
+  scuffGain.gain.exponentialRampToValueAtTime(0.001, t + (self ? 0.12 : 0.18));
+  scuff.connect(scuffFilt).connect(scuffGain).connect(dest);
+  scuff.start(t + 0.01, Math.random() * 0.5);
+  scuff.stop(t + 0.2);
+
+  footstepBus.voices.push({ src: impact, end: t + 0.2 });
 }
 
 // ══ Wading audio: a soft filtered-noise plip with a falling droplet tail — clearly water, ══
