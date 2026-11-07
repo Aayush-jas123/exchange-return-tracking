@@ -18,17 +18,74 @@ html, body {
   height: 100%; overflow: hidden; background: var(--bg); color: var(--text);
   font-family: var(--f);
   user-select: none; -webkit-user-select: none;
-  touch-action: none;
+  /* Pan blocking used to be a blanket `touch-action: none` here, and because that value is
+     read all the way up the ancestor chain it swallowed the swipe inside every menu layer too
+     — which is how the pre-game screens ended up unscrollable on a phone. It now belongs to
+     #gameScreen alone, where a stray pan really would eat an aim drag. Pull-to-refresh is
+     still refused by overscroll-behavior, and pinch-zoom by the viewport meta. */
+  overscroll-behavior: none;
   -webkit-font-smoothing: antialiased;
 }
 
-/* ── Screens ── */
+/* ── Screens ──
+   Each screen is a fixed full-viewport layer and the page beneath it cannot scroll, so when a
+   menu column is taller than the phone it has to pan inside its own layer. Centring it with
+   align-items/justify-content is what broke that: an item larger than its flex container
+   overflows BOTH ends, so the title sat above the reachable top forever with no way back up.
+   Auto margins do the same job honestly — they absorb all the free space when there is any,
+   and collapse to zero when there is not, leaving the layer to scroll from the first row to
+   the last. The canvas screen is excluded: it must never pan. */
 .screen { position: fixed; inset: 0; display: none; }
-.screen.active { display: flex; }
+.screen.active {
+  display: flex;
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+#gameScreen.active { overflow: hidden; touch-action: none; }
+.menu-inner, .go-inner, .lobby-inner,
+.mission-select-inner, .briefing-inner, .mission-complete-inner { margin: auto; }
+
+/* ── Short viewports: a phone held sideways, or a shallow desktop window ──
+   A landscape phone gives the menu about 390px of height and the column wants twice that.
+   The scroll above makes it reachable; this makes the first flick land on DEPLOY. Only
+   vertical rhythm and type scale are trimmed — no line of product copy is hidden, and widths
+   stay put because this query also fires on a short desktop window. */
+@media (max-height: 560px) {
+  .brand { margin-bottom: 14px; }
+  .brand-logo { width: 40px; height: 40px; margin: 0 auto 8px; border-radius: 10px; font: 900 18px var(--m); }
+  .brand-eyebrow { margin-bottom: 4px; }
+  .brand h1 { font-size: 24px; }
+  .map-select-section { margin-bottom: 14px; }
+  .map-select-label { margin-bottom: 8px; }
+  .map-options { gap: 6px; }
+  .map-option { padding: 8px 12px; gap: 10px; }
+  .map-icon, .map-icon svg { width: 22px; height: 22px; }
+  .map-desc { line-height: 1.35; }
+  .mode-btn { padding: 10px 14px; gap: 10px; font-size: 14px; }
+  .mode-btn .mi { font-size: 18px; width: 26px; }
+  .instructions-toggle { margin-top: 10px; }
+  .instructions:not([hidden]) { max-height: 55vh; overflow-y: auto; }
+  .menu-inner, .go-inner, .lobby-inner,
+  .mission-select-inner, .mission-complete-inner { padding: 18px 20px; }
+  .briefing-inner { padding: 20px; }
+  .mission-list { gap: 8px; margin: 14px 0; }
+  .mission-card { padding: 14px 16px; }
+  .mission-title { font-size: 15px; margin-bottom: 4px; }
+  .mission-stats { margin-bottom: 8px; }
+  .briefing-header { margin-bottom: 16px; }
+  .briefing-header h2 { font-size: 22px; }
+  .mc-header { margin-bottom: 18px; }
+  .mc-header h2 { font-size: 24px; }
+  .mc-stats { gap: 20px; margin-bottom: 20px; }
+  .go-score { font-size: 40px; }
+}
 
 /* ── Menu Screen ── */
 #menuScreen {
-  align-items: center; justify-content: center;
+  /* Vertical centring comes from .menu-inner's auto margins, not align-items: see .screen.active. */
+  justify-content: center;
   background: var(--bg);
   z-index: 5;
 }
@@ -241,7 +298,7 @@ html, body {
 
 /* ── Game Over Screen ── */
 #gameOverScreen {
-  align-items: center; justify-content: center;
+  justify-content: center;
   background: rgba(10,10,12,.85); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
   z-index: 5;
 }
@@ -404,13 +461,14 @@ html, body {
    mission dialogue box, which sits at 100 and would otherwise punch a card through it. */
 #mobileGate {
   position: fixed; inset: 0; z-index: 110;
-  display: flex; align-items: center; justify-content: center;
+  display: flex; justify-content: center;
+  overflow: hidden auto;
   background: var(--bg);
   /* In portrait the notch is a top edge, so only the top inset has real work to do here. */
   padding: calc(24px + env(safe-area-inset-top, 0px)) 24px calc(24px + env(safe-area-inset-bottom, 0px));
 }
 #mobileGate[hidden], #mobileGate [hidden] { display: none; }
-.gate-card { width: 100%; max-width: 360px; text-align: center; }
+.gate-card { width: 100%; max-width: 360px; text-align: center; margin: auto; }
 .gate-eyebrow {
   display: block; font: 700 10px var(--m); letter-spacing: .18em; text-transform: uppercase;
   color: var(--dim); margin-bottom: 10px;
@@ -500,7 +558,7 @@ html, body {
 
 /* ── Multiplayer Lobby ── */
 #lobbyScreen {
-  align-items: center; justify-content: center;
+  justify-content: center;
   background: var(--bg);
   z-index: 5;
 }
@@ -649,7 +707,7 @@ html, body {
 
 /* Mission Select Screen */
 #missionSelectScreen {
-  align-items: center; justify-content: center;
+  justify-content: center;
   background: var(--bg); z-index: 5;
 }
 .mission-select-inner { text-align: center; max-width: 600px; padding: 24px; width: 100%; }
@@ -687,7 +745,7 @@ html, body {
 
 /* Mission Briefing Screen */
 #missionBriefingScreen {
-  align-items: center; justify-content: center;
+  justify-content: center;
   background: var(--bg); z-index: 5;
 }
 .briefing-inner { max-width: 600px; padding: 32px; width: 100%; }
@@ -807,7 +865,7 @@ html, body {
 
 /* Mission Complete Screen */
 #missionCompleteScreen {
-  align-items: center; justify-content: center;
+  justify-content: center;
   background: var(--bg); z-index: 5;
 }
 .mission-complete-inner { text-align: center; max-width: 500px; padding: 32px; width: 100%; }
