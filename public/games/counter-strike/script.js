@@ -6738,7 +6738,7 @@ class MonsterTruck {
     const darkMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1e, roughness: 0.9, metalness: 0.3 });
     const rimMat = new THREE.MeshStandardMaterial({ color: 0x7a7a7e, roughness: 0.3, metalness: 0.9 });
     const chromeMat = new THREE.MeshStandardMaterial({ color: 0x9a9a9e, roughness: 0.15, metalness: 1.0 });
-    const bladeMat = new THREE.MeshStandardMaterial({ color: 0x8a8a8e, roughness: 0.2, metalness: 0.95 });
+    const bladeMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2e, roughness: 0.3, metalness: 0.95 });
     const rocketMat = new THREE.MeshStandardMaterial({ color: 0x3a3a3e, roughness: 0.5, metalness: 0.8 });
     const rubberMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1e, roughness: 0.95 });
     const glassMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2e, roughness: 0.1, transparent: true, opacity: 0.6 });
@@ -7174,7 +7174,7 @@ class MonsterTruck {
     g.add(rocketGroup);
     this.rocketLauncher = rocketGroup;
     
-    // ── ROTATING BLADE (front bumper) ──
+    // ── ROTATING BLADE (front bumper) — 8 arms with sharpened cone tips, double guard rings ──
     const bladeGroup = new THREE.Group();
     bladeGroup.position.set(0, 1.0, -3.55);
     // Mount arms anchoring the blade hub ahead of the nose
@@ -7183,32 +7183,44 @@ class MonsterTruck {
       arm.position.set(side * 0.32, 1.0, -3.1);
       g.add(arm);
     }
-    
-    // Blade hub
-    const hubGeo = new THREE.CylinderGeometry(0.25, 0.25, 0.3, 12);
-    const hub = new THREE.Mesh(hubGeo, rimMat);
+        
+    // Blade hub — larger, more prominent
+    const hubGeo = new THREE.CylinderGeometry(0.32, 0.32, 0.35, 16);
+    const hub = new THREE.Mesh(hubGeo, bladeMat);
     hub.rotation.x = Math.PI / 2;
     hub.castShadow = true;
     bladeGroup.add(hub);
-    
-    // 6 blade arms
-    for (let i = 0; i < 6; i++) {
-      const armGeo = new THREE.BoxGeometry(0.08, 0.9, 0.15);
+        
+    // 8 blade arms with sharpened cone tips
+    for (let i = 0; i < 8; i++) {
+      const angle = (i / 8) * Math.PI * 2;
+      // Main arm
+      const armGeo = new THREE.BoxGeometry(0.1, 1.1, 0.18);
       const arm = new THREE.Mesh(armGeo, bladeMat);
-      const angle = (i / 6) * Math.PI * 2;
-      arm.position.set(Math.cos(angle) * 0.45, Math.sin(angle) * 0.45, 0);
+      arm.position.set(Math.cos(angle) * 0.55, Math.sin(angle) * 0.55, 0);
       arm.rotation.z = angle;
       arm.castShadow = true;
       bladeGroup.add(arm);
+          
+      // Sharpened cone tip at the end
+      const tipGeo = new THREE.ConeGeometry(0.09, 0.25, 8);
+      const tip = new THREE.Mesh(tipGeo, bladeMat);
+      tip.position.set(Math.cos(angle) * 1.15, Math.sin(angle) * 1.15, 0);
+      tip.rotation.z = angle - Math.PI / 2;
+      tip.castShadow = true;
+      bladeGroup.add(tip);
     }
-    
-    // Blade guard ring
-    const guardGeo = new THREE.TorusGeometry(0.95, 0.06, 8, 24);
-    const guard = new THREE.Mesh(guardGeo, armorMat);
-    guard.rotation.x = Math.PI / 2;
-    guard.castShadow = true;
-    bladeGroup.add(guard);
-    
+        
+    // Double guard rings for thickness and menace
+    for (const offset of [-0.08, 0.08]) {
+      const guardGeo = new THREE.TorusGeometry(1.05, 0.07, 10, 32);
+      const guard = new THREE.Mesh(guardGeo, bladeMat);
+      guard.rotation.x = Math.PI / 2;
+      guard.position.z = offset;
+      guard.castShadow = true;
+      bladeGroup.add(guard);
+    }
+        
     g.add(bladeGroup);
     this.blade = bladeGroup;
     
@@ -7367,6 +7379,55 @@ class MonsterTruck {
         decal.renderOrder = 2;
         g.add(decal);
       }
+    }
+    
+    // ── FRONT & BACK BRANDING — OFFCOMFRT wordmark on grille and tailgate ──
+    {
+      const bc = document.createElement('canvas');
+      bc.width = 512; bc.height = 128;
+      const c = bc.getContext('2d');
+      // Dark background with subtle gradient
+      const grad = c.createLinearGradient(0, 0, 0, 128);
+      grad.addColorStop(0, 'rgba(30,30,34,0.9)');
+      grad.addColorStop(1, 'rgba(20,20,24,0.95)');
+      c.fillStyle = grad;
+      c.fillRect(0, 0, 512, 128);
+      // OFFCOMFRT text
+      c.font = 'bold 72px Arial, sans-serif';
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      // Shadow
+      c.fillStyle = 'rgba(0,0,0,0.6)';
+      c.fillText('OFFCOMFRT', 258, 66);
+      // Main text (monochrome grey)
+      c.fillStyle = 'rgba(180,180,184,1)';
+      c.fillText('OFFCOMFRT', 256, 64);
+      // Subtle highlight line
+      c.strokeStyle = 'rgba(220,220,224,0.4)';
+      c.lineWidth = 2;
+      c.strokeText('OFFCOMFRT', 256, 64);
+      
+      const brandTex = new THREE.CanvasTexture(bc);
+      brandTex.colorSpace = THREE.SRGBColorSpace;
+      const brandMat = new THREE.MeshStandardMaterial({
+        map: brandTex, transparent: true, depthWrite: false,
+        roughness: 0.4, metalness: 0.3
+      });
+      
+      // Front branding on grille
+      const frontGeo = new THREE.PlaneGeometry(1.5, 0.38);
+      const frontDecal = new THREE.Mesh(frontGeo, brandMat);
+      frontDecal.position.set(0, 2.05, -2.77);
+      frontDecal.renderOrder = 3;
+      g.add(frontDecal);
+      
+      // Back branding on tailgate
+      const backGeo = new THREE.PlaneGeometry(1.5, 0.38);
+      const backDecal = new THREE.Mesh(backGeo, brandMat);
+      backDecal.position.set(0, 2.35, 3.01);
+      backDecal.rotation.y = Math.PI; // face backward
+      backDecal.renderOrder = 3;
+      g.add(backDecal);
     }
     
     // Set spawn height above ground
