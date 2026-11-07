@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#0a0a0c">
   <link rel="manifest" href="manifest.json">
   <title>OFFCOMFRT &mdash; Counter Strike</title>
-  <link rel="stylesheet" href="style.css?v=26" />
+  <link rel="stylesheet" href="style.css?v=27" />
 </head>
 <body>
 
@@ -264,11 +264,38 @@
 
       <button class="action-btn fire" id="btnFire" aria-label="Fire">FIRE</button>
 
-      <!-- Weapon rail: only what the inventory can actually hold (there is no third weapon) -->
-      <div class="weapon-switch">
-        <button class="weapon-btn active" data-weapon="0" id="btnWep0"><span class="ws-num">1</span><span class="ws-name">Rifle</span></button>
-        <button class="weapon-btn" data-weapon="1" id="btnWep1"><span class="ws-num">2</span><span class="ws-name">Pistol</span></button>
+      <!-- Weapon carousel: swipe/scroll to swap guns, grenade separate -->
+      <div class="weapon-switch" id="weaponStrip">
+        <button class="weapon-btn active" data-weapon="0" id="btnWep0" aria-label="Rifle">
+          <svg class="ws-icon" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 14h16"/><path d="M18 11l5 3-5 3"/><rect x="11" y="15" width="3" height="5" rx="0.5"/><rect x="5" y="11" width="4" height="6" rx="1"/></svg>
+          <span class="ws-name">Rifle</span>
+        </button>
+        <button class="weapon-btn" data-weapon="1" id="btnWep1" aria-label="Pistol">
+          <svg class="ws-icon" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h11"/><path d="M15 10l4 2-4 2"/><rect x="9" y="14" width="3" height="5" rx="0.5"/></svg>
+          <span class="ws-name">Pistol</span>
+        </button>
+        <button class="weapon-btn" data-weapon="2" id="btnWep2" aria-label="Shotgun">
+          <svg class="ws-icon" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h18"/><path d="M20 10l4 2-4 2"/><rect x="7" y="14" width="3" height="6" rx="0.5"/><rect x="12" y="14" width="3" height="6" rx="0.5"/></svg>
+          <span class="ws-name">Shotgun</span>
+        </button>
+        <button class="weapon-btn" data-weapon="3" id="btnWep3" aria-label="SMG">
+          <svg class="ws-icon" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h13"/><path d="M16 10l4 2-4 2"/><rect x="8" y="14" width="2.5" height="7" rx="0.5"/><rect x="5" y="10" width="3.5" height="5" rx="1"/></svg>
+          <span class="ws-name">SMG</span>
+        </button>
+        <button class="weapon-btn" data-weapon="4" id="btnWep4" aria-label="Sniper">
+          <svg class="ws-icon" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 14h20"/><path d="M22 12l3 2-3 2"/><rect x="10" y="15.5" width="2.5" height="5" rx="0.5"/><circle cx="16" cy="10" r="2.5"/><line x1="16" y1="12.5" x2="16" y2="14"/></svg>
+          <span class="ws-name">Sniper</span>
+        </button>
+        <button class="weapon-btn" data-weapon="5" id="btnWep5" aria-label="Knife">
+          <svg class="ws-icon" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20L18 6"/><path d="M18 6l4 1-1 4"/><path d="M4 20l2-1 1 2"/></svg>
+          <span class="ws-name">Knife</span>
+        </button>
       </div>
+      <button class="weapon-btn grenade-btn" id="btnGrenade" aria-label="Throw grenade">
+        <svg class="ws-icon" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="14" cy="16" r="7"/><line x1="14" y1="9" x2="14" y2="5"/><circle cx="14" cy="4" r="1.5" fill="currentColor"/><line x1="11" y1="6" x2="17" y2="6"/></svg>
+        <span class="ws-name">Frag</span>
+        <span id="grenade-count" class="grenade-count">2</span>
+      </button>
 
       <button class="tc-pause" id="btnPause" aria-label="Pause">
         <svg width="12" height="14" viewBox="0 0 12 14" fill="currentColor" aria-hidden="true"><rect x="1" y="1" width="3.4" height="12" rx="1"/><rect x="7.6" y="1" width="3.4" height="12" rx="1"/></svg>
@@ -337,7 +364,10 @@
 
   <!-- Import map for Three.js (ES module) -->
   <script type="importmap">
-    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+    { "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    } }
   </script>
   <!-- Portal bridge scripts load first as regular (synchronous) scripts -->
   <script src="../portal-back.js?v=1"></script>
@@ -347,6 +377,6 @@
   <!-- Shared map geometry: the same module the hub requires, so client and server collide identically -->
   <script src="../cs-map.js?v=6"></script>
   <!-- Game engine loads as ES module (deferred by spec) -->
-  <script type="module" src="script.js?v=85"></script>
+  <script type="module" src="script.js?v=96"></script>
 </body>
 </html>

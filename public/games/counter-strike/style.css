@@ -437,24 +437,81 @@ html, body {
   width: 68px; height: 68px; font-size: 11px;
 }
 
-/* Weapon rail — a horizontal strip under the ammo chip, not a column stranded mid-screen */
+/* Weapon carousel — horizontal scroll strip with snap, swipe to swap guns */
 .weapon-switch {
   position: absolute; z-index: 3;
-  top: calc(54px + var(--inset-t));
-  right: calc(14px + var(--inset-r));
-  display: flex; flex-direction: row; gap: 6px; pointer-events: none;
+  bottom: calc(190px + var(--inset-b));
+  right: calc(var(--gutter) + var(--inset-r));
+  display: flex; flex-direction: row;
+  gap: 6px;
+  pointer-events: none;
+  overflow-x: auto; overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /* Firefox */
+  max-width: calc(100vw - 80px); /* leave room for grenade button */
+  padding: 4px 2px;
 }
+.weapon-switch::-webkit-scrollbar { display: none; } /* Chrome/Safari */
 .weapon-btn {
-  pointer-events: auto; touch-action: none;
-  display: flex; align-items: baseline; gap: 5px;
-  height: 28px; padding: 0 9px;
-  background: rgba(20,20,24,.72); border: 1px solid var(--line); border-radius: 8px;
-  color: #636363;
+  pointer-events: auto; touch-action: pan-y;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px;
+  min-height: 52px; min-width: 54px;
+  padding: 6px 6px 4px;
+  background: rgba(16,16,20,.85); border: 1.5px solid rgba(80,80,88,.4); border-radius: 10px;
+  color: #5a5a5a;
   -webkit-tap-highlight-color: transparent; cursor: pointer;
+  scroll-snap-align: center;
+  flex-shrink: 0;
+  transition: border-color .15s, color .15s, background .15s, transform .15s;
 }
-.weapon-btn .ws-num { font: 700 9px var(--m); }
-.weapon-btn .ws-name { font: 600 9px var(--m); letter-spacing: .08em; text-transform: uppercase; }
-.weapon-btn.active { border-color: rgba(240,240,242,.5); color: var(--text); background: rgba(240,240,242,.1); }
+.weapon-btn .ws-icon {
+  width: 24px; height: 24px;
+  stroke: currentColor; flex-shrink: 0;
+}
+.weapon-btn .ws-name {
+  font: 600 7px var(--m); letter-spacing: .08em; text-transform: uppercase;
+  line-height: 1; white-space: nowrap;
+}
+.weapon-btn.active {
+  border-color: rgba(240,240,242,.65);
+  color: var(--text);
+  background: rgba(240,240,242,.14);
+  transform: scale(1.06);
+}
+.weapon-btn:active {
+  background: rgba(240,240,242,.2);
+  transform: scale(0.93);
+}
+
+/* Grenade button — sits beside the carousel, not inside it */
+#btnGrenade {
+  position: absolute; z-index: 3;
+  bottom: calc(190px + var(--inset-b));
+  right: calc(var(--gutter) + var(--inset-r) - 62px);
+  pointer-events: auto; touch-action: none;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px;
+  min-height: 52px; min-width: 54px;
+  padding: 6px 6px 4px;
+  background: rgba(16,16,20,.85); border: 1.5px solid rgba(240,180,100,.35); border-radius: 10px;
+  color: #a08060;
+  -webkit-tap-highlight-color: transparent; cursor: pointer;
+  transition: border-color .15s, color .15s, background .15s, transform .15s;
+}
+#btnGrenade .ws-icon { width: 24px; height: 24px; stroke: currentColor; flex-shrink: 0; }
+#btnGrenade .ws-name {
+  font: 600 7px var(--m); letter-spacing: .08em; text-transform: uppercase;
+  line-height: 1; white-space: nowrap;
+}
+#btnGrenade:active {
+  background: rgba(240,180,100,.15);
+  transform: scale(0.93);
+}
+.grenade-count {
+  font: 700 10px var(--m); color: #f0b464; margin-top: 1px; line-height: 1;
+}
 
 /* Pause — a phone has no pointer lock to lose, so it needs its own way out of a round */
 .tc-pause {
