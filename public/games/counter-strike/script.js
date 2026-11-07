@@ -2402,7 +2402,7 @@ function footstepNode(a, pos, dist) {
 function playFootstep(profile, pos, dist, volScale = 1) {
   const a = audioLive();
   const self = profile === 'self';
-  const vol = (self ? 0.35 : 0.75 * (1 - dist / FOOTSTEP_RANGE)) * volScale;
+  const vol = (self ? 0.30 : 0.65 * (1 - dist / FOOTSTEP_RANGE)) * volScale;
   // One-shot diagnostics: the first step of each profile announces why it played
   // or why it was culled, so a "no footsteps" report pinpoints its own branch.
   if (!stepDiag[profile]) {
@@ -2424,7 +2424,7 @@ function playFootstep(profile, pos, dist, volScale = 1) {
   impactFilt.Q.value = 0.5;
   const impactGain = a.createGain();
   impactGain.gain.setValueAtTime(0, t);
-  impactGain.gain.linearRampToValueAtTime(vol * (self ? 0.5 : 0.7), t + 0.012);
+  impactGain.gain.linearRampToValueAtTime(vol * (self ? 0.45 : 0.6), t + 0.015);
   impactGain.gain.exponentialRampToValueAtTime(0.001, t + (self ? 0.05 : 0.07));
   impact.connect(impactFilt).connect(impactGain).connect(dest);
   impact.start(t, Math.random() * 0.3);
@@ -2437,7 +2437,7 @@ function playFootstep(profile, pos, dist, volScale = 1) {
   bodyOsc.frequency.exponentialRampToValueAtTime(self ? rand(45, 65) : rand(35, 50), t + 0.12);
   const bodyGain = a.createGain();
   bodyGain.gain.setValueAtTime(0, t);
-  bodyGain.gain.linearRampToValueAtTime(vol * (self ? 0.9 : 1.2), t + 0.01);
+  bodyGain.gain.linearRampToValueAtTime(vol * (self ? 0.9 : 1.2), t + 0.012);
   bodyGain.gain.exponentialRampToValueAtTime(0.001, t + (self ? 0.15 : 0.2));
   bodyOsc.connect(bodyGain).connect(dest);
   bodyOsc.start(t);
