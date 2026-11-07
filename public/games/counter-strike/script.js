@@ -7221,6 +7221,146 @@ class MonsterTruck {
     antTip.position.set(0.65, 4.48, 0.7);
     g.add(antTip);
     
+    // ── SIDE GRAFFITI DECAL — hand-sprayed white-grey cannabis leaf on each door ──
+    // Painted once onto an offscreen canvas (serrated 7-leaflet fan, veins, drop shadow,
+    // paint drips, spray underline, overspray speckle) and floated just off each side face
+    // in the clear band between the wheel arches and above the side-exit pipes.
+    {
+      const lc = document.createElement('canvas');
+      lc.width = 1024; lc.height = 600;
+      const c = lc.getContext('2d');
+      const gshade = (v, a = 1) => `rgba(${v},${v},${v},${a})`;
+
+      // Serrated lance outline in leaflet-local space: base at (0,0), tip at (0,-len)
+      const drawLeaflet = (len, wid) => {
+        const N = 26;
+        const prof = t => wid * Math.sin(Math.PI * Math.pow(t, 0.68)) * (1 - 0.22 * t);
+        c.beginPath();
+        for (const sign of [1, -1]) {
+          for (let i = 0; i <= N; i++) {
+            const t = i / N;
+            const serr = i % 2 === 0 ? 1 : 0.58;
+            const px = sign * prof(t) * serr;
+            const py = -t * len;
+            if (i === 0 && sign === 1) c.moveTo(px, py);
+            else c.lineTo(px, py);
+          }
+        }
+        c.closePath();
+      };
+
+      // One full leaf: 7 leaflets fanning up from a petiole, layered like a paint piece
+      const drawLeaf = (cx, cy, R, tilt, alpha) => {
+        c.save();
+        c.translate(cx, cy);
+        c.rotate(tilt);
+        c.globalAlpha = alpha;
+        const L = [
+          { a: 0, len: 1.0, w: 0.155 },
+          { a: 0.55, len: 0.86, w: 0.14 }, { a: -0.55, len: 0.86, w: 0.14 },
+          { a: 1.05, len: 0.68, w: 0.125 }, { a: -1.05, len: 0.68, w: 0.125 },
+          { a: 1.5, len: 0.46, w: 0.105 }, { a: -1.5, len: 0.46, w: 0.105 }
+        ];
+        // Petiole stub below the fan
+        c.strokeStyle = gshade(70); c.lineWidth = R * 0.05; c.lineCap = 'round';
+        c.beginPath(); c.moveTo(0, 0); c.lineTo(0, R * 0.3); c.stroke();
+        for (const lf of L) {
+          c.save();
+          c.rotate(lf.a);
+          // Soft drop shadow so the piece lifts off the sheet metal
+          c.save();
+          c.translate(R * 0.012, R * 0.016);
+          drawLeaflet(R * lf.len, R * lf.w);
+          c.fillStyle = gshade(40, 0.5); c.fill();
+          c.restore();
+          // White-grey body fill with a chunky marker outline
+          drawLeaflet(R * lf.len, R * lf.w);
+          const grad = c.createLinearGradient(0, 0, 0, -R * lf.len);
+          grad.addColorStop(0, gshade(198)); grad.addColorStop(0.55, gshade(238)); grad.addColorStop(1, gshade(252));
+          c.fillStyle = grad; c.fill();
+          c.strokeStyle = gshade(58); c.lineWidth = R * 0.02; c.lineJoin = 'round'; c.stroke();
+          // Central vein plus angled side veins per leaflet
+          c.strokeStyle = gshade(150, 0.85); c.lineWidth = R * 0.011; c.lineCap = 'round';
+          c.beginPath(); c.moveTo(0, -R * 0.06); c.lineTo(0, -R * lf.len * 0.9); c.stroke();
+          c.lineWidth = R * 0.006;
+          for (let v = 1; v <= 4; v++) {
+            const vt = v / 5;
+            c.beginPath();
+            c.moveTo(0, -R * lf.len * vt);
+            c.lineTo(R * lf.w * 0.8, -R * lf.len * (vt + 0.1));
+            c.moveTo(0, -R * lf.len * vt);
+            c.lineTo(-R * lf.w * 0.8, -R * lf.len * (vt + 0.1));
+            c.stroke();
+          }
+          c.restore();
+        }
+        c.restore();
+      };
+
+      // Rough horizontal spray underline sweeping the whole panel
+      c.lineCap = 'round';
+      c.strokeStyle = gshade(235, 0.3); c.lineWidth = 7;
+      c.beginPath(); c.moveTo(90, 540);
+      for (let x = 130; x <= 950; x += 60) c.lineTo(x, 540 + (Math.random() * 10 - 5));
+      c.stroke();
+      c.strokeStyle = gshade(160, 0.22); c.lineWidth = 4;
+      c.beginPath(); c.moveTo(140, 558);
+      for (let x = 190; x <= 900; x += 55) c.lineTo(x, 558 + (Math.random() * 8 - 4));
+      c.stroke();
+
+      // Echo leaf painted first at reduced opacity so the hero overlaps it
+      drawLeaf(790, 440, 240, 0.55, 0.45);
+      // Hero leaf kicked diagonally across the panel
+      drawLeaf(480, 460, 390, -0.5, 1);
+
+      // Paint drips running off the lower silhouette
+      const drip = (x, y, len, w) => {
+        c.fillStyle = gshade(246, 0.92);
+        c.strokeStyle = gshade(60, 0.9); c.lineWidth = 2.5;
+        c.beginPath();
+        c.moveTo(x - w / 2, y);
+        c.lineTo(x - w / 2, y + len);
+        c.arc(x, y + len, w / 2, Math.PI, 0, true);
+        c.lineTo(x + w / 2, y);
+        c.closePath();
+        c.fill(); c.stroke();
+        c.beginPath();
+        c.arc(x, y + len + w * 0.45, w * 0.62, 0, Math.PI * 2);
+        c.fill(); c.stroke();
+      };
+      drip(330, 505, 46, 9); drip(415, 532, 38, 7); drip(560, 552, 28, 6);
+      drip(700, 474, 52, 8); drip(618, 498, 40, 7);
+
+      // Overspray speckle, denser around the artwork
+      for (let i = 0; i < 320; i++) {
+        const px = Math.random() * 1024, py = Math.random() * 600;
+        const d = Math.hypot(px - 480, py - 330) / 520;
+        if (Math.random() < d * 0.75) continue;
+        c.globalAlpha = 0.05 + Math.random() * 0.2;
+        c.fillStyle = gshade(Math.random() < 0.5 ? 250 : 170);
+        c.beginPath();
+        c.arc(px, py, 0.6 + Math.random() * 1.8, 0, Math.PI * 2);
+        c.fill();
+      }
+      c.globalAlpha = 1;
+
+      const leafTex = new THREE.CanvasTexture(lc);
+      leafTex.colorSpace = THREE.SRGBColorSpace;
+      leafTex.anisotropy = 4;
+      const leafMat = new THREE.MeshStandardMaterial({
+        map: leafTex, transparent: true, depthWrite: false,
+        roughness: 0.55, metalness: 0.15
+      });
+      const leafGeo = new THREE.PlaneGeometry(1.24, 0.72);
+      for (const s of [-1, 1]) {
+        const decal = new THREE.Mesh(leafGeo, leafMat);
+        decal.position.set(s * 1.108, 2.26, 0);
+        decal.rotation.y = s * Math.PI / 2;
+        decal.renderOrder = 2;
+        g.add(decal);
+      }
+    }
+    
     // Set spawn height above ground
     const spawnY = groundHeight(new THREE.Vector3(x, 0, z), 0.5) + 1.0;
     this.pos.set(x, spawnY, z);
