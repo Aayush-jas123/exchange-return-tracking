@@ -2330,8 +2330,8 @@ function playShot(vol = 1, tone = 1) {
 }
 
 // ── Footsteps (synthesised, distance-aware) ──
-// One shared master gain + a PannerNode per footstep (distanceModel linear so it
-// hard-cuts at maxDistance) + a single HRTF panner for left/right steps.
+// One shared master gain + a StereoPannerNode for left/right self-step alternation +
+// a per-step HRTF PannerNode for enemy spatialisation.
 // Voice cap stops a 13-bot lobby from stacking 40 live nodes in one second.
 const FOOTSTEP_RANGE = 24;          // enemy steps beyond this are culled entirely
 const footstepBus = { panner: null, gain: null, voices: [] };
@@ -2363,11 +2363,12 @@ function footstepNode(a, pos, dist) {
     footstepBus.gain.connect(a.destination);
   }
   if (!footstepBus.panner) {
-    footstepBus.panner = a.createPanner();
-    footstepBus.panner.panningModel = 'equalpower';
+    // StereoPannerNode (not PannerNode) — the shared bus only swings self steps L/R;
+    // enemy spatialisation uses a separate HRTF PannerNode per step below.
+    footstepBus.panner = a.createStereoPanner();
     footstepBus.panner.connect(footstepBus.gain);
   }
-  footstepBus.panner.pan.value = clamp(stepFlip, -0.7, 0.7);
+  footstepBus.panner.pan.value = clamp(stepFlip * 0.4, -0.4, 0.4);
   stepFlip = -stepFlip;
   let src = footstepBus.panner;
   if (dist > 0.1) {
@@ -2398,7 +2399,7 @@ function footstepNode(a, pos, dist) {
 function playFootstep(profile, pos, dist, volScale = 1) {
   const a = audioLive();
   const self = profile === 'self';
-  const vol = (self ? 0.16 : 0.55 * (1 - dist / FOOTSTEP_RANGE)) * volScale;
+  const vol = (self ? 0.35 : 0.75 * (1 - dist / FOOTSTEP_RANGE)) * volScale;
   // One-shot diagnostics: the first step of each profile announces why it played
   // or why it was culled, so a "no footsteps" report pinpoints its own branch.
   if (!stepDiag[profile]) {
