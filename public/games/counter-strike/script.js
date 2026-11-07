@@ -6177,6 +6177,10 @@ function quitToMenu() {
 btnBackMenu.addEventListener('click', quitToMenu);
 
 // ── Update loop ──
+// Pooled vectors to avoid per-frame allocations (major GC source in multiplayer)
+const _fwd = new THREE.Vector3();
+const _right = new THREE.Vector3();
+const _wish = new THREE.Vector3();
 function updatePlayer(dt) {
   if (!player.alive) {
     player.eye = Math.max(0.3, player.eye - dt * 2.5);
@@ -6184,23 +6188,24 @@ function updatePlayer(dt) {
     camera.rotation.set(player.pitch, player.yaw, Math.min(0.5, (1.65 - player.eye)));
     return;
   }
-  const fwd = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
-  const right = new THREE.Vector3(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
-  const wish = new THREE.Vector3();
+  // Reuse pooled vectors instead of allocating new ones every frame
+  _fwd.set(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
+  _right.set(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
+  _wish.set(0, 0, 0);
   
   // Desktop keyboard input
-  if (keys.KeyW || keys.ArrowUp) wish.add(fwd);
-  if (keys.KeyS || keys.ArrowDown) wish.sub(fwd);
-  if (keys.KeyD || keys.ArrowRight) wish.add(right);
-  if (keys.KeyA || keys.ArrowLeft) wish.sub(right);
+  if (keys.KeyW || keys.ArrowUp) _wish.add(_fwd);
+  if (keys.KeyS || keys.ArrowDown) _wish.sub(_fwd);
+  if (keys.KeyD || keys.ArrowRight) _wish.add(_right);
+  if (keys.KeyA || keys.ArrowLeft) _wish.sub(_right);
   
   // Mobile joystick input
   if (isTouchDevice && touch.joystickActive) {
-    wish.add(fwd.clone().multiplyScalar(-touch.moveY));
-    wish.add(right.clone().multiplyScalar(touch.moveX));
+    _wish.x += _fwd.x * -touch.moveY + _right.x * touch.moveX;
+    _wish.z += _fwd.z * -touch.moveY + _right.z * touch.moveX;
   }
   
-  if (wish.lengthSq() > 0) wish.normalize();
+  if (_wish.lengthSq() > 0) _wish.normalize();
 
   const crouch = isTouchDevice ? touch.crouch : (keys.KeyC || keys.ControlLeft);
   const walk = isTouchDevice ? false : (keys.ShiftLeft || keys.ShiftRight);
@@ -6212,8 +6217,8 @@ function updatePlayer(dt) {
   const speed = (crouch ? 2.2 : walk ? 3 : current.def.speed) * (1 - 0.4 * weaponState.ads) * drag;
   const accel = player.onGround ? (wade ? 7 : 12) : 2.5;
   const k = Math.min(1, accel * dt);
-  player.vel.x += (wish.x * speed - player.vel.x) * k;
-  player.vel.z += (wish.z * speed - player.vel.z) * k;
+  player.vel.x += (_wish.x * speed - player.vel.x) * k;
+  player.vel.z += (_wish.z * speed - player.vel.z) * k;
 
   const jump = isTouchDevice ? touch.jump : keys.Space;
   if (jump && player.onGround) {
@@ -7423,14 +7428,19 @@ function syncOnlineHud(snapshot) {
   hud.round.textContent = game.round;
   hud.scoreCT.textContent = game.ct;
   hud.scoreT.textContent = game.t;
-  hud.enemies.textContent = (snapshot.bots || []).filter((b) => b.alive).length;
+  // Optimized: count alive enemies with a loop instead of filter() to avoid array allocation
+  const bots = snapshot.bots || [];
+  let aliveCount = 0;
+  for (let i = 0; i < bots.length; i++) {
+    if (bots[i].alive) aliveCount++;
+  }
+  hud.enemies.textContent = aliveCount;
   const secs = Math.max(0, Math.ceil(game.timeLeft));
   hud.timer.textContent = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
 
   // Round narration is driven by the shared state, so all four cabinets hear it at once.
   if (snapshot.state === 'playing' && (roundChanged || wasEnd)) {
-    const n = (snapshot.bots || []).filter((b) => b.alive).length;
-    centerMsg(`ROUND ${game.round}`, `${n} terrorists. Eliminate them all.`);
+    centerMsg(`ROUND ${game.round}`, `${aliveCount} terrorists. Eliminate them all.`);
   } else if (snapshot.state === 'roundEnd' && !wasEnd) {
     const ctWon = game.ct > prevCT;
     centerMsg(ctWon ? '<span style="color:#f0f0f2">COUNTER-TERRORISTS WIN</span>'
@@ -7450,24 +7460,33 @@ function blendAngle(a, b, u) {
   return a + d * u;
 }
 
+// Pooled blend result object to avoid per-frame allocation
+const _blendResult = {
+  x: 0, y: 0, z: 0,
+  heading: 0, pitch: 0, speed: 0,
+  crouching: false, onGround: true,
+  health: 100, weapon: 'rifle',
+  alert: false, alive: true
+};
+
 function blendRow(a, b, u, isHuman) {
   const pick = (x, y) => (u > 0.5 ? y : x); // discrete state flips at the midpoint of the blend
-  return {
-    x: a.pos.x + (b.pos.x - a.pos.x) * u,
-    y: a.pos.y + (b.pos.y - a.pos.y) * u,
-    z: a.pos.z + (b.pos.z - a.pos.z) * u,
-    heading: blendAngle(headingOf(a, isHuman), headingOf(b, isHuman), u),
-    pitch: a.pitch !== undefined && b.pitch !== undefined
+  // Reuse pooled object instead of allocating a new one every frame
+  _blendResult.x = a.pos.x + (b.pos.x - a.pos.x) * u;
+  _blendResult.y = a.pos.y + (b.pos.y - a.pos.y) * u;
+  _blendResult.z = a.pos.z + (b.pos.z - a.pos.z) * u;
+  _blendResult.heading = blendAngle(headingOf(a, isHuman), headingOf(b, isHuman), u);
+  _blendResult.pitch = a.pitch !== undefined && b.pitch !== undefined
       ? a.pitch + (b.pitch - a.pitch) * u
-      : (b.pitch || 0),
-    speed: b.speed || 0,
-    crouching: pick(!!a.crouching, !!b.crouching),
-    onGround: pick(a.onGround !== false, b.onGround !== false),
-    health: b.health,
-    weapon: pick(a.weapon, b.weapon),
-    alert: pick(!!a.alert, !!b.alert),
-    alive: !!b.alive,
-  };
+      : (b.pitch || 0);
+  _blendResult.speed = b.speed || 0;
+  _blendResult.crouching = pick(!!a.crouching, !!b.crouching);
+  _blendResult.onGround = pick(a.onGround !== false, b.onGround !== false);
+  _blendResult.health = b.health;
+  _blendResult.weapon = pick(a.weapon, b.weapon);
+  _blendResult.alert = pick(!!a.alert, !!b.alert);
+  _blendResult.alive = !!b.alive;
+  return _blendResult;
 }
 
 function indexRows(rows) {
@@ -7476,14 +7495,23 @@ function indexRows(rows) {
   return m;
 }
 
+// Pooled Maps to avoid per-frame allocation in blendRigs
+const _indexA = new Map();
+const _indexB = new Map();
+
 function blendRigs(store, rowsA, rowsB, u, dt, team, isHuman) {
-  const A = indexRows(rowsA), B = indexRows(rowsB);
+  // Reuse pooled Maps instead of creating new ones every frame
+  _indexA.clear();
+  _indexB.clear();
+  for (const r of rowsA || []) _indexA.set(String(r.id), r);
+  for (const r of rowsB || []) _indexB.set(String(r.id), r);
+  
   const mine = String((typeof CSNet !== 'undefined' && CSNet.myId) || '');
   const seen = new Set();
-  for (const [id, rb] of B) {
+  for (const [id, rb] of _indexB) {
     if (isHuman && id === mine) continue; // first person: your own body is not drawn
     seen.add(id);
-    const ra = A.get(id) || rb;
+    const ra = _indexA.get(id) || rb;
     let rig = store.get(id);
     if (!rig) {
       rig = new FigureRig(id, rb.name || (team === 'T' ? 'Terrorist' : 'Operator'), team, headingOf(rb, isHuman));
@@ -7568,24 +7596,43 @@ function updateOnlinePlayers(dt) {
     fxWatermark = s.at;
   }
 
+  // Optimized: binary search for interpolation points instead of linear scan
   let a = null, b = null;
-  for (let i = 0; i < snapshotBuffer.length - 1; i++) {
-    if (snapshotBuffer[i].at <= rt && snapshotBuffer[i + 1].at >= rt) {
-      a = snapshotBuffer[i]; b = snapshotBuffer[i + 1]; break;
+  const len = snapshotBuffer.length;
+  if (len === 1) {
+    a = b = snapshotBuffer[0];
+  } else {
+    // Check if we're beyond all snapshots (starved)
+    if (snapshotBuffer[len - 1].at < rt) {
+      a = b = snapshotBuffer[len - 1];
+    } else {
+      // Binary search for the pair straddling rt
+      let lo = 0, hi = len - 1;
+      while (lo < hi - 1) {
+        const mid = (lo + hi) >> 1;
+        if (snapshotBuffer[mid].at <= rt) lo = mid;
+        else hi = mid;
+      }
+      if (snapshotBuffer[lo].at <= rt && snapshotBuffer[hi].at >= rt) {
+        a = snapshotBuffer[lo];
+        b = snapshotBuffer[hi];
+      } else {
+        // Fallback: hold on newest
+        a = b = snapshotBuffer[len - 1];
+      }
     }
-  }
-  if (!a) {
-    // Starved (tab throttled, packet loss, first frames of the match): hold on the newest state
-    // rather than extrapolating an invented one.
-    b = snapshotBuffer[snapshotBuffer.length - 1];
-    a = b;
   }
   // A round boundary is not a motion step: the frame before it holds last round's spawn points and
   // last round's bot ids. Interpolating across it draws a teammate gliding tens of metres through
   // the map to their new spawn, and a smooth glide from a place nobody is standing in is what reads
   // as heavy buffering. Snap onto the new round and ease normally from the next tick, inside it.
   if (a.data.round !== b.data.round) a = b;
-  while (snapshotBuffer.length > 3 && snapshotBuffer[1].at < rt) snapshotBuffer.shift();
+  // Optimized: use shift count instead of while loop with shift() which is O(n) per shift
+  let shiftCount = 0;
+  while (shiftCount + 1 < snapshotBuffer.length && snapshotBuffer[shiftCount + 1].at < rt) {
+    shiftCount++;
+  }
+  if (shiftCount > 0) snapshotBuffer.splice(0, shiftCount);
 
   const u = a === b ? 1 : clamp((rt - a.at) / Math.max(1, b.at - a.at), 0, 1);
   blendRigs(onlinePlayers, a.data.players, b.data.players, u, dt, 'CT', true);
@@ -7604,13 +7651,34 @@ function nameFor(id) {
   if (typeof CSNet !== 'undefined' && key === String(CSNet.myId)) return 'You';
   const rig = figureFor(key);
   if (rig) return rig.name;
-  const row = (lastSnapshot && (lastSnapshot.players || []).concat(lastSnapshot.bots || []) || [])
-    .find((r) => String(r.id) === key);
-  return (row && row.name) || 'Operator';
+  // Optimized: search players and bots separately instead of concatenating arrays
+  if (lastSnapshot) {
+    const players = lastSnapshot.players;
+    if (players) {
+      for (let i = 0; i < players.length; i++) {
+        if (String(players[i].id) === key) return players[i].name || 'Operator';
+      }
+    }
+    const bots = lastSnapshot.bots;
+    if (bots) {
+      for (let i = 0; i < bots.length; i++) {
+        if (String(bots[i].id) === key) return bots[i].name || 'Terrorist';
+      }
+    }
+  }
+  return 'Operator';
 }
 
 // One-shot world events from the hub, replayed on every cabinet so the fight looks and sounds the
 // same to all four players.
+// Pooled vectors for emitFx to avoid per-effect allocations
+const _emitO = new THREE.Vector3();
+const _emitD = new THREE.Vector3();
+const _emitFrom = new THREE.Vector3();
+const _emitTo = new THREE.Vector3();
+const _emitAt = new THREE.Vector3();
+const _emitTracerEnd = new THREE.Vector3();
+
 function emitFx(list) {
   if (!list || !list.length) return;
   const mine = String((typeof CSNet !== 'undefined' && CSNet.myId) || '');
@@ -7619,33 +7687,35 @@ function emitFx(list) {
       const byPlayer = ev.by === 'p';
       const rig = figureFor(ev.id);
       if (!rig) continue;
-      const o = new THREE.Vector3(ev.o[0], ev.o[1], ev.o[2]);
-      const d = new THREE.Vector3(ev.d[0], ev.d[1], ev.d[2]);
+      // Reuse pooled vectors instead of allocating new ones
+      _emitO.set(ev.o[0], ev.o[1], ev.o[2]);
+      _emitD.set(ev.d[0], ev.d[1], ev.d[2]);
       rig.shot();
-      const dist = o.distanceTo(camera.position);
+      const dist = _emitO.distanceTo(camera.position);
       if (String(ev.id) !== mine) playShot(clamp(1.2 - dist / 55, 0.07, 0.75), byPlayer ? 1 : 0.88);
       // Bots get a dedicated tracer event; a player round is extended here to whatever the shared
       // geometry puts in the way, which is why it stops on the wall exactly where it should.
       if (byPlayer && String(ev.id) !== mine) {
         // Visual only, so it may march coarse: 1 m steps to the first volume in the way.
-        const wall = CSMap.rayBlock(colliders, o.x, o.y, o.z, d.x, d.y, d.z, 60, 1);
-        spawnTracer(o, o.clone().addScaledVector(d, wall ? wall.dist : 60));
+        const wall = CSMap.rayBlock(colliders, _emitO.x, _emitO.y, _emitO.z, _emitD.x, _emitD.y, _emitD.z, 60, 1);
+        _emitTracerEnd.copy(_emitO).addScaledVector(_emitD, wall ? wall.dist : 60);
+        spawnTracer(_emitO, _emitTracerEnd);
       }
     } else if (ev.e === 'tracer') {
       const rig = onlineBots.get(String(ev.id));
       if (!rig) continue;
-      const from = new THREE.Vector3(rig.pos.x, rig.pos.y + 1.45, rig.pos.z);
-      const to = new THREE.Vector3(ev.to[0], ev.to[1], ev.to[2]);
-      spawnTracer(from, to, 0xd0d0d0);
-      if (!ev.hit) spawnParticles(to, null, dustMat, 3, 1.6);
+      _emitFrom.set(rig.pos.x, rig.pos.y + 1.45, rig.pos.z);
+      _emitTo.set(ev.to[0], ev.to[1], ev.to[2]);
+      spawnTracer(_emitFrom, _emitTo, 0xd0d0d0);
+      if (!ev.hit) spawnParticles(_emitTo, null, dustMat, 3, 1.6);
     } else if (ev.e === 'hit') {
       if (ev.bot !== undefined) {
         // A player round that landed: ev.bot is the victim, so the spark belongs on its body.
         const rig = onlineBots.get(String(ev.bot));
         if (rig) {
           rig.hit();
-          const at = new THREE.Vector3(rig.pos.x, rig.pos.y + (ev.part === 'head' ? 1.72 : ev.part === 'legs' ? 0.5 : 1.2), rig.pos.z);
-          spawnParticles(at, null, bloodMat, 8, 2);
+          _emitAt.set(rig.pos.x, rig.pos.y + (ev.part === 'head' ? 1.72 : ev.part === 'legs' ? 0.5 : 1.2), rig.pos.z);
+          spawnParticles(_emitAt, null, bloodMat, 8, 2);
         }
         if (String(ev.id) === mine) { showHit(ev.killed); playBeep(ev.killed ? 1400 : 1100, 0.04, 0.12); }
       } else {
