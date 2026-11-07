@@ -2911,18 +2911,49 @@ let aiming = false;
 
 // The weapon rail lights from the weapon actually held, not from the pad that was last tapped —
 // the mouse wheel on a desktop and the rail on a phone then cannot disagree.
-// Also smooth-scrolls the active button into the centre of the carousel strip.
+// Also smooth-scrolls the active button flush to the RIGHT edge of the carousel (near the thumb),
+// matching the scroll-snap-align: end behaviour of a manual drag.
 function syncWeaponRail() {
   const idx = weaponKeys.indexOf(Object.keys(inventory).find(k => inventory[k] === current));
   const strip = document.getElementById('weaponStrip');
   const btns = strip ? strip.querySelectorAll('.weapon-btn') : document.querySelectorAll('.weapon-btn');
   btns.forEach((b, i) => b.classList.toggle('active', i === idx));
-  // Smooth-scroll the active button to centre of the carousel
   if (strip && btns[idx]) {
     const btn = btns[idx];
-    const scrollLeft = btn.offsetLeft - strip.offsetWidth / 2 + btn.offsetWidth / 2;
-    strip.scrollTo({ left: Math.max(0, scrollLeft), behavior: 'smooth' });
+    // Right-align the active button inside the strip's visible width
+    const target = btn.offsetLeft - (strip.clientWidth - btn.offsetWidth);
+    strip.scrollTo({ left: Math.max(0, target), behavior: 'smooth' });
   }
+  updateCarousel3D();
+}
+
+// ── 3D cover-flow depth for the weapon carousel ──
+// Buttons are fixed-width in a narrow strip, so only ~3 are visible. Each button's transform
+// scales/rotates/fades by its distance from the RIGHT edge (where the thumb sits): the selected
+// weapon is flat and full-size, the ones trailing left recede in 3D. Called on strip scroll
+// (rAF-throttled) and after every weapon change.
+let _carouselRaf = 0;
+function updateCarousel3D() {
+  const strip = document.getElementById('weaponStrip');
+  if (!strip) return;
+  if (_carouselRaf) cancelAnimationFrame(_carouselRaf);
+  _carouselRaf = requestAnimationFrame(() => {
+    _carouselRaf = 0;
+    const rect = strip.getBoundingClientRect();
+    const anchorX = rect.right - 34; // just inside the right edge, where the active weapon sits
+    strip.querySelectorAll('.weapon-btn').forEach(b => {
+      const r = b.getBoundingClientRect();
+      const cx = r.left + r.width / 2;
+      const dist = Math.max(0, anchorX - cx);   // 0 at the anchor, grows leftward
+      const t = Math.min(dist / 150, 1);        // normalize over ~2.5 button widths
+      const scale = 1 - t * 0.32;               // 1.0 → 0.68
+      const rotY = t * 38;                      // recede into the screen
+      const opacity = 1 - t * 0.62;             // 1.0 → 0.38
+      b.style.transform = `rotateY(${rotY.toFixed(1)}deg) scale(${scale.toFixed(3)})`;
+      b.style.opacity = opacity.toFixed(3);
+      b.style.zIndex = String(100 - Math.round(t * 50));
+    });
+  });
 }
 
 function setWeapon(key) {
@@ -3588,6 +3619,8 @@ if (btnGrenade) bindPad(btnGrenade, () => throwGrenade());
 // ── Swipe-to-swap on the weapon carousel ──
 // A horizontal swipe across the strip cycles weapons with smooth scroll animation.
 // The CSS scroll-snap handles the deceleration; we just detect the swipe direction.
+// A slow drag doesn't trip the swipe detector — for that, scroll-end picks whichever
+// weapon settled nearest the right edge (the thumb position) and selects it.
 const weaponStrip = document.getElementById('weaponStrip');
 if (weaponStrip) {
   let swipeStartX = 0, swipeStartY = 0, swipeTime = 0, swiping = false;
@@ -3615,6 +3648,28 @@ if (weaponStrip) {
       }
     }
   }, { passive: true });
+
+  // 3D depth while scrolling + select-on-settle after a manual drag
+  weaponStrip.addEventListener('scroll', () => {
+    updateCarousel3D();
+    clearTimeout(weaponStrip._settleTimer);
+    weaponStrip._settleTimer = setTimeout(() => {
+      // Whichever button's centre is nearest the right-edge anchor becomes the held weapon
+      const rect = weaponStrip.getBoundingClientRect();
+      const anchorX = rect.right - 34;
+      let best = null, bestDist = Infinity;
+      weaponStrip.querySelectorAll('.weapon-btn').forEach((b, i) => {
+        const r = b.getBoundingClientRect();
+        const d = Math.abs(anchorX - (r.left + r.width / 2));
+        if (d < bestDist) { bestDist = d; best = i; }
+      });
+      if (best !== null && best < weaponKeys.length) {
+        const key = weaponKeys[best];
+        if (inventory[key] && inventory[key] !== current) setWeapon(key);
+      }
+    }, 160);
+  }, { passive: true });
+  updateCarousel3D();
 }
 
 // Apply touch look to player

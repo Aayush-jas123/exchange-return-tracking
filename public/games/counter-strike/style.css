@@ -437,34 +437,47 @@ html, body {
   width: 68px; height: 68px; font-size: 11px;
 }
 
-/* Weapon carousel — horizontal scroll strip with snap, swipe to swap guns */
-.weapon-switch {
+/* Weapon dock — 3D cover-flow carousel + grenade, anchored right ABOVE the action grid
+   (grid tops out at ~140+56+10+56 = 262px; 285px clears it, so nothing gets hidden) */
+.weapon-dock {
   position: absolute; z-index: 3;
-  bottom: calc(190px + var(--inset-b));
+  bottom: calc(285px + var(--inset-b));
   right: calc(var(--gutter) + var(--inset-r));
+  display: flex; align-items: stretch; gap: 6px;
+  pointer-events: none;
+}
+/* Carousel: fixed width shows only ~3 of the 6 weapons — the rest are reached by swiping */
+.weapon-switch {
+  width: 186px;              /* 3 × 56px buttons + gaps */
+  max-width: calc(100vw - 220px);
   display: flex; flex-direction: row;
   gap: 6px;
-  pointer-events: none;
   overflow-x: auto; overflow-y: hidden;
   scroll-snap-type: x mandatory;
+  scroll-padding-right: 2px;
   -webkit-overflow-scrolling: touch;
-  scrollbar-width: none; /* Firefox */
-  max-width: calc(100vw - 80px); /* leave room for grenade button */
-  padding: 4px 2px;
+  scrollbar-width: none;
+  pointer-events: auto;      /* must receive touches or the strip can't scroll */
+  touch-action: pan-x;       /* horizontal drag scrolls the strip */
+  padding: 6px 2px;
+  perspective: 420px;        /* 3D depth for the cover-flow transforms */
 }
-.weapon-switch::-webkit-scrollbar { display: none; } /* Chrome/Safari */
+.weapon-switch::-webkit-scrollbar { display: none; }
 .weapon-btn {
-  pointer-events: auto; touch-action: pan-y;
+  pointer-events: auto; touch-action: pan-x;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 3px;
-  min-height: 52px; min-width: 54px;
-  padding: 6px 6px 4px;
+  min-height: 56px;
+  width: 56px; flex: 0 0 56px;   /* fixed width — the strip scrolls, buttons never shrink */
+  padding: 6px 2px 4px;
   background: rgba(16,16,20,.85); border: 1.5px solid rgba(80,80,88,.4); border-radius: 10px;
   color: #5a5a5a;
   -webkit-tap-highlight-color: transparent; cursor: pointer;
-  scroll-snap-align: center;
-  flex-shrink: 0;
-  transition: border-color .15s, color .15s, background .15s, transform .15s;
+  scroll-snap-align: end;        /* selected weapon snaps to the right edge, near the thumb */
+  transform-style: preserve-3d;
+  will-change: transform, opacity;
+  transition: border-color .15s, color .15s, background .15s;
+  /* 3D depth (scale/rotateY/opacity) is applied per-frame by updateCarousel3D() */
 }
 .weapon-btn .ws-icon {
   width: 24px; height: 24px;
@@ -478,27 +491,22 @@ html, body {
   border-color: rgba(240,240,242,.65);
   color: var(--text);
   background: rgba(240,240,242,.14);
-  transform: scale(1.06);
 }
 .weapon-btn:active {
   background: rgba(240,240,242,.2);
-  transform: scale(0.93);
 }
 
-/* Grenade button — sits beside the carousel, not inside it */
+/* Grenade button — fixed at the right of the dock, beside the carousel */
 #btnGrenade {
-  position: absolute; z-index: 3;
-  bottom: calc(190px + var(--inset-b));
-  right: calc(var(--gutter) + var(--inset-r) - 62px);
   pointer-events: auto; touch-action: none;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 3px;
-  min-height: 52px; min-width: 54px;
-  padding: 6px 6px 4px;
+  min-height: 56px; width: 56px; flex: 0 0 56px;
+  padding: 6px 2px 4px;
   background: rgba(16,16,20,.85); border: 1.5px solid rgba(240,180,100,.35); border-radius: 10px;
   color: #a08060;
   -webkit-tap-highlight-color: transparent; cursor: pointer;
-  transition: border-color .15s, color .15s, background .15s, transform .15s;
+  transition: border-color .15s, color .15s, background .15s;
 }
 #btnGrenade .ws-icon { width: 24px; height: 24px; stroke: currentColor; flex-shrink: 0; }
 #btnGrenade .ws-name {
@@ -507,7 +515,6 @@ html, body {
 }
 #btnGrenade:active {
   background: rgba(240,180,100,.15);
-  transform: scale(0.93);
 }
 .grenade-count {
   font: 700 10px var(--m); color: #f0b464; margin-top: 1px; line-height: 1;
