@@ -60,7 +60,6 @@ const isPhone = isTouchDevice && matchMedia('(hover: none) and (pointer: coarse)
 const mobileGate = document.getElementById('mobileGate');
 const gateNote = document.getElementById('gateNote');
 const btnGateImmersive = document.getElementById('btnGateImmersive');
-const btnGateSkip = document.getElementById('btnGateSkip');
 
 const settle = (p) => { if (p && typeof p.catch === 'function') p.catch(() => {}); };
 const fullscreenOn = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
@@ -99,14 +98,10 @@ function requestImmersive() {
   lockLandscape();
 }
 
-// "Play in portrait anyway" is the escape hatch: a device that genuinely cannot rotate
-// (a foldable in a stand, a keyboard phone) must not be locked out of its own game.
-let gateSkipped = false;
-try { gateSkipped = sessionStorage.getItem('csPortraitOK') === '1'; } catch (_) {}
 let gateShown = null;
 function syncMobileGate() {
   if (!mobileGate) return;
-  const want = isPhone && !gateSkipped && !inLandscape();
+  const want = isPhone && !inLandscape();
   if (want === gateShown) return;
   gateShown = want;
   mobileGate.hidden = !want;
@@ -122,10 +117,9 @@ function syncMobileGate() {
 
 if (isPhone) {
   document.addEventListener('pointerdown', () => {
-    // Someone who chose portrait is done being asked, and a live round is not interrupted:
-    // the tap that deployed already did this work, so re-entering fullscreen after an athlete
-    // deliberately left it would be a hijack.
-    if (gateSkipped || (game.state === 'playing' && inLandscape())) return;
+    // A live round is not interrupted: the tap that deployed already did this work, so
+    // re-entering fullscreen after an athlete deliberately left it would be a hijack.
+    if (game.state === 'playing' && inLandscape()) return;
     requestImmersive();
   }, { capture: true });
   ['fullscreenchange', 'webkitfullscreenchange'].forEach((ev) => document.addEventListener(ev, () => {
@@ -141,11 +135,7 @@ if (isPhone) {
     requestImmersive();
     syncMobileGate();
   });
-  if (btnGateSkip) btnGateSkip.addEventListener('click', () => {
-    gateSkipped = true;
-    try { sessionStorage.setItem('csPortraitOK', '1'); } catch (_) {}
-    syncMobileGate();
-  });
+
   syncMobileGate();
 }
 
@@ -5780,6 +5770,8 @@ function startNewGame() {
 
 // Menu → Deploy button
 btnPlay.addEventListener('click', () => {
+  // Block game start until the phone is landscape — the gate is the only path to play.
+  if (isPhone && !inLandscape()) { syncMobileGate(); return; }
   audio().resume();
   startNewGame();
 });
@@ -5833,6 +5825,8 @@ if (btnBackFromMissions) {
 
 if (btnStartBriefing) {
   btnStartBriefing.addEventListener('click', () => {
+    // Block mission start until the phone is landscape.
+    if (isPhone && !inLandscape()) { syncMobileGate(); return; }
     audio().resume();
     beginMissionGameplay();
   });
@@ -5841,6 +5835,8 @@ if (btnStartBriefing) {
 // Game over → Redeploy. After a co-op match the room is still open on the hub, so this goes back to
 // the lobby instead of dropping the athlete into a private round they did not ask for.
 btnRetry.addEventListener('click', () => {
+  // Block retry until the phone is landscape.
+  if (isPhone && !inLandscape()) { syncMobileGate(); return; }
   if (typeof CSNet !== 'undefined' && CSNet.room) {
     if (hud.coopBoard) hud.coopBoard.innerHTML = '';
     showScreen(lobbyScreen);
