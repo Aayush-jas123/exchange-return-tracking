@@ -4019,7 +4019,7 @@ function ekartCommonShipmentFields(orderNumber, totalAmount, totalQuantity) {
         tax_value: 0,
         taxable_amount: amount,
         commodity_value: String(amount),
-        quantity: totalQuantity || 1,
+        quantity: 1, // Ekart treats this as package count (max 1 per shipment); item units go in products_desc
         weight: Math.max(1, Math.round(parseFloat(process.env.EKART_DEFAULT_WEIGHT) || 500)), // grams
         length: Math.max(1, Math.round(parseFloat(process.env.EKART_DEFAULT_LENGTH) || 30)),
         width: Math.max(1, Math.round(parseFloat(process.env.EKART_DEFAULT_WIDTH) || 40)),
