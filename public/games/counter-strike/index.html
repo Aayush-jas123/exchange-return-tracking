@@ -205,6 +205,20 @@
       </div>
       <div id="kills-box">KILLS: <span id="kills">0</span></div>
       
+      <!-- Music Player Panel (YouTube) -->
+      <div id="musicPanel">
+        <div id="ytPlayer"></div>
+        <div id="musicControls">
+          <span id="musicTrack">No track</span>
+          <div id="musicBtns">
+            <button id="btnPrevTrack">&#9198;</button>
+            <button id="btnPlayPause">&#9654;</button>
+            <button id="btnNextTrack">&#9197;</button>
+            <button id="btnTogglePlayer">&#10005;</button>
+          </div>
+        </div>
+      </div>
+      
       <!-- Mission HUD -->
       <div id="missionHud" style="display:none;">
         <div id="missionObjective">Objective</div>
@@ -379,6 +393,61 @@
   <!-- Shared map geometry: the same module the hub requires, so client and server collide identically -->
   <script src="../cs-map.js?v=6"></script>
   <!-- Game engine loads as ES module (deferred by spec) -->
-  <script type="module" src="script.js?v=116"></script>
+  <script type="module" src="script.js?v=117"></script>
+  <!-- YouTube IFrame API for monster truck music player -->
+  <script src="https://www.youtube.com/iframe_api" async></script>
+  <style>
+    #musicPanel {
+      position: fixed;
+      bottom: calc(16px + var(--inset-b, 0px));
+      right: calc(16px + var(--inset-r, 0px));
+      background: rgba(10, 10, 14, 0.92);
+      border: 1px solid #2a2a32;
+      border-radius: 8px;
+      overflow: hidden;
+      z-index: 20;
+      display: none;
+      font-family: var(--m, monospace);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    }
+    #musicPanel.visible { display: block; }
+    #ytPlayer { width: 280px; height: 158px; }
+    #ytPlayer iframe { width: 100% !important; height: 100% !important; }
+    #musicControls {
+      padding: 6px 10px 8px;
+      border-top: 1px solid #2a2a32;
+    }
+    #musicTrack {
+      font-size: 10px;
+      color: #8888a0;
+      display: block;
+      margin-bottom: 5px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    #musicBtns { display: flex; gap: 6px; }
+    #musicBtns button {
+      background: #1a1a22;
+      border: 1px solid #2a2a32;
+      color: #f0f0f2;
+      width: 30px;
+      height: 24px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s;
+    }
+    #musicBtns button:hover { background: #2a2a36; }
+    #musicBtns button:active { background: #3a3a46; }
+    #btnTogglePlayer { margin-left: auto; color: #666; }
+  </style>
 </body>
 </html>

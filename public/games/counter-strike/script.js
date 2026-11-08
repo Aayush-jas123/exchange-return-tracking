@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 // Build tag — bump alongside index.html's ?v= so a console glance proves which build a tab is running.
-console.log('[CS] build v112 — monster truck recall park-brake active');
+console.log('[CS] build v117 — YouTube music player in monster truck');
 
 // ════════════════════════════════════════════════════════════
 //  OFFCOMFRT Arcade — Counter Strike
@@ -3480,6 +3480,9 @@ addEventListener('keydown', e => {
     }
   }
   if (e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault();
+  // Music player controls (only when a monster truck exists)
+  if (e.code === 'KeyT' && activeMonsterTruck) ytMusic.togglePanel();
+  if (e.code === 'KeyN' && activeMonsterTruck) ytMusic.next();
 });
 addEventListener('keyup', e => { keys[e.code] = false; });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouseDown = false; });
@@ -6683,6 +6686,150 @@ let playerInVehicle = false;
 const cheatBuffer = [];
 const CHEAT_CODE = ['KeyM', 'KeyO', 'KeyN', 'KeyS', 'KeyT', 'KeyE', 'KeyR'];
 
+// ── YOUTUBE MUSIC PLAYER — monster truck's in-game music system ──
+// Loads the YouTube IFrame API (script tag in index.html), creates a hidden player, and wires
+// play/pause/skip to the truck enter/exit flow and keyboard shortcuts (T = toggle panel, N = next).
+const ytMusic = {
+  tracks: [
+    { id: 'jz0seC0uZ8A', name: 'Track 1' }
+  ],
+  current: 0,
+  player: null,
+  ready: false,
+  playing: false,
+  panelVisible: false,
+  _initDone: false,
+
+  init() {
+    if (this._initDone) return;
+    this._initDone = true;
+    // YouTube IFrame API calls this global when loaded
+    window.onYouTubeIframeAPIReady = () => {
+      console.log('[CS] YouTube API ready');
+      this._createPlayer();
+    };
+    // If API already loaded (script was cached and fired before module init)
+    if (window.YT && window.YT.Player) {
+      this._createPlayer();
+    }
+    // Wire button clicks in the music panel
+    const btnPrev = document.getElementById('btnPrevTrack');
+    const btnPlay = document.getElementById('btnPlayPause');
+    const btnNext = document.getElementById('btnNextTrack');
+    const btnToggle = document.getElementById('btnTogglePlayer');
+    if (btnPrev) btnPrev.addEventListener('click', () => this.prev());
+    if (btnPlay) btnPlay.addEventListener('click', () => this.togglePlay());
+    if (btnNext) btnNext.addEventListener('click', () => this.next());
+    if (btnToggle) btnToggle.addEventListener('click', () => this.togglePanel());
+  },
+
+  _createPlayer() {
+    if (this.player || !document.getElementById('ytPlayer')) return;
+    try {
+      this.player = new YT.Player('ytPlayer', {
+        height: '158',
+        width: '280',
+        videoId: this.tracks[this.current].id,
+        playerVars: {
+          autoplay: 0,
+          controls: 1,
+          modestbranding: 1,
+          rel: 0,
+          fs: 0,
+          playsinline: 1
+        },
+        events: {
+          onReady: () => { this.ready = true; console.log('[CS] YT player ready'); },
+          onStateChange: (e) => {
+            // YT.PlayerState.ENDED === 0
+            if (e.data === 0) this.next();
+            this.playing = (e.data === 1);
+            const btn = document.getElementById('btnPlayPause');
+            if (btn) btn.textContent = this.playing ? '\u23F8' : '\u25B6';
+          }
+        }
+      });
+    } catch (err) {
+      console.warn('[CS] YT player init failed:', err.message);
+    }
+  },
+
+  play(index) {
+    this.init();
+    if (index !== undefined) this.current = index;
+    const track = this.tracks[this.current];
+    try {
+      if (this.player && this.ready) {
+        this.player.loadVideoById(track.id);
+        this.playing = true;
+        const btn = document.getElementById('btnPlayPause');
+        if (btn) btn.textContent = '\u23F8';
+      }
+    } catch (err) { /* swallow — YouTube iframe errors must never touch the game loop */ }
+    this._updateLabel();
+    this.showPanel();
+  },
+
+  pause() {
+    try {
+      if (this.player && this.ready && this.playing) {
+        this.player.pauseVideo();
+        this.playing = false;
+        const btn = document.getElementById('btnPlayPause');
+        if (btn) btn.textContent = '\u25B6';
+      }
+    } catch (err) { /* swallow */ }
+  },
+
+  togglePlay() {
+    if (this.playing) this.pause();
+    else this.play();
+  },
+
+  next() {
+    this.current = (this.current + 1) % this.tracks.length;
+    this.play();
+    showMissionNotification('\u266B NOW PLAYING: ' + this.tracks[this.current].name.toUpperCase());
+  },
+
+  prev() {
+    this.current = (this.current - 1 + this.tracks.length) % this.tracks.length;
+    this.play();
+    showMissionNotification('\u266B NOW PLAYING: ' + this.tracks[this.current].name.toUpperCase());
+  },
+
+  showPanel() {
+    const el = document.getElementById('musicPanel');
+    if (el) { el.classList.add('visible'); this.panelVisible = true; }
+  },
+
+  hidePanel() {
+    const el = document.getElementById('musicPanel');
+    if (el) { el.classList.remove('visible'); this.panelVisible = false; }
+  },
+
+  togglePanel() {
+    if (this.panelVisible) this.hidePanel();
+    else this.showPanel();
+  },
+
+  _updateLabel() {
+    const el = document.getElementById('musicTrack');
+    if (el) {
+      const t = this.tracks[this.current];
+      el.textContent = '\u266B ' + t.name + ' (' + (this.current + 1) + '/' + this.tracks.length + ')';
+    }
+  },
+
+  onEnterTruck() {
+    this.play();
+  },
+
+  onExitTruck() {
+    this.pause();
+  }
+};
+
 // Central kill credit for every monster-truck damage source (blade, ram, rockets). The per-frame
 // truck sites were calling bot.damage() but skipping the bookkeeping the weapon path does — score,
 // killfeed, enemy counter, round-win check — so kills by truck never registered anywhere.
@@ -7838,15 +7985,23 @@ class MonsterTruck {
       }
     }
     
-    // ── MUSIC PLAYER LED ANIMATION ──
-    this.musicTime += dt * 8;
+    // ── MUSIC PLAYER LED ANIMATION — reacts to YouTube playback state ──
+    this.musicTime += dt * (ytMusic.playing ? 12 : 8);
     if (this.eqBars) {
       this.eqBars.forEach((bar, i) => {
-        const height = 0.15 + Math.abs(Math.sin(this.musicTime + i * 0.8)) * 0.25;
-        bar.scale.y = height / 0.15;
-        bar.position.y = 0.38 + (height - 0.15) * 0.5;
-        // Pulse emissive intensity
-        bar.material.emissiveIntensity = 0.5 + Math.abs(Math.sin(this.musicTime * 2 + i)) * 0.5;
+        if (ytMusic.playing) {
+          // Energetic bounce synced to real music
+          const height = 0.15 + Math.abs(Math.sin(this.musicTime * 1.5 + i * 1.2)) * 0.3;
+          bar.scale.y = height / 0.15;
+          bar.position.y = 0.38 + (height - 0.15) * 0.5;
+          bar.material.emissiveIntensity = 0.6 + Math.abs(Math.sin(this.musicTime * 3 + i * 0.9)) * 0.4;
+        } else {
+          // Gentle idle pulse
+          const height = 0.15 + Math.abs(Math.sin(this.musicTime + i * 0.8)) * 0.12;
+          bar.scale.y = height / 0.15;
+          bar.position.y = 0.38 + (height - 0.15) * 0.5;
+          bar.material.emissiveIntensity = 0.4 + Math.abs(Math.sin(this.musicTime * 0.5 + i)) * 0.3;
+        }
       });
     }
     
@@ -8191,7 +8346,8 @@ function enterMonsterTruck() {
   const dist = player.pos.distanceTo(activeMonsterTruck.pos);
   if (dist < 4) {
     playerInVehicle = true;
-    showMissionNotification('IN VEHICLE - WASD drive, MOUSE aim turret, CLICK rockets');
+    showMissionNotification('IN VEHICLE - WASD drive, MOUSE aim turret, CLICK rockets | T music, N skip');
+    ytMusic.onEnterTruck();
   }
 }
 
@@ -8205,6 +8361,7 @@ function exitMonsterTruck() {
   offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), activeMonsterTruck.yaw);
   player.pos.copy(activeMonsterTruck.pos).add(offset);
   showMissionNotification('EXITED VEHICLE');
+  ytMusic.onExitTruck();
 }
 
 function updateMonsterTrucks(dt) {
