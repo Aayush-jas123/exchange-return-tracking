@@ -6728,6 +6728,16 @@ class MonsterTruck {
     this.damageState = 0;
     this.active = true;
     this.wheelBase = 3.4;
+    
+    // Flight state (jetpack)
+    this.verticalVelocity = 0;
+    this.isFlying = false;
+    this.thrustPower = 0; // 0 to 1, how much thrust is being applied
+    this.maxThrust = 45; // upward acceleration
+    this.gravity = 25; // downward acceleration
+    this.jetpackFuel = 100;
+    this.jetpackMaxFuel = 100;
+    this.jetpackFuelConsumption = 15; // per second while thrusting
     this.trackWidth = 2.7;
     
     const g = this.group = new THREE.Group();
@@ -7174,6 +7184,194 @@ class MonsterTruck {
     g.add(rocketGroup);
     this.rocketLauncher = rocketGroup;
     
+    // ── JETPACK — 4 corner-mounted thrusters for balanced flight (quadcopter layout) ──
+    const jetpackGroup = new THREE.Group();
+    this.thrusterPositions = []; // Store for flame particles
+    
+    // 4 thrusters at truck bed corners: front-left, front-right, rear-left, rear-right
+    const thrusterCoords = [
+      { x: -0.9, z: 0.8, name: 'FL' },  // Front-left
+      { x: 0.9, z: 0.8, name: 'FR' },   // Front-right
+      { x: -0.9, z: 2.5, name: 'RL' },  // Rear-left
+      { x: 0.9, z: 2.5, name: 'RR' }    // Rear-right
+    ];
+    
+    thrusterCoords.forEach(coord => {
+      const nozzleGroup = new THREE.Group();
+      nozzleGroup.position.set(coord.x, 2.5, coord.z);
+      
+      // Main nozzle body (tapered cylinder pointing down)
+      const nozzleBody = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.16, 0.22, 0.5, 12),
+        darkMat
+      );
+      nozzleBody.castShadow = true;
+      nozzleGroup.add(nozzleBody);
+      
+      // Chrome rim at the nozzle exit (bottom)
+      const nozzleRim = new THREE.Mesh(
+        new THREE.TorusGeometry(0.22, 0.035, 8, 16),
+        chromeMat
+      );
+      nozzleRim.rotation.x = Math.PI / 2;
+      nozzleRim.position.y = -0.25;
+      nozzleGroup.add(nozzleRim);
+      
+      // Inner dark cone (the flame outlet)
+      const innerCone = new THREE.Mesh(
+        new THREE.ConeGeometry(0.13, 0.18, 12),
+        new THREE.MeshStandardMaterial({ color: 0x1a1a1e, roughness: 0.9 })
+      );
+      innerCone.position.y = -0.22;
+      nozzleGroup.add(innerCone);
+      
+      // Mounting strut (connects to truck bed)
+      const strut = new THREE.Mesh(
+        new THREE.BoxGeometry(0.08, 0.35, 0.08),
+        armorMat
+      );
+      strut.position.y = 0.35;
+      strut.castShadow = true;
+      nozzleGroup.add(strut);
+      
+      // Support arm (angled brace)
+      const brace = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.025, 0.025, 0.4, 6),
+        chromeMat
+      );
+      brace.rotation.z = (coord.x > 0 ? -1 : 1) * 0.4;
+      brace.position.set((coord.x > 0 ? 0.12 : -0.12), 0.25, 0);
+      nozzleGroup.add(brace);
+      
+      jetpackGroup.add(nozzleGroup);
+      
+      // Store world position for flame particles
+      this.thrusterPositions.push(new THREE.Vector3(coord.x, 2.25, coord.z));
+    });
+    
+    // Cross-bracing between thrusters (structural support)
+    for (let z = 0; z < 2; z++) {
+      const crossBar = new THREE.Mesh(
+        new THREE.BoxGeometry(1.8, 0.06, 0.06),
+        armorMat
+      );
+      crossBar.position.set(0, 2.7, 0.8 + z * 1.7);
+      crossBar.castShadow = true;
+      jetpackGroup.add(crossBar);
+    }
+    for (let x = 0; x < 2; x++) {
+      const sideBar = new THREE.Mesh(
+        new THREE.BoxGeometry(0.06, 0.06, 1.7),
+        armorMat
+      );
+      sideBar.position.set(-0.9 + x * 1.8, 2.7, 1.65);
+      sideBar.castShadow = true;
+      jetpackGroup.add(sideBar);
+    }
+    
+    g.add(jetpackGroup);
+    this.jetpack = jetpackGroup;
+    this.jetFlames = []; // will hold flame particle systems
+    
+    // ── MUSIC PLAYER — high-detail subwoofer stack with LED equalizer ──
+    const musicGroup = new THREE.Group();
+    musicGroup.position.set(0, 2.8, 1.8); // truck bed, above fuel tank
+    
+    // Main subwoofer enclosure (box)
+    const subBox = new THREE.Mesh(
+      new THREE.BoxGeometry(1.2, 0.6, 0.8),
+      darkMat
+    );
+    subBox.castShadow = true;
+    musicGroup.add(subBox);
+    
+    // Dual subwoofers (large cones)
+    for (let side = -1; side <= 1; side += 2) {
+      const subCone = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.28, 0.28, 0.08, 24),
+        new THREE.MeshStandardMaterial({ color: 0x2a2a2e, roughness: 0.8 })
+      );
+      subCone.rotation.x = Math.PI / 2;
+      subCone.position.set(side * 0.35, 0, -0.41);
+      musicGroup.add(subCone);
+      
+      // Subwoofer dust cap (center dome)
+      const dustCap = new THREE.Mesh(
+        new THREE.SphereGeometry(0.08, 12, 8),
+        chromeMat
+      );
+      dustCap.position.set(side * 0.35, 0, -0.45);
+      musicGroup.add(dustCap);
+      
+      // Subwoofer surround ring
+      const subRing = new THREE.Mesh(
+        new THREE.TorusGeometry(0.28, 0.03, 8, 24),
+        armorMat
+      );
+      subRing.rotation.y = Math.PI / 2;
+      subRing.position.set(side * 0.35, 0, -0.41);
+      musicGroup.add(subRing);
+    }
+    
+    // Mid-range speakers (smaller, above the subs)
+    for (let side = -1; side <= 1; side += 2) {
+      const midSpeaker = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.15, 0.15, 0.06, 16),
+        new THREE.MeshStandardMaterial({ color: 0x3a3a3e, roughness: 0.7 })
+      );
+      midSpeaker.rotation.x = Math.PI / 2;
+      midSpeaker.position.set(side * 0.45, 0.25, -0.41);
+      musicGroup.add(midSpeaker);
+      
+      const midCone = new THREE.Mesh(
+        new THREE.ConeGeometry(0.12, 0.04, 16),
+        darkMat
+      );
+      midCone.rotation.x = -Math.PI / 2;
+      midCone.position.set(side * 0.45, 0.25, -0.44);
+      musicGroup.add(midCone);
+    }
+    
+    // LED equalizer bars (5 bars that will animate)
+    this.eqBars = [];
+    const ledMat = new THREE.MeshStandardMaterial({
+      color: 0x888888,
+      emissive: 0x666666,
+      emissiveIntensity: 0.8
+    });
+    for (let i = 0; i < 5; i++) {
+      const bar = new THREE.Mesh(
+        new THREE.BoxGeometry(0.08, 0.15, 0.05),
+        ledMat
+      );
+      bar.position.set(-0.3 + i * 0.15, 0.38, -0.41);
+      musicGroup.add(bar);
+      this.eqBars.push(bar);
+    }
+    
+    // Amplifier box on top
+    const amp = new THREE.Mesh(
+      new THREE.BoxGeometry(0.5, 0.15, 0.4),
+      armorMat
+    );
+    amp.position.set(0, 0.38, 0.1);
+    amp.castShadow = true;
+    musicGroup.add(amp);
+    
+    // Amp heat sink fins
+    for (let i = 0; i < 6; i++) {
+      const fin = new THREE.Mesh(
+        new THREE.BoxGeometry(0.48, 0.02, 0.03),
+        darkMat
+      );
+      fin.position.set(0, 0.46, -0.08 + i * 0.06);
+      musicGroup.add(fin);
+    }
+    
+    g.add(musicGroup);
+    this.musicPlayer = musicGroup;
+    this.musicTime = 0; // for LED animation
+    
     // ── ROTATING BLADE (front bumper) — 8 arms with sharpened cone tips, double guard rings ──
     const bladeGroup = new THREE.Group();
     bladeGroup.position.set(0, 1.0, -3.55);
@@ -7556,8 +7754,101 @@ class MonsterTruck {
     this.pos.x += moveX;
     this.pos.z += moveZ;
     
-    // Ground height
-    this.pos.y = groundHeight(this.pos, 0.5);
+    // ── JETPACK FLIGHT PHYSICS ──
+    const groundY = groundHeight(this.pos, 0.5);
+    const thrusting = playerInVehicle && activeMonsterTruck === this && 
+                      (keys['Space'] || touch.fire) && this.jetpackFuel > 0;
+    
+    if (thrusting) {
+      // Apply thrust upward
+      this.thrustPower = Math.min(1, this.thrustPower + dt * 3);
+      this.verticalVelocity += this.maxThrust * this.thrustPower * dt;
+      this.jetpackFuel = Math.max(0, this.jetpackFuel - this.jetpackFuelConsumption * dt);
+      this.isFlying = true;
+    } else {
+      // Thrust fades out
+      this.thrustPower = Math.max(0, this.thrustPower - dt * 2);
+    }
+    
+    // Apply gravity
+    this.verticalVelocity -= this.gravity * dt;
+    
+    // Air resistance when flying
+    if (this.pos.y > groundY) {
+      this.verticalVelocity *= Math.max(0, 1 - dt * 0.5);
+    }
+    
+    // Update vertical position
+    this.pos.y += this.verticalVelocity * dt;
+    
+    // Ground collision
+    if (this.pos.y <= groundY) {
+      this.pos.y = groundY;
+      this.verticalVelocity = 0;
+      this.isFlying = false;
+      // Regenerate fuel on ground
+      this.jetpackFuel = Math.min(this.jetpackMaxFuel, this.jetpackFuel + 5 * dt);
+    }
+    
+    // Ceiling limit (prevent flying too high)
+    const maxHeight = 50;
+    if (this.pos.y > maxHeight) {
+      this.pos.y = maxHeight;
+      this.verticalVelocity = Math.min(0, this.verticalVelocity);
+    }
+    
+    // Tilt truck based on vertical velocity (nose up when ascending)
+    const targetPitch = clamp(this.verticalVelocity * 0.02, -0.3, 0.3);
+    this.pitch += (targetPitch - this.pitch) * Math.min(1, dt * 5);
+    this.group.rotation.x = this.pitch;
+    
+    // ── JET FLAME PARTICLES (from all 4 thrusters) ──
+    if (this.thrustPower > 0.1 && this.pos.y > groundY + 0.5) {
+      this.exhaustTimer += dt;
+      if (this.exhaustTimer > 0.03) {
+        this.exhaustTimer = 0;
+        // Emit flames from each of the 4 thrusters
+        this.thrusterPositions.forEach(thrusterOffset => {
+          const flameMat = new THREE.MeshBasicMaterial({
+            color: 0xffaa44,
+            transparent: true,
+            opacity: 0.7 * this.thrustPower
+          });
+          const flame = new THREE.Mesh(
+            new THREE.ConeGeometry(0.12 * this.thrustPower, 0.4 + Math.random() * 0.25, 8),
+            flameMat
+          );
+          flame.position.copy(this.pos);
+          flame.position.x += thrusterOffset.x;
+          flame.position.y += thrusterOffset.y - this.pos.y;
+          flame.position.z += thrusterOffset.z;
+          flame.rotation.x = Math.PI;
+          scene.add(flame);
+          effects.push({
+            obj: flame,
+            life: 0.25,
+            max: 0.25,
+            grow: (e, k) => {
+              e.obj.scale.setScalar(1 + (1 - k) * 1.8);
+              e.obj.material.opacity = k * 0.7 * this.thrustPower;
+              e.obj.position.y -= dt * 2.5;
+            }
+          });
+        });
+      }
+    }
+    
+    // ── MUSIC PLAYER LED ANIMATION ──
+    this.musicTime += dt * 8;
+    if (this.eqBars) {
+      this.eqBars.forEach((bar, i) => {
+        const height = 0.15 + Math.abs(Math.sin(this.musicTime + i * 0.8)) * 0.25;
+        bar.scale.y = height / 0.15;
+        bar.position.y = 0.38 + (height - 0.15) * 0.5;
+        // Pulse emissive intensity
+        bar.material.emissiveIntensity = 0.5 + Math.abs(Math.sin(this.musicTime * 2 + i)) * 0.5;
+      });
+    }
     
     // Update group transform
     this.group.position.copy(this.pos);
