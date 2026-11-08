@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 // Build tag — bump alongside index.html's ?v= so a console glance proves which build a tab is running.
-console.log('[CS] build v119 — YouTube music: cue+click-to-play gesture fix');
+console.log('[CS] build v120 — P key play/pause for music player');
 
 // ════════════════════════════════════════════════════════════
 //  OFFCOMFRT Arcade — Counter Strike
@@ -3483,6 +3483,7 @@ addEventListener('keydown', e => {
   // Music player controls (only when a monster truck exists)
   if (e.code === 'KeyT' && activeMonsterTruck) ytMusic.togglePanel();
   if (e.code === 'KeyN' && activeMonsterTruck) ytMusic.next();
+  if (e.code === 'KeyP' && activeMonsterTruck) ytMusic.togglePlay();
 });
 addEventListener('keyup', e => { keys[e.code] = false; });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouseDown = false; });
@@ -8503,7 +8504,7 @@ function enterMonsterTruck() {
   const dist = player.pos.distanceTo(activeMonsterTruck.pos);
   if (dist < 4) {
     playerInVehicle = true;
-    showMissionNotification('IN VEHICLE - WASD drive, MOUSE aim, CLICK rockets | T music, N skip, \u25B6 to play');
+    showMissionNotification('IN VEHICLE - WASD drive, MOUSE aim, CLICK rockets | P play/pause, T music, N skip');
     ytMusic.onEnterTruck();
   }
 }
