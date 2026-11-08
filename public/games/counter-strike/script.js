@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 // Build tag — bump alongside index.html's ?v= so a console glance proves which build a tab is running.
-console.log('[CS] build v117 — YouTube music player in monster truck');
+console.log('[CS] build v118 — dense realistic jetpack exhaust');
 
 // ════════════════════════════════════════════════════════════
 //  OFFCOMFRT Arcade — Counter Strike
@@ -7949,39 +7949,155 @@ class MonsterTruck {
     this.pitch += (targetPitch - this.pitch) * Math.min(1, dt * 5);
     this.group.rotation.x = this.pitch;
     
-    // ── JET FLAME PARTICLES (from all 4 thrusters) ──
+    // ── JET EXHAUST — dense multi-layered realistic plume from all 4 thrusters ──
     if (this.thrustPower > 0.1 && this.pos.y > groundY + 0.5) {
       this.exhaustTimer += dt;
-      if (this.exhaustTimer > 0.03) {
+      if (this.exhaustTimer > 0.04) {
         this.exhaustTimer = 0;
-        // Emit flames from each of the 4 thrusters
-        this.thrusterPositions.forEach(thrusterOffset => {
-          const flameMat = new THREE.MeshBasicMaterial({
-            color: 0xffaa44,
-            transparent: true,
-            opacity: 0.7 * this.thrustPower
-          });
-          const flame = new THREE.Mesh(
-            new THREE.ConeGeometry(0.12 * this.thrustPower, 0.4 + Math.random() * 0.25, 8),
-            flameMat
-          );
-          flame.position.copy(this.pos);
-          flame.position.x += thrusterOffset.x;
-          flame.position.y += thrusterOffset.y - this.pos.y;
-          flame.position.z += thrusterOffset.z;
-          flame.rotation.x = Math.PI;
-          scene.add(flame);
-          effects.push({
-            obj: flame,
-            life: 0.25,
-            max: 0.25,
+        // Cache geometries once — shared across all particles of the same layer
+        if (!this._exhGeo) {
+          this._exhGeo = {
+            core:  new THREE.ConeGeometry(0.09, 0.35, 6),
+            mid:   new THREE.ConeGeometry(0.14, 0.5, 8),
+            outer: new THREE.ConeGeometry(0.2, 0.65, 8),
+            smoke: new THREE.SphereGeometry(0.22, 6, 5),
+            spark: new THREE.SphereGeometry(0.035, 4, 3),
+            dust:  new THREE.SphereGeometry(0.35, 6, 5)
+          };
+        }
+        const tp = this.thrustPower;
+        this.thrusterPositions.forEach(off => {
+          const wx = this.pos.x + off.x, wy = off.y, wz = this.pos.z + off.z;
+
+          // ── Layer 1: White-hot inner core — brightest, shortest lived ──
+          for (let i = 0; i < 2; i++) {
+            const m = new THREE.MeshBasicMaterial({
+              color: 0xffffff, transparent: true, opacity: 0.95 * tp,
+              blending: THREE.AdditiveBlending, depthWrite: false
+            });
+            const p = new THREE.Mesh(this._exhGeo.core, m);
+            p.position.set(wx + (Math.random() - 0.5) * 0.06, wy, wz + (Math.random() - 0.5) * 0.06);
+            p.rotation.x = Math.PI;
+            scene.add(p);
+            effects.push({ obj: p, life: 0.12, max: 0.12,
+              grow: (e, k) => {
+                e.obj.scale.setScalar(0.5 + (1 - k) * 1.2);
+                e.obj.material.opacity = k * 0.95 * tp;
+                e.obj.position.y -= dt * 5;
+              }
+            });
+          }
+
+          // ── Layer 2: Hot orange mid-flame ──
+          for (let i = 0; i < 2; i++) {
+            const m = new THREE.MeshBasicMaterial({
+              color: 0xffaa44, transparent: true, opacity: 0.8 * tp,
+              blending: THREE.AdditiveBlending, depthWrite: false
+            });
+            const p = new THREE.Mesh(this._exhGeo.mid, m);
+            p.position.set(wx + (Math.random() - 0.5) * 0.12, wy - 0.1, wz + (Math.random() - 0.5) * 0.12);
+            p.rotation.x = Math.PI;
+            scene.add(p);
+            effects.push({ obj: p, life: 0.18, max: 0.18,
+              grow: (e, k) => {
+                e.obj.scale.setScalar(0.6 + (1 - k) * 1.6);
+                e.obj.material.opacity = k * 0.75 * tp;
+                e.obj.position.y -= dt * 4;
+              }
+            });
+          }
+
+          // ── Layer 3: Deep orange outer flame — widest, gives the plume body ──
+          const m3 = new THREE.MeshBasicMaterial({
+            color: 0xcc6622, transparent: true, opacity: 0.65 * tp,
+              blending: THREE.AdditiveBlending, depthWrite: false
+            });
+          const p3 = new THREE.Mesh(this._exhGeo.outer, m3);
+          p3.position.set(wx, wy - 0.15, wz);
+          p3.rotation.x = Math.PI;
+          scene.add(p3);
+          effects.push({ obj: p3, life: 0.22, max: 0.22,
             grow: (e, k) => {
-              e.obj.scale.setScalar(1 + (1 - k) * 1.8);
-              e.obj.material.opacity = k * 0.7 * this.thrustPower;
-              e.obj.position.y -= dt * 2.5;
+              e.obj.scale.setScalar(0.7 + (1 - k) * 2.0);
+              e.obj.material.opacity = k * 0.6 * tp;
+              e.obj.position.y -= dt * 3.2;
             }
           });
+
+          // ── Layer 4: Dense billowing smoke — heterogeneous greys, long-lived, rising ──
+          for (let i = 0; i < 3; i++) {
+            const shade = 0x333333 + Math.floor(Math.random() * 0x333333);
+            const m = new THREE.MeshBasicMaterial({
+              color: shade, transparent: true, opacity: 0.4 + Math.random() * 0.2, depthWrite: false
+            });
+            const p = new THREE.Mesh(this._exhGeo.smoke, m);
+            p.position.set(
+              wx + (Math.random() - 0.5) * 0.4,
+              wy - 0.4 - Math.random() * 0.6,
+              wz + (Math.random() - 0.5) * 0.4
+            );
+            scene.add(p);
+            effects.push({ obj: p, life: 1.0 + Math.random() * 0.8, max: 1.8, fade: true,
+              vel: new THREE.Vector3(
+                (Math.random() - 0.5) * 0.6,
+                0.8 + Math.random() * 1.2,
+                (Math.random() - 0.5) * 0.6
+              ),
+              grow: (e, k) => {
+                e.obj.scale.setScalar(1.0 + (1 - k) * 3.5);
+              }
+            });
+          }
+
+          // ── Layer 5: Bright sparks — tiny fast fragments shooting downward ──
+          if (Math.random() < 0.7) {
+            for (let i = 0; i < 2; i++) {
+              const m = new THREE.MeshBasicMaterial({
+                color: 0xffddaa, transparent: true, opacity: 0.9,
+                blending: THREE.AdditiveBlending, depthWrite: false
+              });
+              const p = new THREE.Mesh(this._exhGeo.spark, m);
+              p.position.set(wx, wy - 0.2, wz);
+              scene.add(p);
+              effects.push({ obj: p, life: 0.25 + Math.random() * 0.2, max: 0.45,
+                vel: new THREE.Vector3(
+                  (Math.random() - 0.5) * 4,
+                  -(3 + Math.random() * 5),
+                  (Math.random() - 0.5) * 4
+                ),
+                grow: (e, k) => { e.obj.material.opacity = k * 0.9; }
+              });
+            }
+          }
         });
+
+        // ── Layer 6: Ground downdraft dust ring — only when close to ground ──
+        if (this.pos.y < groundY + 4 && tp > 0.3) {
+          const intensity = tp * (1 - (this.pos.y - groundY) / 4);
+          for (let i = 0; i < 2; i++) {
+            const shade = 0x555555 + Math.floor(Math.random() * 0x222222);
+            const m = new THREE.MeshBasicMaterial({
+              color: shade, transparent: true, opacity: 0.25 * intensity, depthWrite: false
+            });
+            const p = new THREE.Mesh(this._exhGeo.dust, m);
+            const angle = Math.random() * Math.PI * 2;
+            const rad = 0.5 + Math.random() * 1.5;
+            p.position.set(
+              this.pos.x + Math.cos(angle) * rad,
+              groundY + 0.15,
+              this.pos.z + Math.sin(angle) * rad
+            );
+            scene.add(p);
+            effects.push({ obj: p, life: 0.6 + Math.random() * 0.4, max: 1.0, fade: true,
+              vel: new THREE.Vector3(
+                Math.cos(angle) * 2.5 * intensity,
+                0.2 + Math.random() * 0.4,
+                Math.sin(angle) * 2.5 * intensity
+              ),
+              grow: (e, k) => { e.obj.scale.setScalar(1 + (1 - k) * 3); }
+            });
+          }
+        }
       }
     }
     
