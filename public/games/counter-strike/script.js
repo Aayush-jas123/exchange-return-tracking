@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 // Build tag — bump alongside index.html's ?v= so a console glance proves which build a tab is running.
-console.log('[CS] build v120 — P key play/pause for music player');
+console.log('[CS] build v121 — dense grey smoke jetpack exhaust');
 
 // ════════════════════════════════════════════════════════════
 //  OFFCOMFRT Arcade — Counter Strike
@@ -7991,135 +7991,147 @@ class MonsterTruck {
     this.pitch += (targetPitch - this.pitch) * Math.min(1, dt * 5);
     this.group.rotation.x = this.pitch;
     
-    // ── JET EXHAUST — dense multi-layered realistic plume from all 4 thrusters ──
+    // ── JET EXHAUST — dense realistic grey smoke plume from all 4 thrusters ──
     if (this.thrustPower > 0.1 && this.pos.y > groundY + 0.5) {
       this.exhaustTimer += dt;
-      if (this.exhaustTimer > 0.04) {
+      if (this.exhaustTimer > 0.025) {
         this.exhaustTimer = 0;
         // Cache geometries once — shared across all particles of the same layer
         if (!this._exhGeo) {
           this._exhGeo = {
-            core:  new THREE.ConeGeometry(0.09, 0.35, 6),
-            mid:   new THREE.ConeGeometry(0.14, 0.5, 8),
-            outer: new THREE.ConeGeometry(0.2, 0.65, 8),
-            smoke: new THREE.SphereGeometry(0.22, 6, 5),
-            spark: new THREE.SphereGeometry(0.035, 4, 3),
-            dust:  new THREE.SphereGeometry(0.35, 6, 5)
+            nozzle: new THREE.ConeGeometry(0.07, 0.2, 6),
+            smokeS: new THREE.SphereGeometry(0.18, 6, 5),
+            smokeM: new THREE.SphereGeometry(0.30, 7, 5),
+            smokeL: new THREE.SphereGeometry(0.45, 7, 6),
+            spark:  new THREE.SphereGeometry(0.03, 4, 3),
+            dust:   new THREE.SphereGeometry(0.35, 6, 5)
           };
         }
         const tp = this.thrustPower;
         this.thrusterPositions.forEach(off => {
           const wx = this.pos.x + off.x, wy = off.y, wz = this.pos.z + off.z;
 
-          // ── Layer 1: White-hot inner core — brightest, shortest lived ──
-          for (let i = 0; i < 2; i++) {
-            const m = new THREE.MeshBasicMaterial({
-              color: 0xffffff, transparent: true, opacity: 0.95 * tp,
-              blending: THREE.AdditiveBlending, depthWrite: false
-            });
-            const p = new THREE.Mesh(this._exhGeo.core, m);
-            p.position.set(wx + (Math.random() - 0.5) * 0.06, wy, wz + (Math.random() - 0.5) * 0.06);
-            p.rotation.x = Math.PI;
-            scene.add(p);
-            effects.push({ obj: p, life: 0.12, max: 0.12,
-              grow: (e, k) => {
-                e.obj.scale.setScalar(0.5 + (1 - k) * 1.2);
-                e.obj.material.opacity = k * 0.95 * tp;
-                e.obj.position.y -= dt * 5;
-              }
-            });
-          }
-
-          // ── Layer 2: Hot orange mid-flame ──
-          for (let i = 0; i < 2; i++) {
-            const m = new THREE.MeshBasicMaterial({
-              color: 0xffaa44, transparent: true, opacity: 0.8 * tp,
-              blending: THREE.AdditiveBlending, depthWrite: false
-            });
-            const p = new THREE.Mesh(this._exhGeo.mid, m);
-            p.position.set(wx + (Math.random() - 0.5) * 0.12, wy - 0.1, wz + (Math.random() - 0.5) * 0.12);
-            p.rotation.x = Math.PI;
-            scene.add(p);
-            effects.push({ obj: p, life: 0.18, max: 0.18,
-              grow: (e, k) => {
-                e.obj.scale.setScalar(0.6 + (1 - k) * 1.6);
-                e.obj.material.opacity = k * 0.75 * tp;
-                e.obj.position.y -= dt * 4;
-              }
-            });
-          }
-
-          // ── Layer 3: Deep orange outer flame — widest, gives the plume body ──
-          const m3 = new THREE.MeshBasicMaterial({
-            color: 0xcc6622, transparent: true, opacity: 0.65 * tp,
-              blending: THREE.AdditiveBlending, depthWrite: false
-            });
-          const p3 = new THREE.Mesh(this._exhGeo.outer, m3);
-          p3.position.set(wx, wy - 0.15, wz);
-          p3.rotation.x = Math.PI;
-          scene.add(p3);
-          effects.push({ obj: p3, life: 0.22, max: 0.22,
+          // ── Layer 1: Nozzle glow — tiny white flash right at the exit ──
+          const ng = new THREE.MeshBasicMaterial({
+            color: 0xeeeeee, transparent: true, opacity: 0.85 * tp,
+            blending: THREE.AdditiveBlending, depthWrite: false
+          });
+          const np = new THREE.Mesh(this._exhGeo.nozzle, ng);
+          np.position.set(wx, wy - 0.05, wz);
+          np.rotation.x = Math.PI;
+          scene.add(np);
+          effects.push({ obj: np, life: 0.08, max: 0.08,
             grow: (e, k) => {
-              e.obj.scale.setScalar(0.7 + (1 - k) * 2.0);
-              e.obj.material.opacity = k * 0.6 * tp;
-              e.obj.position.y -= dt * 3.2;
+              e.obj.scale.setScalar(0.4 + (1 - k) * 0.8);
+              e.obj.material.opacity = k * 0.85 * tp;
+              e.obj.position.y -= dt * 6;
             }
           });
 
-          // ── Layer 4: Dense billowing smoke — heterogeneous greys, long-lived, rising ──
-          for (let i = 0; i < 3; i++) {
-            const shade = 0x333333 + Math.floor(Math.random() * 0x333333);
+          // ── Layer 2: Thick dark smoke — dense puffs right below nozzle ──
+          for (let i = 0; i < 4; i++) {
+            const shade = 0x222222 + Math.floor(Math.random() * 0x1a1a1a);
             const m = new THREE.MeshBasicMaterial({
-              color: shade, transparent: true, opacity: 0.4 + Math.random() * 0.2, depthWrite: false
+              color: shade, transparent: true, opacity: 0.55 + Math.random() * 0.15, depthWrite: false
             });
-            const p = new THREE.Mesh(this._exhGeo.smoke, m);
+            const p = new THREE.Mesh(this._exhGeo.smokeS, m);
             p.position.set(
-              wx + (Math.random() - 0.5) * 0.4,
-              wy - 0.4 - Math.random() * 0.6,
-              wz + (Math.random() - 0.5) * 0.4
+              wx + (Math.random() - 0.5) * 0.25,
+              wy - 0.2 - Math.random() * 0.3,
+              wz + (Math.random() - 0.5) * 0.25
             );
             scene.add(p);
-            effects.push({ obj: p, life: 1.0 + Math.random() * 0.8, max: 1.8, fade: true,
+            effects.push({ obj: p, life: 0.8 + Math.random() * 0.6, max: 1.4, fade: true,
               vel: new THREE.Vector3(
-                (Math.random() - 0.5) * 0.6,
-                0.8 + Math.random() * 1.2,
-                (Math.random() - 0.5) * 0.6
+                (Math.random() - 0.5) * 0.5,
+                -(0.3 + Math.random() * 0.5),
+                (Math.random() - 0.5) * 0.5
               ),
               grow: (e, k) => {
-                e.obj.scale.setScalar(1.0 + (1 - k) * 3.5);
+                e.obj.scale.setScalar(0.6 + (1 - k) * 2.8);
               }
             });
           }
 
-          // ── Layer 5: Bright sparks — tiny fast fragments shooting downward ──
-          if (Math.random() < 0.7) {
+          // ── Layer 3: Medium grey smoke — expanding mid-plume ──
+          for (let i = 0; i < 3; i++) {
+            const shade = 0x444444 + Math.floor(Math.random() * 0x222222);
+            const m = new THREE.MeshBasicMaterial({
+              color: shade, transparent: true, opacity: 0.4 + Math.random() * 0.15, depthWrite: false
+            });
+            const p = new THREE.Mesh(this._exhGeo.smokeM, m);
+            p.position.set(
+              wx + (Math.random() - 0.5) * 0.5,
+              wy - 0.6 - Math.random() * 0.5,
+              wz + (Math.random() - 0.5) * 0.5
+            );
+            scene.add(p);
+            effects.push({ obj: p, life: 1.2 + Math.random() * 0.8, max: 2.0, fade: true,
+              vel: new THREE.Vector3(
+                (Math.random() - 0.5) * 0.8,
+                -(0.2 + Math.random() * 0.4),
+                (Math.random() - 0.5) * 0.8
+              ),
+              grow: (e, k) => {
+                e.obj.scale.setScalar(0.8 + (1 - k) * 3.5);
+              }
+            });
+          }
+
+          // ── Layer 4: Light wispy smoke — far trailing plume ──
+          for (let i = 0; i < 2; i++) {
+            const shade = 0x666666 + Math.floor(Math.random() * 0x222222);
+            const m = new THREE.MeshBasicMaterial({
+              color: shade, transparent: true, opacity: 0.25 + Math.random() * 0.1, depthWrite: false
+            });
+            const p = new THREE.Mesh(this._exhGeo.smokeL, m);
+            p.position.set(
+              wx + (Math.random() - 0.5) * 0.8,
+              wy - 1.0 - Math.random() * 0.6,
+              wz + (Math.random() - 0.5) * 0.8
+            );
+            scene.add(p);
+            effects.push({ obj: p, life: 1.5 + Math.random() * 1.0, max: 2.5, fade: true,
+              vel: new THREE.Vector3(
+                (Math.random() - 0.5) * 1.0,
+                0.1 + Math.random() * 0.3,
+                (Math.random() - 0.5) * 1.0
+              ),
+              grow: (e, k) => {
+                e.obj.scale.setScalar(1.0 + (1 - k) * 4.0);
+              }
+            });
+          }
+
+          // ── Layer 5: Hot sparks — tiny bright fragments ──
+          if (Math.random() < 0.5) {
             for (let i = 0; i < 2; i++) {
               const m = new THREE.MeshBasicMaterial({
-                color: 0xffddaa, transparent: true, opacity: 0.9,
+                color: 0xcccccc, transparent: true, opacity: 0.8,
                 blending: THREE.AdditiveBlending, depthWrite: false
               });
               const p = new THREE.Mesh(this._exhGeo.spark, m);
-              p.position.set(wx, wy - 0.2, wz);
+              p.position.set(wx, wy - 0.15, wz);
               scene.add(p);
-              effects.push({ obj: p, life: 0.25 + Math.random() * 0.2, max: 0.45,
+              effects.push({ obj: p, life: 0.2 + Math.random() * 0.15, max: 0.35,
                 vel: new THREE.Vector3(
-                  (Math.random() - 0.5) * 4,
-                  -(3 + Math.random() * 5),
-                  (Math.random() - 0.5) * 4
+                  (Math.random() - 0.5) * 3,
+                  -(2 + Math.random() * 4),
+                  (Math.random() - 0.5) * 3
                 ),
-                grow: (e, k) => { e.obj.material.opacity = k * 0.9; }
+                grow: (e, k) => { e.obj.material.opacity = k * 0.8; }
               });
             }
           }
         });
 
-        // ── Layer 6: Ground downdraft dust ring — only when close to ground ──
+        // ── Layer 6: Ground downdraft dust — only when close to ground ──
         if (this.pos.y < groundY + 4 && tp > 0.3) {
           const intensity = tp * (1 - (this.pos.y - groundY) / 4);
-          for (let i = 0; i < 2; i++) {
+          for (let i = 0; i < 3; i++) {
             const shade = 0x555555 + Math.floor(Math.random() * 0x222222);
             const m = new THREE.MeshBasicMaterial({
-              color: shade, transparent: true, opacity: 0.25 * intensity, depthWrite: false
+              color: shade, transparent: true, opacity: 0.3 * intensity, depthWrite: false
             });
             const p = new THREE.Mesh(this._exhGeo.dust, m);
             const angle = Math.random() * Math.PI * 2;
