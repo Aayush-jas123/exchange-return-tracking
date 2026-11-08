@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 // Build tag — bump alongside index.html's ?v= so a console glance proves which build a tab is running.
-console.log('[CS] build v121 — dense grey smoke jetpack exhaust');
+console.log('[CS] build v122 — music panel hidden until T pressed');
 
 // ════════════════════════════════════════════════════════════
 //  OFFCOMFRT Arcade — Counter Strike
@@ -6778,7 +6778,6 @@ const ytMusic = {
       }
     } catch (err) { console.warn('[CS] YT play error:', err.message); }
     this._updateLabel();
-    this.showPanel();
   },
 
   // Call ONLY from a click handler — carries the user gesture YouTube needs for autoplay
@@ -6849,22 +6848,8 @@ const ytMusic = {
   },
 
   onEnterTruck() {
-    this.play(); // cues the video and shows the panel
-    showMissionNotification('\u266B CLICK ANYWHERE TO START MUSIC');
-    // One-time: first click anywhere after entering the truck starts playback
-    // (YouTube requires a click/touch gesture for autoplay — keydown doesn't count)
-    const startOnClick = () => {
-      this._startPlayback();
-      document.removeEventListener('click', startOnClick);
-      document.removeEventListener('touchstart', startOnClick);
-    };
-    document.addEventListener('click', startOnClick, { once: false });
-    document.addEventListener('touchstart', startOnClick, { once: false });
-    // Clean up after 10 seconds if user never clicks
-    setTimeout(() => {
-      document.removeEventListener('click', startOnClick);
-      document.removeEventListener('touchstart', startOnClick);
-    }, 10000);
+    this.init(); // ensure player is created and video is cued
+    // Panel stays hidden — press T to show it
   },
 
   onExitTruck() {
