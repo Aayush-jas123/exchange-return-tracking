@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 // Build tag — bump alongside index.html's ?v= so a console glance proves which build a tab is running.
-console.log('[CS] build v118 — dense realistic jetpack exhaust');
+console.log('[CS] build v119 — YouTube music: cue+click-to-play gesture fix');
 
 // ════════════════════════════════════════════════════════════
 //  OFFCOMFRT Arcade — Counter Strike
@@ -6739,7 +6739,15 @@ const ytMusic = {
           playsinline: 1
         },
         events: {
-          onReady: () => { this.ready = true; console.log('[CS] YT player ready'); },
+          onReady: () => {
+            this.ready = true;
+            console.log('[CS] YT player ready');
+            // If play was requested before the player was ready, start now
+            if (this._pendingPlay) {
+              this._pendingPlay = false;
+              this._startPlayback();
+            }
+          },
           onStateChange: (e) => {
             // YT.PlayerState.ENDED === 0
             if (e.data === 0) this.next();
@@ -6760,14 +6768,29 @@ const ytMusic = {
     const track = this.tracks[this.current];
     try {
       if (this.player && this.ready) {
-        this.player.loadVideoById(track.id);
+        // Cue first (works from any context), then play from a click gesture
+        this.player.cueVideoById(track.id);
+        this._cued = true;
+      } else if (this.player && !this.ready) {
+        this.player.cueVideoById(track.id);
+        this._pendingPlay = true;
+      }
+    } catch (err) { console.warn('[CS] YT play error:', err.message); }
+    this._updateLabel();
+    this.showPanel();
+  },
+
+  // Call ONLY from a click handler — carries the user gesture YouTube needs for autoplay
+  _startPlayback() {
+    try {
+      if (this.player && this.ready) {
+        if (this._cued) { this.player.playVideo(); this._cued = false; }
+        else { this.player.loadVideoById(this.tracks[this.current].id); }
         this.playing = true;
         const btn = document.getElementById('btnPlayPause');
         if (btn) btn.textContent = '\u23F8';
       }
-    } catch (err) { /* swallow — YouTube iframe errors must never touch the game loop */ }
-    this._updateLabel();
-    this.showPanel();
+    } catch (err) { console.warn('[CS] YT start error:', err.message); }
   },
 
   pause() {
@@ -6783,18 +6806,21 @@ const ytMusic = {
 
   togglePlay() {
     if (this.playing) this.pause();
-    else this.play();
+    else this._startPlayback();
   },
 
   next() {
     this.current = (this.current + 1) % this.tracks.length;
     this.play();
+    // If player is ready, start immediately (called from click = valid gesture)
+    if (this.ready) this._startPlayback();
     showMissionNotification('\u266B NOW PLAYING: ' + this.tracks[this.current].name.toUpperCase());
   },
 
   prev() {
     this.current = (this.current - 1 + this.tracks.length) % this.tracks.length;
     this.play();
+    if (this.ready) this._startPlayback();
     showMissionNotification('\u266B NOW PLAYING: ' + this.tracks[this.current].name.toUpperCase());
   },
 
@@ -6822,7 +6848,22 @@ const ytMusic = {
   },
 
   onEnterTruck() {
-    this.play();
+    this.play(); // cues the video and shows the panel
+    showMissionNotification('\u266B CLICK ANYWHERE TO START MUSIC');
+    // One-time: first click anywhere after entering the truck starts playback
+    // (YouTube requires a click/touch gesture for autoplay — keydown doesn't count)
+    const startOnClick = () => {
+      this._startPlayback();
+      document.removeEventListener('click', startOnClick);
+      document.removeEventListener('touchstart', startOnClick);
+    };
+    document.addEventListener('click', startOnClick, { once: false });
+    document.addEventListener('touchstart', startOnClick, { once: false });
+    // Clean up after 10 seconds if user never clicks
+    setTimeout(() => {
+      document.removeEventListener('click', startOnClick);
+      document.removeEventListener('touchstart', startOnClick);
+    }, 10000);
   },
 
   onExitTruck() {
@@ -8462,7 +8503,7 @@ function enterMonsterTruck() {
   const dist = player.pos.distanceTo(activeMonsterTruck.pos);
   if (dist < 4) {
     playerInVehicle = true;
-    showMissionNotification('IN VEHICLE - WASD drive, MOUSE aim turret, CLICK rockets | T music, N skip');
+    showMissionNotification('IN VEHICLE - WASD drive, MOUSE aim, CLICK rockets | T music, N skip, \u25B6 to play');
     ytMusic.onEnterTruck();
   }
 }
