@@ -309,6 +309,27 @@ const corsOptions = {
     optionsSuccessStatus: 200
 };
 
+// ── Liveness + readiness (Phase 1 §B1–B5) ──────────────────────────────────
+// Required here rather than at the top of the file on purpose: this module
+// pulls in config/supabase.js, which reads its credentials at load time and
+// caches the client it builds. Requiring it before dotenv (L111) would pin a
+// placeholder client for the whole process.
+//
+// Mounted BEFORE cors() and apiLimiter: a rate-limited instance still has to
+// be able to prove it is alive, and the readiness report (datastore reachability,
+// sync staleness, memory headroom) must not be readable from a browser origin.
+const { createHealthRouter } = require('./src/routes/healthRoutes');
+app.use(createHealthRouter({
+    version: require('./package.json').version,
+    // The report also accepts x-internal-token, checked first: readiness is
+    // exactly when the database may be the thing that is down, and
+    // authenticateAdmin looks operators up in it.
+    authenticate: authenticateAdmin,
+    getSyncState: () => ({ running: isSyncRunning, lastRunAt: lastSyncTimestamp }),
+    getShopifySyncState: () => ({ running: isShopifySyncRunning, lastRunAt: lastShopifySyncTimestamp }),
+    shoppersHubQuery: require('./config/shopper-hub-db').probeConnection
+}));
+
 app.use(cors(corsOptions));
 
 // Rate limiters

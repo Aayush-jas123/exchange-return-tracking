@@ -16,6 +16,35 @@
 
 let pool = null;
 let poolFailed = false;
+// 'not-configured' is a deliberate opt-out, anything else is a broken
+// dependency — /ready has to tell them apart or every deployment that does not
+// use the Shopper Hub fallback reports itself degraded forever.
+let poolFailureReason = null;
+
+// Readiness bookkeeping (Phase 1 §B3): scalars only, read without touching the
+// pool, so answering /ready never acquires a connection of its own.
+let queryCount = 0;
+let queryErrorCount = 0;
+let lastQueryAt = null;
+let lastQueryMs = null;
+let lastQueryErrorAt = null;
+let lastQueryErrorMessage = null;
+let poolErrorCount = 0;
+let lastPoolErrorAt = null;
+let lastPoolErrorMessage = null;
+
+function noteQuerySuccess(durationMs) {
+    queryCount++;
+    lastQueryAt = Date.now();
+    if (Number.isFinite(durationMs)) lastQueryMs = durationMs;
+}
+
+function noteQueryFailure(err) {
+    queryErrorCount++;
+    lastQueryErrorAt = Date.now();
+    // Message only — never the parameters, which carry customer phones.
+    lastQueryErrorMessage = err && err.message ? String(err.message).slice(0, 200) : String(err).slice(0, 200);
+}
 
 function getPool() {
     if (pool || poolFailed) return pool;
@@ -23,6 +52,7 @@ function getPool() {
     const connectionString = process.env.SHOPPERHUB_DB_URL;
     if (!connectionString) {
         poolFailed = true;
+        poolFailureReason = 'not-configured';
         console.warn('⚠️  SHOPPERHUB_DB_URL not set — Shopper Hub order fallback disabled.');
         return null;
     }
@@ -38,14 +68,68 @@ function getPool() {
         });
         // Don't crash the server if the pool hits a transient error
         pool.on('error', (err) => {
+            poolErrorCount++;
+            lastPoolErrorAt = Date.now();
+            lastPoolErrorMessage = err && err.message ? String(err.message).slice(0, 200) : String(err).slice(0, 200);
             console.warn('Shopper Hub DB pool error (non-fatal):', err.message);
         });
+        // Both lookups below call pool.query() directly, so the bookkeeping is
+        // wrapped around the pool method rather than repeated at each call site.
+        const rawQuery = pool.query.bind(pool);
+        pool.query = function trackedQuery(...args) {
+            const startedAt = Date.now();
+            const pending = rawQuery(...args);
+            if (!pending || typeof pending.then !== 'function') return pending;
+            return pending.then(
+                (result) => { noteQuerySuccess(Date.now() - startedAt); return result; },
+                (err) => { noteQueryFailure(err); throw err; }
+            );
+        };
         return pool;
     } catch (err) {
         poolFailed = true;
+        poolFailureReason = err && err.message ? String(err.message).slice(0, 200) : 'pool construction failed';
         console.warn('⚠️  Shopper Hub DB unavailable (pg missing?):', err.message);
         return null;
     }
+}
+
+/**
+ * Read-only view of this module's connection state for /ready. Never calls
+ * getPool(), so it reports "uninitialised" instead of creating a pool as a
+ * side effect of a health check.
+ *   state: 'uninitialised' | 'disabled' | 'failed' | 'live'
+ */
+function getPoolStatus() {
+    const base = {
+        configured: Boolean(process.env.SHOPPERHUB_DB_URL),
+        queryCount,
+        queryErrorCount,
+        lastQueryAt,
+        lastQueryAgeMs: lastQueryAt === null ? null : Date.now() - lastQueryAt,
+        lastQueryMs,
+        lastQueryErrorAt,
+        lastQueryErrorMessage,
+        poolErrorCount,
+        lastPoolErrorAt,
+        lastPoolErrorMessage
+    };
+    if (!pool) {
+        return Object.assign(base, {
+            state: poolFailed ? (poolFailureReason === 'not-configured' ? 'disabled' : 'failed') : 'uninitialised',
+            failureReason: poolFailureReason
+        });
+    }
+    const total = pool.totalCount || 0;
+    const idle = pool.idleCount || 0;
+    return Object.assign(base, {
+        state: 'live',
+        total,
+        idle,
+        inUse: Math.max(0, total - idle),
+        waiting: pool.waitingCount || 0,
+        max: pool.options.max
+    });
 }
 
 const BLOCKED_SHOPPER_STATUSES = ['cancelled', 'canceled', 'rejected'];
@@ -143,4 +227,20 @@ async function findShopperEmailByPhone(phone) {
     }
 }
 
-module.exports = { findShopperOrder, findShopperEmailByPhone };
+/**
+ * Deep readiness probe: one real round trip on the fallback pool. Only reached
+ * from /ready?deep=1, so an ordinary poll can never spend a connection. Throws
+ * when there is no pool rather than returning null, because "nothing happened"
+ * and "this cannot work" are different answers.
+ */
+async function probeConnection() {
+    const activePool = getPool();
+    if (!activePool) {
+        throw new Error(poolFailureReason === 'not-configured'
+            ? 'SHOPPERHUB_DB_URL is not configured'
+            : `pool unavailable: ${poolFailureReason || 'unknown reason'}`);
+    }
+    return activePool.query('SELECT 1');
+}
+
+module.exports = { findShopperOrder, findShopperEmailByPhone, getPoolStatus, probeConnection };
