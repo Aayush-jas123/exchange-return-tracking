@@ -1,6 +1,6 @@
 const express = require('express');
 const rateLimit = require('express-rate-limit');
-const winston = require('winston');
+const { createAppLogger, installConsoleShim, resolveLevel } = require('./src/utils/logger');
 const jwt = require('jsonwebtoken');
 const helmet = require('helmet');
 
@@ -40,21 +40,15 @@ process.on('uncaughtException', (err) => {
 // Environment check
 const isProduction = process.env.NODE_ENV === 'production';
 
-// Create the logger
+// Create the logger and route every console.* call through it (Phase 1 §A1).
 // The old `isProduction ? 'error' : 'warn'` ceiling silently dropped every
 // logger.warn in production — rate-limit hits, suspicious-IP escalations and
 // rejected uploads were all discarded. One LOG_LEVEL knob instead; noise is
 // controlled by level overrides at deploy time, not by swallowing signals.
-const logger = winston.createLogger({
-    level: process.env.LOG_LEVEL || 'warn',
-    format: winston.format.combine(
-        winston.format.timestamp(),
-        winston.format.json()
-    ),
-    transports: [
-        new winston.transports.Console(),
-    ]
-});
+// The shim covers the ~4,167 existing console.* sites without editing any of
+// them; every line is redacted on the way out (see src/utils/redact.js).
+const logger = createAppLogger({ level: 'warn' });
+installConsoleShim(logger);
 
 // Rate limit event handler with logging
 function rateLimitHandler(req, res, next, options) {
@@ -115,6 +109,9 @@ const cors = require('cors');
 const crypto = require('crypto');
 const path = require('path');
 require('dotenv').config();
+// dotenv only runs here, ~70 lines after the logger was created, so a LOG_LEVEL
+// set in .env did not exist yet when the level was resolved. Re-read it now.
+logger.level = resolveLevel(logger.baseLevel);
 const multer = require('multer');
 const cloudinary = require('cloudinary');
 const { CloudinaryStorage } = require('multer-storage-cloudinary-v2');
