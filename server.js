@@ -41,8 +41,12 @@ process.on('uncaughtException', (err) => {
 const isProduction = process.env.NODE_ENV === 'production';
 
 // Create the logger
+// The old `isProduction ? 'error' : 'warn'` ceiling silently dropped every
+// logger.warn in production — rate-limit hits, suspicious-IP escalations and
+// rejected uploads were all discarded. One LOG_LEVEL knob instead; noise is
+// controlled by level overrides at deploy time, not by swallowing signals.
 const logger = winston.createLogger({
-    level: isProduction ? 'error' : 'warn',
+    level: process.env.LOG_LEVEL || 'warn',
     format: winston.format.combine(
         winston.format.timestamp(),
         winston.format.json()
@@ -2810,7 +2814,9 @@ async function createShiprocketReturnOrder(requestData, shopifyOrder) {
             weight: 0.5
         };
 
-        console.log('🚀 Creating Shiprocket Return. Payload:', JSON.stringify(payload, null, 2));
+        // Bounded summary only — the full payload carries customer name, phone
+        // and address and must never reach the log stream (Phase 1 §0.4).
+        console.log(`🚀 Creating Shiprocket Return. order=${requestData.requestId} items=${returnItems.length} pickup_pin=***${String(address.zip || '').slice(-3)}`);
 
         // POST helper so we can transparently refresh an expired token and retry once.
         const postReturn = async (authToken) => {
@@ -3062,7 +3068,8 @@ async function createShiprocketForwardOrder(requestData) {
             length: 10, breadth: 10, height: 10, weight: 0.5
         };
 
-        console.log('🚀 Creating Shiprocket Forward Order:', JSON.stringify(payload, null, 2));
+        // Bounded summary only — full payload holds billing name/phone/address (Phase 1 §0.4).
+        console.log(`🚀 Creating Shiprocket Forward Order. order=${payload.order_id} items=${orderItems.length} billing_pin=***${String(payload.billing_pincode || '').slice(-3)}`);
 
         // POST helper so we can transparently refresh an expired token and retry once.
         const postForward = async (authToken) => {
@@ -3098,14 +3105,14 @@ async function createShiprocketForwardOrder(requestData) {
             (data.errors && Object.keys(data.errors).length > 0)
         ) {
             console.error('❌ Shiprocket Validation Error (Forward):', JSON.stringify(data));
-            console.error('❌ Payload that caused error:', JSON.stringify(payload, null, 2));
+            console.error(`❌ Payload that caused error: order=${payload.order_id} items=${orderItems.length} billing_pin=***${String(payload.billing_pincode || '').slice(-3)}`); // bounded summary, never the full PII payload (Phase 1 §0.4)
             console.error('❌ Items being sent:', JSON.stringify(orderItems, null, 2));
             return null;
         }
 
         if (!response.ok) {
             console.error(`❌ Shiprocket API Error (HTTP ${response.status}):`, JSON.stringify(data));
-            console.error('❌ Payload that caused error:', JSON.stringify(payload, null, 2));
+            console.error(`❌ Payload that caused error: order=${payload.order_id} items=${orderItems.length} billing_pin=***${String(payload.billing_pincode || '').slice(-3)}`); // bounded summary, never the full PII payload (Phase 1 §0.4)
             return null;
         }
 
@@ -3355,7 +3362,8 @@ async function createDelhiveryReturnOrder(requestData, shopifyOrder) {
             }
         };
 
-        console.log(`🚀 Creating Delhivery Return Order. Payload:`, JSON.stringify(payload, null, 2));
+        // Bounded summary only — the payload holds customer name/address/phone (Phase 1 §0.4).
+        console.log(`🚀 Creating Delhivery Return Order. order=${delhiveryOrderId} qty=${totalQuantity} amt=₹${totalAmount} pin=***${String(customerPincode || '').slice(-3)}`);
 
         // Delhivery requires format=json&data=<json_string> in the body
         const bodyString = `format=json&data=${JSON.stringify(payload)}`;
@@ -3758,8 +3766,8 @@ async function createDelhiveryForwardOrder(requestData, shopifyOrder) {
             }
         };
 
-        console.log('🚀 Sending to Delhivery CMU API...');
-        console.log('📦 Payload:', JSON.stringify(payload, null, 2));
+        // Bounded summary only — the payload holds customer name/address/phone (Phase 1 §0.4).
+        console.log(`🚀 Sending to Delhivery CMU API (forward). order=${forwardOrderId} qty=${totalQuantity} amt=₹${totalAmount} pin=***${String(customerPincode || '').slice(-3)}`);
 
         const response = await fetch('https://track.delhivery.com/api/cmu/create.json', {
             method: 'POST',
@@ -4072,7 +4080,8 @@ async function ekartBackfillCityState(pincode, city, state) {
 // PUT /api/v1/package/create — shared submit + response handling for both
 // directions. Returns { waybill, shipment_id, data } or throws.
 async function ekartCreateShipment(payload, requestId) {
-    console.log(`[${requestId}] 🚀 Creating Ekart shipment. Payload:`, JSON.stringify(payload, null, 2));
+    // Bounded summary only — the payload holds the customer block incl. name, address, phone (Phase 1 §0.4).
+    console.log(`[${requestId}] 🚀 Creating Ekart shipment. order=${payload.order_number} amt=₹${payload.total_amount} pin=***${String(payload.drop_location?.pin || '').slice(-3)}`);
     const data = await ekartAPI('/api/v1/package/create', {
         method: 'PUT',
         body: JSON.stringify(payload)
